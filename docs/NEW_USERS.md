@@ -12,7 +12,7 @@ live. Nothing is set up by hand for each person.
 `firestore.rules` allows each signed-in person to read and change only `users/<their account>/…`, and closes
 everything else. It goes out with the website once you switch it on:
 
-1. Google Cloud → **IAM** (console.cloud.google.com/iam-admin/iam?project=working-dashboard-655ca) → the row
+1. Google Cloud → **IAM** (console.cloud.google.com/iam-admin/iam?project=work-tracker-3b728) → the row
    `github-web-deploy@…` → ✎ → **+ Add another role** → **Firebase Rules Admin** → **Save**.
 2. GitHub → repo **Settings → Secrets and variables → Actions → Variables** → **New repository variable**:
    `DEPLOY_FIRESTORE_RULES` = `true`.
@@ -27,7 +27,7 @@ Fetch Mail reads each person's own Gmail with their own sign-in, and the Daily R
 inside this Firebase project. Both are switched on once, by you:
 
 1. **Gmail:** Google Cloud → **APIs & Services → Library** → search **Gmail API** → **Enable**
-   (console.cloud.google.com/apis/library/gmail.googleapis.com?project=working-dashboard-655ca).
+   (console.cloud.google.com/apis/library/gmail.googleapis.com?project=work-tracker-3b728).
 2. **AI:** Firebase console → **AI Logic** (under Build / AI) → **Get started** → choose **Gemini Developer API**
    (free tier, works on the free Spark plan) → follow the steps to the end.
 

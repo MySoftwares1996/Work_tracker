@@ -1,7 +1,7 @@
 /**
  * Google Sign-In + Firestore realtime sync - the same `users/{uid}/tasks` +
  * `users/{uid}/meta/{lists,calendar}` shape the web app's `rt` object
- * already uses in the "working-dashboard-655ca" Firebase project, so a
+ * already uses in the "work-tracker-3b728" Firebase project, so a
  * phone and the web app can share entries live. The Apps Script/Sheets
  * sync (src/cloudSync.js) stays in independently, the same backup role it
  * has on the web app.
@@ -18,9 +18,9 @@ import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/goo
 import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, decodeLists, encodeLists, decodeCalendar, mergeListsForPush } from './firebaseSyncCore';
 import { toWebTask } from './cloudSync';
 
-// This project's own Firebase Android app (working-dashboard-655ca), the
+// This project's own Firebase Android app (work-tracker-3b728), the
 // "Web" OAuth client Google Sign-In needs regardless of platform.
-const WEB_CLIENT_ID = '576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com';
+const WEB_CLIENT_ID = '872088776442-j180sk5pe8ubl9igmd0k28a02t7n1g2n.apps.googleusercontent.com';
 
 let configured = false;
 function ensureConfigured() {

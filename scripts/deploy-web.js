@@ -14,7 +14,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const PROJECT = process.env.FIREBASE_PROJECT || 'working-dashboard-655ca';
+const PROJECT = process.env.FIREBASE_PROJECT || 'work-tracker-3b728';
 const SITE = String(process.env.FIREBASE_HOSTING_SITE || '').trim();
 const FIREBASE_TOOLS = 'firebase-tools@15';
 
