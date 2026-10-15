@@ -412,6 +412,7 @@ function TaskForm({ initial, onClose }) {
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form className="sheet wide" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
         <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="split"><div className="split-main">
         <label className="field full">Task description<textarea rows={2} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
         <div className="fields">
           {pick('categories', 'Category', 'category', true)}
@@ -434,7 +435,8 @@ function TaskForm({ initial, onClose }) {
         </div>
         {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
         <label className="field full">Mail chain<input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" /></label>
-        <label className="field full">Notes<textarea rows={4} value={t.notes} onChange={set('notes')} /></label>
+        <label className="field full">Notes<textarea rows={6} value={t.notes} onChange={set('notes')} /></label>
+        </div><div className="split-side">
 
         <div className="field full">Checklist{t.checklist.length > 0 && <span className="muted"> ({t.checklist.filter((c) => c.done).length}/{t.checklist.length} done)</span>}
           {t.checklist.map((c) => (
@@ -460,6 +462,7 @@ function TaskForm({ initial, onClose }) {
           <div className="add-row"><input value={kp.key} onChange={(e) => setKp({ ...kp, key: e.target.value })} placeholder="Label (e.g. Invoice no.)" /><input value={kp.value} onChange={(e) => setKp({ ...kp, value: e.target.value })} placeholder="Value" /><button type="button" className="btn" onClick={addKp} disabled={!kp.key.trim() && !kp.value.trim()}>Add</button></div>
         </div>
 
+        </div></div>
         <div className="sheet-foot">
           {!isNew && !t.binned && <button type="button" className="btn danger" onClick={() => { actions.bin(t); onClose(); }}>Move to bin</button>}
           <span className="grow" />
