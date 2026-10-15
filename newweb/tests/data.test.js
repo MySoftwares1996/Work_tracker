@@ -174,3 +174,15 @@ test('a point on the dial becomes an hour or a minute', () => {
   assert.equal(angleToMinute(359), 0);
   assert.equal(angleToMinute(138), 23);
 });
+
+import { readFileSync } from 'node:fs';
+import { THEMES } from '../src/themes.js';
+test('every theme in the chooser has its CSS and the tokens the screens use', () => {
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  assert.ok(THEMES.length >= 6);
+  THEMES.filter((t) => t.id !== 'violet').forEach((t) => {
+    const m = new RegExp(`:root\\[data-theme="${t.id}"\\] \\{([^}]*)\\}`).exec(css);
+    assert.ok(m, t.id);
+    ['--bg', '--surface', '--ink', '--violet', '--on-accent', '--tile-coral', '--tile-teal-fg', '--danger-bg', '--shadow'].forEach((v) => assert.ok(m[1].includes(v + ':'), `${t.id} ${v}`));
+  });
+});

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
+import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
 import { DONE_STATUS, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
@@ -324,9 +325,33 @@ function Config() {
     <>
       <h1 className="h1">Config</h1>
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
+      <Appearance />
       <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
       <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
     </>
+  );
+}
+
+/** Config > Appearance: pick a colour theme; it applies at once and is remembered on this device. */
+function Appearance() {
+  const [theme, setTheme] = useState(savedTheme);
+  return (
+    <section className="card plain">
+      <h2 className="h2">Appearance</h2>
+      <p className="muted">Pick a colour theme. It applies at once and is kept on this device.</p>
+      <div className="themes">
+        {THEMES.map((t) => (
+          <button key={t.id} type="button" className="theme-card" aria-pressed={theme === t.id} onClick={() => setTheme(applyTheme(t.id))}>
+            <span className="swatch" style={{ background: t.swatch.bg }}>
+              <span className="sw-pill" style={{ background: t.swatch.card }}><i style={{ background: t.swatch.accent }} /><i style={{ background: t.swatch.tileInk[0], opacity: 0.25 }} /><i style={{ background: t.swatch.tileInk[3], opacity: 0.25 }} /></span>
+              <span className="sw-tiles">{t.swatch.tiles.map((c, i) => <i key={i} style={{ background: c }} />)}</span>
+              <span className="sw-card" style={{ background: t.swatch.card }} />
+            </span>
+            <span className="theme-name"><span>{t.name}<br /><small>{t.note}</small></span><i className="tick" /></span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
