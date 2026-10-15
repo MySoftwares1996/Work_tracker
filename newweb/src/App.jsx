@@ -540,8 +540,9 @@ function TaskForm({ initial, onClose }) {
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form className="sheet wide" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
         <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
-        <div className="split"><div className="split-main">
-        <label className="field full">Task description<textarea rows={2} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
+        <div className="cols3">
+        <div className="col">
+        <label className="field full">Task description<textarea rows={3} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
         <div className="fields">
           {pick('categories', 'Category', 'category', true)}
           {pick('priorities', 'Priority', 'priority')}
@@ -554,19 +555,20 @@ function TaskForm({ initial, onClose }) {
         )}
         {(categoryAsksReminder(lists, t.category) || remDate) && (
           <div className="manage-panel reminder-panel">
-            <span className="field">Next reminder date &amp; time</span>
+            <span className="field">Next reminder date &amp; time <span className="muted">(9:00 AM if no time)</span></span>
             <div className="fields">
               <label className="field">Date<input type="date" value={remDate} onChange={(e) => setRemDate(e.target.value)} /></label>
               <div className="field">Time
                 <button type="button" className="time-btn" onClick={() => setRemClock(true)} disabled={!remDate} aria-label="Pick the reminder time on a clock">
                   <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                  <span>{timeLabel(remTime) || (remDate ? 'Set time (9:00 AM if left)' : 'Pick a date first')}</span>
+                  <span>{timeLabel(remTime) || (remDate ? 'Set time' : 'Pick a date first')}</span>
                 </button>
               </div>
               {remDate && <div className="field">&nbsp;<button type="button" className="btn ghost" onClick={() => { setRemDate(''); setRemTime(''); }}>Clear reminder</button></div>}
             </div>
           </div>
         )}
+        </div><div className="col">
         {subBlock}
         <div className="fields">
           <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
@@ -587,9 +589,9 @@ function TaskForm({ initial, onClose }) {
         </div>
         {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
         <label className="field full">Mail chain<input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" /></label>
-        <label className="field full">Notes<textarea rows={6} value={t.notes} onChange={set('notes')} /></label>
-        </div><div className="split-side">
-
+        </div><div className="col">
+        <label className="field full">Notes<textarea rows={4} value={t.notes} onChange={set('notes')} /></label>
+        <div className="side-panel">
         <div className="field full">Checklist{t.checklist.length > 0 && <span className="muted"> ({t.checklist.filter((c) => c.done).length}/{t.checklist.length} done)</span>}
           {t.checklist.map((c) => (
             <div key={c.id} className="row">
@@ -599,21 +601,19 @@ function TaskForm({ initial, onClose }) {
           ))}
           <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
         </div>
-
         <div className="field full">Attachment links (invoice, bank advice, Drive file...)
           {t.attachments.map((a) => (
             <div key={a.id} className="row"><a href={a.url} target="_blank" rel="noopener noreferrer" className="attach">{a.title}</a><button type="button" className="btn ghost" onClick={() => setT({ ...t, attachments: t.attachments.filter((x) => x.id !== a.id) })} aria-label={`Remove ${a.title}`}>✕</button></div>
           ))}
           <div className="add-row"><input value={att.title} onChange={(e) => setAtt({ ...att, title: e.target.value })} placeholder="Title (optional)" /><input value={att.url} onChange={(e) => setAtt({ ...att, url: e.target.value })} placeholder="https://..." /><button type="button" className="btn" onClick={addAtt} disabled={!att.url.trim()}>Add</button></div>
         </div>
-
         <div className="field full">Key points (go into the daily report line)
           {t.keyPoints.map((k, i) => (
             <div key={i} className="row"><span className="kp"><b>{k.key}</b>{k.key && k.value ? ': ' : ''}{k.value}</span><button type="button" className="btn ghost" onClick={() => setT({ ...t, keyPoints: t.keyPoints.filter((_, n) => n !== i) })} aria-label="Remove key point">✕</button></div>
           ))}
           <div className="add-row"><input value={kp.key} onChange={(e) => setKp({ ...kp, key: e.target.value })} placeholder="Label (e.g. Invoice no.)" /><input value={kp.value} onChange={(e) => setKp({ ...kp, value: e.target.value })} placeholder="Value" /><button type="button" className="btn" onClick={addKp} disabled={!kp.key.trim() && !kp.value.trim()}>Add</button></div>
         </div>
-
+        </div>
         </div></div>
         {subError && <div className="banner err" role="alert">{subError}</div>}
         <div className="sheet-foot">
