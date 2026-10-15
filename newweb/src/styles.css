@@ -179,3 +179,27 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 
 .field .seg { display: flex; width: 100%; }
 .field .seg button { flex: 1; padding: 9px 6px; }
+
+/* ---- the round clock time picker ---- */
+.time-btn { display: flex; align-items: center; gap: 10px; text-align: left; border: 1.5px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 15px; color: var(--ink); }
+.time-btn:hover:not(:disabled) { border-color: var(--violet); }
+.time-btn:disabled { color: var(--muted); }
+.clock-overlay { z-index: 60; }
+.clock { width: min(340px, 100%); background: var(--surface); border-radius: 28px; padding: 22px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; gap: 16px; }
+.clock-head { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.clock-time { display: flex; align-items: center; font-size: 52px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+.clock-time button { border: 0; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); border-radius: 16px; padding: 8px 12px; font: inherit; min-width: 84px; }
+.clock-time button.on { background: color-mix(in srgb, var(--violet) 22%, transparent); color: var(--violet); }
+.clock-time > span { padding: 0 4px; color: var(--muted); }
+.clock-ampm { display: flex; flex-direction: column; border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; }
+.clock-ampm button { border: 0; background: none; padding: 9px 12px; font-weight: 800; color: var(--muted); }
+.clock-ampm button + button { border-top: 1.5px solid var(--line); }
+.clock-ampm button.on { background: color-mix(in srgb, var(--violet) 22%, transparent); color: var(--violet); }
+.dial { width: min(264px, 100%); aspect-ratio: 1; align-self: center; touch-action: none; user-select: none; cursor: pointer; }
+.dial-face { fill: color-mix(in srgb, var(--ink) 7%, transparent); }
+.dial-hand { stroke: var(--violet); stroke-width: 2.5; }
+.dial-pin, .dial-knob { fill: var(--violet); }
+.dial-dot { fill: #fff; }
+.dial-num { font: 600 17px system-ui, sans-serif; fill: var(--ink); pointer-events: none; }
+.dial-num.on { fill: #fff; }
+.clock-foot { display: flex; gap: 8px; align-items: center; }

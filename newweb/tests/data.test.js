@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -144,4 +144,33 @@ test('checklist, attachments, key points, custom repeat and alert mode round-tri
   assert.equal(out.alertMode, 'alarm');
   const plain = toDoc(task({}), NOW);
   ['checklist', 'attachments', 'keyPoints', 'alertMode', 'recurrenceEveryMin'].forEach((k) => assert.ok(!(k in plain), k));
+});
+
+test('the clock picker converts between 24-hour and 12-hour time', () => {
+  assert.deepEqual(splitTime('17:30'), { h12: 5, minute: 30, pm: true });
+  assert.deepEqual(splitTime('00:05'), { h12: 12, minute: 5, pm: false });
+  assert.deepEqual(splitTime('12:00'), { h12: 12, minute: 0, pm: true });
+  assert.equal(splitTime(''), null);
+  assert.equal(splitTime('25:00'), null);
+  assert.equal(joinTime(12, 0, false), '00:00');
+  assert.equal(joinTime(12, 0, true), '12:00');
+  assert.equal(joinTime(5, 7, true), '17:07');
+  for (const t of ['00:00', '06:15', '11:59', '12:30', '23:45']) { const s = splitTime(t); assert.equal(joinTime(s.h12, s.minute, s.pm), t); }
+  assert.equal(timeLabel('17:30'), '5:30 PM');
+  assert.equal(timeLabel('00:05'), '12:05 AM');
+  assert.equal(timeLabel(''), '');
+});
+
+test('a point on the dial becomes an hour or a minute', () => {
+  assert.equal(Math.round(dialAngle(0, -10)), 0);       // straight up = 12 o'clock
+  assert.equal(Math.round(dialAngle(10, 0)), 90);       // right = 3 o'clock
+  assert.equal(Math.round(dialAngle(0, 10)), 180);
+  assert.equal(Math.round(dialAngle(-10, 0)), 270);
+  assert.equal(angleToHour(0), 12);
+  assert.equal(angleToHour(90), 3);
+  assert.equal(angleToHour(359), 12);
+  assert.equal(angleToMinute(0), 0);
+  assert.equal(angleToMinute(180), 30);
+  assert.equal(angleToMinute(359), 0);
+  assert.equal(angleToMinute(138), 23);
 });

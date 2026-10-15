@@ -272,3 +272,24 @@ export const addOption = (list, value) => {
   return v && !list.some((x) => x.toLowerCase() === v.toLowerCase()) ? [...list, v] : list;
 };
 export const removeOption = (list, value) => list.filter((x) => x !== value);
+
+/* ---- the round clock (Android style) time picker: pure helpers ---- */
+/** 24-hour "17:30" -> { h12: 5, minute: 30, pm: true }; "" -> null. */
+export function splitTime(v) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(v || '').trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  if (h > 23 || Number(m[2]) > 59) return null;
+  return { h12: h % 12 || 12, minute: Number(m[2]), pm: h >= 12 };
+}
+/** (5, 30, true) -> "17:30". */
+export const joinTime = (h12, minute, pm) => `${pad((Number(h12) % 12) + (pm ? 12 : 0))}:${pad(minute)}`;
+/** "17:30" -> "5:30 PM"; "" -> "". */
+export function timeLabel(v) {
+  const t = splitTime(v);
+  return t ? `${t.h12}:${pad(t.minute)} ${t.pm ? 'PM' : 'AM'}` : '';
+}
+/** A point on the dial (dx right, dy down from the centre) -> degrees clockwise from 12 o'clock, 0 to 360. */
+export const dialAngle = (dx, dy) => (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+export const angleToHour = (deg) => Math.round(deg / 30) % 12 || 12;
+export const angleToMinute = (deg) => Math.round(deg / 6) % 60;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import ClockPicker from './ClockPicker';
 import { useStore } from './store';
-import { DONE_STATUS, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, reportText, sortTasks, stats } from './data';
+import { DONE_STATUS, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -374,6 +375,7 @@ function TaskForm({ initial, onClose }) {
   const [time, setTime] = useState(toInputTime(initial));
   const [managing, setManaging] = useState('');       // the list whose options are being added / deleted
   const [step, setStep] = useState('');
+  const [clockOpen, setClockOpen] = useState(false);
   const [att, setAtt] = useState({ title: '', url: '' });
   const [kp, setKp] = useState({ key: '', value: '' });
   useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
@@ -423,7 +425,12 @@ function TaskForm({ initial, onClose }) {
         {manager}
         <div className="fields">
           <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-          <label className="field">Due time<input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={!date} /></label>
+          <div className="field">Due time
+            <button type="button" className="time-btn" onClick={() => setClockOpen(true)} disabled={!date} aria-label="Pick the due time on a clock">
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+              <span>{timeLabel(time) || (date ? 'Set time' : 'Pick a date first')}</span>
+            </button>
+          </div>
           <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
           {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
           <div className="field">Alert on the phone
@@ -470,6 +477,7 @@ function TaskForm({ initial, onClose }) {
           <button className="btn primary" disabled={!t.title.trim()}>Save</button>
         </div>
       </form>
+      {clockOpen && <ClockPicker value={time} onPick={(v) => { setTime(v); setClockOpen(false); }} onClear={() => { setTime(''); setClockOpen(false); }} onClose={() => setClockOpen(false)} />}
     </div>
   );
 }
