@@ -17,7 +17,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const SKIP = new Set(['node_modules', '.git', 'dist', 'android', 'ios', 'assets', '.expo']);
+const SKIP = new Set(['node_modules', '.git', 'dist', 'android', 'ios', 'assets', '.expo', 'newweb']);
 const GLOBALS = new Set([
   'React', 'Fragment', 'Math', 'Date', 'Number', 'String', 'Object', 'Array', 'JSON',
   'Set', 'Map', 'Promise', 'console', 'require', 'module', 'exports', 'Error', 'Boolean',

@@ -1,0 +1,109 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+
+const NOW = new Date(2026, 9, 15, 10, 0);
+const task = (o) => ({ ...blankTask(), title: 'T', ...o });
+
+test('a due date and time are read from the document', () => {
+  const d = parseDue('2026-10-15', '17:30');
+  assert.equal(d.getHours(), 17);
+  assert.equal(dayKey(d), '2026-10-15');
+  assert.equal(parseDue('', ''), null);
+  assert.equal(parseDue('nonsense', ''), null);
+});
+
+test('a document becomes a task and back, keeping the web-app field names', () => {
+  const doc = { id: 'a1', description: 'Pay vendor', category: 'Payments', priority: 'High', status: 'Pending', dueDate: '2026-10-16', dueTime: '09:00', mailChain: 'RE: x', notes: 'n', recurrence: 'Daily', darInclude: false, deleted: false };
+  const t = fromDoc('a1', doc);
+  assert.equal(t.title, 'Pay vendor');
+  assert.equal(t.hasTime, true);
+  assert.equal(t.dar, false);
+  const out = toDoc(t, NOW);
+  assert.equal(out.description, 'Pay vendor');
+  assert.equal(out.dueDate, '2026-10-16');
+  assert.equal(out.dueTime, '09:00');
+  assert.equal(out.mailChain, 'RE: x');
+  assert.equal(out.darInclude, false);
+  assert.equal(out.deleted, false);
+  assert.equal(out.purged, false);
+});
+
+test('a completed status means done; reopening writes a pending status', () => {
+  const t = fromDoc('b', { description: 'x', status: 'Completed', completedAt: '2026-10-15T09:40:00.000Z' });
+  assert.equal(t.done, true);
+  assert.equal(toDoc(t, NOW).status, 'Completed');
+  assert.equal(toDoc({ ...t, done: false }, NOW).status, 'Pending');
+  assert.equal(toDoc({ ...t, done: false }, NOW).completedAt, null);
+});
+
+test('the document is written without fields this app does not own (merge keeps the rest)', () => {
+  const keys = Object.keys(toDoc(task({}), NOW));
+  ['snoozeUntil', 'checklist', 'attachments', 'narration', 'subCategory', 'paymentDetails', 'keyPoints', 'alertMode'].forEach((k) => assert.ok(!keys.includes(k), k));
+});
+
+test('overdue and due-today count by calendar day', () => {
+  const yesterday = task({ due: new Date(2026, 9, 14, 23, 0) });
+  const today = task({ due: new Date(2026, 9, 15, 9, 0) });
+  assert.equal(isOverdue(yesterday, NOW), true);
+  assert.equal(isOverdue(today, NOW), false);
+  const s = stats([yesterday, today, task({ due: new Date(2026, 9, 18) }), task({ done: true, completedAt: new Date(2026, 9, 15, 8) }), task({ binned: true })], NOW);
+  assert.deepEqual([s.open, s.overdue, s.dueToday, s.dueSoon, s.doneToday], [3, 1, 1, 1, 1]);
+});
+
+test('sorting and filtering', () => {
+  const a = task({ title: 'Alpha', priority: 'Low', due: new Date(2026, 9, 20) });
+  const b = task({ title: 'Beta mail', priority: 'High', due: new Date(2026, 9, 25), reference: 'invoice 9' });
+  assert.deepEqual(sortTasks([b, a], 'due').map((x) => x.title), ['Alpha', 'Beta mail']);
+  assert.deepEqual(sortTasks([a, b], 'priority').map((x) => x.title), ['Beta mail', 'Alpha']);
+  assert.deepEqual(filterTasks([a, b], { q: 'INVOICE' }).map((x) => x.title), ['Beta mail']);
+  assert.deepEqual(filterTasks([a, b], { priority: 'Low' }).map((x) => x.title), ['Alpha']);
+});
+
+test('due labels', () => {
+  assert.equal(dueLabel(task({ due: new Date(2026, 9, 12) }), NOW), 'Overdue 3 d');
+  assert.match(dueLabel(task({ due: new Date(2026, 9, 16) }), NOW), /^Tomorrow/);
+  assert.equal(dueLabel(task({}), NOW), 'No due date');
+});
+
+test('a repeating task makes its next occurrence, never in the past, never twice', () => {
+  const t = task({ id: 'r1', title: 'Weekly mail', recurrence: 'Weekly', due: new Date(2026, 8, 1, 10) });
+  const n = nextOccurrence(t, [], NOW);
+  assert.ok(n.due >= new Date(2026, 9, 15));
+  assert.equal(n.due.getDay(), t.due.getDay());
+  assert.equal(n.seriesId, 'r1');
+  assert.equal(n.done, false);
+  assert.equal(nextOccurrence(t, [n], NOW), null);
+  assert.equal(nextOccurrence(task({ recurrence: 'Hourly', due: NOW }), [], NOW), null);
+  assert.equal(nextOccurrence(task({ recurrence: "Doesn't repeat", due: NOW }), [], NOW), null);
+  const m = nextOccurrence(task({ recurrence: 'Monthly', due: new Date(2026, 0, 31, 9) }), [], new Date(2026, 0, 31));
+  assert.equal(m.due.getMonth(), 1);
+  assert.equal(m.due.getDate(), 28);
+});
+
+test('weekday repeats skip the weekend', () => {
+  const fri = task({ recurrence: 'Weekdays', due: new Date(2026, 9, 16, 9) });       // a Friday
+  const n = nextOccurrence(fri, [], new Date(2026, 9, 16));
+  assert.equal(n.due.getDay(), 1);
+});
+
+test('the daily report lists the day\'s DAR tasks and leaves out "Done only"', () => {
+  const day = new Date(2026, 9, 15, 12);
+  const a = task({ title: 'Paid GST', done: true, completedAt: new Date(2026, 9, 15, 9), category: 'Payments', dar: true });
+  const b = task({ title: 'Private chore', done: true, completedAt: new Date(2026, 9, 15, 9), dar: false });
+  const c = task({ title: 'Other day', done: true, completedAt: new Date(2026, 9, 14, 9), dar: true });
+  const text = reportText([a, b, c], day);
+  assert.match(text, /1\. Paid GST \(Payments\)/);
+  assert.ok(!text.includes('Private chore'));
+  assert.ok(!text.includes('Other day'));
+  assert.match(reportText([], day), /No completed activities/);
+});
+
+test('lists, calendar and links are read from their documents', () => {
+  assert.deepEqual(readLists({ categories: ['A'], priorities: ['P'], statuses: ['S'], pendingWith: ['X'] }), { categories: ['A'], priorities: ['P'], statuses: ['S'], pendingWith: ['X'] });
+  assert.deepEqual(readLists(JSON.stringify({ categories: ['A'], assignees: ['Z'] })).pendingWith, ['Z']);
+  assert.deepEqual(readLists([['A'], ['P'], ['S'], ['X']]).categories, ['A']);
+  assert.ok(readLists(null).categories.length > 0);
+  assert.deepEqual(readCalendar({ holidays: ['2026-01-26', { date: '2026-08-15', name: 'Independence Day' }], leaveDays: [] }).holidays, [{ date: '2026-01-26', name: '' }, { date: '2026-08-15', name: 'Independence Day' }]);
+  assert.equal(readLinks({ links: [{ id: '1', title: 'G', url: 'https://g.co' }, { id: '2', url: 'javascript:alert(1)' }] }).length, 1);
+});

@@ -70,6 +70,12 @@ mic) · Recent Changes (`undoHistory`) · `?` shortcuts · Daily auto backup (`s
 (`src/audit.js`). Links, templates, AI instructions and meeting mode sync through `users/<uid>/meta/tools`; checklists,
 attachments and the audit trail ride on the task itself (`cloudSync.js`).
 
+## The new web app (`newweb/`)
+
+A separate Vite + React site with its own look (centred top tab bar, bold tiles), on the same Firebase data as the app. It is not part of the
+Expo build; its own tests are `cd newweb && npm test`, and it is deployed by hand with the "Deploy new web app" workflow
+(`docs/NEW_WEB.md`). A change to the task data shape must be mirrored in `newweb/src/data.js`.
+
 ## Checks before a deploy or build
 
 `npm run verify` (static checks + tests) · `npx expo export -p web` then `npm run smoke:web` (a real browser walks every tab and
