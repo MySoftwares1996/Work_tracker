@@ -1,70 +1,41 @@
 {
   "project_info": {
-    "project_number": "576017598084",
-    "project_id": "working-dashboard-655ca",
-    "storage_bucket": "working-dashboard-655ca.firebasestorage.app"
+    "project_number": "872088776442",
+    "project_id": "work-tracker-3b728",
+    "storage_bucket": "work-tracker-3b728.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:576017598084:android:36690a498c23f5071524d1",
-        "android_client_info": {
-          "package_name": "com.koteswara.personaltracker"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "576017598084-o01hi6qhg4igvcq129fvlkqjktosiaob.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.koteswara.personaltracker",
-            "certificate_hash": "63f4c11e233117853f6b09df12342b7895ccb2e1"
-          }
-        },
-        {
-          "client_id": "576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDNi0L8bSNI2t50EjPQuDDAFeEEkAEeoUU"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:576017598084:android:8cd02a9c8c675b301524d1",
+        "mobilesdk_app_id": "1:872088776442:android:50a872782ca60de2c0e343",
         "android_client_info": {
           "package_name": "com.koteswara.workingdashboard"
         }
       },
       "oauth_client": [
         {
-          "client_id": "576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com",
+          "client_id": "872088776442-0ido1jeojhj4sit4fuc26ioe7n4ojm4l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.koteswara.workingdashboard",
+            "certificate_hash": "b12dff831d4df9679b653652c15c947693d2ed6d"
+          }
+        },
+        {
+          "client_id": "872088776442-j180sk5pe8ubl9igmd0k28a02t7n1g2n.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDNi0L8bSNI2t50EjPQuDDAFeEEkAEeoUU"
+          "current_key": "AIzaSyDOmvFSBL5VWAcWChfWcgKyQxtn5EZALJQ"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com",
+              "client_id": "872088776442-j180sk5pe8ubl9igmd0k28a02t7n1g2n.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

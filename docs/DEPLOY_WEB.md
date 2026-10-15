@@ -4,13 +4,13 @@ After this one-time setup, every push to `main` builds the web version and puts 
 (`.github/workflows/web-deploy.yml`). Everything below can be done from a phone's browser; no computer is
 needed.
 
-The site is a **separate Hosting site** in the same Firebase project (`working-dashboard-655ca`), so the
+The site is a **separate Hosting site** in the same Firebase project (`work-tracker-3b728`), so the
 Banking Work Tracker web app, if it is hosted on the project's main site, is never replaced. The deploy refuses
 to run without a separate site.
 
 ## 1. Create the site
 
-1. Open <https://console.firebase.google.com> → project **working-dashboard-655ca** → **Hosting**
+1. Open <https://console.firebase.google.com> → project **work-tracker-3b728** → **Hosting**
    (under Build). If Hosting was never used, tap **Get started** and skip through the steps.
 2. Scroll down → **Add another site** → enter a name, for example `koti-working-dashboard`.
    It must be unique worldwide; if it is taken, try another.
@@ -23,7 +23,7 @@ Firebase console → **Authentication** → **Settings** → **Authorized domain
 
 ## 3. A key that lets GitHub deploy (secret `FIREBASE_SERVICE_ACCOUNT`)
 
-1. Open <https://console.cloud.google.com/iam-admin/serviceaccounts?project=working-dashboard-655ca>.
+1. Open <https://console.cloud.google.com/iam-admin/serviceaccounts?project=work-tracker-3b728>.
 2. **Create service account** → name `github-web-deploy` → **Create and continue**.
 3. Roles: add **Firebase Hosting Admin** and **API Keys Viewer** → **Continue** → **Done**.
 4. Open the new account → **Keys** → **Add key** → **Create new key** → **JSON** → **Create**. A `.json` file
