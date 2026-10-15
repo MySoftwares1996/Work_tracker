@@ -11,6 +11,15 @@ export const DEMO = typeof location !== 'undefined' && new URLSearchParams(locat
 
 const NOTE_MS = 4000;
 
+/** Firebase's own wording says little; a refused read or write almost always means the security rules are not published yet. */
+export function friendlyError(e) {
+  const msg = e?.message || String(e);
+  if (e?.code === 'permission-denied' || /insufficient permissions/i.test(msg)) {
+    return 'Firebase is refusing access to your data. Publish the security rules in the Firebase console: Firestore Database > Rules > paste the rules from firestore.rules in the repository > Publish. Then reload this page.';
+  }
+  return msg;
+}
+
 /** The shared actions, written once for both the live and the demo store. `commit` saves one task. */
 function makeActions(commit, getTasks, notify) {
   const save = (t) => commit(t);
@@ -52,7 +61,7 @@ export function LiveStore({ children }) {
   useEffect(() => {
     if (!user) return undefined;
     const db = getFirestore(firebaseApp());
-    const onErr = (e) => setError(e?.message || String(e));
+    const onErr = (e) => setError(friendlyError(e));
     const un1 = onSnapshot(collection(db, 'users', user.uid, 'tasks'), (snap) => {
       setTaskMap((m) => {
         const next = { ...m };
@@ -81,7 +90,7 @@ export function LiveStore({ children }) {
     const commit = (t) => {
       if (!user) return;
       setError('');
-      setDoc(doc(getFirestore(firebaseApp()), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(e?.message || String(e)));
+      setDoc(doc(getFirestore(firebaseApp()), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(friendlyError(e)));
     };
     return makeActions(commit, () => tasksRef.current, flash);
   }, [user, flash]);
@@ -94,7 +103,7 @@ export function LiveStore({ children }) {
       setLists(next);
       setDoc(doc(getFirestore(firebaseApp()), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
         .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
-        .catch((e) => setError(e?.message || String(e)));
+        .catch((e) => setError(friendlyError(e)));
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),

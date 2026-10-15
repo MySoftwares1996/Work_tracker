@@ -39,3 +39,11 @@ the "Website smoke test"), only no longer deployed. To go back, change the build
 
 If Google sign-in says the key is not allowed, create the project's own Firebase **Web** app and set the repository variables
 `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_APP_ID` (the workflow passes them to the build when set).
+
+## "Missing or insufficient permissions" after signing in
+The Firebase project is refusing the read. Its security rules are not published yet (a new project starts closed). Firebase console >
+Firestore Database > **Rules** > replace everything with the contents of `firestore.rules` in the repository > **Publish**, then reload the site.
+The rules let each signed-in person read and write only their own `users/<their id>` data. Check also that a Firestore database has been
+created (Build > Firestore Database > Create database).
+To publish them from GitHub instead: give the deploy service account the "Firebase Rules Admin" role and set the repository variable
+`DEPLOY_FIRESTORE_RULES` to `true`; "Deploy web version" then publishes `firestore.rules` with the site.
