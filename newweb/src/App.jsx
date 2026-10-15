@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { DONE_STATUS, addSubCategory, categoryCarriesSubCategory, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { DONE_STATUS, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -356,40 +356,60 @@ function Appearance() {
   );
 }
 
-/** Sub Categories: add one (with the fields it asks for), delete one, and choose which categories carry one. */
-function SubCategoryManager({ lists }) {
+/**
+ * Sub Categories live under a category (Payments > Domestic Payment, Urgent Payment...). One group per category, each with its own
+ * Sub Categories and an add box; "only" shows just one category's group (the entry form). Several can be pasted at once,
+ * one per line, as "Name" or "Name: Field A, Field B".
+ */
+function SubCategoryManager({ lists, only }) {
   const { saveLists } = useStore();
-  const [name, setName] = useState('');
-  const [fieldText, setFieldText] = useState('');
+  const [draft, setDraft] = useState({});       // per category: { name, fields, many }
+  const [msg, setMsg] = useState('');
   const subs = lists.subCategories || [];
-  const carrying = (c) => categoryCarriesSubCategory({ ...lists, subCategories: subs.length ? subs : [{ name: '-' }] }, c);
-  const add = (e) => {
-    e?.preventDefault();
-    const next = addSubCategory(subs, name, fieldText.split(','));
-    if (next !== subs) saveLists({ ...lists, subCategories: next });
-    setName(''); setFieldText('');
+  const cats = only ? [only] : lists.categories;
+  const get = (c) => draft[c] || { name: '', fields: '', many: '' };
+  const set = (c, patch) => setDraft((d) => ({ ...d, [c]: { ...get(c), ...patch } }));
+  const save = (next, cat) => saveLists({ ...lists, subCategories: next, subCategoryCategories: withCarrying(lists, cat) });
+  const add = (cat) => {
+    const d = get(cat);
+    const next = addSubCategory(subs, d.name, d.fields.split(','), cat);
+    if (next === subs) { setMsg(d.name.trim() ? `"${d.name.trim()}" already exists. A Sub Category name can be used once.` : ''); return; }
+    setMsg(''); save(next, cat); set(cat, { name: '', fields: '' });
+  };
+  const addMany = (cat) => {
+    const { list, added } = addSubCategories(subs, parseSubCategoryLines(get(cat).many), cat);
+    setMsg(added ? `${added} added under ${cat}.` : 'Nothing new to add (the names already exist).');
+    if (added) { save(list, cat); set(cat, { many: '' }); }
   };
   const remove = (sc) => { if (confirm(`Delete the Sub Category "${sc.name}"? Tasks using it keep it.`)) saveLists({ ...lists, subCategories: removeSubCategory(subs, sc.id) }); };
-  const toggle = (c) => {
-    const now = lists.categories.filter(carrying);
-    saveLists({ ...lists, subCategoryCategories: now.includes(c) ? now.filter((x) => x !== c) : [...now, c] });
-  };
+  const chip = (sc) => <span key={sc.id} className="chip removable" title={sc.fields.map((f) => f.label).join(', ')}>{sc.name}{sc.fields.length > 0 && <small>{sc.fields.length} field{sc.fields.length > 1 ? 's' : ''}</small>}<button type="button" onClick={() => remove(sc)} aria-label={`Delete ${sc.name}`}>✕</button></span>;
+  const general = subs.filter((x) => !x.category);
+  if (only === '') return <p className="muted">Choose a Category first. Sub Categories are kept under a category.</p>;
   return (
     <div className="manager">
-      <div className="chips">
-        {subs.map((sc) => <span key={sc.id} className="chip removable" title={sc.fields.map((f) => f.label).join(', ')}>{sc.name}{sc.fields.length > 0 && <small>{sc.fields.length} field{sc.fields.length > 1 ? 's' : ''}</small>}<button type="button" onClick={() => remove(sc)} aria-label={`Delete ${sc.name}`}>✕</button></span>)}
-        {!subs.length && <span className="muted">None yet</span>}
-      </div>
-      <div className="add-row">
-        <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(e)} placeholder="New Sub Category, e.g. Customs Duty" aria-label="New Sub Category name" />
-        <input value={fieldText} onChange={(e) => setFieldText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(e)} placeholder="Fields to fill in (comma separated, optional)" aria-label="Fields of the new Sub Category" />
-        <button type="button" className="btn primary" onClick={add} disabled={!name.trim()}>Add</button>
-      </div>
-      {subs.length > 0 && (
-        <div>
-          <p className="muted">A task in these categories must have its Sub Category filled in before it can be marked Completed:</p>
-          <div className="chips">{lists.categories.map((c) => <button type="button" key={c} className={`chip toggle${carrying(c) ? ' on' : ''}`} aria-pressed={carrying(c)} onClick={() => toggle(c)}>{c}</button>)}</div>
-        </div>
+      {msg && <p className="muted" role="status">{msg}</p>}
+      {cats.map((cat) => {
+        const own = subs.filter((x) => x.category === cat);
+        const d = get(cat);
+        return (
+          <div key={cat} className="cat-group">
+            <h3 className="cat-title">{cat} <small>{own.length ? `${own.length} Sub Categor${own.length > 1 ? 'ies' : 'y'}` : 'none yet'}</small></h3>
+            <div className="chips">{own.map(chip)}</div>
+            <div className="add-row">
+              <input value={d.name} onChange={(e) => set(cat, { name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && add(cat)} placeholder={`New Sub Category under ${cat}`} aria-label={`New Sub Category under ${cat}`} />
+              <input value={d.fields} onChange={(e) => set(cat, { fields: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && add(cat)} placeholder="Fields to fill in (comma separated, optional)" aria-label={`Fields of the new Sub Category under ${cat}`} />
+              <button type="button" className="btn primary" onClick={() => add(cat)} disabled={!d.name.trim()}>Add</button>
+            </div>
+            <details className="many">
+              <summary>Add several at once</summary>
+              <textarea rows={4} value={d.many} onChange={(e) => set(cat, { many: e.target.value })} placeholder={'One per line, for example:\nDomestic Payment: Vendor Name, Invoice No\nUrgent Payment\nImport Payment: Bill of Entry'} aria-label={`Several Sub Categories under ${cat}`} />
+              <button type="button" className="btn" onClick={() => addMany(cat)} disabled={!d.many.trim()}>Add these</button>
+            </details>
+          </div>
+        );
+      })}
+      {!only && general.length > 0 && (
+        <div className="cat-group"><h3 className="cat-title">Not under a category <small>from the phone app or the old website, offered under every category</small></h3><div className="chips">{general.map(chip)}</div></div>
       )}
     </div>
   );
@@ -444,7 +464,11 @@ function TaskForm({ initial, onClose }) {
   const [att, setAtt] = useState({ title: '', url: '' });
   const [kp, setKp] = useState({ key: '', value: '' });
   useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
-  const set = (k) => (e) => setT({ ...t, [k]: e.target.value });
+  const set = (k) => (e) => {
+    const v = e.target.value;
+    if (k === 'category' && t.subCategory && !subCategoriesFor(lists, v).some((x) => x.name === t.subCategory)) setT({ ...t, category: v, subCategory: '', subCategoryFields: {} });
+    else setT({ ...t, [k]: v });
+  };
   const opts = (list, cur) => (cur && !list.includes(cur) ? [cur, ...list] : list);
   const submit = (e) => {
     e.preventDefault();
@@ -465,17 +489,17 @@ function TaskForm({ initial, onClose }) {
       <select value={t[field]} onChange={set(field)} aria-label={label}>{blank && <option value="">-</option>}{opts(lists[key], t[field]).map((x) => <option key={x}>{x}</option>)}</select>
     </div>
   );
-  const subs = lists.subCategories || [];
+  const subs = subCategoriesFor(lists, t.category);
   const sc = findSubCategory(lists, t.subCategory);
   const needSub = categoryCarriesSubCategory(lists, t.category);
   const [subError, setSubError] = useState('');
   const subBlock = (
     <div className="manage-panel sub-panel">
-      <div className="field-head"><span className="field">Sub category{needSub && <span className="muted"> (needed to mark Completed)</span>}</span><button type="button" className="mini" onClick={() => setManaging(managing === 'sub' ? '' : 'sub')}>{managing === 'sub' ? 'Done' : '+ / − Edit'}</button></div>
-      {managing === 'sub' ? <SubCategoryManager lists={lists} /> : (
+      <div className="field-head"><span className="field">Sub category{t.category ? ` under ${t.category}` : ''}{needSub && <span className="muted"> (needed to mark Completed)</span>}</span><button type="button" className="mini" onClick={() => setManaging(managing === 'sub' ? '' : 'sub')}>{managing === 'sub' ? 'Done' : '+ / − Edit'}</button></div>
+      {managing === 'sub' ? <SubCategoryManager lists={lists} only={t.category} /> : (
         <>
-          <select value={t.subCategory} onChange={(e) => setT({ ...t, subCategory: e.target.value, subCategoryFields: e.target.value === t.subCategory ? t.subCategoryFields : {} })} aria-label="Sub category">
-            <option value="">-</option>{(t.subCategory && !sc ? [{ name: t.subCategory }, ...subs] : subs).map((x) => <option key={x.name}>{x.name}</option>)}
+          <select value={t.subCategory} onChange={(e) => setT({ ...t, subCategory: e.target.value, subCategoryFields: e.target.value === t.subCategory ? t.subCategoryFields : {} })} aria-label="Sub category" disabled={!t.category && !t.subCategory}>
+            <option value="">{t.category ? '-' : 'Choose a Category first'}</option>{(t.subCategory && !subs.some((x) => x.name === t.subCategory) ? [{ name: t.subCategory }, ...subs] : subs).map((x) => <option key={x.name}>{x.name}</option>)}
           </select>
           {sc && sc.fields.length > 0 && (
             <div className="fields">{sc.fields.map((f) => (
@@ -485,7 +509,7 @@ function TaskForm({ initial, onClose }) {
               </label>
             ))}</div>
           )}
-          {!subs.length && <p className="muted">No Sub Categories yet. Use + / − Edit to add one.</p>}
+          {t.category && !subs.length && <p className="muted">No Sub Categories under {t.category} yet. Use + / − Edit to add them.</p>}
         </>
       )}
     </div>

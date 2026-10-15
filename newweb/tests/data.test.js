@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -226,4 +226,32 @@ test('a task keeps its sub category and fields; none is invented', () => {
   const plain = toDoc(task({}), NOW);
   assert.ok(!('subCategory' in plain) && !('subCategoryFields' in plain));
   assert.equal(toDoc({ ...t, subCategory: '' }, NOW).subCategory, null);          // cleared on purpose, since the document had one
+});
+
+test('sub categories are kept under a category', () => {
+  const subs = [{ id: '1', name: 'Domestic Payment', category: 'Payments', fields: [] }, { id: '2', name: 'Statutory Audit', category: 'Audit', fields: [] }, { id: '3', name: 'Old one', category: '', fields: [] }];
+  const lists = readLists({ categories: ['Payments', 'Audit', 'Other'], subCategories: subs });
+  assert.deepEqual(subCategoriesFor(lists, 'Payments').map((x) => x.name), ['Domestic Payment', 'Old one']);
+  assert.deepEqual(subCategoriesFor(lists, 'Audit').map((x) => x.name), ['Statutory Audit', 'Old one']);
+  assert.equal(readLists({ subCategories: subs }).subCategories[0].category, 'Payments');
+  // a category with sub categories of its own carries them, without being in any list of categories
+  assert.equal(categoryCarriesSubCategory(lists, 'Payments'), true);
+  assert.equal(categoryCarriesSubCategory(lists, 'Audit'), true);
+  assert.equal(categoryCarriesSubCategory(lists, 'Other'), false);
+  // written back with its category, and the carrying list gains it
+  const out = writeListsValue({}, { categories: [], priorities: [], statuses: [], pendingWith: [], subCategories: lists.subCategories });
+  assert.equal(out.subCategories[0].category, 'Payments');
+  assert.ok(!('category' in out.subCategories[2]));
+  assert.deepEqual(withCarrying({ categories: ['Payments'], subCategoryCategories: ['Audit'] }, 'Payments'), ['Audit', 'Payments']);
+  assert.deepEqual(withCarrying({ categories: ['Customs Duty', 'Other'] }, 'Other'), ['Customs Duty', 'Other']);
+});
+
+test('several sub categories can be pasted at once', () => {
+  const items = parseSubCategoryLines('Domestic Payment: Vendor Name, Invoice No\n\n  Urgent Payment \nImport Payment: Bill of Entry\n: junk');
+  assert.deepEqual(items.map((x) => x.name), ['Domestic Payment', 'Urgent Payment', 'Import Payment']);
+  const { list, added } = addSubCategories([], items, 'Payments');
+  assert.equal(added, 3);
+  assert.ok(list.every((x) => x.category === 'Payments'));
+  assert.deepEqual(list[0].fields.map((f) => f.label), ['Vendor Name', 'Invoice No']);
+  assert.equal(addSubCategories(list, items, 'Audit').added, 0);       // a name is kept once across categories
 });

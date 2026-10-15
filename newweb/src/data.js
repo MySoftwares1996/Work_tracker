@@ -232,13 +232,16 @@ export function normalizeSubCategories(list) {
     .map((sc, i) => (typeof sc === 'string' ? { id: `sc-${i}-${sc}`, name: sc, fields: [] } : sc))
     .filter((sc) => sc && String(sc.name || '').trim())
     .map((sc) => ({
-      ...sc, id: String(sc.id || `sc-${sc.name}`), name: String(sc.name),
+      ...sc, id: String(sc.id || `sc-${sc.name}`), name: String(sc.name), category: String(sc.category || ''),
       fields: (Array.isArray(sc.fields) ? sc.fields : []).filter((f) => f && String(f.label || '').trim()).map((f) => ({ ...f, label: String(f.label), options: Array.isArray(f.options) ? f.options.map(String) : undefined })),
     }));
 }
 // Without a list of its own, the phone app carries a Sub Category on duty, demand draft and the domestic / urgent / import payment categories.
 const defaultCarries = (c) => /duty/i.test(c) || /demand\s*draft/i.test(c) || (/payment/i.test(c) && /(domestic|urgent|import)/i.test(c));
-export const categoryCarriesSubCategory = (lists, cat) => !!cat && ((lists.subCategories || []).length > 0) && (Array.isArray(lists.subCategoryCategories) ? lists.subCategoryCategories.includes(cat) : defaultCarries(String(cat)));
+/** The Sub Categories offered under a category: its own, plus any with no category of their own (made before they were grouped). */
+export const subCategoriesFor = (lists, cat) => (lists.subCategories || []).filter((x) => !x.category || x.category === cat);
+/** A category carries a Sub Category when it has some of its own, or the lists name it (or, with no such list, the phone's default). */
+export const categoryCarriesSubCategory = (lists, cat) => !!cat && subCategoriesFor(lists, cat).length > 0 && ((lists.subCategories || []).some((x) => x.category === cat) || (Array.isArray(lists.subCategoryCategories) ? lists.subCategoryCategories.includes(cat) : defaultCarries(String(cat))));
 export const findSubCategory = (lists, name) => (lists.subCategories || []).find((x) => x.name === name) || null;
 /** The message to show before a task is marked Completed without its Sub Category, or ''. */
 export function subCategoryMissing(t, lists) {
@@ -248,12 +251,31 @@ export function subCategoryMissing(t, lists) {
   const missing = sc ? sc.fields.filter((f) => !String((t.subCategoryFields || {})[f.label] || '').trim()) : [];
   return missing.length ? `Fill in ${missing.map((f) => f.label).join(', ')} before marking this Completed.` : '';
 }
-export function addSubCategory(list, name, labels = []) {
+/** Adds one Sub Category under a category. A name is kept once across all categories, because a task stores only the name. */
+export function addSubCategory(list, name, labels = [], category = '') {
   const n = String(name || '').trim();
   if (!n || list.some((x) => x.name.toLowerCase() === n.toLowerCase())) return list;
   const fields = labels.map((l) => String(l).trim()).filter(Boolean).map((label) => ({ label }));
-  return [...list, { id: `sc-${Date.now().toString(36)}-${list.length}`, name: n, fields }];
+  return [...list, { id: `sc-${Date.now().toString(36)}-${list.length}`, name: n, category: String(category || ''), fields }];
 }
+/** Pasted lines -> [{ name, labels }]. A line is "Name" or "Name: Field A, Field B". */
+export function parseSubCategoryLines(text) {
+  return String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const at = line.indexOf(':');
+    return at < 0 ? { name: line, labels: [] } : { name: line.slice(0, at).trim(), labels: line.slice(at + 1).split(',') };
+  }).filter((x) => x.name);
+}
+/** Adds many at once; returns the new list and how many were new. */
+export function addSubCategories(list, items, category = '') {
+  let out = list;
+  items.forEach((it) => { out = addSubCategory(out, it.name, it.labels, category); });
+  return { list: out, added: out.length - list.length };
+}
+/** The list of categories the lists name as carrying a Sub Category, with this one added. */
+export const withCarrying = (lists, cat) => {
+  const now = Array.isArray(lists.subCategoryCategories) ? lists.subCategoryCategories : (lists.categories || []).filter((c) => defaultCarries(String(c)));
+  return now.includes(cat) ? now : [...now, cat];
+};
 export const removeSubCategory = (list, id) => list.filter((x) => x.id !== id);
 
 /** meta/lists holds { lists: {categories, priorities, statuses, pendingWith} } as an object or a JSON string. */
@@ -299,7 +321,7 @@ export function writeListsValue(raw, lists) {
   } else {
     out = { ...(obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {}) };
     LIST_KEYS.forEach((k) => { out[k] = lists[k] || []; });
-    if (Array.isArray(lists.subCategories)) out.subCategories = lists.subCategories.map((sc) => ({ id: sc.id, name: sc.name, fields: (sc.fields || []).map((f) => (f.options ? { label: f.label, options: f.options } : { label: f.label })) }));
+    if (Array.isArray(lists.subCategories)) out.subCategories = lists.subCategories.map((sc) => ({ id: sc.id, name: sc.name, ...(sc.category ? { category: sc.category } : {}), fields: (sc.fields || []).map((f) => (f.options ? { label: f.label, options: f.options } : { label: f.label })) }));
     if (Array.isArray(lists.subCategoryCategories)) out.subCategoryCategories = lists.subCategoryCategories;
     if ('assignees' in out) out.assignees = lists.pendingWith || [];
   }

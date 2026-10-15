@@ -105,7 +105,19 @@ export function LiveStore({ children }) {
 
 export function DemoStore({ children }) {
   const [tasks, setTasks] = useState(demoTasks);
-  const [lists, setLists] = useState({ ...DEFAULT_LISTS, subCategories: [{ id: 'sc1', name: 'Customs Duty', fields: [{ label: 'BE No' }, { label: 'Mode', options: ['TT', 'DD'] }] }, { id: 'sc2', name: 'Vendor Payment', fields: [{ label: 'Vendor Name' }] }], subCategoryCategories: ['Payments'] });
+  const [lists, setLists] = useState({
+    ...DEFAULT_LISTS,
+    subCategories: [
+      { id: 'p1', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }, { label: 'Invoice No' }] },
+      { id: 'p2', name: 'Urgent Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] },
+      { id: 'p3', name: 'Import Payment', category: 'Payments', fields: [{ label: 'Bill of Entry' }, { label: 'Mode', options: ['TT', 'LC'] }] },
+      { id: 'p4', name: 'Customs Duty', category: 'Payments', fields: [{ label: 'BE No' }] },
+      { id: 'p5', name: 'Demand Draft', category: 'Payments', fields: [] },
+      { id: 'a1', name: 'Statutory Audit', category: 'Audit', fields: [] },
+      { id: 'a2', name: 'Internal Audit', category: 'Audit', fields: [] },
+    ],
+    subCategoryCategories: ['Payments', 'Audit'],
+  });
   const [note, setNote] = useState('');
   const ref = useRef(tasks);
   ref.current = tasks;
