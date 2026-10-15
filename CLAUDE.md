@@ -73,8 +73,8 @@ attachments and the audit trail ride on the task itself (`cloudSync.js`).
 ## The new web app (`newweb/`)
 
 A separate Vite + React site with its own look (centred top tab bar, bold tiles), on the same Firebase data as the app. It is not part of the
-Expo build; its own tests are `cd newweb && npm test`, and it is deployed by hand with the "Deploy new web app" workflow
-(`docs/NEW_WEB.md`). A change to the task data shape must be mirrored in `newweb/src/data.js`.
+Expo build; its own tests are `cd newweb && npm test`, and it is what the "Deploy web version" workflow now puts on the main website
+(`docs/NEW_WEB.md`; the Expo website is no longer deployed, the APK is unchanged). A change to the task data shape must be mirrored in `newweb/src/data.js`.
 
 ## Checks before a deploy or build
 

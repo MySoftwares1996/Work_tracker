@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, doc, getFirestore, onSnapshot, setDoc } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
-import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, toDoc, isOpen } from './data';
+import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, toDoc, isOpen, writeListsValue } from './data';
 import { demoTasks } from './demo';
 
 const Ctx = createContext(null);
@@ -39,6 +39,7 @@ export function LiveStore({ children }) {
   const [user, setUser] = useState(undefined);       // undefined = still checking, null = signed out
   const [taskMap, setTaskMap] = useState({});
   const [lists, setLists] = useState(DEFAULT_LISTS);
+  const rawLists = useRef(null);
   const [calendar, setCalendar] = useState({ holidays: [], leaveDays: [] });
   const [links, setLinks] = useState([]);
   const [error, setError] = useState('');
@@ -64,7 +65,7 @@ export function LiveStore({ children }) {
       snap.docChanges().forEach((ch) => {
         if (ch.type === 'removed') return;
         const d = ch.doc.data() || {};
-        if (ch.doc.id === 'lists') setLists(readLists(d.lists));
+        if (ch.doc.id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
         if (ch.doc.id === 'calendar') setCalendar(readCalendar(d));
         if (ch.doc.id === 'tools') setLinks(readLinks(d));
       });
@@ -87,6 +88,14 @@ export function LiveStore({ children }) {
 
   const value = useMemo(() => ({
     demo: false, user, tasks, lists, calendar, links, error, synced, actions,
+    // Options added or removed here reach the phone and the old website too (meta/lists, newest write wins).
+    saveLists: (next) => {
+      if (!user) return;
+      setLists(next);
+      setDoc(doc(getFirestore(firebaseApp()), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
+        .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
+        .catch((e) => setError(e?.message || String(e)));
+    },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
   }), [user, tasks, lists, calendar, links, error, synced, actions]);
@@ -96,6 +105,7 @@ export function LiveStore({ children }) {
 
 export function DemoStore({ children }) {
   const [tasks, setTasks] = useState(demoTasks);
+  const [lists, setLists] = useState(DEFAULT_LISTS);
   const [note, setNote] = useState('');
   const ref = useRef(tasks);
   ref.current = tasks;
@@ -108,9 +118,9 @@ export function DemoStore({ children }) {
   const calendar = useMemo(() => ({ holidays: [{ date: '2026-10-20', name: 'Sample holiday' }], leaveDays: [] }), []);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists: DEFAULT_LISTS, calendar, links, error: '', synced: true, actions,
+    demo: true, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, error: '', synced: true, actions,
     signIn: () => {}, signOut: () => { location.search = ''; },
-  }), [visible, calendar, links, actions]);
+  }), [visible, lists, calendar, links, actions]);
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
 

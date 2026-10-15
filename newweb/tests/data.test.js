@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -39,7 +39,7 @@ test('a completed status means done; reopening writes a pending status', () => {
 
 test('the document is written without fields this app does not own (merge keeps the rest)', () => {
   const keys = Object.keys(toDoc(task({}), NOW));
-  ['snoozeUntil', 'checklist', 'attachments', 'narration', 'subCategory', 'paymentDetails', 'keyPoints', 'alertMode'].forEach((k) => assert.ok(!keys.includes(k), k));
+  ['snoozeUntil', 'narration', 'subCategory', 'paymentDetails', 'checklist', 'attachments', 'keyPoints', 'alertMode'].forEach((k) => assert.ok(!keys.includes(k), k));
 });
 
 test('overdue and due-today count by calendar day', () => {
@@ -106,4 +106,83 @@ test('lists, calendar and links are read from their documents', () => {
   assert.ok(readLists(null).categories.length > 0);
   assert.deepEqual(readCalendar({ holidays: ['2026-01-26', { date: '2026-08-15', name: 'Independence Day' }], leaveDays: [] }).holidays, [{ date: '2026-01-26', name: '' }, { date: '2026-08-15', name: 'Independence Day' }]);
   assert.equal(readLinks({ links: [{ id: '1', title: 'G', url: 'https://g.co' }, { id: '2', url: 'javascript:alert(1)' }] }).length, 1);
+});
+
+test('options are added once (any case) and removed', () => {
+  assert.deepEqual(addOption(['A'], ' b '), ['A', 'b']);
+  assert.deepEqual(addOption(['A'], 'a'), ['A']);
+  assert.deepEqual(addOption(['A'], '   '), ['A']);
+  assert.deepEqual(removeOption(['A', 'B'], 'A'), ['B']);
+});
+
+test('lists are written back in the form the document holds, keeping its other keys', () => {
+  const lists = { categories: ['C1'], priorities: ['P1'], statuses: ['S1'], pendingWith: ['W1'] };
+  const named = writeListsValue({ categories: ['x'], priorities: [], statuses: [], pendingWith: [], subCategories: [1] }, lists);
+  assert.deepEqual(named, { categories: ['C1'], priorities: ['P1'], statuses: ['S1'], pendingWith: ['W1'], subCategories: [1] });
+  const str = writeListsValue(JSON.stringify({ categories: [], assignees: ['old'], narrationTypes: ['n'] }), lists);
+  assert.equal(typeof str, 'string');
+  const parsed = JSON.parse(str);
+  assert.deepEqual(parsed.assignees, ['W1']);
+  assert.deepEqual(parsed.narrationTypes, ['n']);
+  assert.deepEqual(writeListsValue({ 0: ['a'], 1: [], 2: [], 3: [] }, lists), { 0: ['C1'], 1: ['P1'], 2: ['S1'], 3: ['W1'] });
+  assert.deepEqual(writeListsValue(null, lists), lists);
+});
+
+test('an emptied list stays empty instead of coming back as the defaults', () => {
+  assert.deepEqual(readLists({ categories: [], priorities: ['High'], statuses: ['Pending'], pendingWith: [] }).categories, []);
+});
+
+test('checklist, attachments, key points, custom repeat and alert mode round-trip; empty ones are not invented', () => {
+  const doc = { description: 'x', status: 'Pending', checklist: [{ id: 'c1', text: 'Step', done: true }], attachments: [{ id: 'a1', title: 'Inv', url: 'https://x.co/i' }, { id: 'bad', url: 'javascript:1' }], keyPoints: [{ key: 'Inv', value: '9' }], recurrence: 'Custom', recurrenceEveryMin: 45, alertMode: 'alarm' };
+  const t = fromDoc('z', doc);
+  assert.equal(t.attachments.length, 1);
+  const out = toDoc(t, NOW);
+  assert.deepEqual(out.checklist, [{ id: 'c1', text: 'Step', done: true }]);
+  assert.deepEqual(out.attachments, [{ id: 'a1', title: 'Inv', url: 'https://x.co/i' }]);
+  assert.deepEqual(out.keyPoints, [{ key: 'Inv', value: '9' }]);
+  assert.equal(out.recurrenceEveryMin, 45);
+  assert.equal(out.alertMode, 'alarm');
+  const plain = toDoc(task({}), NOW);
+  ['checklist', 'attachments', 'keyPoints', 'alertMode', 'recurrenceEveryMin'].forEach((k) => assert.ok(!(k in plain), k));
+});
+
+test('the clock picker converts between 24-hour and 12-hour time', () => {
+  assert.deepEqual(splitTime('17:30'), { h12: 5, minute: 30, pm: true });
+  assert.deepEqual(splitTime('00:05'), { h12: 12, minute: 5, pm: false });
+  assert.deepEqual(splitTime('12:00'), { h12: 12, minute: 0, pm: true });
+  assert.equal(splitTime(''), null);
+  assert.equal(splitTime('25:00'), null);
+  assert.equal(joinTime(12, 0, false), '00:00');
+  assert.equal(joinTime(12, 0, true), '12:00');
+  assert.equal(joinTime(5, 7, true), '17:07');
+  for (const t of ['00:00', '06:15', '11:59', '12:30', '23:45']) { const s = splitTime(t); assert.equal(joinTime(s.h12, s.minute, s.pm), t); }
+  assert.equal(timeLabel('17:30'), '5:30 PM');
+  assert.equal(timeLabel('00:05'), '12:05 AM');
+  assert.equal(timeLabel(''), '');
+});
+
+test('a point on the dial becomes an hour or a minute', () => {
+  assert.equal(Math.round(dialAngle(0, -10)), 0);       // straight up = 12 o'clock
+  assert.equal(Math.round(dialAngle(10, 0)), 90);       // right = 3 o'clock
+  assert.equal(Math.round(dialAngle(0, 10)), 180);
+  assert.equal(Math.round(dialAngle(-10, 0)), 270);
+  assert.equal(angleToHour(0), 12);
+  assert.equal(angleToHour(90), 3);
+  assert.equal(angleToHour(359), 12);
+  assert.equal(angleToMinute(0), 0);
+  assert.equal(angleToMinute(180), 30);
+  assert.equal(angleToMinute(359), 0);
+  assert.equal(angleToMinute(138), 23);
+});
+
+import { readFileSync } from 'node:fs';
+import { THEMES } from '../src/themes.js';
+test('every theme in the chooser has its CSS and the tokens the screens use', () => {
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  assert.ok(THEMES.length >= 6);
+  THEMES.filter((t) => t.id !== 'violet').forEach((t) => {
+    const m = new RegExp(`:root\\[data-theme="${t.id}"\\] \\{([^}]*)\\}`).exec(css);
+    assert.ok(m, t.id);
+    ['--bg', '--surface', '--ink', '--violet', '--on-accent', '--tile-coral', '--tile-teal-fg', '--danger-bg', '--shadow'].forEach((v) => assert.ok(m[1].includes(v + ':'), `${t.id} ${v}`));
+  });
 });

@@ -2,9 +2,9 @@ name: Website smoke test
 
 # Opens the built website in a real browser (desktop and phone width) and walks the main screens: tabs, Quick add, the
 # finder, shortcuts, every Config section. Fails on any page or console error. Run it from the Actions tab before a deploy.
+# Manual only (the owner asked): it does not start on pull requests or pushes.
 on:
   workflow_dispatch:
-  pull_request:
 
 jobs:
   smoke:

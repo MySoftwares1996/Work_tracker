@@ -15,7 +15,8 @@ export const DEFAULT_LISTS = {
   statuses: ['Not Yet Started', 'Pending', 'In Progress', 'Waiting', 'Completed'],
   pendingWith: [],
 };
-export const RECURRENCES = ["Doesn't repeat", 'Daily', 'Weekdays', 'Weekly', 'Monthly'];
+export const RECURRENCES = ["Doesn't repeat", 'Hourly', 'Custom', 'Daily', 'Weekdays', 'Weekly', 'Monthly'];
+export const LIST_KEYS = ['categories', 'priorities', 'statuses', 'pendingWith'];
 
 /** A due date as the document keeps it ("2026-10-15", plus "17:30" when it has a time) -> a Date, or null. */
 export function parseDue(dueDate, dueTime) {
@@ -66,6 +67,12 @@ export function fromDoc(id, d = {}) {
     dar: d.darInclude !== false && d.dar !== false,
     keyPoints,
     seriesId: d.seriesId ? String(d.seriesId) : '',
+    checklist: (Array.isArray(d.checklist) ? d.checklist : []).filter((c) => c && String(c.text || '').trim()).map((c) => ({ id: String(c.id || newId()), text: String(c.text), done: !!c.done })),
+    attachments: (Array.isArray(d.attachments) ? d.attachments : []).filter((a) => a && /^https?:\/\//i.test(String(a.url || ''))).map((a) => ({ id: String(a.id || newId()), title: String(a.title || a.url), url: String(a.url) })),
+    recurrenceEveryMin: Number(d.recurrenceEveryMin) || null,
+    alertMode: d.alertMode === 'alarm' || d.alertMode === 'gentle' ? d.alertMode : '',
+    // Which of these the document already had, so an empty list is written back only when it was there (or is being used).
+    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d },
     createdAt: asDate(d.dateLogged),
     updatedAt: Number(d.updatedAt) || 0,
   };
@@ -98,6 +105,16 @@ export function toDoc(t, now = new Date()) {
     dar: t.dar !== false,
   };
   if (t.seriesId) doc.seriesId = t.seriesId;
+  // Written once the task has them (or had them), so a task made elsewhere is never cleared by a copy that never saw them.
+  const has = t.has || {};
+  const keyPoints = (t.keyPoints || []).map((k) => ({ key: String(k.key || '').trim(), value: String(k.value || '').trim() })).filter((k) => k.key || k.value);
+  if (keyPoints.length || has.keyPoints) doc.keyPoints = keyPoints;
+  const checklist = (t.checklist || []).filter((c) => String(c.text || '').trim()).map((c) => ({ id: c.id, text: String(c.text).trim(), done: !!c.done }));
+  if (checklist.length || has.checklist) doc.checklist = checklist;
+  const attachments = (t.attachments || []).filter((a) => /^https?:\/\//i.test(a.url || '')).map((a) => ({ id: a.id, title: a.title || a.url, url: a.url }));
+  if (attachments.length || has.attachments) doc.attachments = attachments;
+  if (t.recurrence === 'Custom') doc.recurrenceEveryMin = Number(t.recurrenceEveryMin) || null;
+  if (t.alertMode === 'alarm' || t.alertMode === 'gentle') doc.alertMode = t.alertMode;
   return doc;
 }
 
@@ -105,7 +122,7 @@ let seq = 0;
 export const newId = () => `web-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 export function blankTask() {
-  return { id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
+  return { checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
 }
 
 export const isOpen = (t) => !t.done && !t.binned && !t.purged;
@@ -210,7 +227,7 @@ export function readLists(v) {
   const out = { ...DEFAULT_LISTS };
   if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
     const named = { ...obj, pendingWith: Array.isArray(obj.pendingWith) ? obj.pendingWith : obj.assignees };
-    Object.keys(DEFAULT_LISTS).forEach((k) => { if (Array.isArray(named[k]) && named[k].length) out[k] = named[k].map(String); });
+    Object.keys(DEFAULT_LISTS).forEach((k) => { if (Array.isArray(named[k])) out[k] = named[k].map(String); });
   } else if (Array.isArray(obj)) {
     ['categories', 'priorities', 'statuses', 'pendingWith'].forEach((k, i) => { if (Array.isArray(obj[i]) && obj[i].length) out[k] = obj[i].map(String); });
   }
@@ -227,3 +244,52 @@ export function readCalendar(d = {}) {
 export function readLinks(d = {}) {
   return (Array.isArray(d.links) ? d.links : []).map((x) => ({ id: String(x.id || x.url), title: String(x.title || x.url || ''), url: String(x.url || ''), folder: String(x.folder || '') })).filter((x) => /^https?:\/\//i.test(x.url));
 }
+
+/**
+ * The lists to write back to meta/lists, in the form the document already holds (a JSON string, { "0": [...] }, or named keys),
+ * keeping everything else in it (the payment lists the phone and the old website keep in the same field).
+ */
+export function writeListsValue(raw, lists) {
+  let obj = raw;
+  let asString = false;
+  if (typeof raw === 'string') { try { obj = JSON.parse(raw); asString = true; } catch { obj = null; } }
+  let out;
+  const keys = obj && typeof obj === 'object' && !Array.isArray(obj) ? Object.keys(obj) : [];
+  if (keys.length && keys.every((k) => /^\d+$/.test(k))) {
+    out = { ...obj };
+    LIST_KEYS.forEach((k, i) => { out[String(i)] = lists[k] || []; });
+  } else {
+    out = { ...(obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {}) };
+    LIST_KEYS.forEach((k) => { out[k] = lists[k] || []; });
+    if ('assignees' in out) out.assignees = lists.pendingWith || [];
+  }
+  return asString ? JSON.stringify(out) : out;
+}
+
+/** An option list after adding / removing a value (trimmed, no case-insensitive duplicates). */
+export const addOption = (list, value) => {
+  const v = String(value || '').trim();
+  return v && !list.some((x) => x.toLowerCase() === v.toLowerCase()) ? [...list, v] : list;
+};
+export const removeOption = (list, value) => list.filter((x) => x !== value);
+
+/* ---- the round clock (Android style) time picker: pure helpers ---- */
+/** 24-hour "17:30" -> { h12: 5, minute: 30, pm: true }; "" -> null. */
+export function splitTime(v) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(v || '').trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  if (h > 23 || Number(m[2]) > 59) return null;
+  return { h12: h % 12 || 12, minute: Number(m[2]), pm: h >= 12 };
+}
+/** (5, 30, true) -> "17:30". */
+export const joinTime = (h12, minute, pm) => `${pad((Number(h12) % 12) + (pm ? 12 : 0))}:${pad(minute)}`;
+/** "17:30" -> "5:30 PM"; "" -> "". */
+export function timeLabel(v) {
+  const t = splitTime(v);
+  return t ? `${t.h12}:${pad(t.minute)} ${t.pm ? 'PM' : 'AM'}` : '';
+}
+/** A point on the dial (dx right, dy down from the centre) -> degrees clockwise from 12 o'clock, 0 to 360. */
+export const dialAngle = (dx, dy) => (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+export const angleToHour = (deg) => Math.round(deg / 30) % 12 || 12;
+export const angleToMinute = (deg) => Math.round(deg / 6) % 60;
