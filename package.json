@@ -1,0 +1,82 @@
+{
+  "name": "working-dashboard",
+  "version": "1.1.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "web": "expo start --web",
+    "fix": "npx expo install --fix",
+    "doctor": "npx expo-doctor",
+    "build:apk": "eas build -p android --profile preview",
+    "build:apk:local": "eas build -p android --profile preview --local",
+    "build:web": "expo export -p web",
+    "deploy:web": "node scripts/deploy-web.js",
+    "check": "node scripts/check.js",
+    "test": "node tests/run.mjs",
+    "verify": "npm run check && npm run check:native && npm test",
+    "prebuild:check": "npm run verify",
+    "check:native": "node scripts/check-native.js",
+    "compile:native": "bash scripts/compile-native.sh",
+    "smoke:web": "node scripts/smoke-web.mjs"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.16",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "@react-native-firebase/app": "^26.4.0",
+    "@react-native-firebase/auth": "^26.4.0",
+    "@react-native-firebase/firestore": "^26.4.0",
+    "@react-native-google-signin/google-signin": "^16.1.5",
+    "@react-navigation/native": "^7.1.0",
+    "@react-navigation/native-stack": "^7.3.0",
+    "expo": "~57.0.0",
+    "expo-application": "~57.0.0",
+    "expo-asset": "~57.0.18",
+    "expo-audio": "~57.0.0",
+    "expo-background-fetch": "~57.0.19",
+    "expo-clipboard": "~57.0.2",
+    "expo-constants": "~57.0.0",
+    "expo-device": "~57.0.0",
+    "expo-document-picker": "~57.0.0",
+    "expo-file-system": "~57.0.0",
+    "expo-local-authentication": "~57.0.0",
+    "expo-notifications": "~57.0.0",
+    "expo-print": "~57.0.0",
+    "expo-secure-store": "~57.0.0",
+    "expo-sharing": "~57.0.0",
+    "expo-splash-screen": "~57.0.0",
+    "expo-status-bar": "~57.0.0",
+    "expo-system-ui": "~57.0.0",
+    "expo-task-manager": "~57.0.19",
+    "expo-updates": "~57.0.23",
+    "firebase": "^12.19.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-android-widget": "^0.22.1",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/parser": "^7.26.0",
+    "babel-preset-expo": "^57.0.12"
+  },
+  "private": true,
+  "overrides": {
+    "uuid": "^11.1.1"
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-notifications"
+        ]
+      }
+    }
+  }
+}

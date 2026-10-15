@@ -1,0 +1,76 @@
+{
+  "project_info": {
+    "project_number": "576017598084",
+    "project_id": "working-dashboard-655ca",
+    "storage_bucket": "working-dashboard-655ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:576017598084:android:36690a498c23f5071524d1",
+        "android_client_info": {
+          "package_name": "com.koteswara.personaltracker"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "576017598084-o01hi6qhg4igvcq129fvlkqjktosiaob.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.koteswara.personaltracker",
+            "certificate_hash": "63f4c11e233117853f6b09df12342b7895ccb2e1"
+          }
+        },
+        {
+          "client_id": "576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNi0L8bSNI2t50EjPQuDDAFeEEkAEeoUU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:576017598084:android:8cd02a9c8c675b301524d1",
+        "android_client_info": {
+          "package_name": "com.koteswara.workingdashboard"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNi0L8bSNI2t50EjPQuDDAFeEEkAEeoUU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "576017598084-18eijnc8efgnnkjvd5pr2emnhnv4r8o9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

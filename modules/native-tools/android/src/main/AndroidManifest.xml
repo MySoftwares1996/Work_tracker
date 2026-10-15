@@ -1,0 +1,67 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+    Working Dashboard app: only the alarm parts of this module are declared. The step / SMS / office tracker
+    (TrackerService) of My Personal Tracker is left out, with its location, activity and SMS permissions.
+  -->
+
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <!--
+    Lets AlarmReceiver's notification actually launch AlarmRingingActivity
+    full screen when the device is locked or asleep, instead of only ever
+    showing a heads-up banner - see AlarmReceiver's own doc comment.
+  -->
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <!-- "Open over other apps": lets a ringing alarm open its full-screen screen directly, even with the phone unlocked and in use. -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+  <application>
+    <!-- Plays a ringing task alarm (looping sound + vibration) until it is answered. -->
+    <service
+      android:name="expo.modules.nativetools.AlarmRingService"
+      android:enabled="true"
+      android:exported="false"
+      android:foregroundServiceType="mediaPlayback" />
+
+    <!-- The Snooze / Done buttons on the ringing notification: no screen, hands the action to the app. -->
+    <activity
+      android:name="expo.modules.nativetools.AlarmActionActivity"
+      android:exported="false"
+      android:excludeFromRecents="true"
+      android:taskAffinity=""
+      android:theme="@android:style/Theme.NoDisplay" />
+
+    <receiver
+      android:name="expo.modules.nativetools.BootReceiver"
+      android:enabled="true"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+
+    <!-- Fires a task alarm's exact AlarmManager trigger, even with the app killed. -->
+    <receiver
+      android:name="expo.modules.nativetools.AlarmReceiver"
+      android:enabled="true"
+      android:exported="false" />
+
+    <!--
+      showOnLockScreen is the pre-API-27 equivalent of the runtime
+      setShowWhenLocked()/setTurnScreenOn() calls this activity makes itself;
+      harmless to also declare here for anything running Build.VERSION < 27.
+      DeviceDefault rather than a Theme.AppCompat.* style, since AppCompat is
+      not guaranteed to be on this app's classpath.
+    -->
+    <activity
+      android:name="expo.modules.nativetools.AlarmRingingActivity"
+      android:exported="false"
+      android:launchMode="singleInstance"
+      android:excludeFromRecents="true"
+      android:showOnLockScreen="true"
+      android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+  </application>
+</manifest>

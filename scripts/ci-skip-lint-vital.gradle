@@ -1,0 +1,12 @@
+// GitHub Actions only (passed with -I by .github/workflows/android-apk.yml).
+//
+// Skips Android's "lint vital" checks on release builds. On GitHub's runner
+// they were the step that ran out of memory (OutOfMemoryError: Metaspace)
+// after 30 minutes of building. EAS and local builds still run them.
+gradle.taskGraph.whenReady { graph ->
+    graph.allTasks.each { task ->
+        if (task.name.startsWith("lintVital")) {
+            task.enabled = false
+        }
+    }
+}

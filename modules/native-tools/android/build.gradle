@@ -1,0 +1,32 @@
+apply plugin: 'com.android.library'
+
+group = 'expo.modules.nativetools'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(
+  project(":expo-modules-core").projectDir.absolutePath,
+  "ExpoModulesCorePlugin.gradle"
+)
+apply from: expoModulesCorePlugin
+
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+// Inherits compileSdk / minSdk / targetSdk from the app. Without it compileSdk
+// is never set and Gradle fails with "compileSdkVersion is not specified".
+useDefaultAndroidSdkVersions()
+useExpoPublishing()
+
+// Deliberately minimal. A library module does not need versionCode,
+// versionName or lint settings, and each extra DSL block is one more thing a
+// newer Android Gradle Plugin can reject.
+android {
+  namespace "expo.modules.nativetools"
+}
+
+dependencies {
+  // On-device text recognition (the Latin model ships inside the app, so it works offline).
+  // Reads investment screenshots in Investments > Import from screenshot.
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
+  // Firebase (the web app's "in use" note, WebPresence.kt) is reached by reflection at run time: its libraries are
+  // built with a newer Kotlin than this module compiles with, so compiling against them failed the APK build.
+}

@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// Working Dashboard: every person who signs in with Google has their own space, users/{their uid}, holding their
+// tasks (users/{uid}/tasks) and settings (users/{uid}/meta). Only that person can read or change it. Everything
+// else is closed. Deployed by scripts/deploy-web.js (docs/DEPLOY_WEB.md).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

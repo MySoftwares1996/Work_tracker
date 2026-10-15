@@ -1,0 +1,27 @@
+name: Website smoke test
+
+# Opens the built website in a real browser (desktop and phone width) and walks the main screens: tabs, Quick add, the
+# finder, shortcuts, every Config section. Fails on any page or console error. Run it from the Actions tab before a deploy.
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tests
+        run: npm run verify
+      - name: Build the website
+        run: npx expo export -p web
+      - name: Install a browser for the test
+        run: npm install --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - name: Walk the website
+        run: npm run smoke:web
