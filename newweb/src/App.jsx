@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from './store';
-import { RECURRENCES, SORTS, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, reportText, sortTasks, stats } from './data';
+import { DONE_STATUS, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -319,14 +319,47 @@ function Links() {
 
 function Config() {
   const { lists, user, signOut, demo } = useStore();
-  const block = (title, list) => <section><h2 className="h2">{title}</h2><div className="chips">{list.length ? list.map((x) => <Chip key={x}>{x}</Chip>) : <span className="muted">None</span>}</div></section>;
   return (
     <>
       <h1 className="h1">Config</h1>
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
-      <p className="muted">The lists below are the ones set up on the phone app and shared with this site.</p>
-      <div className="two">{block('Categories', lists.categories)}{block('Priorities', lists.priorities)}{block('Statuses', lists.statuses)}{block('Pending with', lists.pendingWith)}</div>
+      <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+      <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
     </>
+  );
+}
+
+const LIST_META = [['categories', 'Categories'], ['priorities', 'Priorities'], ['statuses', 'Statuses'], ['pendingWith', 'Pending with']];
+
+/** Add and delete the options of one list (Category, Priority, Status, Pending with). onAdd gets the new value, so a form can pick it. */
+function ListManager({ listKey, label, lists, onAdd }) {
+  const { saveLists } = useStore();
+  const [text, setText] = useState('');
+  const list = lists[listKey] || [];
+  const add = (e) => {
+    e?.preventDefault();
+    const next = addOption(list, text);
+    if (next === list) { setText(''); return; }
+    saveLists({ ...lists, [listKey]: next });
+    if (onAdd) onAdd(next[next.length - 1]);
+    setText('');
+  };
+  const remove = (v) => {
+    if (listKey === 'statuses' && DONE_STATUS.test(v)) { alert(`"${v}" is what marks a task as done, so it cannot be deleted.`); return; }
+    if ((listKey === 'priorities' || listKey === 'statuses') && list.length <= 1) { alert(`Keep at least one ${label.toLowerCase().replace(/es$|s$/, '')}.`); return; }
+    if (confirm(`Delete "${v}" from ${label}? Tasks using it keep it.`)) saveLists({ ...lists, [listKey]: removeOption(list, v) });
+  };
+  return (
+    <div className="manager">
+      <div className="chips">
+        {list.map((v) => <span key={v} className="chip removable">{v}<button type="button" onClick={() => remove(v)} aria-label={`Delete ${v}`}>✕</button></span>)}
+        {!list.length && <span className="muted">None yet</span>}
+      </div>
+      <div className="add-row">
+        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(e)} placeholder={`Add to ${label}...`} aria-label={`Add to ${label}`} />
+        <button type="button" className="btn primary" onClick={add} disabled={!text.trim()}>Add</button>
+      </div>
+    </div>
   );
 }
 
@@ -339,6 +372,10 @@ function TaskForm({ initial, onClose }) {
   const [t, setT] = useState(initial);
   const [date, setDate] = useState(toInputDate(initial.due));
   const [time, setTime] = useState(toInputTime(initial));
+  const [managing, setManaging] = useState('');       // the list whose options are being added / deleted
+  const [step, setStep] = useState('');
+  const [att, setAtt] = useState({ title: '', url: '' });
+  const [kp, setKp] = useState({ key: '', value: '' });
   useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
   const set = (k) => (e) => setT({ ...t, [k]: e.target.value });
   const opts = (list, cur) => (cur && !list.includes(cur) ? [cur, ...list] : list);
@@ -352,23 +389,77 @@ function TaskForm({ initial, onClose }) {
     else actions.save(next);
     onClose();
   };
+  // A select with its own "Edit" link: add or delete the options right here.
+  const pick = (key, label, field, blank) => (
+    <div className="field">
+      <span className="field-head">{label}<button type="button" className="mini" onClick={() => setManaging(managing === key ? '' : key)}>{managing === key ? 'Done' : '+ / − Edit'}</button></span>
+      <select value={t[field]} onChange={set(field)} aria-label={label}>{blank && <option value="">-</option>}{opts(lists[key], t[field]).map((x) => <option key={x}>{x}</option>)}</select>
+    </div>
+  );
+  const manager = managing && (
+    <div className="manage-panel"><ListManager listKey={managing} label={LIST_META.find(([k]) => k === managing)[1]} lists={lists} onAdd={(v) => setT((d) => ({ ...d, [{ categories: 'category', priorities: 'priority', statuses: 'status', pendingWith: 'pendingWith' }[managing]]: v }))} /></div>
+  );
+  const addStepNow = () => { if (step.trim()) { setT({ ...t, checklist: [...t.checklist, { id: newId(), text: step.trim(), done: false }] }); setStep(''); } };
+  const addAtt = () => {
+    const url = /^https?:\/\//i.test(att.url.trim()) ? att.url.trim() : `https://${att.url.trim()}`;
+    if (!att.url.trim() || !/^https?:\/\/[^/.\s]+\.[^\s]+/i.test(url)) return;
+    setT({ ...t, attachments: [...t.attachments, { id: newId(), title: att.title.trim() || url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, ''), url }] });
+    setAtt({ title: '', url: '' });
+  };
+  const addKp = () => { if (kp.key.trim() || kp.value.trim()) { setT({ ...t, keyPoints: [...t.keyPoints, { key: kp.key.trim(), value: kp.value.trim() }] }); setKp({ key: '', value: '' }); } };
+  const repeatsEvery = t.recurrence === 'Hourly' || t.recurrence === 'Custom';
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="sheet" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
+      <form className="sheet wide" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
         <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
         <label className="field full">Task description<textarea rows={2} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
         <div className="fields">
-          <label className="field">Category<select value={t.category} onChange={set('category')}><option value="">-</option>{opts(lists.categories, t.category).map((x) => <option key={x}>{x}</option>)}</select></label>
-          <label className="field">Priority<select value={t.priority} onChange={set('priority')}>{opts(lists.priorities, t.priority).map((x) => <option key={x}>{x}</option>)}</select></label>
-          <label className="field">Status<select value={t.status} onChange={set('status')}>{opts(lists.statuses, t.status).map((x) => <option key={x}>{x}</option>)}</select></label>
-          <label className="field">Pending with<select value={t.pendingWith} onChange={set('pendingWith')}><option value="">-</option>{opts(lists.pendingWith, t.pendingWith).map((x) => <option key={x}>{x}</option>)}</select></label>
+          {pick('categories', 'Category', 'category', true)}
+          {pick('priorities', 'Priority', 'priority')}
+          {pick('statuses', 'Status', 'status')}
+          {pick('pendingWith', 'Pending with', 'pendingWith', true)}
+        </div>
+        {manager}
+        <div className="fields">
           <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
           <label className="field">Due time<input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={!date} /></label>
           <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
-          <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done</label>
+          {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
+          <div className="field">Alert on the phone
+            <div className="seg" role="group" aria-label="Alert on the phone">
+              {[['', 'Default'], ['alarm', 'Alarm'], ['gentle', 'Reminder']].map(([v, l]) => <button type="button" key={v} className={t.alertMode === v ? 'on' : ''} onClick={() => setT({ ...t, alertMode: v })}>{l}</button>)}
+            </div>
+          </div>
+          <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
         </div>
+        {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
         <label className="field full">Mail chain<input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" /></label>
         <label className="field full">Notes<textarea rows={4} value={t.notes} onChange={set('notes')} /></label>
+
+        <div className="field full">Checklist{t.checklist.length > 0 && <span className="muted"> ({t.checklist.filter((c) => c.done).length}/{t.checklist.length} done)</span>}
+          {t.checklist.map((c) => (
+            <div key={c.id} className="row">
+              <label className="check-row"><input type="checkbox" checked={c.done} onChange={() => setT({ ...t, checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)) })} /><span className={c.done ? 'struck' : ''}>{c.text}</span></label>
+              <button type="button" className="btn ghost" onClick={() => setT({ ...t, checklist: t.checklist.filter((x) => x.id !== c.id) })} aria-label={`Remove ${c.text}`}>✕</button>
+            </div>
+          ))}
+          <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
+        </div>
+
+        <div className="field full">Attachment links (invoice, bank advice, Drive file...)
+          {t.attachments.map((a) => (
+            <div key={a.id} className="row"><a href={a.url} target="_blank" rel="noopener noreferrer" className="attach">{a.title}</a><button type="button" className="btn ghost" onClick={() => setT({ ...t, attachments: t.attachments.filter((x) => x.id !== a.id) })} aria-label={`Remove ${a.title}`}>✕</button></div>
+          ))}
+          <div className="add-row"><input value={att.title} onChange={(e) => setAtt({ ...att, title: e.target.value })} placeholder="Title (optional)" /><input value={att.url} onChange={(e) => setAtt({ ...att, url: e.target.value })} placeholder="https://..." /><button type="button" className="btn" onClick={addAtt} disabled={!att.url.trim()}>Add</button></div>
+        </div>
+
+        <div className="field full">Key points (go into the daily report line)
+          {t.keyPoints.map((k, i) => (
+            <div key={i} className="row"><span className="kp"><b>{k.key}</b>{k.key && k.value ? ': ' : ''}{k.value}</span><button type="button" className="btn ghost" onClick={() => setT({ ...t, keyPoints: t.keyPoints.filter((_, n) => n !== i) })} aria-label="Remove key point">✕</button></div>
+          ))}
+          <div className="add-row"><input value={kp.key} onChange={(e) => setKp({ ...kp, key: e.target.value })} placeholder="Label (e.g. Invoice no.)" /><input value={kp.value} onChange={(e) => setKp({ ...kp, value: e.target.value })} placeholder="Value" /><button type="button" className="btn" onClick={addKp} disabled={!kp.key.trim() && !kp.value.trim()}>Add</button></div>
+        </div>
+
         <div className="sheet-foot">
           {!isNew && !t.binned && <button type="button" className="btn danger" onClick={() => { actions.bin(t); onClose(); }}>Move to bin</button>}
           <span className="grow" />
