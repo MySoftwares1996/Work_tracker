@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -254,4 +254,32 @@ test('several sub categories can be pasted at once', () => {
   assert.ok(list.every((x) => x.category === 'Payments'));
   assert.deepEqual(list[0].fields.map((f) => f.label), ['Vendor Name', 'Invoice No']);
   assert.equal(addSubCategories(list, items, 'Audit').added, 0);       // a name is kept once across categories
+});
+
+test('the next reminder is asked only under the categories that need it', () => {
+  const lists = readLists({ categories: ['Payments', 'Audit'], reminderCategories: ['Payments'] });
+  assert.equal(categoryAsksReminder(lists, 'Payments'), true);
+  assert.equal(categoryAsksReminder(lists, 'Audit'), false);
+  assert.equal(categoryAsksReminder(readLists({ categories: ['Payments'] }), 'Payments'), false);     // nothing chosen yet = not asked
+  assert.deepEqual(toggleReminderCategory(lists, 'Audit').reminderCategories, ['Payments', 'Audit']);
+  assert.deepEqual(toggleReminderCategory(lists, 'Payments').reminderCategories, []);
+  const out = writeListsValue({ narrationTypes: ['n'] }, { ...lists, reminderCategories: ['Audit'] });
+  assert.deepEqual(out.reminderCategories, ['Audit']);
+  assert.deepEqual(out.narrationTypes, ['n']);
+});
+
+test('a next reminder date and time is kept on the task, and shown as due once it has passed', () => {
+  const d = reminderFrom('2026-10-20', '17:30');
+  assert.equal(d.getHours(), 17);
+  assert.equal(reminderFrom('2026-10-20', '').getHours(), 9);      // no time chosen = 9:00 AM
+  assert.equal(reminderFrom('', '17:30'), null);
+  const t = fromDoc('r', { description: 'x', status: 'Pending', nextReminderAt: d.toISOString() });
+  assert.equal(t.nextReminder.getTime(), d.getTime());
+  assert.equal(toDoc(t, NOW).nextReminderAt, d.toISOString());
+  assert.equal(toDoc({ ...t, nextReminder: null }, NOW).nextReminderAt, null);                  // cleared on purpose, since the document had one
+  assert.ok(!('nextReminderAt' in toDoc(task({}), NOW)));                                       // none invented
+  assert.equal(isReminderDue(task({ nextReminder: new Date(2026, 9, 15, 9, 0) }), NOW), true);
+  assert.equal(isReminderDue(task({ nextReminder: new Date(2026, 9, 15, 11, 0) }), NOW), false);
+  assert.equal(isReminderDue(task({ done: true, nextReminder: new Date(2026, 9, 14) }), NOW), false);
+  assert.match(reminderLabel(task({ nextReminder: new Date(2026, 9, 16, 9, 0) }), NOW), /^Tomorrow/);
 });

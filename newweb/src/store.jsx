@@ -126,6 +126,7 @@ export function DemoStore({ children }) {
       { id: 'a2', name: 'Internal Audit', category: 'Audit', fields: [] },
     ],
     subCategoryCategories: ['Payments', 'Audit'],
+    reminderCategories: ['Payments', 'Follow-up'],
   });
   const [note, setNote] = useState('');
   const ref = useRef(tasks);

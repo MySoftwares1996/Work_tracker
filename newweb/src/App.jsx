@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { DONE_STATUS, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { DONE_STATUS, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -91,7 +91,7 @@ function Dashboard({ onEdit, onNew, go }) {
   const [quick, setQuick] = useState('');
   const s = useMemo(() => stats(tasks), [tasks]);
   const open = tasks.filter(isOpen);
-  const focus = sortTasks(open.filter((t) => isOverdue(t) || isDueToday(t)), 'due').slice(0, 8);
+  const focus = sortTasks(open.filter((t) => isOverdue(t) || isDueToday(t) || isReminderDue(t)), 'due').slice(0, 8);
   const soon = sortTasks(open.filter((t) => isDueSoon(t)), 'due').slice(0, 5);
   const addQuick = (e) => {
     e.preventDefault();
@@ -151,6 +151,7 @@ function TaskCard({ t, onEdit, compact }) {
           {!t.done && <Chip tone={late ? 'coral' : isDueToday(t) ? 'amber' : ''}>{dueLabel(t)}</Chip>}
           {t.done && t.completedAt && <Chip tone="teal">Done {t.completedAt.toLocaleDateString([], { day: 'numeric', month: 'short' })}</Chip>}
           {t.recurrence !== RECURRENCES[0] && <Chip>↻ {t.recurrence}</Chip>}
+          {isOpen(t) && t.nextReminder && <Chip tone={isReminderDue(t) ? 'coral' : ''}>⏰ {reminderLabel(t)}</Chip>}
         </span>
         {!compact && t.reference && <span className="card-note">✉ {t.reference}</span>}
       </button>
@@ -320,13 +321,18 @@ function Links() {
 }
 
 function Config() {
-  const { lists, user, signOut, demo } = useStore();
+  const { lists, user, signOut, demo, saveLists } = useStore();
   return (
     <>
       <h1 className="h1">Config</h1>
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
       <Appearance />
       <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+      <section className="card plain">
+        <h2 className="h2">Next reminder date &amp; time</h2>
+        <p className="muted">Choose the categories that ask for a next reminder date and time in the entry form. The other categories do not show it.</p>
+        <div className="chips">{lists.categories.map((c) => { const on = categoryAsksReminder(lists, c); return <button type="button" key={c} className={`chip toggle${on ? ' on' : ''}`} aria-pressed={on} onClick={() => saveLists(toggleReminderCategory(lists, c))}>{c}</button>; })}</div>
+      </section>
       <section className="card plain"><h2 className="h2">Sub categories</h2><SubCategoryManager lists={lists} /></section>
       <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
     </>
@@ -461,6 +467,10 @@ function TaskForm({ initial, onClose }) {
   const [managing, setManaging] = useState('');       // the list whose options are being added / deleted
   const [step, setStep] = useState('');
   const [clockOpen, setClockOpen] = useState(false);
+  const [remDate, setRemDate] = useState(initial.nextReminder ? dayKey(initial.nextReminder) : '');
+  const [remTime, setRemTime] = useState(initial.nextReminder ? `${pad(initial.nextReminder.getHours())}:${pad(initial.nextReminder.getMinutes())}` : '');
+  const [remClock, setRemClock] = useState(false);
+  const { saveLists } = useStore();
   const [att, setAtt] = useState({ title: '', url: '' });
   const [kp, setKp] = useState({ key: '', value: '' });
   useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
@@ -477,7 +487,7 @@ function TaskForm({ initial, onClose }) {
     setSubError('');
     const [h, m] = time ? time.split(':').map(Number) : [0, 0];
     const due = date ? new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m) : null;
-    const next = { ...t, title: t.title.trim(), due, hasTime: !!(date && time) };
+    const next = { ...t, title: t.title.trim(), due, hasTime: !!(date && time), nextReminder: reminderFrom(remDate, remTime) };
     if (/^completed$/i.test(t.status) && !t.done) actions.complete(next, t.dar);
     else actions.save(next);
     onClose();
@@ -539,6 +549,24 @@ function TaskForm({ initial, onClose }) {
           {pick('pendingWith', 'Pending with', 'pendingWith', true)}
         </div>
         {manager}
+        {t.category && (
+          <label className="field check ask-reminder"><input type="checkbox" checked={categoryAsksReminder(lists, t.category)} onChange={() => saveLists(toggleReminderCategory(lists, t.category))} /> Ask for a next reminder date &amp; time under {t.category}</label>
+        )}
+        {(categoryAsksReminder(lists, t.category) || remDate) && (
+          <div className="manage-panel reminder-panel">
+            <span className="field">Next reminder date &amp; time</span>
+            <div className="fields">
+              <label className="field">Date<input type="date" value={remDate} onChange={(e) => setRemDate(e.target.value)} /></label>
+              <div className="field">Time
+                <button type="button" className="time-btn" onClick={() => setRemClock(true)} disabled={!remDate} aria-label="Pick the reminder time on a clock">
+                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                  <span>{timeLabel(remTime) || (remDate ? 'Set time (9:00 AM if left)' : 'Pick a date first')}</span>
+                </button>
+              </div>
+              {remDate && <div className="field">&nbsp;<button type="button" className="btn ghost" onClick={() => { setRemDate(''); setRemTime(''); }}>Clear reminder</button></div>}
+            </div>
+          </div>
+        )}
         {subBlock}
         <div className="fields">
           <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
@@ -595,6 +623,7 @@ function TaskForm({ initial, onClose }) {
           <button className="btn primary" disabled={!t.title.trim()}>Save</button>
         </div>
       </form>
+      {remClock && <ClockPicker value={remTime} onPick={(v) => { setRemTime(v); setRemClock(false); }} onClear={() => { setRemTime(''); setRemClock(false); }} onClose={() => setRemClock(false)} />}
       {clockOpen && <ClockPicker value={time} onPick={(v) => { setTime(v); setClockOpen(false); }} onClear={() => { setTime(''); setClockOpen(false); }} onClose={() => setClockOpen(false)} />}
     </div>
   );

@@ -69,12 +69,13 @@ export function fromDoc(id, d = {}) {
     seriesId: d.seriesId ? String(d.seriesId) : '',
     checklist: (Array.isArray(d.checklist) ? d.checklist : []).filter((c) => c && String(c.text || '').trim()).map((c) => ({ id: String(c.id || newId()), text: String(c.text), done: !!c.done })),
     attachments: (Array.isArray(d.attachments) ? d.attachments : []).filter((a) => a && /^https?:\/\//i.test(String(a.url || ''))).map((a) => ({ id: String(a.id || newId()), title: String(a.title || a.url), url: String(a.url) })),
+    nextReminder: asDate(d.nextReminderAt),
     subCategory: d.subCategory ? String(d.subCategory) : '',
     subCategoryFields: d.subCategoryFields && typeof d.subCategoryFields === 'object' && !Array.isArray(d.subCategoryFields) ? { ...d.subCategoryFields } : {},
     recurrenceEveryMin: Number(d.recurrenceEveryMin) || null,
     alertMode: d.alertMode === 'alarm' || d.alertMode === 'gentle' ? d.alertMode : '',
     // Which of these the document already had, so an empty list is written back only when it was there (or is being used).
-    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d },
+    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d },
     createdAt: asDate(d.dateLogged),
     updatedAt: Number(d.updatedAt) || 0,
   };
@@ -115,6 +116,9 @@ export function toDoc(t, now = new Date()) {
   if (checklist.length || has.checklist) doc.checklist = checklist;
   const attachments = (t.attachments || []).filter((a) => /^https?:\/\//i.test(a.url || '')).map((a) => ({ id: a.id, title: a.title || a.url, url: a.url }));
   if (attachments.length || has.attachments) doc.attachments = attachments;
+  if ((t.nextReminder instanceof Date && !Number.isNaN(t.nextReminder.getTime())) || has.nextReminder) {
+    doc.nextReminderAt = t.nextReminder instanceof Date && !Number.isNaN(t.nextReminder.getTime()) ? t.nextReminder.toISOString() : null;
+  }
   if (t.subCategory || has.subCategory) {
     doc.subCategory = t.subCategory || null;
     doc.subCategoryFields = t.subCategory ? { ...(t.subCategoryFields || {}) } : null;
@@ -128,7 +132,7 @@ let seq = 0;
 export const newId = () => `web-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 export function blankTask() {
-  return { subCategory: '', subCategoryFields: {}, checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
+  return { nextReminder: null, subCategory: '', subCategoryFields: {}, checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
 }
 
 export const isOpen = (t) => !t.done && !t.binned && !t.purged;
@@ -288,6 +292,7 @@ export function readLists(v) {
     Object.keys(DEFAULT_LISTS).forEach((k) => { if (Array.isArray(named[k])) out[k] = named[k].map(String); });
     if (Array.isArray(named.subCategories)) out.subCategories = normalizeSubCategories(named.subCategories);
     if (Array.isArray(named.subCategoryCategories)) out.subCategoryCategories = named.subCategoryCategories.map(String);
+    if (Array.isArray(named.reminderCategories)) out.reminderCategories = named.reminderCategories.map(String);
   } else if (Array.isArray(obj)) {
     ['categories', 'priorities', 'statuses', 'pendingWith'].forEach((k, i) => { if (Array.isArray(obj[i]) && obj[i].length) out[k] = obj[i].map(String); });
   }
@@ -323,6 +328,7 @@ export function writeListsValue(raw, lists) {
     LIST_KEYS.forEach((k) => { out[k] = lists[k] || []; });
     if (Array.isArray(lists.subCategories)) out.subCategories = lists.subCategories.map((sc) => ({ id: sc.id, name: sc.name, ...(sc.category ? { category: sc.category } : {}), fields: (sc.fields || []).map((f) => (f.options ? { label: f.label, options: f.options } : { label: f.label })) }));
     if (Array.isArray(lists.subCategoryCategories)) out.subCategoryCategories = lists.subCategoryCategories;
+    if (Array.isArray(lists.reminderCategories)) out.reminderCategories = lists.reminderCategories;
     if ('assignees' in out) out.assignees = lists.pendingWith || [];
   }
   return asString ? JSON.stringify(out) : out;
@@ -355,3 +361,28 @@ export function timeLabel(v) {
 export const dialAngle = (dx, dy) => (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
 export const angleToHour = (deg) => Math.round(deg / 30) % 12 || 12;
 export const angleToMinute = (deg) => Math.round(deg / 6) % 60;
+
+/* ---- next reminder date & time, asked only under the categories that need it ---- */
+export const categoryAsksReminder = (lists, cat) => !!cat && Array.isArray(lists.reminderCategories) && lists.reminderCategories.includes(cat);
+/** The lists with one category switched on or off for the next reminder. */
+export function toggleReminderCategory(lists, cat) {
+  const now = Array.isArray(lists.reminderCategories) ? lists.reminderCategories : [];
+  return { ...lists, reminderCategories: now.includes(cat) ? now.filter((c) => c !== cat) : [...now, cat] };
+}
+/** A date "2026-10-20" and a time "17:30" (blank = 9:00 AM) -> a Date, or null. */
+export function reminderFrom(date, time) {
+  if (!date) return null;
+  const d = parseDue(date, time || '09:00');
+  return d;
+}
+export const isReminderDue = (t, now = new Date()) => isOpen(t) && !!t.nextReminder && t.nextReminder.getTime() <= now.getTime();
+/** "Today 5:00 PM", "Tomorrow 9:00 AM", "12 Oct, 9:00 AM" */
+export function reminderLabel(t, now = new Date()) {
+  if (!t.nextReminder) return '';
+  const days = Math.round((startOfDay(t.nextReminder) - startOfDay(now)) / 86400000);
+  const time = t.nextReminder.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (days === 0) return `Today ${time}`;
+  if (days === 1) return `Tomorrow ${time}`;
+  if (days === -1) return `Yesterday ${time}`;
+  return `${t.nextReminder.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${time}`;
+}

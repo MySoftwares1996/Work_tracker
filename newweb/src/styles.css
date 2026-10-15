@@ -320,3 +320,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .many { display: flex; flex-direction: column; gap: 8px; }
 .many textarea { margin: 8px 0; }
 .many .btn { align-self: flex-start; }
+
+.reminder-panel { display: flex; flex-direction: column; gap: 10px; }
+.reminder-panel .field:first-child { text-transform: uppercase; }
+.ask-reminder { padding: 2px 4px; }
