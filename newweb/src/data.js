@@ -227,7 +227,11 @@ export function reportText(tasks, date = new Date()) {
   done.forEach((t, i) => {
     const bits = [t.category, t.pendingWith && `with ${t.pendingWith}`].filter(Boolean).join(', ');
     lines.push(`${i + 1}. ${t.title}${bits ? ` (${bits})` : ''}`);
-    if (t.notes) lines.push(`   ${t.notes.replace(/\n+/g, ' ')}`);
+    // The Sub Category's fields (the banker's reply among them) and the notes both go into the report.
+    const fields = Object.entries(t.subCategoryFields || {}).filter(([, v]) => String(v || '').trim()).map(([k, v]) => `${String(k).replace(/[\s:]+$/, '')}: ${String(v).trim().replace(/\n+/g, ' ')}`);
+    if (t.subCategory && fields.length) lines.push(`   ${t.subCategory} - ${fields.join('; ')}`);
+    else if (fields.length) lines.push(`   ${fields.join('; ')}`);
+    if (t.notes) lines.push(`   Notes: ${t.notes.replace(/\n+/g, ' ')}`);
   });
   const pending = tasks.filter((t) => isOpen(t) && t.due && dayKey(t.due) <= day);
   if (pending.length) {

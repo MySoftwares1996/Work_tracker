@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
 import ClockPicker from './ClockPicker';
-import { SNOOZES, alertHeading, dayKey, moveTask, pad, pendingAlerts, timeLabel, RECURRENCES, dueLabel } from './data';
+import { SNOOZES, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
@@ -73,10 +73,21 @@ function AlertCard({ a, count, lists, actions, finish, onOpen }) {
   const [status, setStatus] = useState(t.status);
   const [repeat, setRepeat] = useState(t.recurrence);
   const [clock, setClock] = useState(false);
+  // Under the categories that ask for a next reminder date & time (Config), the alert asks for it too.
+  const asks = categoryAsksReminder(lists, t.category);
+  const [rDate, setRDate] = useState(() => { const n = t.nextReminder && t.nextReminder > new Date() ? t.nextReminder : new Date(Date.now() + 86400000); return dayKey(n); });
+  const [rTime, setRTime] = useState(() => (t.nextReminder && t.nextReminder > new Date() ? `${pad(t.nextReminder.getHours())}:${pad(t.nextReminder.getMinutes())}` : '09:00'));
+  const [rClock, setRClock] = useState(false);
+  const [rError, setRError] = useState('');
   useEffect(() => { const k = (e) => { if (e.key === 'Escape' && !clock) finish(a); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [a, finish, clock]);
 
   const save = (patch) => { if (!a.test) actions.save(withRemark({ ...t, ...patch }, remarks)); finish(a); };
   const done = (dar) => { if (!a.test) actions.complete(withRemark(t, remarks), dar); finish(a); };
+  const setReminder = () => {
+    const when = reminderFrom(rDate, rTime);
+    if (!when || when.getTime() <= Date.now()) { setRError('Pick a date and time in the future.'); return; }
+    save({ nextReminder: when });
+  };
   const skip = () => (a.kind === 'reminder' ? save({ nextReminder: null }) : save({ skippedDates: [...(t.skippedDates || []), today] }));
   const move = () => { if (!a.test) actions.save(withRemark(moveTask(t, date, time, status, repeat), remarks)); finish(a); };
   const tone = String(t.priority).toLowerCase() === 'high' ? 'high' : String(t.priority).toLowerCase() === 'low' ? 'low' : 'medium';
@@ -108,6 +119,17 @@ function AlertCard({ a, count, lists, actions, finish, onOpen }) {
           </div>
         )}
         <input className="alert-remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks / notes for today (optional) — e.g. Nothing to do today" aria-label="Remarks" />
+        {asks && (
+          <div className="alert-reminder">
+            <div className="alert-reminder-head"><b>Next reminder date &amp; time</b><span className="muted">Asked for {t.category} tasks. Your remarks above are saved with it.</span></div>
+            <div className="move-row">
+              <input type="date" value={rDate} onChange={(e) => { setRDate(e.target.value); setRError(''); }} aria-label="Next reminder date" />
+              <button type="button" className="time-btn" onClick={() => setRClock(true)} aria-label="Pick the next reminder time on a clock"><span>{timeLabel(rTime) || 'Set time'}</span></button>
+              <button type="button" className="btn primary" onClick={setReminder} disabled={!rDate}>Save &amp; set next reminder</button>
+            </div>
+            {rError && <p className="banner err" role="alert">{rError}</p>}
+          </div>
+        )}
         <div className="alert-actions">
           <button type="button" className="btn ok" onClick={() => done(false)}>Mark done</button>
           <button type="button" className="btn ok soft" onClick={() => done(true)}>Done + DAR</button>
@@ -128,6 +150,7 @@ function AlertCard({ a, count, lists, actions, finish, onOpen }) {
         </div>
         </div>
       </div>
+      {rClock && <ClockPicker value={rTime} onPick={(v) => { setRTime(v); setRClock(false); }} onClear={() => { setRTime(''); setRClock(false); }} onClose={() => setRClock(false)} />}
       {clock && <ClockPicker value={time} onPick={(v) => { setTime(v); setClock(false); }} onClear={() => { setTime(''); setClock(false); }} onClose={() => setClock(false)} />}
     </div>
   );

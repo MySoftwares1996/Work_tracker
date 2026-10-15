@@ -351,3 +351,14 @@ test('snooze, silence and skip are saved with the task in the phone app\'s own f
   assert.equal(moved.lastAckDate, '');
   assert.equal(toDoc(moved, NOW).snoozeUntil, null);                                                           // cleared, since the document had one
 });
+
+test('the daily report carries the banker\'s reply (a sub category field) and the notes', () => {
+  const day = new Date(2026, 9, 15, 12);
+  const t = task({ title: 'HDFC FD Statement Collation.', category: "Bank Follow-up's", done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, subCategory: "Urgent Bank Follow Up's", subCategoryFields: { "Banker's Reply's:": 'Need to collect on an urgent basis', Empty: ' ' }, notes: 'Called twice.\nStatement due tomorrow.' });
+  const text = reportText([t], day);
+  assert.match(text, /Urgent Bank Follow Up's - Banker's Reply's: Need to collect on an urgent basis/);
+  assert.match(text, /Notes: Called twice\. Statement due tomorrow\./);
+  assert.ok(!text.includes('Empty'));
+  const only = reportText([task({ title: 'Plain', done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, notes: 'n' })], day);
+  assert.ok(!only.includes('undefined') && /Notes: n/.test(only));
+});
