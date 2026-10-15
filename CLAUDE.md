@@ -70,6 +70,11 @@ mic) · Recent Changes (`undoHistory`) · `?` shortcuts · Daily auto backup (`s
 (`src/audit.js`). Links, templates, AI instructions and meeting mode sync through `users/<uid>/meta/tools`; checklists,
 attachments and the audit trail ride on the task itself (`cloudSync.js`).
 
+## APK builds - the owner's rules
+
+- Never start, re-run or trigger an APK build (the "Build Android APK" workflow, which also runs on every push to `main`) without the owner saying so in that message.
+- Every change made to the web version is held in `docs/APK_PENDING.md` and goes into the APK only at the next APK build the owner asks for. Add a line there in the same commit as each web change; when the owner asks for the next build, port the listed items, then clear them.
+
 ## The new web app (`newweb/`)
 
 A separate Vite + React site with its own look (centred top tab bar, bold tiles), on the same Firebase data as the app. It is not part of the
