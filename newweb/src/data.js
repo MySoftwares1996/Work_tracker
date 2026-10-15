@@ -144,19 +144,36 @@ export function blankTask() {
 
 export const isOpen = (t) => !t.done && !t.binned && !t.purged;
 
-// Counted by calendar day, as the phone app counts: overdue once the due DAY has passed.
-export const isOverdue = (t, now = new Date()) => isOpen(t) && !!t.due && startOfDay(t.due) < startOfDay(now);
-export const isDueToday = (t, now = new Date()) => isOpen(t) && !!t.due && dayKey(t.due) === dayKey(now);
+// Counted as the phone app and the old website count: a task with a time is overdue once that time has passed; one with only a date, once its day
+// has passed. "Due today" is due today and not yet overdue (still on the clock). "Pending as on Today" is overdue plus due today.
+export const isOverdue = (t, now = new Date()) => {
+  if (!isOpen(t) || !t.due) return false;
+  return t.hasTime ? t.due.getTime() < now.getTime() : startOfDay(t.due) < startOfDay(now);
+};
+export const isDueToday = (t, now = new Date()) => isOpen(t) && !!t.due && dayKey(t.due) === dayKey(now) && !isOverdue(t, now);
+export const isPendingAsOnToday = (t, now = new Date()) => isOverdue(t, now) || isDueToday(t, now);
 export const isDueSoon = (t, now = new Date(), days = 7) => isOpen(t) && !!t.due && startOfDay(t.due) > startOfDay(now) && startOfDay(t.due) <= addDays(startOfDay(now), days);
+export const isDueThisMonth = (t, now = new Date()) => isOpen(t) && !!t.due && t.due.getFullYear() === now.getFullYear() && t.due.getMonth() === now.getMonth();
+export const hasNoDueDate = (t) => isOpen(t) && !t.due;
+export const isStatusPending = (t) => isOpen(t) && /^pending$/i.test(String(t.status).trim());
+
+/** The Register's "Due" choices, as the Dashboard tiles open them. */
+export const DUE_FILTERS = [['pending', 'Pending as on Today'], ['today', 'Due Today'], ['overdue', 'Overdue'], ['next7', 'Next 7 Days'], ['month', 'This Month'], ['none', 'No Due Date']];
+const DUE_TESTS = { pending: isPendingAsOnToday, today: isDueToday, overdue: isOverdue, next7: isDueSoon, month: isDueThisMonth, none: hasNoDueDate };
 
 export function stats(tasks, now = new Date()) {
   const open = tasks.filter(isOpen);
   const today = dayKey(now);
+  const count = (fn) => open.filter((t) => fn(t, now)).length;
   return {
     open: open.length,
-    overdue: open.filter((t) => isOverdue(t, now)).length,
-    dueToday: open.filter((t) => isDueToday(t, now)).length,
-    dueSoon: open.filter((t) => isDueSoon(t, now)).length,
+    pendingAsOnToday: count(isPendingAsOnToday),
+    overdue: count(isOverdue),
+    dueToday: count(isDueToday),
+    dueSoon: count(isDueSoon),
+    thisMonth: count(isDueThisMonth),
+    noDueDate: open.filter(hasNoDueDate).length,
+    pending: open.filter(isStatusPending).length,
     high: open.filter((t) => /^high$/i.test(t.priority)).length,
     doneToday: tasks.filter((t) => t.done && !t.binned && !t.purged && t.completedAt && dayKey(t.completedAt) === today).length,
   };
@@ -175,9 +192,12 @@ export function sortTasks(list, by = 'due') {
   return out;
 }
 
-export function filterTasks(list, { q = '', priority = '', category = '', pendingWith = '' } = {}) {
+export function filterTasks(list, { q = '', priority = '', category = '', pendingWith = '', status = '', due = '' } = {}, now = new Date()) {
   const needle = q.trim().toLowerCase();
+  const dueTest = DUE_TESTS[due];
   return list.filter((t) => {
+    if (status && t.status !== status) return false;
+    if (dueTest && !dueTest(t, now)) return false;
     if (priority && t.priority !== priority) return false;
     if (category && t.category !== category) return false;
     if (pendingWith && t.pendingWith !== pendingWith) return false;

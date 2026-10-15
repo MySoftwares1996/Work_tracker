@@ -5,7 +5,7 @@ import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from 
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -18,7 +18,8 @@ export default function App() {
   const [tab, setTab] = useState(tabFromHash);
   const [form, setForm] = useState(null);
   useEffect(() => { const f = () => setTab(tabFromHash()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
-  const go = (k) => { location.hash = k; setTab(k); window.scrollTo({ top: 0 }); };
+  const [preset, setPreset] = useState(null);       // a filter the Dashboard tile asked the Register to open with
+  const go = (k, filter = null) => { setPreset(filter ? { ...filter, n: Date.now() } : null); location.hash = k; setTab(k); window.scrollTo({ top: 0 }); };
 
   if (store.user === undefined) return <div className="center"><div className="spinner" aria-label="Loading" /></div>;
   if (!store.user) return <SignIn />;
@@ -28,7 +29,7 @@ export default function App() {
   const openForm = (t) => setForm(t || blankTask());
   const screens = {
     dashboard: <Dashboard onEdit={openForm} onNew={() => openForm()} go={go} />,
-    register: <Register onEdit={openForm} />,
+    register: <Register onEdit={openForm} preset={preset} />,
     done: <Completed onEdit={openForm} />,
     holidays: <Holidays />,
     bin: <Bin />,
@@ -113,10 +114,14 @@ function Dashboard({ onEdit, onNew, go }) {
         <button type="button" className="btn" onClick={onNew}>Full form</button>
       </form>
       <section className="tiles">
-        <Tile tone="coral" label="Overdue" value={s.overdue} sub="Past their due day" onClick={() => go('register')} />
-        <Tile tone="amber" label="Due today" value={s.dueToday} sub="Still to finish" onClick={() => go('register')} />
-        <Tile tone="violet" label="Next 7 days" value={s.dueSoon} sub="Coming up" onClick={() => go('register')} />
-        <Tile tone="pink" label="High priority" value={s.high} sub="Open tasks" onClick={() => go('register')} />
+        <Tile tone="coral" label="Pending as on Today" value={s.pendingAsOnToday} sub="Overdue + due today" onClick={() => go('register', { due: 'pending' })} />
+        <Tile tone="amber" label="Due Today" value={s.dueToday} sub="Still on the clock" onClick={() => go('register', { due: 'today' })} />
+        <Tile tone="pink" label="Overdue" value={s.overdue} sub="Past the due time" onClick={() => go('register', { due: 'overdue' })} />
+        <Tile tone="violet" label="Next 7 Days" value={s.dueSoon} sub="Coming up" onClick={() => go('register', { due: 'next7' })} />
+        <Tile tone="blue" label="This Month" value={s.thisMonth} sub={`Due in ${new Date().toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'month' })} />
+        <Tile tone="teal" label="No Due Date" value={s.noDueDate} sub="Needs a deadline" onClick={() => go('register', { due: 'none' })} />
+        <Tile tone="amber" label="Pending" value={s.pending} sub="Status Pending" onClick={() => go('register', { status: 'Pending' })} />
+        <Tile tone="coral" label="High priority" value={s.high} sub="Open tasks" onClick={() => go('register', { priority: 'High' })} />
         <Tile tone="blue" label="Open tasks" value={s.open} sub="In the register" onClick={() => go('register')} />
         <Tile tone="teal" label="Done today" value={s.doneToday} sub="Completed" onClick={() => go('done')} />
       </section>
@@ -173,9 +178,10 @@ function TaskCard({ t, onEdit, compact }) {
   );
 }
 
-function Register({ onEdit }) {
+function Register({ onEdit, preset }) {
   const { tasks, lists } = useStore();
-  const [f, setF] = useState({ q: '', priority: '', category: '', pendingWith: '' });
+  const [f, setF] = useState(() => ({ q: '', priority: '', category: '', pendingWith: '', status: '', due: '', ...(preset || {}) }));
+  useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
   const [by, setBy] = useState('due');
   const [view, setView] = useState('cards');
   const open = tasks.filter(isOpen);
@@ -204,6 +210,8 @@ function Filters({ f, setF, lists, extra }) {
       <select value={f.priority} onChange={set('priority')} aria-label="Priority"><option value="">All priorities</option>{lists.priorities.map((x) => <option key={x}>{x}</option>)}</select>
       <select value={f.category} onChange={set('category')} aria-label="Category"><option value="">All categories</option>{lists.categories.map((x) => <option key={x}>{x}</option>)}</select>
       {lists.pendingWith.length > 0 && <select value={f.pendingWith} onChange={set('pendingWith')} aria-label="Pending with"><option value="">Anyone</option>{lists.pendingWith.map((x) => <option key={x}>{x}</option>)}</select>}
+      {f.due !== undefined && <select value={f.due || ''} onChange={set('due')} aria-label="Due"><option value="">Any due date</option>{DUE_FILTERS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}
+      {f.status !== undefined && <select value={f.status || ''} onChange={set('status')} aria-label="Status"><option value="">Any status</option>{lists.statuses.map((x) => <option key={x}>{x}</option>)}</select>}
       {extra}
     </div>
   );

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -42,13 +42,46 @@ test('the document is written without fields this app does not own (merge keeps 
   ['snoozeUntil', 'narration', 'subCategory', 'paymentDetails', 'checklist', 'attachments', 'keyPoints', 'alertMode'].forEach((k) => assert.ok(!keys.includes(k), k));
 });
 
-test('overdue and due-today count by calendar day', () => {
-  const yesterday = task({ due: new Date(2026, 9, 14, 23, 0) });
-  const today = task({ due: new Date(2026, 9, 15, 9, 0) });
+test('overdue, due today and pending as on today are counted as the phone app counts them', () => {
+  // NOW is 15 Oct 2026 10:00
+  const yesterday = task({ id: 'y', due: new Date(2026, 9, 14, 23, 0), hasTime: true });
+  const todayPast = task({ id: 'tp', due: new Date(2026, 9, 15, 9, 0), hasTime: true });        // timed, its time has passed: overdue
+  const todayLater = task({ id: 'tl', due: new Date(2026, 9, 15, 17, 0), hasTime: true });      // timed, still to come: due today
+  const todayDateOnly = task({ id: 'td', due: new Date(2026, 9, 15), hasTime: false });          // a date only: due all today
+  const yDateOnly = task({ id: 'yd', due: new Date(2026, 9, 14), hasTime: false });
   assert.equal(isOverdue(yesterday, NOW), true);
-  assert.equal(isOverdue(today, NOW), false);
-  const s = stats([yesterday, today, task({ due: new Date(2026, 9, 18) }), task({ done: true, completedAt: new Date(2026, 9, 15, 8) }), task({ binned: true })], NOW);
-  assert.deepEqual([s.open, s.overdue, s.dueToday, s.dueSoon, s.doneToday], [3, 1, 1, 1, 1]);
+  assert.equal(isOverdue(todayPast, NOW), true);
+  assert.equal(isOverdue(todayLater, NOW), false);
+  assert.equal(isOverdue(todayDateOnly, NOW), false);
+  assert.equal(isOverdue(yDateOnly, NOW), true);
+  assert.equal(isDueToday(todayPast, NOW), false);          // overdue is not also "due today"
+  assert.equal(isDueToday(todayLater, NOW), true);
+  assert.equal(isDueToday(todayDateOnly, NOW), true);
+  const rows = [yesterday, todayPast, todayLater, todayDateOnly, yDateOnly, task({ id: 'n7', due: new Date(2026, 9, 18) }), task({ id: 'nd', status: 'Pending' }), task({ id: 'dn', done: true, completedAt: new Date(2026, 9, 15, 8) }), task({ id: 'b', binned: true, due: new Date(2026, 9, 14) })];
+  const s = stats(rows, NOW);
+  assert.equal(s.overdue, 3);              // yesterday, today past, yesterday date-only
+  assert.equal(s.dueToday, 2);
+  assert.equal(s.pendingAsOnToday, 5);     // overdue + due today
+  assert.equal(s.dueSoon, 1);
+  assert.equal(s.noDueDate, 1);
+  assert.equal(s.pending, 1);
+  assert.equal(s.thisMonth, 6);
+  assert.equal(s.open, 7);
+  assert.equal(s.doneToday, 1);
+});
+
+test('the Register can be filtered by due bucket and status, as the Dashboard tiles open it', () => {
+  const a = task({ id: 'a', title: 'A', due: new Date(2026, 9, 14, 9), hasTime: true, status: 'Pending' });
+  const b = task({ id: 'b', title: 'B', due: new Date(2026, 9, 15, 17), hasTime: true, status: 'In Progress' });
+  const c = task({ id: 'c', title: 'C', status: 'Pending' });
+  const names = (o) => filterTasks([a, b, c], o, NOW).map((x) => x.title);
+  assert.deepEqual(names({ due: 'pending' }), ['A', 'B']);
+  assert.deepEqual(names({ due: 'overdue' }), ['A']);
+  assert.deepEqual(names({ due: 'today' }), ['B']);
+  assert.deepEqual(names({ due: 'none' }), ['C']);
+  assert.deepEqual(names({ status: 'Pending' }), ['A', 'C']);
+  assert.deepEqual(names({ due: 'pending', status: 'Pending' }), ['A']);
+  assert.deepEqual(names({}), ['A', 'B', 'C']);
 });
 
 test('sorting and filtering', () => {
