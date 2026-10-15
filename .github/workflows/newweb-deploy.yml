@@ -1,0 +1,68 @@
+# Builds the NEW web app (newweb/) and puts it on its own Firebase Hosting site. Run by hand only: the "Run workflow"
+# button on the Actions tab. It never runs on a push, so it does not start with, or replace, any other build or deploy.
+# Setup: docs/NEW_WEB.md
+name: Deploy new web app
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: newweb-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Check the deploy settings are set
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_NEWWEB_SITE: ${{ vars.FIREBASE_NEWWEB_SITE }}
+        run: |
+          missing=0
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then echo "::error::Secret FIREBASE_SERVICE_ACCOUNT is not set (docs/DEPLOY_WEB.md, step 3)"; missing=1; fi
+          if [ -z "$FIREBASE_NEWWEB_SITE" ]; then echo "::error::Variable FIREBASE_NEWWEB_SITE is not set (docs/NEW_WEB.md)"; missing=1; fi
+          exit $missing
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: newweb/package-lock.json
+
+      - name: Install, test and build the new web app
+        working-directory: newweb
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+          npm run build
+
+      - name: Sign in to Firebase
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-sa.json" >> "$GITHUB_ENV"
+
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_HOSTING_SITE: ${{ vars.FIREBASE_NEWWEB_SITE }}
+          WEB_DIST_DIR: newweb/dist
+        run: node scripts/deploy-web.js
+
+      - name: Show the address
+        if: success()
+        run: echo "### Live at https://${{ vars.FIREBASE_NEWWEB_SITE }}.web.app" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-sa.json"
