@@ -95,6 +95,8 @@ async function open(width, height) {
     await page.waitForTimeout(500);
     ok(`phone width: ${tab} tab opens without an error`, errors.length === before, errors.slice(before).join(' | '));
   }
+  ok('phone width: no Narration tab', (await page.getByText('Narration', { exact: true }).count()) === 0);
+  ok('phone width: no Quick add bar and no New entry button', (await page.getByPlaceholder(/Quick add/i).count()) === 0 && (await page.getByLabel('New entry').count()) === 0);
   await page.getByText('Config', { exact: true }).last().click();
   await page.waitForTimeout(500);
   const before = errors.length;

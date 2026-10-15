@@ -56,6 +56,9 @@ Several sessions have changed the alert code; check this list before changing it
 - APK and phone width: the same tiles, cards, finder (search button in the header, `src/CommandPalette.js`) and Register / Completed
   table switch (`src/EntryTable.js`); the APK tab bar is `AppTabs` in `src/ui.js`.
 
+- Phone width (APK and web under 600): no New / Edit Entry form (`formOn` in `WorkingDashboard.js`), no Quick add bar, no + button and no
+  Narration tab; tablets and desktop keep them. The owner asked for this; entries cannot be added or edited at phone width.
+
 ## Features added in the 20-feature round (where they live)
 
 Quick add `src/quickAdd.js` · Share a mail into the app (Android Share > Working Dashboard, `consumeSharedText`) · Templates
