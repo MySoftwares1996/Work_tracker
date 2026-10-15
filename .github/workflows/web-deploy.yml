@@ -1,4 +1,4 @@
-# Builds the web version and puts it on Firebase Hosting, after every push to main.
+# Builds the web version - the new web app in newweb/ (docs/NEW_WEB.md) - and puts it on Firebase Hosting, after every push to main.
 # Setup: docs/DEPLOY_WEB.md
 name: Deploy web version
 
@@ -42,12 +42,17 @@ jobs:
       - name: Run the project checks and tests
         run: npm run verify
 
-      - name: Build the web version
+      - name: Build the web version (newweb/)
+        working-directory: newweb
         env:
           # Optional: the project's own Firebase Web app keys (docs/DEPLOY_WEB.md, "If sign-in says...").
-          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
-          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
-        run: npm run build:web
+          # The old EXPO_PUBLIC_* variables are used when the VITE_* ones are not set.
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY || vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID || vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+          npm run build
 
       - name: Sign in to Firebase
         env:
@@ -59,6 +64,7 @@ jobs:
       - name: Deploy to Firebase Hosting
         env:
           FIREBASE_HOSTING_SITE: ${{ vars.FIREBASE_HOSTING_SITE }}
+          WEB_DIST_DIR: newweb/dist
           # "true" also deploys firestore.rules (docs/DEPLOY_WEB.md, "Security rules").
           DEPLOY_FIRESTORE_RULES: ${{ vars.DEPLOY_FIRESTORE_RULES }}
         run: npm run deploy:web

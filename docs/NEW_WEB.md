@@ -25,7 +25,12 @@ npm test           # the data logic
 npm run build      # newweb/dist
 ```
 
-## Put it online (its own Hosting site, run by hand)
+## It is now the main website
+The "Deploy web version" workflow (every push to `main`, or Run workflow) builds `newweb/` and puts it on the site named by the variable
+`FIREBASE_HOSTING_SITE`, so that address shows this app, not the Expo website. The Expo website code is still in the repo (`npm run build:web`,
+the "Website smoke test"), only no longer deployed. To go back, change the build and `WEB_DIST_DIR` lines of `.github/workflows/web-deploy.yml`.
+
+## Put it on a separate Hosting site instead (run by hand)
 1. Firebase console > Hosting > **Add another site** (for example `work-dashboard-new`). Do not use the sites already in use.
 2. GitHub > Settings > Secrets and variables > Actions > **Variables** > new variable `FIREBASE_NEWWEB_SITE` = that site's name.
    The secret `FIREBASE_SERVICE_ACCOUNT` is the same one the other website deploy uses (docs/DEPLOY_WEB.md).
