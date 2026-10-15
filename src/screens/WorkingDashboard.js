@@ -60,17 +60,18 @@ const REPORT_PRESETS = [
   { label: 'Detailed', text: 'Give each task a fuller description of what was done, with the people and banks involved, in a formal tone.' },
 ];
 
-// web.app only: a Narration tab after the Bin - the Tally narration builder, whatever an entry's status.
-const TAB_KEYS = ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', ...(Platform.OS === 'web' ? ['narration', 'links'] : []), 'report'];
+// web.app only, and not on phone-width screens: a Narration tab after the Bin - the Tally narration builder, whatever an entry's status.
+const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', ...(narration ? ['narration'] : []), ...(Platform.OS === 'web' ? ['links'] : []), 'report'];
 // Bottom bar, same order as the web app (Report is reached from the Dashboard).
-const BAR_TABS = [
+const makeBarTabs = (narration) => [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'register', label: 'Register' },
   { key: 'done', label: 'Completed' },
   { key: 'holidays', label: 'Holidays' },
   { key: 'config', label: 'Config' },
   { key: 'bin', label: 'Bin' },
-  ...(Platform.OS === 'web' ? [{ key: 'narration', label: 'Narration', icon: 'list' }, { key: 'links', label: 'Links', icon: 'links' }] : []),
+  ...(narration ? [{ key: 'narration', label: 'Narration', icon: 'list' }] : []),
+  ...(Platform.OS === 'web' ? [{ key: 'links', label: 'Links', icon: 'links' }] : []),
 ];
 const TAB_TITLES = { dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', report: 'Daily Report' };
 export default function WorkingDashboard() {
@@ -79,6 +80,10 @@ export default function WorkingDashboard() {
   // "Both" (the APK and the website on a phone): Config, Register, Completed and Holidays use their phone layouts -
   // one column, laid out like the web app's (Config as one page with every section open, not a list of sheets).
   const phoneLayout = !tabletWidth;
+  // "Both" (phone-width screens): no New / Edit Entry form and no Narration tab - the owner removed them there.
+  const formOn = !phoneLayout;
+  const TAB_KEYS = makeTabKeys(Platform.OS === 'web' && !phoneLayout);
+  const BAR_TABS = makeBarTabs(Platform.OS === 'web' && !phoneLayout);
   // Bank follow-ups (📞 and the form section): phone-width screens ("Both") and web.app at every size.
   const followUpHere = phoneLayout || Platform.OS === 'web';
   // web.app's Narration tab: three fields to a row on a wide screen (900+), two on anything narrower.
@@ -292,7 +297,7 @@ export default function WorkingDashboard() {
       narrationDraft: n ? { typeName: n.typeName || '', percent: n.percent || '', docNo: n.docNo || '', poNo: n.poNo || '', purpose: n.purpose || '', fieldsValues: { ...(n.fieldsValues || {}) }, includeMail: n.includeMail !== false } : { typeName: '', includeMail: false },
     };
   };
-  const openNewEntry = () => { setEntryMore(false); setEntrySheet(withDrafts(blankEntry())); };
+  const openNewEntry = () => { if (!formOn) return; setEntryMore(false); setEntrySheet(withDrafts(blankEntry())); };
   // Narrations copied anywhere are kept (the last 30, stars stay) - shown under the narration form.
   useEffect(() => { setNarrationSink((text, typeName) => updateWd((w) => ({ ...w, narrationHistory: addHistory(w.narrationHistory || [], text, typeName) }))); return () => setNarrationSink(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Quick add: a typed sentence opens the New Entry form pre-filled (title, due date and time, priority, category, person).
@@ -331,13 +336,13 @@ export default function WorkingDashboard() {
   const quickParsed = useMemo(() => (quickText.trim() ? parseQuickAdd(quickText, { categories: wd.categories || [], assignees: wd.assignees || [], ...qa }) : null), [quickText, wd.categories, wd.assignees, qa.dateOrder, qa.dateOnlyTime]);
   const quickAdd = (text = quickText) => {
     const p = parseQuickAdd(text, { categories: wd.categories || [], assignees: wd.assignees || [], ...qa });
-    if (!p.title && !p.dueAt) return;
+    if (!formOn || (!p.title && !p.dueAt)) return;
     const base = blankEntry();
     setEntryMore(false);
     setEntrySheet(withDrafts({ ...base, title: p.title || String(text).trim(), ...(p.priority ? { priority: p.priority } : null), ...(p.category ? { category: p.category } : null), ...(p.pendingWith ? { pendingWith: p.pendingWith } : null), ...(p.dueAt ? { dueAt: p.dueAt } : null), ...(p.reference ? { reference: p.reference } : null) }));
     setQuickText('');
   };
-  const openEditEntry = (entry, patch = {}) => { setEntryMore(false); setEntrySheet({ ...withDrafts(entry), ...patch }); };
+  const openEditEntry = (entry, patch = {}) => { if (!formOn) return; setEntryMore(false); setEntrySheet({ ...withDrafts(entry), ...patch }); };
   const closeEntrySheet = () => setEntrySheet(null);
 
   /**
@@ -477,6 +482,7 @@ export default function WorkingDashboard() {
     const entry = entriesRef.current.find((x) => x.id === shown.id) || shown;
     // As on the web app: a category that needs a Sub Category is completed from the form, with its details.
     if (kind === 'complete' && !subCategoryComplete(entry, plists)) {
+      if (!formOn) { Alert.alert('Sub Category needed', 'This task needs a Sub Category, which is filled in on a tablet or the website on a computer.'); return; }
       openEditEntry(entry, { status: 'Completed', ...(opts.dar === undefined ? {} : { dar: opts.dar }), ...(String(opts.notes || '').trim() ? { notes: withNotes(entry).notes } : {}) });
       Alert.alert('Sub Category needed', 'Select a Sub Category and fill in its details, then save to mark this done.');
       return;
@@ -608,7 +614,7 @@ export default function WorkingDashboard() {
     if (!id) return;
     navigation.setParams({ completeId: undefined });
     const entry = entriesRef.current.find((x) => String(x.id) === String(id));
-    if (!entry || !isOpen(entry)) return;
+    if (!entry || !isOpen(entry) || !formOn) return;
     openEditEntry(entry, { status: 'Completed', ...(route.params?.dar === false ? { dar: false } : {}) });
     Alert.alert('Sub Category needed', 'Select a Sub Category and fill in its details, then save to mark this done.');
   }, [route.params?.completeId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -770,6 +776,7 @@ export default function WorkingDashboard() {
   };
   const addTaskFromEmail = async (email) => {
     closeMail();
+    if (!formOn) return;
     const draft = emailToEntryDraft(email);
     // The web app keeps the mail's id on the task (emailId), so it can open the original mail.
     setEntrySheet({ ...withDrafts(draft), emailId: email.id });
@@ -1633,7 +1640,7 @@ export default function WorkingDashboard() {
               </>
             )}
             {/* Quick add: type a sentence - "Pay ICICI invoice tomorrow 5pm high" - and the form opens filled in. */}
-            <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
+            {formOn && <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
               <Row gap={8} style={{ alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
                   <Field style={{ marginBottom: 0 }} value={quickText} onChangeText={setQuickText} placeholder='➕ Quick add: "Pay vendor tomorrow 5pm high"' onSubmitEditing={() => quickAdd()} returnKeyType="done" />
@@ -1643,7 +1650,7 @@ export default function WorkingDashboard() {
               </Row>
               {Platform.OS !== 'web' && !quickText && <Small style={{ marginTop: 6 }}>Tip: tap the 🎤 on your keyboard and say it - "Call the bank tomorrow 11am high".</Small>}
               {!!quickParsed && !!describeQuickAdd(quickParsed) && <Small style={{ marginTop: 6 }}>→ {describeQuickAdd(quickParsed)}</Small>}
-            </Card>
+            </Card>}
             <Row style={{ flexWrap: 'wrap', gap: 10 }}>
               <StatTile index={0} label="Pending as on Today" value={stats.pendingAsOnToday} sub="Overdue + due today" color={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
               <StatTile index={1} label="Due Today" value={stats.dueToday} sub="Still on the clock" color={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
@@ -1795,7 +1802,7 @@ export default function WorkingDashboard() {
             </Row>
             {(Platform.OS !== 'web' || wide) && <Segmented options={[{ key: 'cards', label: '▦ Cards' }, { key: 'table', label: '☰ Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
             <Segmented options={SORTS} value={sortBy} onChange={setSortBy} style={{ marginBottom: 10 }} />
-            <Small style={{ marginBottom: 12, textAlign: 'center' }}>Tap a card to edit · ✓ completes it{WEB_DAR ? ' · DAR completes it into the daily report' : ''}{Platform.OS === 'web' && !phoneLayout ? ' · Keys: N new entry, / search, ⌘K finder, ? all shortcuts' : ''}</Small>
+            <Small style={{ marginBottom: 12, textAlign: 'center' }}>{formOn ? 'Tap a card to edit · ' : ''}✓ completes it{WEB_DAR ? ' · DAR completes it into the daily report' : ''}{Platform.OS === 'web' && !phoneLayout ? ' · Keys: N new entry, / search, ⌘K finder, ? all shortcuts' : ''}</Small>
             {!filteredOpen.length && <P dim>Nothing matches.</P>}
             {phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}
             {phoneLayout && !tableView && visibleRegister.map((entry) => (
@@ -1901,7 +1908,7 @@ export default function WorkingDashboard() {
           </View>
         )}
 
-        {tab === 'narration' && Platform.OS === 'web' && (
+        {tab === 'narration' && Platform.OS === 'web' && !phoneLayout && (
           <View>
             <Card>
               <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(13), marginBottom: 2 }}>TALLY NARRATION</Text>
@@ -2376,7 +2383,7 @@ export default function WorkingDashboard() {
       <View style={{ height: 110 }} />
 
       {/* --- New/edit entry --- */}
-      <Sheet visible={!!entrySheet} onClose={closeEntrySheet} title={entries.some((x) => x.id === entrySheet?.id) ? 'Edit Entry' : 'New Entry'} full fillDesktop footer={entrySheet && pinSave ? entryButtons : null}>
+      <Sheet visible={!!entrySheet && formOn} onClose={closeEntrySheet} title={entries.some((x) => x.id === entrySheet?.id) ? 'Edit Entry' : 'New Entry'} full fillDesktop footer={entrySheet && pinSave ? entryButtons : null}>
         {!!entrySheet && renderEntryForm()}
       </Sheet>
 
@@ -2536,7 +2543,7 @@ export default function WorkingDashboard() {
       </Sheet>
     </Screen>
 
-    {(tab === 'dashboard' || tab === 'register') && (
+    {formOn && (tab === 'dashboard' || tab === 'register') && (
       <Pressable
         onPress={openNewEntry}
         accessibilityLabel="New entry"
