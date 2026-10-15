@@ -280,6 +280,22 @@ export const withCarrying = (lists, cat) => {
   const now = Array.isArray(lists.subCategoryCategories) ? lists.subCategoryCategories : (lists.categories || []).filter((c) => defaultCarries(String(c)));
   return now.includes(cat) ? now : [...now, cat];
 };
+/** The text of a field's choices ("TT, DD") -> ["TT", "DD"], or undefined when there are none. */
+const parseOptions = (text) => { const o = String(text || '').split(',').map((x) => x.trim()).filter(Boolean); return o.length ? o : undefined; };
+/** The message to show before saving an edited Sub Category, or ''. `rows` are [{ label, options: "TT, DD" }]. */
+export function validateSubCategory(list, id, name, rows) {
+  const n = String(name || '').trim();
+  if (!n) return 'Give the Sub Category a name.';
+  if (list.some((x) => x.id !== id && x.name.toLowerCase() === n.toLowerCase())) return `"${n}" already exists. A Sub Category name can be used once.`;
+  const labels = rows.map((r) => String(r.label || '').trim()).filter(Boolean);
+  if (new Set(labels.map((l) => l.toLowerCase())).size !== labels.length) return 'Two fields have the same name.';
+  return '';
+}
+/** The list with one Sub Category's name and fields replaced (blank fields dropped). */
+export function applySubCategoryEdit(list, id, name, rows) {
+  const fields = rows.filter((r) => String(r.label || '').trim()).map((r) => { const options = parseOptions(r.options); return options ? { label: String(r.label).trim(), options } : { label: String(r.label).trim() }; });
+  return list.map((x) => (x.id === id ? { ...x, name: String(name).trim(), fields } : x));
+}
 export const removeSubCategory = (list, id) => list.filter((x) => x.id !== id);
 
 /** meta/lists holds { lists: {categories, priorities, statuses, pendingWith} } as an object or a JSON string. */

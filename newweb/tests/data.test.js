@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -282,4 +282,20 @@ test('a next reminder date and time is kept on the task, and shown as due once i
   assert.equal(isReminderDue(task({ nextReminder: new Date(2026, 9, 15, 11, 0) }), NOW), false);
   assert.equal(isReminderDue(task({ done: true, nextReminder: new Date(2026, 9, 14) }), NOW), false);
   assert.match(reminderLabel(task({ nextReminder: new Date(2026, 9, 16, 9, 0) }), NOW), /^Tomorrow/);
+});
+
+test('a Sub Category can be edited: renamed, fields renamed, added and removed, with choices', () => {
+  const list = [{ id: 'a', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor' }, { label: 'Inv No' }] }, { id: 'b', name: 'Urgent Payment', category: 'Payments', fields: [] }];
+  assert.equal(validateSubCategory(list, 'a', ' ', []), 'Give the Sub Category a name.');
+  assert.match(validateSubCategory(list, 'a', 'urgent payment', []), /already exists/);
+  assert.equal(validateSubCategory(list, 'a', 'domestic payment', []), '');
+  assert.match(validateSubCategory(list, 'a', 'X', [{ label: 'Vendor' }, { label: ' vendor ' }]), /same name/);
+  assert.equal(validateSubCategory(list, 'a', 'X', [{ label: '' }, { label: '' }]), '');
+  const out = applySubCategoryEdit(list, 'a', ' Domestic Pay ', [{ label: 'Vendor Name' }, { label: '' }, { label: 'Mode', options: 'TT, DD, ,' }, { label: 'Ref' }]);
+  assert.equal(out[0].name, 'Domestic Pay');
+  assert.deepEqual(out[0].fields, [{ label: 'Vendor Name' }, { label: 'Mode', options: ['TT', 'DD'] }, { label: 'Ref' }]);
+  assert.equal(out[0].category, 'Payments');
+  assert.equal(out[0].id, 'a');
+  assert.equal(out[1], list[1]);
+  assert.deepEqual(applySubCategoryEdit(list, 'a', 'X', []).find((x) => x.id === 'a').fields, []);
 });

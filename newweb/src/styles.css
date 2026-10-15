@@ -350,3 +350,9 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 
 .mail-copy { cursor: copy; border-radius: 8px; padding: 2px 6px; margin: -2px -6px; overflow-wrap: anywhere; }
 .mail-copy:hover { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--violet); }
+
+.chip.removable .edit-btn { font-size: 12px; }
+.sc-editor { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px; background: var(--surface); border: 1.5px solid var(--violet); }
+.field-row { display: flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 15px; color: var(--ink); }
+.field-row input { flex: 1 1 0; min-width: 0; }
+.sc-editor .field > div > .btn { margin-top: 4px; }
