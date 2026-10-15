@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
+import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
 import { DONE_STATUS, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
@@ -138,7 +139,7 @@ function Chip({ children, tone }) { return <span className={`chip ${tone || ''}`
 const priTone = (p) => ({ high: 'coral', medium: 'amber', low: 'teal' })[String(p).toLowerCase()] || '';
 
 function TaskCard({ t, onEdit, compact }) {
-  const { actions } = useStore();
+  const { actions, notify } = useStore();
   const late = isOverdue(t);
   return (
     <article className={`card pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}`}>
@@ -153,7 +154,10 @@ function TaskCard({ t, onEdit, compact }) {
           {t.recurrence !== RECURRENCES[0] && <Chip>↻ {t.recurrence}</Chip>}
           {isOpen(t) && t.nextReminder && <Chip tone={isReminderDue(t) ? 'coral' : ''}>⏰ {reminderLabel(t)}</Chip>}
         </span>
-        {!compact && t.reference && <span className="card-note">✉ {t.reference}</span>}
+        {!compact && t.reference && (
+          <span className="card-note mail-copy" title="Click to copy the mail subject and open the task"
+            onClick={async () => { notify((await copyText(t.reference)) ? 'Mail subject copied' : 'Could not copy the mail subject'); }}>✉ {t.reference}</span>
+        )}
       </button>
       {isOpen(t) && (
         <div className="card-actions">

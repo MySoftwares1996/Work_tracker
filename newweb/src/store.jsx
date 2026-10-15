@@ -96,7 +96,7 @@ export function LiveStore({ children }) {
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, error, synced, actions,
+    demo: false, user, tasks, lists, calendar, links, error, synced, actions, notify: flash,
     // Options added or removed here reach the phone and the old website too (meta/lists, newest write wins).
     saveLists: (next) => {
       if (!user) return;
@@ -140,7 +140,7 @@ export function DemoStore({ children }) {
   const calendar = useMemo(() => ({ holidays: [{ date: '2026-10-20', name: 'Sample holiday' }], leaveDays: [] }), []);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, error: '', synced: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, error: '', synced: true, actions,
     signIn: () => {}, signOut: () => { location.search = ''; },
   }), [visible, lists, calendar, links, actions]);
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
