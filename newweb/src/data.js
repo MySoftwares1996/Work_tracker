@@ -376,6 +376,8 @@ export function writeListsValue(raw, lists) {
     if (Array.isArray(lists.subCategories)) out.subCategories = lists.subCategories.map((sc) => ({ id: sc.id, name: sc.name, ...(sc.category ? { category: sc.category } : {}), fields: (sc.fields || []).map((f) => (f.options ? { label: f.label, options: f.options } : { label: f.label })) }));
     if (Array.isArray(lists.subCategoryCategories)) out.subCategoryCategories = lists.subCategoryCategories;
     if (Array.isArray(lists.reminderCategories)) out.reminderCategories = lists.reminderCategories;
+    if (Array.isArray(lists.narrationTypes)) out.narrationTypes = lists.narrationTypes;
+    if (Array.isArray(lists.darPaymentIntro)) out.darPaymentIntro = lists.darPaymentIntro;
     if ('assignees' in out) out.assignees = lists.pendingWith || [];
   }
   return asString ? JSON.stringify(out) : out;

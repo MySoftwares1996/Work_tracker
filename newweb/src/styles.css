@@ -408,3 +408,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .alert-reminder-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
 .alert-reminder-head b { font-size: 16px; }
 .alert-reminder .move-row input[type=date] { flex: 1 1 170px; }
+
+.import-summary { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--violet) 7%, transparent); }
+.import-summary ul { margin: 0; padding-left: 20px; }
+.banner.ok { background: color-mix(in srgb, var(--teal) 18%, transparent); color: var(--teal); }

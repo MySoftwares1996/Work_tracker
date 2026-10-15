@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, doc, getFirestore, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, doc, getFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
 import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, toDoc, isOpen, writeListsValue } from './data';
 import { demoTasks } from './demo';
@@ -105,6 +105,21 @@ export function LiveStore({ children }) {
         .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
         .catch((e) => setError(friendlyError(e)));
     },
+    // Writes an import plan (importBackup.js): the tasks in batches, then the lists and the calendar. Merged, so nothing else is cleared.
+    importPlan: async (plan) => {
+      if (!user) throw new Error('Sign in first.');
+      const db = getFirestore(firebaseApp());
+      for (let i = 0; i < plan.tasks.length; i += 400) {
+        const batch = writeBatch(db);
+        plan.tasks.slice(i, i + 400).forEach((x) => batch.set(doc(db, 'users', user.uid, 'tasks', x.id), x.doc, { merge: true }));
+        await batch.commit();
+      }
+      const merged = { ...plan.lists };
+      await setDoc(doc(db, 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, merged), ts: Date.now() }, { merge: true });
+      rawLists.current = writeListsValue(rawLists.current, merged);
+      setLists((l) => ({ ...l, ...merged }));
+      if (Object.keys(plan.calendar).length) await setDoc(doc(db, 'users', user.uid, 'meta', 'calendar'), { ...plan.calendar, ts: Date.now() }, { merge: true });
+    },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
   }), [user, tasks, lists, calendar, links, error, synced, actions]);
@@ -141,6 +156,7 @@ export function DemoStore({ children }) {
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
     demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, error: '', synced: true, actions,
+    importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
   }), [visible, lists, calendar, links, actions]);
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;

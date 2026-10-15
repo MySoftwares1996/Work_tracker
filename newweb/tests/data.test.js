@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
 import { isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
@@ -394,4 +395,63 @@ test('the daily report carries the banker\'s reply (a sub category field) and th
   assert.ok(!text.includes('Empty'));
   const only = reportText([task({ title: 'Plain', done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, notes: 'n' })], day);
   assert.ok(!only.includes('undefined') && /Notes: n/.test(only));
+});
+
+const backup = () => ({
+  app: 'My_Personal_Tracker', exportedAt: '2026-10-10T08:00:00.000Z',
+  data: { workingDashboard: {
+    categories: ['Payments', 'Audit'], priorities: ['High', 'Low'], statuses: ['Pending', 'Completed'], assignees: ['Accounts', 'Self'],
+    subCategories: [{ id: 's1', name: 'Domestic Payment', fields: [{ label: 'Vendor' }] }, 'Urgent Payment'], subCategoryCategories: ['Payments'],
+    narrationTypes: [{ name: 'Imports', fields: [] }], holidays: [{ date: '2026-01-26', name: 'Republic Day' }], leaveDays: [],
+    entries: [
+      { id: 'e1', title: 'Pay vendor', category: 'Payments', priority: 'High', status: 'Pending', pendingWith: 'Accounts', dueAt: '2026-10-20T11:30:00.000Z', reference: 'RE: inv', notes: 'n', recurrence: 'weekly', dar: false, subCategory: 'Domestic Payment', subCategoryFields: { Vendor: 'ACME' }, bankFollowUps: [{ d: '2026-10-09', remarks: 'called' }], narration: { typeName: 'Imports' }, updatedAt: 1760000000000 },
+      { id: 'e2', title: 'Done thing', status: 'Completed', done: true, completedAt: '2026-10-09T10:00:00.000Z', createdAt: '2026-10-01T00:00:00.000Z' },
+      { id: 'e3', title: 'Binned', binned: true, binnedAt: '2026-10-08T00:00:00.000Z' },
+      { id: 'web1', description: 'From the website', status: 'Pending', dueDate: '2026-10-21', dueTime: '10:00', mailChain: 'x', category: 'Audit' },
+      { id: 'gone', title: 'Purged', purged: true },
+      { title: 'no id' },
+    ],
+  } },
+});
+
+test('a backup file becomes tasks, lists and sub categories to write', () => {
+  const plan = planImport(backup(), { ids: new Set(['e2']), lists: { categories: ['Other', 'audit'], priorities: [], statuses: ['Pending'], pendingWith: ['Self'], subCategories: [] } }, NOW);
+  assert.deepEqual(plan.tasks.map((x) => x.id), ['e1', 'e3', 'web1']);            // e2 exists, 'gone' was purged, the last row has no id
+  assert.equal(plan.summary.skippedExisting, 1);
+  assert.equal(plan.summary.notTasks, 2);
+  const e1 = plan.tasks[0].doc;
+  assert.equal(e1.description, 'Pay vendor');
+  assert.equal(e1.dueDate.length, 10);
+  assert.equal(e1.recurrence, 'Weekly');
+  assert.equal(e1.darInclude, false);
+  assert.equal(e1.subCategory, 'Domestic Payment');
+  assert.deepEqual(e1.subCategoryFields, { Vendor: 'ACME' });
+  assert.deepEqual(e1.bankFollowUps, [{ d: '2026-10-09', remarks: 'called' }]);         // carried over untouched
+  assert.deepEqual(e1.narration, { typeName: 'Imports' });
+  assert.equal(e1.updatedAt, 1760000000000);
+  assert.equal(plan.tasks[1].doc.deleted, true);
+  assert.equal(plan.tasks[2].doc.description, 'From the website');                    // a website-shaped row is written as it is
+  assert.equal(JSON.stringify(plan).includes('undefined'), false);
+  // lists are added to, never replaced; case-insensitive duplicates are not repeated
+  assert.deepEqual(plan.lists.categories, ['Other', 'audit', 'Payments']);
+  assert.deepEqual(plan.lists.pendingWith, ['Self', 'Accounts']);
+  assert.deepEqual(plan.lists.subCategories.map((x) => [x.name, x.category]), [['Domestic Payment', 'Payments'], ['Urgent Payment', 'Payments']]);   // grouped under the one category that carries them
+  assert.deepEqual(plan.lists.subCategoryCategories, ['Payments']);
+  assert.equal(plan.lists.narrationTypes.length, 1);
+  assert.equal(plan.calendar.holidays.length, 1);
+  assert.ok(!('leaveDays' in plan.calendar));
+  assert.equal(plan.summary.subCategories, 2);
+});
+
+test('importing again adds nothing twice, and overwrite replaces; a wrong file is refused', () => {
+  const again = planImport(backup(), { ids: new Set(['e1', 'e2', 'e3', 'web1']), lists: { categories: ['Payments', 'Audit'], priorities: ['High', 'Low'], statuses: ['Pending', 'Completed'], pendingWith: ['Accounts', 'Self'], subCategories: [{ id: 'x', name: 'domestic payment', fields: [], category: 'Payments' }, { id: 'y', name: 'Urgent Payment', fields: [], category: 'Payments' }] } }, NOW);
+  assert.equal(again.tasks.length, 0);
+  assert.equal(again.summary.subCategories, 0);
+  assert.equal(planImport(backup(), { ids: new Set(['e1']), overwrite: true }, NOW).tasks.some((x) => x.id === 'e1'), true);
+  assert.throws(() => planImport({ nothing: 1 }), /not a Working Dashboard/);
+  assert.equal(rowToDoc({ id: 'p', purged: true }), null);
+  assert.equal(backupSection({ data: { workingDashboard: { entries: [] } } }).entries.length, 0);
+  // two carrying categories: the sub categories are not guessed onto one of them
+  const two = backup(); two.data.workingDashboard.subCategoryCategories = ['Payments', 'Audit'];
+  assert.ok(planImport(two, {}, NOW).lists.subCategories.every((x) => x.category === ''));
 });

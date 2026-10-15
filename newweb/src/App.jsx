@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
 import AlertCenter from './AlertCenter';
+import { planImport } from './importBackup';
 import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from './alerts';
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
@@ -341,6 +342,7 @@ function Config() {
     <>
       <h1 className="h1">Config</h1>
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
+      <ImportBackup />
       <AlertSettings />
       <Appearance />
       <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
@@ -352,6 +354,49 @@ function Config() {
       <section className="card plain"><h2 className="h2">Sub categories</h2><SubCategoryManager lists={lists} /></section>
       <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
     </>
+  );
+}
+
+/** Config > Import: bring the tasks, lists and Sub Categories of an older version into this account from its backup file. */
+function ImportBackup() {
+  const { tasks, lists, importPlan, demo } = useStore();
+  const [plan, setPlan] = useState(null);
+  const [overwrite, setOverwrite] = useState(false);
+  const [file, setFile] = useState(null);
+  const [state, setState] = useState({ busy: false, msg: '', error: '' });
+  const ids = useMemo(() => new Set(tasks.map((t) => t.id)), [tasks]);
+  const read = async (f, over = overwrite) => {
+    setState({ busy: false, msg: '', error: '' });
+    try { setPlan(planImport(JSON.parse(await f.text()), { ids, lists, overwrite: over })); setFile(f); }
+    catch (e) { setPlan(null); setState({ busy: false, msg: '', error: e instanceof SyntaxError ? 'That file is not a backup (it is not valid JSON).' : e.message }); }
+  };
+  const run = async () => {
+    setState({ busy: true, msg: '', error: '' });
+    try { await importPlan(plan); setState({ busy: false, msg: `Imported ${plan.summary.tasks} task${plan.summary.tasks === 1 ? '' : 's'}, the lists and ${plan.summary.subCategories} Sub Categor${plan.summary.subCategories === 1 ? 'y' : 'ies'}.`, error: '' }); setPlan(null); setFile(null); }
+    catch (e) { setState({ busy: false, msg: '', error: e?.message || String(e) }); }
+  };
+  const sm = plan && plan.summary;
+  return (
+    <section className="card plain">
+      <h2 className="h2">Import from an older version</h2>
+      <p className="muted">Pick the backup file from the phone app or the old website (Config &gt; Data Backup). Its tasks, categories, priorities, statuses, people, Sub Categories, narration types and holidays are added to this account. Nothing is deleted.{demo ? ' (Demo: nothing is saved.)' : ''}</p>
+      <input type="file" accept=".json,application/json" aria-label="Backup file" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) read(f); e.target.value = ''; }} />
+      {sm && (
+        <div className="import-summary" role="status">
+          <b>Ready to import{sm.exportedAt ? ` (backup of ${new Date(sm.exportedAt).toLocaleDateString()})` : ''}:</b>
+          <ul>
+            <li>{sm.tasks} task{sm.tasks === 1 ? '' : 's'}{sm.skippedExisting ? `, ${sm.skippedExisting} already here (left as they are)` : ''}</li>
+            <li>{plan.lists.categories.length} categories, {plan.lists.priorities.length} priorities, {plan.lists.statuses.length} statuses, {plan.lists.pendingWith.length} people</li>
+            <li>{sm.subCategories} new Sub Categor{sm.subCategories === 1 ? 'y' : 'ies'}{sm.narrationTypes ? `, ${sm.narrationTypes} narration types` : ''}</li>
+            {(sm.holidays || sm.leaveDays) > 0 && <li>{sm.holidays} holidays, {sm.leaveDays} leave days</li>}
+          </ul>
+          <label className="field check"><input type="checkbox" checked={overwrite} onChange={(e) => { setOverwrite(e.target.checked); if (file) read(file, e.target.checked); }} /> Replace tasks that are already here with the backup's copy</label>
+          <div><button type="button" className="btn primary" onClick={run} disabled={state.busy}>{state.busy ? 'Importing...' : 'Import'}</button> <button type="button" className="btn" onClick={() => { setPlan(null); setFile(null); }}>Cancel</button></div>
+        </div>
+      )}
+      {state.msg && <p className="banner ok" role="status">{state.msg}</p>}
+      {state.error && <p className="banner err" role="alert">{state.error}</p>}
+    </section>
   );
 }
 
