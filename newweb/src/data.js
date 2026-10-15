@@ -69,10 +69,12 @@ export function fromDoc(id, d = {}) {
     seriesId: d.seriesId ? String(d.seriesId) : '',
     checklist: (Array.isArray(d.checklist) ? d.checklist : []).filter((c) => c && String(c.text || '').trim()).map((c) => ({ id: String(c.id || newId()), text: String(c.text), done: !!c.done })),
     attachments: (Array.isArray(d.attachments) ? d.attachments : []).filter((a) => a && /^https?:\/\//i.test(String(a.url || ''))).map((a) => ({ id: String(a.id || newId()), title: String(a.title || a.url), url: String(a.url) })),
+    subCategory: d.subCategory ? String(d.subCategory) : '',
+    subCategoryFields: d.subCategoryFields && typeof d.subCategoryFields === 'object' && !Array.isArray(d.subCategoryFields) ? { ...d.subCategoryFields } : {},
     recurrenceEveryMin: Number(d.recurrenceEveryMin) || null,
     alertMode: d.alertMode === 'alarm' || d.alertMode === 'gentle' ? d.alertMode : '',
     // Which of these the document already had, so an empty list is written back only when it was there (or is being used).
-    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d },
+    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d },
     createdAt: asDate(d.dateLogged),
     updatedAt: Number(d.updatedAt) || 0,
   };
@@ -113,6 +115,10 @@ export function toDoc(t, now = new Date()) {
   if (checklist.length || has.checklist) doc.checklist = checklist;
   const attachments = (t.attachments || []).filter((a) => /^https?:\/\//i.test(a.url || '')).map((a) => ({ id: a.id, title: a.title || a.url, url: a.url }));
   if (attachments.length || has.attachments) doc.attachments = attachments;
+  if (t.subCategory || has.subCategory) {
+    doc.subCategory = t.subCategory || null;
+    doc.subCategoryFields = t.subCategory ? { ...(t.subCategoryFields || {}) } : null;
+  }
   if (t.recurrence === 'Custom') doc.recurrenceEveryMin = Number(t.recurrenceEveryMin) || null;
   if (t.alertMode === 'alarm' || t.alertMode === 'gentle') doc.alertMode = t.alertMode;
   return doc;
@@ -122,7 +128,7 @@ let seq = 0;
 export const newId = () => `web-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 export function blankTask() {
-  return { checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
+  return { subCategory: '', subCategoryFields: {}, checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
 }
 
 export const isOpen = (t) => !t.done && !t.binned && !t.purged;
@@ -220,6 +226,36 @@ export function reportText(tasks, date = new Date()) {
   return lines.join('\n');
 }
 
+/** Sub Categories as the lists document keeps them: [{ id, name, fields: [{ label, options? }] }]; plain names are accepted too. */
+export function normalizeSubCategories(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((sc, i) => (typeof sc === 'string' ? { id: `sc-${i}-${sc}`, name: sc, fields: [] } : sc))
+    .filter((sc) => sc && String(sc.name || '').trim())
+    .map((sc) => ({
+      ...sc, id: String(sc.id || `sc-${sc.name}`), name: String(sc.name),
+      fields: (Array.isArray(sc.fields) ? sc.fields : []).filter((f) => f && String(f.label || '').trim()).map((f) => ({ ...f, label: String(f.label), options: Array.isArray(f.options) ? f.options.map(String) : undefined })),
+    }));
+}
+// Without a list of its own, the phone app carries a Sub Category on duty, demand draft and the domestic / urgent / import payment categories.
+const defaultCarries = (c) => /duty/i.test(c) || /demand\s*draft/i.test(c) || (/payment/i.test(c) && /(domestic|urgent|import)/i.test(c));
+export const categoryCarriesSubCategory = (lists, cat) => !!cat && ((lists.subCategories || []).length > 0) && (Array.isArray(lists.subCategoryCategories) ? lists.subCategoryCategories.includes(cat) : defaultCarries(String(cat)));
+export const findSubCategory = (lists, name) => (lists.subCategories || []).find((x) => x.name === name) || null;
+/** The message to show before a task is marked Completed without its Sub Category, or ''. */
+export function subCategoryMissing(t, lists) {
+  if (!categoryCarriesSubCategory(lists, t.category)) return '';
+  if (!t.subCategory) return 'Select a Sub Category before marking this Completed.';
+  const sc = findSubCategory(lists, t.subCategory);
+  const missing = sc ? sc.fields.filter((f) => !String((t.subCategoryFields || {})[f.label] || '').trim()) : [];
+  return missing.length ? `Fill in ${missing.map((f) => f.label).join(', ')} before marking this Completed.` : '';
+}
+export function addSubCategory(list, name, labels = []) {
+  const n = String(name || '').trim();
+  if (!n || list.some((x) => x.name.toLowerCase() === n.toLowerCase())) return list;
+  const fields = labels.map((l) => String(l).trim()).filter(Boolean).map((label) => ({ label }));
+  return [...list, { id: `sc-${Date.now().toString(36)}-${list.length}`, name: n, fields }];
+}
+export const removeSubCategory = (list, id) => list.filter((x) => x.id !== id);
+
 /** meta/lists holds { lists: {categories, priorities, statuses, pendingWith} } as an object or a JSON string. */
 export function readLists(v) {
   let obj = v;
@@ -228,6 +264,8 @@ export function readLists(v) {
   if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
     const named = { ...obj, pendingWith: Array.isArray(obj.pendingWith) ? obj.pendingWith : obj.assignees };
     Object.keys(DEFAULT_LISTS).forEach((k) => { if (Array.isArray(named[k])) out[k] = named[k].map(String); });
+    if (Array.isArray(named.subCategories)) out.subCategories = normalizeSubCategories(named.subCategories);
+    if (Array.isArray(named.subCategoryCategories)) out.subCategoryCategories = named.subCategoryCategories.map(String);
   } else if (Array.isArray(obj)) {
     ['categories', 'priorities', 'statuses', 'pendingWith'].forEach((k, i) => { if (Array.isArray(obj[i]) && obj[i].length) out[k] = obj[i].map(String); });
   }
@@ -261,6 +299,8 @@ export function writeListsValue(raw, lists) {
   } else {
     out = { ...(obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {}) };
     LIST_KEYS.forEach((k) => { out[k] = lists[k] || []; });
+    if (Array.isArray(lists.subCategories)) out.subCategories = lists.subCategories.map((sc) => ({ id: sc.id, name: sc.name, fields: (sc.fields || []).map((f) => (f.options ? { label: f.label, options: f.options } : { label: f.label })) }));
+    if (Array.isArray(lists.subCategoryCategories)) out.subCategoryCategories = lists.subCategoryCategories;
     if ('assignees' in out) out.assignees = lists.pendingWith || [];
   }
   return asString ? JSON.stringify(out) : out;

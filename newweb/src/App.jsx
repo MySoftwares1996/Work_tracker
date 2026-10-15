@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { DONE_STATUS, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { DONE_STATUS, addSubCategory, categoryCarriesSubCategory, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -327,6 +327,7 @@ function Config() {
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
       <Appearance />
       <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+      <section className="card plain"><h2 className="h2">Sub categories</h2><SubCategoryManager lists={lists} /></section>
       <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
     </>
   );
@@ -352,6 +353,45 @@ function Appearance() {
         ))}
       </div>
     </section>
+  );
+}
+
+/** Sub Categories: add one (with the fields it asks for), delete one, and choose which categories carry one. */
+function SubCategoryManager({ lists }) {
+  const { saveLists } = useStore();
+  const [name, setName] = useState('');
+  const [fieldText, setFieldText] = useState('');
+  const subs = lists.subCategories || [];
+  const carrying = (c) => categoryCarriesSubCategory({ ...lists, subCategories: subs.length ? subs : [{ name: '-' }] }, c);
+  const add = (e) => {
+    e?.preventDefault();
+    const next = addSubCategory(subs, name, fieldText.split(','));
+    if (next !== subs) saveLists({ ...lists, subCategories: next });
+    setName(''); setFieldText('');
+  };
+  const remove = (sc) => { if (confirm(`Delete the Sub Category "${sc.name}"? Tasks using it keep it.`)) saveLists({ ...lists, subCategories: removeSubCategory(subs, sc.id) }); };
+  const toggle = (c) => {
+    const now = lists.categories.filter(carrying);
+    saveLists({ ...lists, subCategoryCategories: now.includes(c) ? now.filter((x) => x !== c) : [...now, c] });
+  };
+  return (
+    <div className="manager">
+      <div className="chips">
+        {subs.map((sc) => <span key={sc.id} className="chip removable" title={sc.fields.map((f) => f.label).join(', ')}>{sc.name}{sc.fields.length > 0 && <small>{sc.fields.length} field{sc.fields.length > 1 ? 's' : ''}</small>}<button type="button" onClick={() => remove(sc)} aria-label={`Delete ${sc.name}`}>✕</button></span>)}
+        {!subs.length && <span className="muted">None yet</span>}
+      </div>
+      <div className="add-row">
+        <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(e)} placeholder="New Sub Category, e.g. Customs Duty" aria-label="New Sub Category name" />
+        <input value={fieldText} onChange={(e) => setFieldText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(e)} placeholder="Fields to fill in (comma separated, optional)" aria-label="Fields of the new Sub Category" />
+        <button type="button" className="btn primary" onClick={add} disabled={!name.trim()}>Add</button>
+      </div>
+      {subs.length > 0 && (
+        <div>
+          <p className="muted">A task in these categories must have its Sub Category filled in before it can be marked Completed:</p>
+          <div className="chips">{lists.categories.map((c) => <button type="button" key={c} className={`chip toggle${carrying(c) ? ' on' : ''}`} aria-pressed={carrying(c)} onClick={() => toggle(c)}>{c}</button>)}</div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -409,6 +449,8 @@ function TaskForm({ initial, onClose }) {
   const submit = (e) => {
     e.preventDefault();
     if (!t.title.trim()) return;
+    if (/^completed$/i.test(t.status)) { const msg = subCategoryMissing(t, lists); if (msg) { setSubError(msg); return; } }
+    setSubError('');
     const [h, m] = time ? time.split(':').map(Number) : [0, 0];
     const due = date ? new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m) : null;
     const next = { ...t, title: t.title.trim(), due, hasTime: !!(date && time) };
@@ -423,7 +465,32 @@ function TaskForm({ initial, onClose }) {
       <select value={t[field]} onChange={set(field)} aria-label={label}>{blank && <option value="">-</option>}{opts(lists[key], t[field]).map((x) => <option key={x}>{x}</option>)}</select>
     </div>
   );
-  const manager = managing && (
+  const subs = lists.subCategories || [];
+  const sc = findSubCategory(lists, t.subCategory);
+  const needSub = categoryCarriesSubCategory(lists, t.category);
+  const [subError, setSubError] = useState('');
+  const subBlock = (
+    <div className="manage-panel sub-panel">
+      <div className="field-head"><span className="field">Sub category{needSub && <span className="muted"> (needed to mark Completed)</span>}</span><button type="button" className="mini" onClick={() => setManaging(managing === 'sub' ? '' : 'sub')}>{managing === 'sub' ? 'Done' : '+ / − Edit'}</button></div>
+      {managing === 'sub' ? <SubCategoryManager lists={lists} /> : (
+        <>
+          <select value={t.subCategory} onChange={(e) => setT({ ...t, subCategory: e.target.value, subCategoryFields: e.target.value === t.subCategory ? t.subCategoryFields : {} })} aria-label="Sub category">
+            <option value="">-</option>{(t.subCategory && !sc ? [{ name: t.subCategory }, ...subs] : subs).map((x) => <option key={x.name}>{x.name}</option>)}
+          </select>
+          {sc && sc.fields.length > 0 && (
+            <div className="fields">{sc.fields.map((f) => (
+              <label className="field" key={f.label}>{f.label}
+                {f.options && f.options.length ? <select value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
+                  : <input value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })} />}
+              </label>
+            ))}</div>
+          )}
+          {!subs.length && <p className="muted">No Sub Categories yet. Use + / − Edit to add one.</p>}
+        </>
+      )}
+    </div>
+  );
+  const manager = managing && managing !== 'sub' && (
     <div className="manage-panel"><ListManager listKey={managing} label={LIST_META.find(([k]) => k === managing)[1]} lists={lists} onAdd={(v) => setT((d) => ({ ...d, [{ categories: 'category', priorities: 'priority', statuses: 'status', pendingWith: 'pendingWith' }[managing]]: v }))} /></div>
   );
   const addStepNow = () => { if (step.trim()) { setT({ ...t, checklist: [...t.checklist, { id: newId(), text: step.trim(), done: false }] }); setStep(''); } };
@@ -448,6 +515,7 @@ function TaskForm({ initial, onClose }) {
           {pick('pendingWith', 'Pending with', 'pendingWith', true)}
         </div>
         {manager}
+        {subBlock}
         <div className="fields">
           <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
           <div className="field">Due time
@@ -495,6 +563,7 @@ function TaskForm({ initial, onClose }) {
         </div>
 
         </div></div>
+        {subError && <div className="banner err" role="alert">{subError}</div>}
         <div className="sheet-foot">
           {!isNew && !t.binned && <button type="button" className="btn danger" onClick={() => { actions.bin(t); onClose(); }}>Move to bin</button>}
           <span className="grow" />

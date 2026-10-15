@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -185,4 +185,45 @@ test('every theme in the chooser has its CSS and the tokens the screens use', ()
     assert.ok(m, t.id);
     ['--bg', '--surface', '--ink', '--violet', '--on-accent', '--tile-coral', '--tile-teal-fg', '--danger-bg', '--shadow'].forEach((v) => assert.ok(m[1].includes(v + ':'), `${t.id} ${v}`));
   });
+});
+
+test('sub categories: read from the lists, shown for the right categories, required before Completed', () => {
+  const lists = readLists({ categories: ['Duty Payment', 'Other'], priorities: ['High'], statuses: ['Pending'], pendingWith: [], subCategories: [{ id: 's1', name: 'Customs', fields: [{ label: 'BE No' }, { label: 'Mode', options: ['TT', 'DD'] }] }, 'Plain'], subCategoryCategories: ['Other'] });
+  assert.equal(lists.subCategories.length, 2);
+  assert.deepEqual(lists.subCategories[1].fields, []);
+  assert.equal(categoryCarriesSubCategory(lists, 'Other'), true);
+  assert.equal(categoryCarriesSubCategory(lists, 'Duty Payment'), false);      // the list names the categories, so the default is not used
+  const t = task({ category: 'Other' });
+  assert.match(subCategoryMissing(t, lists), /Select a Sub Category/);
+  assert.match(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1' } }, lists), /Fill in Mode/);
+  assert.equal(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1', Mode: 'TT' } }, lists), '');
+  assert.equal(subCategoryMissing(task({ category: 'Duty Payment' }), lists), '');
+  // with no list of categories, the phone's own default applies
+  const dflt = readLists({ categories: ['Customs Duty', 'Domestic Payment', 'Other'], subCategories: ['X'] });
+  assert.deepEqual(['Customs Duty', 'Domestic Payment', 'Other'].map((c) => categoryCarriesSubCategory(dflt, c)), [true, true, false]);
+  assert.equal(categoryCarriesSubCategory(readLists({ categories: ['Customs Duty'] }), 'Customs Duty'), false);   // nothing to pick from
+});
+
+test('sub categories are added once and deleted, and written back with the lists', () => {
+  const a = addSubCategory([], ' Customs ', ['BE No', ' ', 'Mode']);
+  assert.equal(a.length, 1);
+  assert.deepEqual(a[0].fields, [{ label: 'BE No' }, { label: 'Mode' }]);
+  assert.equal(addSubCategory(a, 'customs'), a);
+  assert.deepEqual(removeSubCategory(a, a[0].id), []);
+  const out = writeListsValue({ categories: [], subCategories: [], narrationTypes: ['n'] }, { categories: ['C'], priorities: [], statuses: [], pendingWith: [], subCategories: a, subCategoryCategories: ['C'] });
+  assert.equal(out.subCategories[0].name, 'Customs');
+  assert.deepEqual(out.subCategoryCategories, ['C']);
+  assert.deepEqual(out.narrationTypes, ['n']);
+  assert.equal(normalizeSubCategories(['A', { name: '' }]).length, 1);
+});
+
+test('a task keeps its sub category and fields; none is invented', () => {
+  const t = fromDoc('q', { description: 'x', status: 'Completed', subCategory: 'Customs', subCategoryFields: { 'BE No': '9' } });
+  assert.equal(t.subCategory, 'Customs');
+  const out = toDoc(t, NOW);
+  assert.equal(out.subCategory, 'Customs');
+  assert.deepEqual(out.subCategoryFields, { 'BE No': '9' });
+  const plain = toDoc(task({}), NOW);
+  assert.ok(!('subCategory' in plain) && !('subCategoryFields' in plain));
+  assert.equal(toDoc({ ...t, subCategory: '' }, NOW).subCategory, null);          // cleared on purpose, since the document had one
 });

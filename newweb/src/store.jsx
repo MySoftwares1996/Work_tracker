@@ -105,7 +105,7 @@ export function LiveStore({ children }) {
 
 export function DemoStore({ children }) {
   const [tasks, setTasks] = useState(demoTasks);
-  const [lists, setLists] = useState(DEFAULT_LISTS);
+  const [lists, setLists] = useState({ ...DEFAULT_LISTS, subCategories: [{ id: 'sc1', name: 'Customs Duty', fields: [{ label: 'BE No' }, { label: 'Mode', options: ['TT', 'DD'] }] }, { id: 'sc2', name: 'Vendor Payment', fields: [{ label: 'Vendor Name' }] }], subCategoryCategories: ['Payments'] });
   const [note, setNote] = useState('');
   const ref = useRef(tasks);
   ref.current = tasks;
