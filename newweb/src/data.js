@@ -70,12 +70,15 @@ export function fromDoc(id, d = {}) {
     checklist: (Array.isArray(d.checklist) ? d.checklist : []).filter((c) => c && String(c.text || '').trim()).map((c) => ({ id: String(c.id || newId()), text: String(c.text), done: !!c.done })),
     attachments: (Array.isArray(d.attachments) ? d.attachments : []).filter((a) => a && /^https?:\/\//i.test(String(a.url || ''))).map((a) => ({ id: String(a.id || newId()), title: String(a.title || a.url), url: String(a.url) })),
     nextReminder: asDate(d.nextReminderAt),
+    snoozeUntil: Number(d.snoozeUntil) || 0,
+    lastAckDate: d.lastAckDate ? String(d.lastAckDate) : '',
+    skippedDates: Array.isArray(d.skippedDates) ? d.skippedDates.map(String) : [],
     subCategory: d.subCategory ? String(d.subCategory) : '',
     subCategoryFields: d.subCategoryFields && typeof d.subCategoryFields === 'object' && !Array.isArray(d.subCategoryFields) ? { ...d.subCategoryFields } : {},
     recurrenceEveryMin: Number(d.recurrenceEveryMin) || null,
     alertMode: d.alertMode === 'alarm' || d.alertMode === 'gentle' ? d.alertMode : '',
     // Which of these the document already had, so an empty list is written back only when it was there (or is being used).
-    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d },
+    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d, snoozeUntil: 'snoozeUntil' in d, lastAckDate: 'lastAckDate' in d, skippedDates: 'skippedDates' in d },
     createdAt: asDate(d.dateLogged),
     updatedAt: Number(d.updatedAt) || 0,
   };
@@ -119,6 +122,10 @@ export function toDoc(t, now = new Date()) {
   if ((t.nextReminder instanceof Date && !Number.isNaN(t.nextReminder.getTime())) || has.nextReminder) {
     doc.nextReminderAt = t.nextReminder instanceof Date && !Number.isNaN(t.nextReminder.getTime()) ? t.nextReminder.toISOString() : null;
   }
+  // The phone's snooze, "silence today" and skip fields, so what is done here also stops the phone's alarm (and the other way round).
+  if (t.snoozeUntil || has.snoozeUntil) doc.snoozeUntil = t.snoozeUntil || null;
+  if (t.lastAckDate || has.lastAckDate) doc.lastAckDate = t.lastAckDate || null;
+  if ((t.skippedDates || []).length || has.skippedDates) doc.skippedDates = t.skippedDates || [];
   if (t.subCategory || has.subCategory) {
     doc.subCategory = t.subCategory || null;
     doc.subCategoryFields = t.subCategory ? { ...(t.subCategoryFields || {}) } : null;
@@ -132,7 +139,7 @@ let seq = 0;
 export const newId = () => `web-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 export function blankTask() {
-  return { nextReminder: null, subCategory: '', subCategoryFields: {}, checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
+  return { snoozeUntil: 0, lastAckDate: '', skippedDates: [], nextReminder: null, subCategory: '', subCategoryFields: {}, checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
 }
 
 export const isOpen = (t) => !t.done && !t.binned && !t.purged;
@@ -401,4 +408,53 @@ export function reminderLabel(t, now = new Date()) {
   if (days === 1) return `Tomorrow ${time}`;
   if (days === -1) return `Yesterday ${time}`;
   return `${t.nextReminder.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${time}`;
+}
+
+/* ---- alerts at the due date and time ---- */
+export const SNOOZES = [[15, '15 min'], [30, '30 min'], [60, '1 hour'], [120, '2 hours'], [180, '3 hours'], [300, '5 hours']];
+const ALERT_WINDOW_MS = 12 * 3600 * 1000;       // a task that fell due longer ago than this is not popped up on opening the page; it shows under Needs attention
+const DATE_ONLY_HOUR = 9;                       // a task with a date but no time alerts at 9:00 AM that day
+
+/** When a task's due alert is first due: its due time, or 9:00 AM on its due date when it has no time. */
+export function dueAlertAt(t) {
+  if (!t.due || Number.isNaN(t.due.getTime())) return null;
+  if (t.hasTime) return new Date(t.due);
+  const d = new Date(t.due);
+  d.setHours(DATE_ONLY_HOUR, 0, 0, 0);
+  return d;
+}
+
+/**
+ * The alerts that should be showing now: open tasks whose due time (or next reminder time) has come, are not snoozed, not silenced
+ * for today, not skipped today, and not already shown. `handled` is a set of keys. Newest due first.
+ */
+export function pendingAlerts(tasks, now = new Date(), handled = new Set()) {
+  const today = dayKey(now);
+  const out = [];
+  tasks.forEach((t) => {
+    if (!isOpen(t)) return;
+    if (t.lastAckDate === today || (t.skippedDates || []).includes(today)) return;
+    const add = (kind, at) => {
+      if (!at) return;
+      const from = Math.max(at.getTime(), Number(t.snoozeUntil) || 0);
+      if (from > now.getTime() || now.getTime() - from > ALERT_WINDOW_MS) return;
+      const key = `${t.id}|${kind}|${from}`;
+      if (!handled.has(key)) out.push({ key, task: t, kind, at: new Date(from) });
+    };
+    add('due', dueAlertAt(t));
+    add('reminder', t.nextReminder);
+  });
+  return out.sort((a, b) => b.at - a.at);
+}
+
+export function alertHeading(a) {
+  if (a.kind === 'reminder') return 'Reminder due now';
+  const p = a.task.priority ? `${a.task.priority} priority` : 'Task';
+  return `${p} due now`;
+}
+
+/** The task moved to a new due date and time (and status / repeat), with its snooze and today's silence cleared. */
+export function moveTask(t, date, time, status, recurrence) {
+  const due = date ? parseDue(date, time || '09:00') : null;
+  return { ...t, due, hasTime: !!(due && time), status: status || t.status, recurrence: recurrence || t.recurrence, snoozeUntil: 0, lastAckDate: '' };
 }

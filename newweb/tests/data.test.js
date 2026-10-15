@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -298,4 +298,56 @@ test('a Sub Category can be edited: renamed, fields renamed, added and removed, 
   assert.equal(out[0].id, 'a');
   assert.equal(out[1], list[1]);
   assert.deepEqual(applySubCategoryEdit(list, 'a', 'X', []).find((x) => x.id === 'a').fields, []);
+});
+
+test('an alert comes at the due time, once, and respects snooze, silence and skip', () => {
+  const now = new Date(2026, 9, 15, 18, 45, 30);
+  const due = task({ id: 'd1', due: new Date(2026, 9, 15, 18, 45), hasTime: true, priority: 'Medium' });
+  assert.equal(pendingAlerts([due], now).length, 1);
+  assert.equal(alertHeading(pendingAlerts([due], now)[0]), 'Medium priority due now');
+  assert.equal(pendingAlerts([{ ...due, due: new Date(2026, 9, 15, 18, 46) }], now).length, 0);               // not yet
+  assert.equal(pendingAlerts([{ ...due, due: new Date(2026, 9, 15, 5, 0) }], now).length, 0);                  // fell due over 12 hours ago: not popped up on opening
+  const key = pendingAlerts([due], now)[0].key;
+  assert.equal(pendingAlerts([due], now, new Set([key])).length, 0);                                           // shown once
+  assert.equal(pendingAlerts([{ ...due, snoozeUntil: now.getTime() + 600000 }], now).length, 0);               // snoozed
+  const later = new Date(now.getTime() + 601000);
+  const again = pendingAlerts([{ ...due, snoozeUntil: now.getTime() + 600000 }], later);
+  assert.equal(again.length, 1);                                                                               // rings again when the snooze ends
+  assert.notEqual(again[0].key, key);
+  assert.equal(pendingAlerts([{ ...due, lastAckDate: '2026-10-15' }], now).length, 0);                          // silenced today
+  assert.equal(pendingAlerts([{ ...due, skippedDates: ['2026-10-15'] }], now).length, 0);                       // skipped today
+  assert.equal(pendingAlerts([{ ...due, done: true }], now).length, 0);
+  assert.equal(pendingAlerts([{ ...due, binned: true }], now).length, 0);
+});
+
+test('a task with a date but no time alerts at 9:00 AM; a next reminder alerts too', () => {
+  const dateOnly = task({ id: 'd2', due: new Date(2026, 9, 15), hasTime: false });
+  assert.equal(dueAlertAt(dateOnly).getHours(), 9);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 8, 59)).length, 0);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 9, 1)).length, 1);
+  const rem = task({ id: 'd3', nextReminder: new Date(2026, 9, 15, 10, 0) });
+  const a = pendingAlerts([rem], new Date(2026, 9, 15, 10, 1));
+  assert.equal(a.length, 1);
+  assert.equal(a[0].kind, 'reminder');
+  assert.equal(alertHeading(a[0]), 'Reminder due now');
+  assert.equal(pendingAlerts([task({ id: 'd4' })], new Date()).length, 0);                                     // no due date, no alert
+  assert.deepEqual(SNOOZES.map((x) => x[0]), [15, 30, 60, 120, 180, 300]);
+});
+
+test('snooze, silence and skip are saved with the task in the phone app\'s own fields; moving clears them', () => {
+  const t = fromDoc('s', { description: 'x', status: 'Pending', dueDate: '2026-10-15', dueTime: '18:45', snoozeUntil: 1790000000000, lastAckDate: '2026-10-15', skippedDates: ['2026-10-14'] });
+  assert.equal(t.snoozeUntil, 1790000000000);
+  const out = toDoc(t, NOW);
+  assert.equal(out.snoozeUntil, 1790000000000);
+  assert.equal(out.lastAckDate, '2026-10-15');
+  assert.deepEqual(out.skippedDates, ['2026-10-14']);
+  const plain = toDoc(task({}), NOW);
+  ['snoozeUntil', 'lastAckDate', 'skippedDates'].forEach((k) => assert.ok(!(k in plain), k));
+  const moved = moveTask(t, '2026-10-16', '10:30', 'In Progress', 'Daily');
+  assert.equal(moved.due.getHours(), 10);
+  assert.equal(moved.status, 'In Progress');
+  assert.equal(moved.recurrence, 'Daily');
+  assert.equal(moved.snoozeUntil, 0);
+  assert.equal(moved.lastAckDate, '');
+  assert.equal(toDoc(moved, NOW).snoozeUntil, null);                                                           // cleared, since the document had one
 });

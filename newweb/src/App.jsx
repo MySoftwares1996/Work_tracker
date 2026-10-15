@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
+import AlertCenter from './AlertCenter';
+import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from './alerts';
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
@@ -58,6 +60,7 @@ export default function App() {
       </main>
       <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
       {form && <TaskForm initial={form} onClose={() => setForm(null)} />}
+      <AlertCenter onOpen={openForm} />
     </div>
   );
 }
@@ -330,6 +333,7 @@ function Config() {
     <>
       <h1 className="h1">Config</h1>
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
+      <AlertSettings />
       <Appearance />
       <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
       <section className="card plain">
@@ -340,6 +344,26 @@ function Config() {
       <section className="card plain"><h2 className="h2">Sub categories</h2><SubCategoryManager lists={lists} /></section>
       <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
     </>
+  );
+}
+
+/** Config > Alerts: pop up a due alert, play a sound, and show a desktop notification when this tab is in the background. */
+function AlertSettings() {
+  const [s, setS] = useState(loadAlertSettings);
+  const [perm, setPerm] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
+  const set = (patch) => { const next = { ...s, ...patch }; setS(next); saveAlertSettings(next); window.dispatchEvent(new Event('wd-alert-settings')); };
+  const enableNotify = async () => { const r = await askNotificationPermission(); setPerm(r); set({ notify: r === 'granted' }); };
+  return (
+    <section className="card plain">
+      <h2 className="h2">Alerts</h2>
+      <p className="muted">When a task is due (or its next reminder time comes) while this page is open, an alert appears with the task's details and the choices to mark it done, snooze, skip or move it. Keep this page open to get alerts; the phone app rings by itself.</p>
+      <label className="field check"><input type="checkbox" checked={s.popup} onChange={(e) => set({ popup: e.target.checked })} /> Show an alert when a task is due</label>
+      <label className="field check"><input type="checkbox" checked={s.sound} onChange={(e) => set({ sound: e.target.checked })} /> Play a sound (needs one click or key press on the page first)</label>
+      <div className="add-row">
+        <label className="field check"><input type="checkbox" checked={s.notify && perm === 'granted'} disabled={perm === 'unsupported' || perm === 'denied'} onChange={(e) => (e.target.checked ? enableNotify() : set({ notify: false }))} /> Desktop notification when this tab is in the background{perm === 'denied' ? ' (blocked in the browser settings)' : ''}</label>
+      </div>
+      <div><button type="button" className="btn" onClick={() => window.dispatchEvent(new Event('wd-test-alert'))}>Show a test alert</button></div>
+    </section>
   );
 }
 
