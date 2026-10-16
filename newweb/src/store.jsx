@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, doc, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
-import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, toDoc, isOpen, writeListsValue } from './data';
+import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue } from './data';
 import { demoTasks } from './demo';
 
 const Ctx = createContext(null);
@@ -60,6 +60,7 @@ export function LiveStore({ children }) {
   const rawLists = useRef(null);
   const [calendar, setCalendar] = useState({ holidays: [], leaveDays: [] });
   const [links, setLinks] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
@@ -86,7 +87,7 @@ export function LiveStore({ children }) {
         const d = ch.doc.data() || {};
         if (ch.doc.id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
         if (ch.doc.id === 'calendar') setCalendar(readCalendar(d));
-        if (ch.doc.id === 'tools') setLinks(readLinks(d));
+        if (ch.doc.id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); }
       });
     }, onErr);
     return () => { un1(); un2(); };
@@ -144,7 +145,14 @@ export function LiveStore({ children }) {
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, error, synced, slow, actions, notify: flash,
+    demo: false, user, tasks, lists, calendar, links, templates, error, synced, slow, actions, notify: flash,
+    // Written with its own stamp in meta/tools, the way the phone stamps it, so the newest edit wins on both.
+    saveTemplates: (next) => {
+      if (!user) return;
+      const now = Date.now();
+      setTemplates(next);
+      setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { templates: next, stamps: { templates: now }, ts: now }, { merge: true }).catch((e) => setError(friendlyError(e)));
+    },
     // Options added or removed here reach the phone and the old website too (meta/lists, newest write wins).
     saveLists: (next) => {
       if (!user) return;
@@ -170,7 +178,7 @@ export function LiveStore({ children }) {
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, error, synced, slow, actions]);
+  }), [user, tasks, lists, calendar, links, templates, error, synced, slow, actions]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
@@ -201,12 +209,13 @@ export function DemoStore({ children }) {
   }, [flash]);
   const visible = useMemo(() => tasks.filter((t) => !t.purged), [tasks]);
   const calendar = useMemo(() => ({ holidays: [{ date: '2026-10-20', name: 'Sample holiday' }], leaveDays: [] }), []);
+  const [templates, setTemplates] = useState([]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, error: '', synced: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, error: '', synced: true, actions,
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
-  }), [visible, lists, calendar, links, actions]);
+  }), [visible, lists, calendar, links, templates, actions]);
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
 

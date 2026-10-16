@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
-import { upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -471,4 +471,20 @@ test('the due response follows the task\'s own alert choice', () => {
   assert.deepEqual(dueResponse({ alertMode: 'alarm' }, { popup: false, sound: false }), { popup: true, sound: true });
   assert.deepEqual(dueResponse({ alertMode: 'gentle' }, { popup: true, sound: true }), { popup: false, sound: false });
   assert.deepEqual(dueResponse({ alertMode: '' }, { popup: true, sound: false }), { popup: true, sound: false });
+});
+
+test('a template keeps the usual fields, never the dates, and starts a new task', () => {
+  const src = task({ title: 'Month-end reconciliation', category: 'Payments', priority: 'High', notes: 'Check ledgers', due: new Date(2026, 9, 31), keyPoints: [{ key: 'Ledger', value: 'HDFC' }], checklist: [{ id: 'a', text: 'Export', done: true }] });
+  const tpl = templateFrom(src);
+  assert.equal(tpl.name, 'Month-end reconciliation');
+  assert.ok(!('due' in tpl.fields) && !('dueDate' in tpl.fields));
+  assert.deepEqual(tpl.fields.keyPoints, [{ key: 'Ledger', value: '' }]);
+  assert.equal(tpl.fields.checklist[0].done, false);
+  const fresh = applyTemplate(blankTask(), tpl);
+  assert.equal(fresh.category, 'Payments');
+  assert.equal(fresh.priority, 'High');
+  assert.equal(fresh.due, null);
+  const list = saveTemplate(saveTemplate([], tpl), { ...tpl, id: 'other' });                 // same name replaces
+  assert.equal(list.length, 1);
+  assert.deepEqual(readTemplates({ templates: list }).map((x) => x.name), ['Month-end reconciliation']);
 });

@@ -14,3 +14,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - A checkbox on the phone's report to leave the Sub Category fields out.
 - Anything new on the web from now on: add a line here in the same commit.
 - New web: all task cards the same size (equal height in a row, buttons at the bottom). Web only, nothing to port.
+- **Save as template** (new web, built): "Save as template" in the entry form and on each card (📋), and "Start from a template" chips in a new entry; stored in `users/<uid>/meta/tools` as `templates` with its own stamp, the same shape as the phone's (`src/templates.js`), so the two already share them. **Owner asked it for the next APK build too:** port it then. Note the phone has no New / Edit form at phone width, so decide where it goes there (a "Save as template" action on a task's card / detail, and the templates list under Config) - ask the owner.

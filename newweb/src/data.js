@@ -508,3 +508,35 @@ export function moveTask(t, date, time, status, recurrence) {
   const due = date ? parseDue(date, time || '09:00') : null;
   return { ...t, due, hasTime: !!(due && time), status: status || t.status, recurrence: recurrence || t.recurrence, snoozeUntil: 0, lastAckDate: '' };
 }
+
+/* ---- Templates: a task's usual fields saved once, then a new task starts from one. Same shape as the phone app's (src/templates.js);
+   kept in users/<uid>/meta/tools as `templates`, so the phone and the website share them. Dates are never part of a template. ---- */
+const TEMPLATE_FIELDS = ['title', 'category', 'priority', 'status', 'pendingWith', 'recurrence', 'recurrenceEveryMin', 'notes', 'alertMode', 'checklist'];
+const plain = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
+
+/** A template from a task or form draft; `name` defaults to its title. Key points keep their labels, not their values. */
+export function templateFrom(task, name) {
+  const fields = {};
+  TEMPLATE_FIELDS.forEach((k) => { if (task[k] !== undefined && task[k] !== null && task[k] !== '') fields[k] = plain(task[k]); });
+  if (Array.isArray(task.keyPoints)) fields.keyPoints = task.keyPoints.map((kp) => ({ key: String((kp && kp.key) || '').trim(), value: '' })).filter((kp) => kp.key);
+  if (Array.isArray(fields.checklist)) fields.checklist = fields.checklist.map((c) => ({ ...c, done: false }));
+  const label = String(name || task.title || '').trim();
+  return { id: `tpl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e4)}`, name: label || 'Template', fields };
+}
+
+/** The draft with the template's fields on top; the draft's own id, dates and mail chain stay. */
+export function applyTemplate(draft, tpl) {
+  const f = plain((tpl && tpl.fields) || {});
+  if (Array.isArray(f.checklist)) f.checklist = f.checklist.map((c, i) => ({ id: c.id || `c${Date.now()}${i}`, ...c, done: false }));
+  return { ...draft, ...f, keyPoints: Array.isArray(f.keyPoints) ? f.keyPoints.map((k) => ({ key: k.key || '', value: k.value || '' })) : draft.keyPoints };
+}
+
+/** Adds or replaces (same name) a template; newest first, at most 30. */
+export function saveTemplate(list = [], tpl) {
+  const rest = list.filter((x) => String(x.name).toLowerCase() !== String(tpl.name).toLowerCase());
+  return [tpl, ...rest].slice(0, 30);
+}
+
+export function readTemplates(d = {}) {
+  return (Array.isArray(d.templates) ? d.templates : []).filter((x) => x && x.name && x.fields && typeof x.fields === 'object').map((x) => ({ id: String(x.id || x.name), name: String(x.name), fields: x.fields }));
+}

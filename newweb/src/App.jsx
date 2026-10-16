@@ -7,7 +7,7 @@ import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from 
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -150,7 +150,7 @@ function Chip({ children, tone }) { return <span className={`chip ${tone || ''}`
 const priTone = (p) => ({ high: 'coral', medium: 'amber', low: 'teal' })[String(p).toLowerCase()] || '';
 
 function TaskCard({ t, onEdit, compact }) {
-  const { actions, notify } = useStore();
+  const { actions, notify, templates, saveTemplates } = useStore();
   const late = isOverdue(t);
   return (
     <article className={`card pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}`}>
@@ -174,6 +174,7 @@ function TaskCard({ t, onEdit, compact }) {
         <div className="card-actions">
           <button className="btn ok" onClick={() => actions.complete(t, false)} title="Done - kept out of the daily report">✓ Done</button>
           <button className="btn ok soft" onClick={() => actions.complete(t, true)} title="Done and included in the daily report">✓ DAR</button>
+          <button className="btn ghost" onClick={() => { saveTemplates(saveTemplate(templates, templateFrom(t))); notify(`Template saved: ${t.title}`); }} title="Save as template" aria-label="Save as template">📋</button>
           <button className="btn ghost" onClick={() => actions.bin(t)} aria-label="Move to bin">🗑</button>
         </div>
       )}
@@ -589,7 +590,8 @@ function TaskForm({ initial, onClose }) {
   const [remDate, setRemDate] = useState(initial.nextReminder ? dayKey(initial.nextReminder) : '');
   const [remTime, setRemTime] = useState(initial.nextReminder ? `${pad(initial.nextReminder.getHours())}:${pad(initial.nextReminder.getMinutes())}` : '');
   const [remClock, setRemClock] = useState(false);
-  const { saveLists } = useStore();
+  const { saveLists, templates, saveTemplates, notify } = useStore();
+  const [tplName, setTplName] = useState(null);      // null = closed; a string = naming the template being saved
   const [att, setAtt] = useState({ title: '', url: '' });
   const [kp, setKp] = useState({ key: '', value: '' });
   useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
@@ -658,7 +660,22 @@ function TaskForm({ initial, onClose }) {
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form className="sheet wide" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
-        <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2>
+          <span className="tpl-head">
+            {tplName === null
+              ? <button type="button" className="btn" onClick={() => setTplName(t.title.trim())} title="Keep this entry's usual fields to start new entries from">Save as template</button>
+              : <span className="tpl-save"><input autoFocus value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="Template name" aria-label="Template name" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('tpl-ok')?.click(); } }} />
+                <button type="button" id="tpl-ok" className="btn primary" onClick={() => { saveTemplates(saveTemplate(templates, templateFrom(t, tplName || t.title))); notify(`Template saved: ${tplName || t.title || 'Template'}`); setTplName(null); }}>Save</button>
+                <button type="button" className="btn ghost" onClick={() => setTplName(null)}>Cancel</button></span>}
+            <button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button>
+          </span></div>
+        {isNew && templates.length > 0 && (
+          <div className="tpl-row"><span className="muted">Start from a template:</span>
+            {templates.map((tp) => (
+              <span key={tp.id} className="chip tpl-chip"><button type="button" onClick={() => setT((cur) => applyTemplate(cur, tp))} title="Fill the form from this template">{tp.name}</button><button type="button" className="tpl-x" aria-label={`Delete template ${tp.name}`} onClick={() => saveTemplates(templates.filter((x) => x.id !== tp.id))}>✕</button></span>
+            ))}
+          </div>
+        )}
         <div className="cols3">
         <div className="col">
         <label className="field full">Task description<textarea rows={3} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
@@ -699,9 +716,9 @@ function TaskForm({ initial, onClose }) {
           </div>
           <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
           {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
-          <div className="field">Alert at the due time
-            <div className="seg" role="group" aria-label="Alert at the due time">
-              {[['', 'Default'], ['alarm', 'Alarm (pop-up + sound)'], ['gentle', 'Reminder (notification only)']].map(([v, l]) => <button type="button" key={v} className={t.alertMode === v ? 'on' : ''} onClick={() => setT({ ...t, alertMode: v })}>{l}</button>)}
+          <div className="field">Alert at the due time (Alarm = pop-up + sound, Reminder = notification only)
+            <div className="seg" role="group" aria-label="Alert at the due time (Alarm = pop-up + sound, Reminder = notification only)">
+              {[['', 'Default'], ['alarm', 'Alarm'], ['gentle', 'Reminder']].map(([v, l]) => <button type="button" key={v} className={t.alertMode === v ? 'on' : ''} onClick={() => setT({ ...t, alertMode: v })}>{l}</button>)}
             </div>
           </div>
           <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
