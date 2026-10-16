@@ -54,13 +54,16 @@ export function renderTemplate(template, entry) {
   return { text, missing };
 }
 
+/** One name contains the other ("Imports Payment" in "Imports Payment Initiation"); a short name (ESI, PT) only ever matches exactly. */
+const related = (a, b) => !!a && !!b && Math.min(a.length, b.length) >= 8 && (a.includes(b) || b.includes(a));
+
 /** The format for a Sub Category name (exact words first, then one name containing the other: "Imports Payment" and "Imports Payment Initiation"). */
 export function findFormat(formats, subCategory) {
   const n = normName(subCategory);
   if (!n) return null;
   const list = Array.isArray(formats) ? formats.filter((f) => f && f.template && f.subCategory) : [];
   return list.find((f) => normName(f.subCategory) === n)
-    || list.find((f) => { const m = normName(f.subCategory); return m && (m.includes(n) || n.includes(m)); }) || null;
+    || list.find((f) => related(normName(f.subCategory), n)) || null;
 }
 
 /** The marks of a template that no field of the Sub Category answers: they can be added to it. */
@@ -95,6 +98,10 @@ export const SAMPLE_FORMATS = [
   { category: 'Payments', subCategory: 'Lagour Charges', template: 'Being amount paid towards labour charges for the period of {Period} & Head count: {Head count} × {Rate} = {Amount}/-' },
   { category: 'Payments', subCategory: 'Refund of Sale', template: 'Being amount paid towards sales refund against Order ID: {Order ID}, amounting to ₹{Amount}.' },
   { category: 'Payments', subCategory: 'Credit Card Payments', template: 'Being the amount paid towards {Towards}, amounting to ₹{Amount}, as per the email subject: {Email subject}.' },
+  { category: 'HR Statutory Payment', subCategory: 'EPFO', template: 'Made the payment for EPFO for the month of {Month} - with Month: {Month}, Liability Period: {Liability Period}, Amount Paid: {Amount Paid}, Payment Date: {Payment Date}, Status: {Status}.' },
+  { category: 'HR Statutory Payment', subCategory: 'ESI', template: 'Made the payment for ESI for the month of {Month} - with Month: {Month}, Liability Period: {Liability Period}, Amount Paid: {Amount Paid}, Payment Date: {Payment Date}, Status: {Status}.' },
+  { category: 'HR Statutory Payment', subCategory: 'PT', template: 'Made the payment for PT for the month of {Month} - with Month: {Month}, Liability Period: {Liability Period}, Amount Paid: {Amount Paid}, Payment Date: {Payment Date}, Status: {Status}.' },
+  { category: 'Monthly Payments', subCategory: 'Monthly TDS Payments by Section wise', template: 'Made the payment for TDS for the month of {Month} - with Month: {Month}, TDS Section & Code: {TDS Section & Code}, Liability Period: {Liability Period}, Amount Paid: {Amount Paid}, Payment Date: {Payment Date}, Status: {Status}.' },
 ].map((f, i) => ({ id: `sample-${i}`, ...f }));
 
 const OWN_MARKS = new Set(['title', 'category', 'sub category', 'mail', 'notes']);
@@ -111,7 +118,7 @@ export function planFormatSetup(lists = {}, formats = []) {
   const addedCats = [];
   const addedSubs = [];
   const hasCat = (name) => cats.some((c) => normName(c) === normName(name));
-  const hasSub = (name) => { const n = normName(name); return subs.some((x) => { const m = normName(x.name); return m && (m === n || m.includes(n) || n.includes(m)); }); };
+  const hasSub = (name) => { const n = normName(name); return subs.some((x) => { const m = normName(x.name); return m && (m === n || related(m, n)); }); };
   (formats || []).forEach((f) => {
     if (!f || !f.subCategory || !f.template) return;
     const category = clean(f.category);

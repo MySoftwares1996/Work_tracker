@@ -538,7 +538,7 @@ test('marks with no field in the Sub Category are listed, so they can be added',
 });
 
 test('the sample formats from the owner\'s sheet all have text and marks', () => {
-  assert.ok(SAMPLE_FORMATS.length >= 18);
+  assert.ok(SAMPLE_FORMATS.length >= 22);
   assert.ok(SAMPLE_FORMATS.every((f) => f.subCategory && f.template.length > 20));
   const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
   assert.equal(imp.missing.length, 0);
@@ -548,7 +548,7 @@ test('the sample formats from the owner\'s sheet all have text and marks', () =>
 test('the setup from the formats creates only the missing categories and sub categories, with a field for each mark', () => {
   const lists = { categories: ['Payments', 'Audit'], subCategories: [{ id: 'a', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Name of vendor' }] }, { id: 'b', name: 'Imports Payment', category: 'Payments', fields: [] }], subCategoryCategories: ['Payments'] };
   const plan = planFormatSetup(lists, SAMPLE_FORMATS);
-  assert.deepEqual(plan.categories, ['Import Payments', 'Duty Payments']);
+  assert.deepEqual(plan.categories, ['Import Payments', 'Duty Payments', 'HR Statutory Payment', 'Monthly Payments']);
   const names = plan.subCategories.map((x) => x.name);
   assert.ok(!names.includes('Invoice Payment') && !names.includes('Imports Payment Initiation'));   // already there (also by containment)
   assert.ok(names.includes('Custom Duty Payment') && names.includes('PO Advance Payment'));
@@ -594,4 +594,14 @@ test('the Final Narration is what follows the dash of a payment line, for Paymen
   assert.equal(narrationOf('Made the payment for TDS - with Month: Sept'), 'Made the payment for TDS - with Month: Sept');   // no ": -": the whole line
   assert.ok(isPaymentCategory('Import Payments') && isPaymentCategory('Monthly Payments') && !isPaymentCategory('Audit'));
   assert.deepEqual(finalNarration({ ...entry, subCategoryFields: {} }, SAMPLE_FORMATS).missing, ['Name', 'Advance %', 'PO No', 'Amount']);
+});
+
+test('HR Statutory and Monthly Payments formats: short names match exactly, the line is written from the fields', () => {
+  const f = (name) => findFormat(SAMPLE_FORMATS, name);
+  assert.equal(f('ESI').subCategory, 'ESI');
+  assert.equal(f('PT').subCategory, 'PT');
+  assert.equal(f('Prompt'), null);
+  const entry = { category: 'HR Statutory Payment', subCategory: 'EPFO', subCategoryFields: { Month: 'September 2026', 'Liability Period': 'Aug 2026', 'Amount Paid': '1,00,000', 'Payment Date': '15-10-2026', Status: 'Completed' } };
+  assert.equal(renderTemplate(f('EPFO').template, entry).text, 'Made the payment for EPFO for the month of September 2026 - with Month: September 2026, Liability Period: Aug 2026, Amount Paid: 1,00,000, Payment Date: 15-10-2026, Status: Completed.');
+  assert.ok(f('Monthly TDS Payments by Section wise: ').template.includes('{TDS Section & Code}'));
 });
