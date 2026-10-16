@@ -74,3 +74,10 @@ reCAPTCHA v3 site key. Steps (all free):
    and `VITE_RECAPTCHA_SITE_KEY` = the Site key from step 2. (The Site key is public by design; never put the Secret key in GitHub.)
 5. Run **Deploy web version**. Then App Check > APIs > Firebase AI Logic should show verified requests; leave enforcement off until
    the verified share is near 100%, or let Google enforce it on 2 November.
+
+## Your own Gemini API key (backup)
+
+Config > **Gemini API key**: paste a key from https://aistudio.google.com/apikey and press **Save key** (**Test key** checks it). The
+report rewrite always tries the free Firebase route first; only when that fails (busy, free limit, App Check) the saved key is used.
+The key stays in that browser only (localStorage) - it is not saved in the database and not sent anywhere except Google's Gemini.
+Anyone who can use that browser profile can see it, so remove it (**Remove key**) on a shared computer.

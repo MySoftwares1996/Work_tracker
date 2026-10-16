@@ -564,3 +564,9 @@ export function numbersLost(draft, ai) {
   const want = String(draft || '').replace(/,(?=\d{2,3}\b)/g, '').match(/\d{2,}(?:\.\d+)?/g) || [];
   return [...new Set(want)].filter((n) => !hay.includes(n));
 }
+
+/** The text of a Gemini API (generateContent) reply, or ''; a blocked or empty reply gives ''. */
+export function geminiText(json) {
+  const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
+  return Array.isArray(parts) ? parts.map((p) => (p && typeof p.text === 'string' ? p.text : '')).join('').trim() : '';
+}

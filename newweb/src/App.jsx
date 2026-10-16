@@ -347,10 +347,11 @@ function Report() {
   const rewrite = async () => {
     setBusy(true); setAiError('');
     try {
-      const { generateWithGemini } = await import('./gemini');
-      const out = (await generateWithGemini(buildReportPrompt(draft, extra))).trim();
+      const { rewriteWithGemini } = await import('./gemini');
+      const got = await rewriteWithGemini(buildReportPrompt(draft, extra));
+      const out = got.text.trim();
       const lost = numbersLost(draft, out);
-      setAi({ text: out, for: draft }); setShowOriginal(false);
+      setAi({ text: out, for: draft, via: got.via }); setShowOriginal(false);
       if (lost.length) notify(`Check these numbers in the rewrite: ${lost.slice(0, 6).join(', ')}`);
     } catch (e) { setAiError(String(e.message || e)); }
     setBusy(false);
@@ -368,7 +369,7 @@ function Report() {
       </details>
       {aiError && <div className="banner err" role="alert">{aiError}</div>}
       <pre className="report">{text}</pre>
-      <p className="muted">{useAi ? 'Written by Gemini from the report below - check it before you send it.' : 'Lists tasks completed that day with "✓ DAR", then what is still open and due.'}</p>
+      <p className="muted">{useAi ? `Written by Gemini${ai.via === 'key' ? ' (with your own API key, because the free route was busy)' : ' (free)'} - check it before you send it.` : 'Lists tasks completed that day with "✓ DAR", then what is still open and due.'}</p>
     </>
   );
 }
@@ -398,6 +399,7 @@ function Config() {
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
       <ImportBackup />
       <AlertSettings />
+      <GeminiKey />
       <Appearance />
       <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
       <section className="card plain">
@@ -455,6 +457,43 @@ function ImportBackup() {
 }
 
 /** Config > Alerts: pop up a due alert, play a sound, and show a desktop notification when this tab is in the background. */
+function GeminiKey() {
+  const [saved, setSaved] = useState(() => { try { return !!localStorage.getItem('wd-gemini-key'); } catch { return false; } });
+  const [value, setValue] = useState('');
+  const [show, setShow] = useState(false);
+  const [state, setState] = useState({ busy: false, msg: '', bad: false });
+  const save = async () => {
+    const { saveGeminiKey } = await import('./gemini');
+    saveGeminiKey(value);
+    setSaved(!!value.trim()); setValue(''); setState({ busy: false, msg: value.trim() ? 'Saved on this computer.' : 'Removed.', bad: false });
+  };
+  const test = async () => {
+    setState({ busy: true, msg: '', bad: false });
+    try {
+      const { generateWithKey, loadGeminiKey } = await import('./gemini');
+      const key = value.trim() || loadGeminiKey();
+      if (!key) throw new Error('Paste a key first.');
+      const out = await generateWithKey('Reply with the single word: ready', key);
+      setState({ busy: false, msg: `The key works (Gemini answered: ${out.slice(0, 40)}).`, bad: false });
+    } catch (e) { setState({ busy: false, msg: String(e.message || e), bad: true }); }
+  };
+  return (
+    <section className="card plain">
+      <h2 className="h2">Gemini API key (backup for the report rewrite)</h2>
+      <p className="muted">The report rewrite uses the free route first. Only if that is busy or fails, your own Gemini API key is used. The key is kept in this browser only (never in the database) and is sent only to Google's Gemini. Get one free at aistudio.google.com/apikey.</p>
+      <div className="row key-row">
+        <input type={show ? 'text' : 'password'} value={value} onChange={(e) => setValue(e.target.value)} placeholder={saved ? 'A key is saved - paste a new one to replace it' : 'Paste your Gemini API key'} aria-label="Gemini API key" autoComplete="off" spellCheck={false} />
+        <button type="button" className="btn ghost" onClick={() => setShow(!show)}>{show ? 'Hide' : 'Show'}</button>
+        <button type="button" className="btn primary" onClick={save} disabled={!value.trim()}>Save key</button>
+        <button type="button" className="btn" onClick={test} disabled={state.busy || (!value.trim() && !saved)}>{state.busy ? 'Testing…' : 'Test key'}</button>
+        {saved && <button type="button" className="btn ghost" onClick={async () => { const { saveGeminiKey } = await import('./gemini'); saveGeminiKey(''); setSaved(false); setState({ busy: false, msg: 'Removed.', bad: false }); }}>Remove key</button>}
+      </div>
+      {saved && <p className="muted">✓ A key is saved on this computer.</p>}
+      {state.msg && <p className={state.bad ? 'banner err' : 'muted'} role="status">{state.msg}</p>}
+    </section>
+  );
+}
+
 function AlertSettings() {
   const [s, setS] = useState(loadAlertSettings);
   const [perm, setPerm] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));

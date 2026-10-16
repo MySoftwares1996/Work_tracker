@@ -469,3 +469,6 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .ai-extra { margin: 8px 0; }
 .ai-extra summary { cursor: pointer; font-weight: 700; }
 .ai-extra textarea { width: 100%; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: inherit; font: inherit; }
+
+.key-row { flex-wrap: wrap; gap: 8px; }
+.key-row input { flex: 1; min-width: 260px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: inherit; }
