@@ -29,3 +29,4 @@ Not for the APK (web only): colour themes, three-column form, desktop notificati
 - New web: the app's own icon (check circle) is now the site logo, tab icon and home-screen icon. Web only, nothing to port.
 - New web: animated logo (draws itself, breathes, spins while loading) in the header, sign-in, loading, empty states and the due alert. Web only, nothing to port.
 - New web: offline notice after 12 s instead of loading forever; signed-in email shown under the name. Web only, nothing to port.
+- New web: three cards in each row (two on a tablet, one on a phone). Web only, nothing to port.

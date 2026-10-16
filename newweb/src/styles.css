@@ -76,6 +76,10 @@ textarea { width: 100%; resize: vertical; }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: start; }
 .list { display: flex; flex-direction: column; gap: 10px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+/* Three cards in each row on a computer; two on a tablet; one on a phone. */
+@media (min-width: 1000px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 640px) and (max-width: 999px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .filters .search { flex: 1 1 240px; }
 
