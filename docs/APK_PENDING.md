@@ -13,3 +13,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - Sub Categories grouped per category with an editor on the phone, and "Next reminder date & time" per category (`reminderCategories`, `nextReminderAt`): the phone ignores both.
 - A checkbox on the phone's report to leave the Sub Category fields out.
 - Anything new on the web from now on: add a line here in the same commit.
+- New web: all task cards the same size (equal height in a row, buttons at the bottom). Web only, nothing to port.

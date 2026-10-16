@@ -75,7 +75,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--violet); ou
 textarea { width: 100%; resize: vertical; }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: start; }
 .list { display: flex; flex-direction: column; gap: 10px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: stretch; }
+/* Every task card has the same size: all cards in a row are as tall as the tallest, with at least a standard height, and the buttons sit at the bottom. */
+.grid > article.card { height: 100%; min-height: 170px; }
+.grid > article.card .card-main { flex: 1; justify-content: flex-start; align-content: flex-start; }
+.grid > article.card .card-actions { margin-top: auto; }
 /* Three cards in each row on a computer; two on a tablet; one on a phone. */
 @media (min-width: 1000px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 640px) and (max-width: 999px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
