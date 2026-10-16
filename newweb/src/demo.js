@@ -17,6 +17,6 @@ export const demoTasks = [
   mk('Update the vendor master list', { d: 9, category: 'Other', priority: 'Low' }),
   mk('Submit GST payment challan', { d: 0, category: 'Payments', priority: 'High', done: true, completedAt: at(0, 9, 40), status: 'Completed', notes: 'Paid and acknowledged.' }),
   mk('Send salary sheet to HR', { d: -1, category: 'Payments', priority: 'Medium', done: true, completedAt: at(-1, 16, 5), status: 'Completed' }),
-  ...(typeof location !== 'undefined' && location.search.includes('alert') ? [mk('test', { d: 0, h: now.getHours(), m: now.getMinutes() - 1, category: 'Follow-up', priority: 'High', pendingWith: 'Pending at Bank', status: 'Pending', reference: '3333333333' })] : []),
+  ...(typeof location !== 'undefined' && location.search.includes('alert') ? [mk('test', { d: 0, h: now.getHours(), m: now.getMinutes() - 1, category: 'Follow-up', priority: 'High', pendingWith: 'Pending at Bank', status: 'Pending', reference: '3333333333', subCategory: "Urgent Bank Follow Up's", subCategoryFields: {} })] : []),
   mk('Old reminder', { d: -8, category: 'Other', priority: 'Low', binned: true, binnedAt: at(-1) }),
 ];

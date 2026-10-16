@@ -193,6 +193,7 @@ export function DemoStore({ children }) {
       { id: 'p3', name: 'Import Payment', category: 'Payments', fields: [{ label: 'Bill of Entry' }, { label: 'Mode', options: ['TT', 'LC'] }] },
       { id: 'p4', name: 'Customs Duty', category: 'Payments', fields: [{ label: 'BE No' }] },
       { id: 'p5', name: 'Demand Draft', category: 'Payments', fields: [] },
+      { id: 'b1', name: "Urgent Bank Follow Up's", category: 'Follow-up', fields: [{ label: "Banker's Reply's:" }] },
       { id: 'a1', name: 'Statutory Audit', category: 'Audit', fields: [] },
       { id: 'a2', name: 'Internal Audit', category: 'Audit', fields: [] },
     ],

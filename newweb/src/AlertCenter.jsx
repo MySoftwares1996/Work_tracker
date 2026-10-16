@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
 import Logo from './Logo';
 import ClockPicker from './ClockPicker';
-import { SNOOZES, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
+import { SNOOZES, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
@@ -75,10 +75,10 @@ export default function AlertCenter({ onOpen }) {
 
   if (!current) return null;
   const finish = (a) => { handled.current.set(a.key, Date.now()); saveHandled(handled.current); setQueue((q) => q.filter((x) => x.key !== a.key)); };
-  return <AlertCard key={current.key} a={current} count={live.length} lists={lists} actions={actions} finish={finish} onOpen={onOpen} />;
+  return <AlertCard key={current.key} a={current} count={live.length} lists={lists} actions={actions} finish={finish} onOpen={onOpen} notify={notify} />;
 }
 
-function AlertCard({ a, count, lists, actions, finish, onOpen }) {
+function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
   const t = a.task;
   const today = dayKey(new Date());
   const [remarks, setRemarks] = useState('');
@@ -95,17 +95,24 @@ function AlertCard({ a, count, lists, actions, finish, onOpen }) {
   const [rTime, setRTime] = useState(() => (t.nextReminder && t.nextReminder > new Date() ? `${pad(t.nextReminder.getHours())}:${pad(t.nextReminder.getMinutes())}` : '09:00'));
   const [rClock, setRClock] = useState(false);
   const [rError, setRError] = useState('');
+  // The task's Sub Category fields (the Banker's Reply among them) can be typed here; they are saved with whatever the alert does.
+  const [sub, setSub] = useState(t.subCategory || '');
+  const [sf, setSf] = useState(() => ({ ...(t.subCategoryFields || {}) }));
+  const subList = subCategoriesFor(lists, t.category);
+  const sc = findSubCategory(lists, sub);
+  const withSub = (x) => (sub ? { ...x, subCategory: sub, subCategoryFields: sf } : x);
+  const saveReply = () => { if (!a.test) actions.save(withSub(t)); if (notify) notify('Saved'); };
   useEffect(() => { const k = (e) => { if (e.key === 'Escape' && !clock) finish(a); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [a, finish, clock]);
 
-  const save = (patch) => { if (!a.test) actions.save(withRemark({ ...t, ...patch }, remarks)); finish(a); };
-  const done = (dar) => { if (!a.test) actions.complete(withRemark(t, remarks), dar); finish(a); };
+  const save = (patch) => { if (!a.test) actions.save(withRemark(withSub({ ...t, ...patch }), remarks)); finish(a); };
+  const done = (dar) => { if (!a.test) actions.complete(withRemark(withSub(t), remarks), dar); finish(a); };
   const setReminder = () => {
     const when = reminderFrom(rDate, rTime);
     if (!when || when.getTime() <= Date.now()) { setRError('Pick a date and time in the future.'); return; }
     save({ nextReminder: when });
   };
   const skip = () => (a.kind === 'reminder' ? save({ nextReminder: null }) : save({ skippedDates: [...(t.skippedDates || []), today] }));
-  const move = () => { if (!a.test) actions.save(withRemark(moveTask(t, date, time, status, repeat), remarks)); finish(a); };
+  const move = () => { if (!a.test) actions.save(withRemark(withSub(moveTask(t, date, time, status, repeat)), remarks)); finish(a); };
   const tone = String(t.priority).toLowerCase() === 'high' ? 'high' : String(t.priority).toLowerCase() === 'low' ? 'low' : 'medium';
 
   return (
@@ -132,6 +139,24 @@ function AlertCard({ a, count, lists, actions, finish, onOpen }) {
           <div className="alert-notes">
             {t.reference && <p>✉ {t.reference}</p>}
             {t.notes && <p>{t.notes}</p>}
+          </div>
+        )}
+        {(sc || (subList.length > 0 && !t.subCategory)) && (
+          <div className="alert-sub">
+            <div className="alert-reminder-head"><b>{sub ? sub : `Sub category under ${t.category}`}</b><span className="muted">Typed here, it is saved with the task (and goes into the daily report).</span></div>
+            {!t.subCategory && subList.length > 0 && (
+              <select value={sub} onChange={(e) => { setSub(e.target.value); setSf({}); }} aria-label="Sub category"><option value="">Choose a sub category</option>{subList.map((x) => <option key={x.name}>{x.name}</option>)}</select>
+            )}
+            {sc && sc.fields.length > 0 && (
+              <div className="fields">{sc.fields.map((f) => (
+                <label className="field" key={f.label}>{f.label}
+                  {f.options && f.options.length
+                    ? <select value={sf[f.label] || ''} onChange={(e) => setSf({ ...sf, [f.label]: e.target.value })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
+                    : <input value={sf[f.label] || ''} onChange={(e) => setSf({ ...sf, [f.label]: e.target.value })} placeholder={f.label} />}
+                </label>
+              ))}</div>
+            )}
+            <div><button type="button" className="btn" onClick={saveReply}>Save {sc && sc.fields.length ? 'these details' : 'sub category'}</button></div>
           </div>
         )}
         <input className="alert-remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks / notes for today (optional) — e.g. Nothing to do today" aria-label="Remarks" />
