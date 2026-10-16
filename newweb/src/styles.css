@@ -519,3 +519,26 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 @keyframes ls-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(280%); } }
 @keyframes ls-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ls-orbit, .ls-bar span, .ls-steps li.now .ls-dot { animation: none !important; } .ls-logo { transform: none !important; } }
+
+/* The due alert at about half the width, every feature kept (a long alert scrolls inside the window) */
+.alert-overlay { align-items: start; padding: 4vh 16px; }
+.alert-card { width: min(600px, 100%); border-radius: 22px; }
+.alert-band { padding: 12px 18px; gap: 12px; }
+.alert-band .alert-heading { font-size: 18px; }
+.alert-band .alert-meta { font-size: 12.5px; }
+.alert-bell .wd-logo { width: 36px; height: 36px; }
+.alert-body { padding: 14px 18px 18px; gap: 10px; }
+.alert-title { font-size: 21px; letter-spacing: -0.4px; }
+.alert-notes { padding: 8px 12px; border-radius: 12px; font-size: 13.5px; }
+.alert-remarks { padding: 9px 12px; font-size: 14px; border-radius: 12px; }
+.alert-actions { gap: 6px; }
+.alert-actions .btn { padding: 8px 14px; border-radius: 12px; font-size: 13.5px; }
+.alert-move, .alert-reminder, .alert-sub { padding: 10px 12px; border-radius: 14px; gap: 6px; }
+.alert-reminder-head b { font-size: 14px; }
+.alert-reminder-head .muted { font-size: 12px; }
+.alert-sub .fields { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.alert-card input, .alert-card select, .alert-card .time-btn { padding: 7px 10px; font-size: 13.5px; }
+.move-row { gap: 6px; }
+.move-row .btn { padding: 8px 16px; border-radius: 12px; }
+.alert-card .chip { font-size: 11.5px; padding: 1px 8px; }
+@media (max-width: 640px) { .alert-overlay { padding: 8px; } .alert-body { padding: 12px; } }

@@ -64,7 +64,11 @@ export default function AlertCenter({ onOpen }) {
   }, [settings, tasks, notify]);
 
   // The shown alert uses the task as it is now; one that was completed or binned elsewhere drops out.
-  const live = useMemo(() => queue.map((a) => (a.test ? a : { ...a, task: tasks.find((t) => t.id === a.task.id) })).filter((a) => a.test || (a.task && !a.task.done && !a.task.binned)), [queue, tasks]);
+  // An alert goes away when the task changes anywhere (another computer, the phone): done, binned, moved to a later date or time, snoozed,
+  // silenced or skipped today. It is judged again with the same rules that raised it.
+  const live = useMemo(() => queue
+    .map((a) => (a.test ? a : { ...a, task: tasks.find((t) => t.id === a.task.id) }))
+    .filter((a) => a.test || (a.task && !a.task.done && !a.task.binned && pendingAlerts([a.task], new Date(), new Set()).some((x) => x.kind === a.kind))), [queue, tasks]);
   const current = live[0];
 
   useEffect(() => {

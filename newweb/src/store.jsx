@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, doc, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
 import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
 import { demoTasks } from './demo';
@@ -69,6 +69,7 @@ export function LiveStore({ children }) {
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
   const [slow, setSlow] = useState(false);              // no answer from the server after 12 s (offline?)
+  const [lastSyncAt, setLastSyncAt] = useState(0);       // when data last arrived from the server (shown on the sync dot)
   const tasksRef = useRef([]);
 
   useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); setSynced(false); if (!u) setTaskMap({}); }), []);
@@ -77,6 +78,11 @@ export function LiveStore({ children }) {
     if (!user) return undefined;
     const db = dbOf();
     const onErr = (e) => setError(friendlyError(e));
+    const applyMeta = (id, d) => {
+      if (id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
+      if (id === 'calendar') setCalendar(readCalendar(d));
+      if (id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); }
+    };
     const un1 = onSnapshot(collection(db, 'users', user.uid, 'tasks'), (snap) => {
       setTaskMap((m) => {
         const next = { ...m };
@@ -84,17 +90,40 @@ export function LiveStore({ children }) {
         return next;
       });
       setSynced(!snap.metadata.fromCache);
+      if (!snap.metadata.fromCache) setLastSyncAt(Date.now());
     }, onErr);
     const un2 = onSnapshot(collection(db, 'users', user.uid, 'meta'), (snap) => {
-      snap.docChanges().forEach((ch) => {
-        if (ch.type === 'removed') return;
-        const d = ch.doc.data() || {};
-        if (ch.doc.id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
-        if (ch.doc.id === 'calendar') setCalendar(readCalendar(d));
-        if (ch.doc.id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); }
-      });
+      snap.docChanges().forEach((ch) => { if (ch.type !== 'removed') applyMeta(ch.doc.id, ch.doc.data() || {}); });
     }, onErr);
-    return () => { un1(); un2(); };
+    // Device to device: the live listeners can stall (a sleeping laptop, a network change). When this tab is shown again, comes back
+    // online, or is clicked after a while, the server is asked directly and anything newer is taken - so an edit made on another
+    // computer or on the phone is here at once, not only after a refresh.
+    let busy = false;
+    let last = 0;
+    const refresh = async () => {
+      if (busy || document.hidden || Date.now() - last < 4000) return;
+      busy = true; last = Date.now();
+      try {
+        const [tasks, metas] = await Promise.all([getDocsFromServer(collection(db, 'users', user.uid, 'tasks')), getDocsFromServer(collection(db, 'users', user.uid, 'meta'))]);
+        setTaskMap((m) => {
+          const next = { ...m };
+          tasks.docs.forEach((x) => {
+            const fresh = fromDoc(x.id, x.data());
+            const have = next[x.id];
+            if (!have || (fresh.updatedAt || 0) >= (have.updatedAt || 0)) next[x.id] = fresh;
+          });
+          return next;
+        });
+        metas.docs.forEach((x) => applyMeta(x.id, x.data() || {}));
+        setLastSyncAt(Date.now());
+      } catch { /* offline: the live listener catches up when the network returns */ }
+      busy = false;
+    };
+    const onShow = () => { if (!document.hidden) refresh(); };
+    document.addEventListener('visibilitychange', onShow);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    return () => { un1(); un2(); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
   }, [user]);
 
   useEffect(() => {
@@ -149,7 +178,7 @@ export function LiveStore({ children }) {
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, templates, error, synced, slow, actions, notify: flash,
+    demo: false, user, tasks, lists, calendar, links, templates, error, synced, slow, lastSyncAt, actions, notify: flash,
     // Written with its own stamp in meta/tools, the way the phone stamps it, so the newest edit wins on both.
     saveTemplates: (next) => {
       if (!user) return;
@@ -182,7 +211,7 @@ export function LiveStore({ children }) {
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, templates, error, synced, slow, actions]);
+  }), [user, tasks, lists, calendar, links, templates, error, synced, slow, lastSyncAt, actions]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }

@@ -57,7 +57,7 @@ export default function App() {
         </nav>
         <div className="who">
           {store.demo && <span className="pill demo">Demo data</span>}
-          {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? 'In sync' : 'Syncing...'} />}
+          {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? `In sync${store.lastSyncAt ? ` - last update from the server ${new Date(store.lastSyncAt).toLocaleTimeString()}` : ''}` : 'Syncing...'} />}
           <span className="name" title={store.user.email}>{store.user.displayName || store.user.email}{store.user.email && store.user.displayName ? <small className="who-mail">{store.user.email}</small> : null}</span>
         </div>
       </header>
