@@ -32,7 +32,7 @@ import Settings from './src/screens/Settings';
 import PastDueAlert from './src/screens/PastDueAlert';
 import WorkingDashboard from './src/screens/WorkingDashboard';
 import WebApp from './src/screens/WebApp';
-import { useClassicUi } from './src/appMode';
+import { useWebUi } from './src/appMode';
 import Welcome from './src/screens/Welcome';
 import AnimatedLogo from './src/AnimatedLogo';
 
@@ -43,12 +43,11 @@ import AnimatedLogo from './src/AnimatedLogo';
 const Stack = createNativeStackNavigator();
 
 /**
- * The Android app's home: the new website inside the app (the default), or - when chosen in Settings, or when the website cannot
- * load - the older phone screens. The website and a phone-width browser do not use this.
+ * The Android app's home: its own phone screens (the default), or - when chosen in Settings - the new website inside the app.
  */
 function Home(props) {
-  const [classic, , ready] = useClassicUi();
-  if (Platform.OS === 'web' || classic) return <WorkingDashboard {...props} />;
+  const [webUi, , ready] = useWebUi();
+  if (Platform.OS === 'web' || !webUi) return <WorkingDashboard {...props} />;
   if (!ready) return null;
   return <WebApp {...props} />;
 }
@@ -96,7 +95,6 @@ function SettingsButton({ tintColor }) {
 function Root() {
   const { data, ready, update } = useStore();
   const t = useTheme();
-  const [classicUi] = useClassicUi();
   // Someone not signed in (and who has not chosen to use the device without an account) sees the sign-in screen.
   const realtime = useRealtimeStatus();
   const showWelcome = needsWelcome(realtime, data.workingDashboard);
@@ -360,7 +358,7 @@ function Root() {
       >
         <StatusBar style={t.dark ? 'light' : 'dark'} />
         <Stack.Navigator screenOptions={screenOptions} initialRouteName="WorkingDashboard">
-          <Stack.Screen name="WorkingDashboard" component={Home} options={{ title: 'Working Dashboard', headerShown: Platform.OS !== 'web' && classicUi, headerRight: (props) => <SettingsButton {...props} /> }} />
+          <Stack.Screen name="WorkingDashboard" component={Home} options={{ title: 'Working Dashboard', headerShown: false, headerRight: (props) => <SettingsButton {...props} /> }} />
           <Stack.Screen name="Settings" component={Settings} options={{ title: 'Settings' }} />
           <Stack.Screen name="PastDueAlert" component={PastDueAlert} options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         </Stack.Navigator>

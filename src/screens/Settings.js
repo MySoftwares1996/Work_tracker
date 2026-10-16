@@ -11,7 +11,7 @@ import { cancelAll } from '../notify';
 import { armTodaysReminders, syncEntryAlerts } from '../workingDashboardNotify';
 import AppLockSettings from './AppLockSettings';
 import { pinWidget } from '../widgets';
-import { useClassicUi } from '../appMode';
+import { useWebUi } from '../appMode';
 
 // Home-screen widgets are an Android feature; the browser build has none to set up.
 const hasWidgets = Platform.OS === 'android';
@@ -24,7 +24,7 @@ export const WD_BACKUP_SECTIONS = ['settings', 'workingDashboard'];
 
 /** App-wide settings of the Working Dashboard app: security, appearance, alerts and backups. */
 export default function Settings({ navigation }) {
-  const [classicUi, setClassicUi] = useClassicUi();
+  const [webUi, setWebUi] = useWebUi();
   const t = useTheme();
   const { data, update, replaceAll, flush } = useStore();
 
@@ -145,8 +145,8 @@ export default function Settings({ navigation }) {
       <AppLockSettings />
 
       {Platform.OS === 'android' && (
-        <Group title="Screens" footer="The app shows the same screens as the website. The older phone screens work without internet and are the way back if the website cannot open.">
-          <Item icon="📱" color={t.accent} label="Use the older phone screens" value={classicUi ? 'On' : 'Off'} onPress={() => { setClassicUi(!classicUi); if (!classicUi) navigation.goBack(); }} last />
+        <Group title="Screens" footer="The app shows its own phone screens. The website screens need internet; switch to them to compare, and back here at any time.">
+          <Item icon="🌐" color={t.accent} label="Show the website screens instead" value={webUi ? 'On' : 'Off'} onPress={() => { setWebUi(!webUi); if (!webUi) navigation.goBack(); }} last />
         </Group>
       )}
 

@@ -47,7 +47,9 @@ export function BottomTabs({ tabs, value, onChange, badges = {} }) {
   const insets = useSafeAreaInsets();
   const { wide } = useLayout();
   if (wide) return <SideTabs tabs={tabs} value={value} onChange={onChange} badges={badges} />;
-  // APK: the website's side bar turned sideways - a frosted bar with the selected tab in an accent pill that glides.
+  // A phone (the APK, or a phone-width screen) with a short list of tabs: the app-style bar - edge to edge, the chosen tab in a soft pill.
+  if (tabs.length <= 5) return <PhoneBar tabs={tabs} value={value} onChange={onChange} badges={badges} />;
+  // APK with many tabs: the website's side bar turned sideways - a frosted bar with the selected tab in an accent pill that glides.
   if (Platform.OS !== 'web') return <AppTabs tabs={tabs} value={value} onChange={onChange} badges={badges} />;
   // The website opened on a phone: iOS-style tab bar, edge to edge, the selected tab in the accent colour.
   return (
@@ -60,6 +62,33 @@ export function BottomTabs({ tabs, value, onChange, badges = {} }) {
       }, frost(t)]}
     >
       {tabs.map((x) => <PhoneTab key={x.key} x={x} on={value === x.key} badge={badges[x.key]} onChange={onChange} crowded={tabs.length > 6} />)}
+    </View>
+  );
+}
+
+/** The phone's own tab bar: five tabs at most, edge to edge, big touch targets, the chosen tab's icon in a soft accent pill. */
+function PhoneBar({ tabs, value, onChange, badges }) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), paddingHorizontal: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline || t.border }, frost(t)]}>
+      {tabs.map((x) => {
+        const on = value === x.key;
+        const badge = badges[x.key];
+        return (
+          <Pressable key={x.key} onPress={() => onChange(x.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${x.label}${badge ? `, ${badge}` : ''}`} style={{ flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 2 }}>
+            <View style={{ width: 54, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.accent + '24' : 'transparent' }}>
+              <TabIcon name={x.icon || x.key} color={on ? t.accent : t.textDim} active={on} size={23} />
+              {!!badge && (
+                <View style={{ position: 'absolute', top: -4, right: 0, minWidth: 17, height: 17, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: x.key === 'done' ? t.ok : t.danger }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>{badge > 99 ? '99+' : badge}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={{ marginTop: 3, fontSize: 11, fontWeight: on ? '800' : '600', color: on ? t.accent : t.textDim }} numberOfLines={1}>{x.label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

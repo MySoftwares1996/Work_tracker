@@ -139,6 +139,23 @@ const SHAPES = {
       <Path d="M7 12.4h2.6l1.3-2.2 2 4 1.3-1.8H17" stroke={c} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </>
   ),
+  // document with lines (Report)
+  report: (c, on) => (
+    <>
+      <Path d="M6.5 3.5h7.2l4.3 4.3V19a1.5 1.5 0 0 1-1.5 1.5H6.5A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5z" stroke={c} strokeWidth={1.8} strokeLinejoin="round" fill={on ? c : 'none'} fillOpacity={on ? 0.18 : 0} />
+      <Path d="M13.5 3.8V8h4.2" stroke={c} strokeWidth={1.7} strokeLinejoin="round" fill="none" />
+      <Line x1={8.5} y1={12.5} x2={15.5} y2={12.5} stroke={c} strokeWidth={1.7} strokeLinecap="round" />
+      <Line x1={8.5} y1={16} x2={15.5} y2={16} stroke={c} strokeWidth={1.7} strokeLinecap="round" />
+    </>
+  ),
+  // three dots (More)
+  more: (c) => (
+    <>
+      <Circle cx={5.5} cy={12} r={1.7} fill={c} />
+      <Circle cx={12} cy={12} r={1.7} fill={c} />
+      <Circle cx={18.5} cy={12} r={1.7} fill={c} />
+    </>
+  ),
   // lab flask
   flask: (c, on) => (
     <>
