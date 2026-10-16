@@ -1,0 +1,52 @@
+# Publishes the phone app's JavaScript (its screens and logic) as an over-the-air update, so a phone with a build made with
+# EAS_PROJECT_ID set picks it up on its next open - no new APK. Started by hand only. Setup and limits: docs/PHONE_UPDATES.md
+name: Publish phone update
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'What this update changes (shown in expo.dev)'
+        required: true
+        default: 'Phone screens update'
+
+concurrency:
+  group: phone-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Check the update settings are set
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+        run: |
+          missing=0
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::Secret EXPO_TOKEN is not set (docs/PHONE_UPDATES.md)"; missing=1; fi
+          if [ -z "$EAS_PROJECT_ID" ]; then echo "::error::Variable EAS_PROJECT_ID is not set (docs/PHONE_UPDATES.md)"; missing=1; fi
+          exit $missing
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run the project checks and tests
+        run: npm run verify
+
+      - name: Publish the update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+          MESSAGE: ${{ inputs.message }}
+        run: npx --yes eas-cli@latest update --channel production --platform android --message "$MESSAGE" --non-interactive

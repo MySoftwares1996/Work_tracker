@@ -55,6 +55,9 @@ jobs:
         run: node scripts/ci-version-code.js "${{ github.run_number }}"
 
       - name: Generate the Android project
+        env:
+          # Optional (docs/PHONE_UPDATES.md): the expo.dev project id turns on JavaScript-only phone updates in this build.
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
         run: npx expo prebuild --platform android --clean --no-install
 
       - name: Restore the signing key

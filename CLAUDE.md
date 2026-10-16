@@ -85,6 +85,13 @@ option only: Settings > Screens > "Show the website screens instead" (`src/appMo
 (`src/webBridge.js`, `newweb/src/nativeBridge.js`), copy, print and file saving for it. The previews the owner approved are the model; more screens
 (entry form, Report, Done) are being brought to the same look step by step, each shown to the owner first.
 
+## Phone updates (over the air) - `docs/PHONE_UPDATES.md`
+
+A JavaScript-only change to the phone app can be published without a new APK: the "Publish phone update" workflow (manual, `.github/workflows/phone-update.yml`,
+needs the `EXPO_TOKEN` secret and `EAS_PROJECT_ID` variable the owner sets) sends it to builds made with the update settings (`app.config.js`, read from
+`EAS_PROJECT_ID`); the phone offers "Restart" (`src/PhoneUpdate.js`). Native changes (Kotlin, new libraries, permissions) still need a full build and a new
+`version` in `app.json`. Never run the update workflow or an APK build without the owner saying so in that message.
+
 ## The new web app (`newweb/`)
 
 A separate Vite + React site with its own look (centred top tab bar, bold tiles), on the same Firebase data as the app. It is not part of the

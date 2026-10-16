@@ -56,3 +56,5 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: speed - Report / Config / entry form load on demand, Firebase and React cached separately, offline start (service worker), Register / Completed show 60 at a time, fewer server re-reads. Web (and the APK, which shows the web).
 
 - APK: the phone now has its own app-style screens (bottom bar Home / Tasks / Report / Done / More, new Home and Tasks rows with swipe Done / DAR, entry form on the phone); the website screens inside the app are optional (Settings > Screens). Needs the owner's say to build, then a test on a phone: swipe a row, tap a card (form opens), the More page and its back arrow, Report buttons.
+
+- APK: phone updates (over the air) are set up in code (`app.config.js`, `src/PhoneUpdate.js`, the manual "Publish phone update" workflow). They start working after the owner adds `EXPO_TOKEN` / `EAS_PROJECT_ID` (docs/PHONE_UPDATES.md) and asks for one more full APK build.

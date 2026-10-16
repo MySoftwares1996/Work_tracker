@@ -23,6 +23,7 @@ import { trackerAvailable, isExactAlarmAllowed, requestExactAlarmPermission, sho
 import RealtimeSync from './src/RealtimeSync';
 import WebAlarmHost from './src/WebAlarm';
 import NewVersion from './src/NewVersion';
+import PhoneUpdate from './src/PhoneUpdate';
 import { useRealtimeStatus, setRealtimeStatus } from './src/realtimeStatus';
 import { watchAuthState } from './src/firebaseSync';
 import { needsWelcome } from './src/account';
@@ -342,6 +343,7 @@ function Root() {
       {/* Sync runs whatever is on screen: the sign-in screen included, so it sees the sign-in happen. */}
       <RealtimeSync />
       {Platform.OS === 'web' && <NewVersion />}
+      {Platform.OS !== 'web' && <PhoneUpdate />}
       {Platform.OS === 'web' && <WebAlarmHost onOpen={(id) => openWd(id ? wdAlarmId(id, 'due') : null)} />}
       {showWelcome ? <Welcome /> : (
       <NavigationContainer
