@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
-import { readReportFormats, SAMPLE_FORMATS } from './reportFormats';
+import { readReportFormats, planFormatSetup, SAMPLE_FORMATS } from './reportFormats';
 import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
 import { demoTasks } from './demo';
 
@@ -67,6 +67,8 @@ export function LiveStore({ children }) {
   const [links, setLinks] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [formats, setFormats] = useState([]);              // the saved report formats (empty = the sample formats are used)
+  const [metaReady, setMetaReady] = useState(false);      // the lists and tools have arrived from the server
+  const [setupDone, setSetupDone] = useState(false);      // the one-time automatic setup of the formats' categories ran for this account
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
@@ -83,7 +85,7 @@ export function LiveStore({ children }) {
     const applyMeta = (id, d) => {
       if (id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
       if (id === 'calendar') setCalendar(readCalendar(d));
-      if (id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); setFormats(readReportFormats(d)); }
+      if (id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); setFormats(readReportFormats(d)); setSetupDone(!!d.formatSetupAt); }
     };
     const un1 = onSnapshot(collection(db, 'users', user.uid, 'tasks'), (snap) => {
       setTaskMap((m) => {
@@ -96,6 +98,7 @@ export function LiveStore({ children }) {
     }, onErr);
     const un2 = onSnapshot(collection(db, 'users', user.uid, 'meta'), (snap) => {
       snap.docChanges().forEach((ch) => { if (ch.type !== 'removed') applyMeta(ch.doc.id, ch.doc.data() || {}); });
+      if (!snap.metadata.fromCache) setMetaReady(true);
     }, onErr);
     // Device to device: the live listeners can stall (a sleeping laptop, a network change). When this tab is shown again, comes back
     // online, or is clicked after a while, the server is asked directly and anything newer is taken - so an edit made on another
@@ -166,6 +169,32 @@ export function LiveStore({ children }) {
     };
   }, [user]);
 
+  const persistLists = useCallback((next) => {
+    if (!user) return;
+    setLists(next);
+    setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
+      .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
+      .catch((e) => setError(friendlyError(e)));
+  }, [user]);
+
+  // Once per account, automatically: every Category and Sub Category the report formats need is created if it is missing (nothing existing is
+  // changed). The flag (meta/tools.formatSetupAt) stops it running again, so a category deleted later stays deleted; Config > Report formats
+  // has the button for doing it again.
+  const setupRan = useRef(false);
+  useEffect(() => {
+    if (!user || !metaReady || setupDone || setupRan.current) return;
+    setupRan.current = true;
+    const plan = planFormatSetup(lists, formats.length ? formats : SAMPLE_FORMATS);
+    if (plan.categories.length || plan.subCategories.length) {
+      persistLists(plan.lists);
+      setNote(`Added ${plan.categories.length} categor${plan.categories.length === 1 ? 'y' : 'ies'} and ${plan.subCategories.length} sub categor${plan.subCategories.length === 1 ? 'y' : 'ies'} from your report formats`);
+      setTimeout(() => setNote(''), NOTE_MS * 2);
+    }
+    setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { formatSetupAt: Date.now() }, { merge: true }).catch(() => {});
+    setSetupDone(true);
+  }, [user, metaReady, setupDone, lists, formats, persistLists]);
+  useEffect(() => { setupRan.current = false; setMetaReady(false); }, [user]);
+
   const tasks = useMemo(() => Object.values(taskMap).filter((t) => !t.purged), [taskMap]);
   tasksRef.current = tasks;
 
@@ -196,13 +225,7 @@ export function LiveStore({ children }) {
       setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { templates: next, stamps: { templates: now }, ts: now }, { merge: true }).catch((e) => setError(friendlyError(e)));
     },
     // Options added or removed here reach the phone and the old website too (meta/lists, newest write wins).
-    saveLists: (next) => {
-      if (!user) return;
-      setLists(next);
-      setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
-        .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
-        .catch((e) => setError(friendlyError(e)));
-    },
+    saveLists: persistLists,
     // Writes an import plan (importBackup.js): the tasks in batches, then the lists and the calendar. Merged, so nothing else is cleared.
     importPlan: async (plan) => {
       if (!user) throw new Error('Sign in first.');
@@ -220,7 +243,7 @@ export function LiveStore({ children }) {
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, templates, formats, error, synced, slow, lastSyncAt, actions]);
+  }), [user, tasks, lists, calendar, links, templates, formats, error, synced, slow, lastSyncAt, actions, persistLists]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }

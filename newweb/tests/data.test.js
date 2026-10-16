@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
 import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../src/reportFormats.js';
-import { bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -558,4 +558,27 @@ test('the setup from the formats creates only the missing categories and sub cat
   assert.ok(plan.lists.subCategoryCategories.includes('Duty Payments'));
   const again = planFormatSetup(plan.lists, SAMPLE_FORMATS);
   assert.equal(again.categories.length + again.subCategories.length, 0);                              // nothing left to create
+});
+
+test('the Dashboard breakdowns count open tasks by category, status, person and priority, and a category by sub category', () => {
+  const now = new Date(2026, 9, 16, 12);
+  const list = [
+    task({ id: '1', category: 'Payments', subCategory: 'Invoice Payment', priority: 'High', status: 'Pending', pendingWith: 'Accounts', due: new Date(2026, 9, 14) }),
+    task({ id: '2', category: 'Payments', subCategory: 'Invoice Payment', priority: 'Low', status: 'In Progress', pendingWith: 'Accounts', due: new Date(2026, 9, 20) }),
+    task({ id: '3', category: 'Payments', subCategory: '', priority: 'High', status: 'Pending', pendingWith: '' }),
+    task({ id: '4', category: 'Audit', priority: 'High', status: 'Pending', pendingWith: 'Auditor' }),
+    task({ id: '5', category: 'Payments', subCategory: 'Invoice Payment', done: true }),
+  ];
+  assert.deepEqual(breakdown(list, 'category', now).map((r) => [r.name, r.count]), [['Payments', 3], ['Audit', 1]]);
+  assert.deepEqual(breakdown(list, 'priority', now).map((r) => [r.name, r.count]), [['High', 3], ['Low', 1]]);
+  assert.equal(breakdown(list, 'pendingWith', now).find((r) => r.name === '').label, 'Not set');
+  assert.equal(breakdown(list, 'status', now)[0].count, 3);
+  const subs = subBreakdown(list, 'Payments', now);
+  assert.deepEqual(subs.map((r) => [r.label, r.count, r.overdue]), [['Invoice Payment', 2, 1], ['No sub category', 1, 0]]);
+});
+
+test('the Register filter can pick a sub category, or the tasks with none', () => {
+  const list = [task({ id: 'a', category: 'P', subCategory: 'X' }), task({ id: 'b', category: 'P', subCategory: '' }), task({ id: 'c', category: 'P', subCategory: 'Y' })];
+  assert.deepEqual(filterTasks(list, { category: 'P', subCategory: 'X' }).map((t) => t.id), ['a']);
+  assert.deepEqual(filterTasks(list, { category: 'P', subCategory: '__none' }).map((t) => t.id), ['b']);
 });

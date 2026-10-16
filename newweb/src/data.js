@@ -201,7 +201,7 @@ export function sortTasks(list, by = 'due') {
   return out;
 }
 
-export function filterTasks(list, { q = '', priority = '', category = '', pendingWith = '', status = '', due = '' } = {}, now = new Date()) {
+export function filterTasks(list, { q = '', priority = '', category = '', subCategory = '', pendingWith = '', status = '', due = '' } = {}, now = new Date()) {
   const needle = q.trim().toLowerCase();
   const dueTest = DUE_TESTS[due];
   return list.filter((t) => {
@@ -209,6 +209,7 @@ export function filterTasks(list, { q = '', priority = '', category = '', pendin
     if (dueTest && !dueTest(t, now)) return false;
     if (priority && t.priority !== priority) return false;
     if (category && t.category !== category) return false;
+    if (subCategory && (subCategory === '__none' ? !!t.subCategory : t.subCategory !== subCategory)) return false;
     if (pendingWith && t.pendingWith !== pendingWith) return false;
     if (!needle) return true;
     return `${t.title} ${t.reference} ${t.notes} ${t.category} ${t.pendingWith}`.toLowerCase().includes(needle);
@@ -609,4 +610,22 @@ export function bankFollowUpDesk(tasks, now = new Date()) {
     const nextAt = last && last.next ? new Date(last.next) : t.due;
     return { t, days, update: (last && String(last.remarks || '').trim()) || (reply ? String(reply[1]).trim() : ''), next: nextAt instanceof Date && !Number.isNaN(nextAt.getTime()) ? nextAt : null };
   }).sort((a, b) => b.days - a.days);
+}
+
+/** Open tasks counted by a field (category, status, pendingWith, priority): [{ name, count, overdue }], most first; a task with no value is counted as "Not set". */
+export function breakdown(tasks, field, now = new Date()) {
+  const map = new Map();
+  (tasks || []).filter(isOpen).forEach((t) => {
+    const name = String(t[field] || '').trim();
+    const row = map.get(name) || { name, count: 0, overdue: 0 };
+    row.count += 1;
+    if (isOverdue(t, now)) row.overdue += 1;
+    map.set(name, row);
+  });
+  return [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).map((r) => ({ ...r, label: r.name || 'Not set' }));
+}
+
+/** The open tasks of one category counted by Sub Category: [{ name, count, overdue }]; "" = no Sub Category chosen. */
+export function subBreakdown(tasks, category, now = new Date()) {
+  return breakdown((tasks || []).filter((t) => t.category === category), 'subCategory', now).map((r) => ({ ...r, label: r.name || 'No sub category' }));
 }

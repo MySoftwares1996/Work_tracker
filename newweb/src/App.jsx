@@ -11,7 +11,7 @@ import { useStore } from './store';
 import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
 import { buildReport, mergeAi, reportPrompt, reportCsvRows, reportHtml, vendorTotals, fmtRupees } from './reportEngine';
 import { reportMailUrl } from '../../src/workingDashboardReport.js';
-import { bankFollowUpDesk, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { breakdown, subBreakdown, bankFollowUpDesk, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -133,6 +133,7 @@ function Dashboard({ onEdit, onNew, go }) {
         <Tile tone="blue" label="Open tasks" value={s.open} sub="In the register" onClick={() => go('register')} />
         <Tile tone="teal" label="Done today" value={s.doneToday} sub="Completed" onClick={() => go('done')} />
       </section>
+      <Breakdowns tasks={tasks} go={go} />
       <Desk tasks={tasks} onEdit={onEdit} go={go} />
       <div className="two">
         <section>
@@ -145,6 +146,77 @@ function Dashboard({ onEdit, onNew, go }) {
           {!soon.length && <Empty text="No tasks due in the next 7 days." />}
           <div className="list">{soon.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} compact />)}</div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+/** The Dashboard's four breakdowns of the open tasks: by Category, Status, Pending with and Priority. A Category opens its Sub Category breakdown; the others open the Register filtered. */
+function Breakdowns({ tasks, go }) {
+  const [cat, setCat] = useState('');
+  const cards = [
+    { key: 'category', title: 'By category', field: 'category', hint: 'Click a category for its sub categories' },
+    { key: 'status', title: 'By status', field: 'status' },
+    { key: 'pendingWith', title: 'By pending with', field: 'pendingWith' },
+    { key: 'priority', title: 'By priority', field: 'priority' },
+  ];
+  const rowsOf = useMemo(() => Object.fromEntries(cards.map((c) => [c.key, breakdown(tasks, c.field)])), [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+  const open = (c, row) => {
+    if (!row.name) return;
+    if (c.key === 'category') setCat(row.name);
+    else go('register', { [c.key]: row.name });
+  };
+  return (
+    <>
+      <section className="breaks">
+        {cards.map((c) => {
+          const rows = rowsOf[c.key];
+          const max = Math.max(1, ...rows.map((r) => r.count));
+          return (
+            <div key={c.key} className="card plain break-card">
+              <h2 className="h2">{c.title}</h2>
+              {!rows.length && <p className="muted">No open tasks.</p>}
+              {rows.slice(0, 7).map((r) => (
+                <button key={r.label} type="button" className={`break-row${r.name ? '' : ' none'}`} onClick={() => open(c, r)} disabled={!r.name} title={r.name ? (c.key === 'category' ? `Sub categories of ${r.name}` : `Open ${r.name} in the Register`) : ''}>
+                  <span className="break-name">{r.label}</span>
+                  <span className="break-bar"><i style={{ width: `${Math.max(6, Math.round((r.count / max) * 100))}%` }} /></span>
+                  {r.overdue > 0 && <span className="chip coral" title="overdue">{r.overdue}</span>}
+                  <b>{r.count}</b>
+                </button>
+              ))}
+              {rows.length > 7 && <p className="muted">+ {rows.length - 7} more</p>}
+              {c.hint && <p className="muted break-hint">{c.hint}</p>}
+            </div>
+          );
+        })}
+      </section>
+      {cat && <CategoryPopup category={cat} tasks={tasks} onClose={() => setCat('')} go={go} />}
+    </>
+  );
+}
+
+/** The window a Category opens: its open tasks counted by Sub Category. A row opens the Register filtered to it. */
+function CategoryPopup({ category, tasks, onClose, go }) {
+  useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  const rows = useMemo(() => subBreakdown(tasks, category), [tasks, category]);
+  const total = rows.reduce((n, r) => n + r.count, 0);
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  const to = (extra) => { onClose(); go('register', { category, ...extra }); };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" role="dialog" aria-modal="true" aria-label={`${category} by sub category`} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><div><h2>{category}</h2><span className="muted">{total} open task{total === 1 ? '' : 's'} by sub category</span></div><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="modal-body">
+          {rows.map((r) => (
+            <button key={r.label} type="button" className="break-row big" onClick={() => to({ subCategory: r.name || '__none' })}>
+              <span className="break-name">{r.label}</span>
+              <span className="break-bar"><i style={{ width: `${Math.max(6, Math.round((r.count / max) * 100))}%` }} /></span>
+              {r.overdue > 0 && <span className="chip coral" title="overdue">{r.overdue} overdue</span>}
+              <b>{r.count}</b>
+            </button>
+          ))}
+        </div>
+        <div className="modal-foot"><button type="button" className="btn primary" onClick={() => to({})}>Open all {category} tasks</button><button type="button" className="btn" onClick={onClose}>Close</button></div>
       </div>
     </div>
   );
@@ -257,8 +329,8 @@ function TaskCard({ t, onEdit, compact }) {
 
 function Register({ onEdit, preset }) {
   const { tasks, lists } = useStore();
-  const [f, setF] = useState(() => ({ q: '', priority: '', category: '', pendingWith: '', status: '', due: '', ...(preset || {}) }));
-  useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
+  const [f, setF] = useState(() => ({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...(preset || {}) }));
+  useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
   const [by, setBy] = useState('due');
   const [view, setView] = useState('cards');
   const open = tasks.filter(isOpen);
@@ -266,6 +338,7 @@ function Register({ onEdit, preset }) {
   return (
     <>
       <h1 className="h1">Register</h1>
+      {f.subCategory && <div className="filters"><span className="chip violet">Sub category: {f.subCategory === '__none' ? 'none chosen' : f.subCategory} <button type="button" className="chip-x" onClick={() => setF({ ...f, subCategory: '' })} aria-label="Clear the sub category filter">✕</button></span></div>}
       <Filters f={f} setF={setF} lists={lists} extra={(
         <>
           <select value={by} onChange={(e) => setBy(e.target.value)} aria-label="Sort">{Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>Sort: {v}</option>)}</select>
