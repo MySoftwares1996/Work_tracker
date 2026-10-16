@@ -542,3 +542,20 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .move-row .btn { padding: 8px 16px; border-radius: 12px; }
 .alert-card .chip { font-size: 11.5px; padding: 1px 8px; }
 @media (max-width: 640px) { .alert-overlay { padding: 8px; } .alert-body { padding: 12px; } }
+
+/* The due alert, landscape: task on the left, tabs on the right, the main buttons in a bar along the bottom */
+.alert-card { width: min(940px, 100%); border-radius: 22px; }
+.alert-overlay { align-items: center; }
+.alert-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 0; }
+.alert-left { padding: 14px 18px; display: flex; flex-direction: column; gap: 9px; border-right: 1px solid var(--line); min-width: 0; }
+.alert-right { padding: 12px 18px; display: flex; flex-direction: column; gap: 10px; background: color-mix(in srgb, var(--violet) 4%, var(--surface)); min-width: 0; }
+.alert-tabs { display: flex; gap: 4px; background: color-mix(in srgb, var(--violet) 10%, transparent); border-radius: 12px; padding: 3px; }
+.alert-tab { flex: 1; border: 0; background: none; padding: 7px 8px; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 800; color: var(--muted); cursor: pointer; position: relative; }
+.alert-tab.on { background: var(--surface); color: var(--violet); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.14); }
+.alert-dot { position: absolute; top: 5px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--coral); }
+.alert-panel { min-height: 120px; }
+.alert-panel .alert-sub, .alert-panel .alert-reminder, .alert-panel .alert-move { margin: 0; }
+.alert-bar { padding: 10px 18px; border-top: 1px solid var(--line); background: var(--surface); position: sticky; bottom: 0; }
+.alert-card { max-height: 92vh; display: flex; flex-direction: column; }
+.alert-main { overflow-y: auto; }
+@media (max-width: 760px) { .alert-main { grid-template-columns: 1fr; } .alert-left { border-right: 0; border-bottom: 1px solid var(--line); } }

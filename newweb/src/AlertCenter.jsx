@@ -128,6 +128,10 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
   };
   const skip = () => (a.kind === 'reminder' ? save({ nextReminder: null }) : save({ skippedDates: [...(t.skippedDates || []), today] }));
   const move = () => { if (/^completed$/i.test(status) && needsFields(withSub(t))) return; if (!a.test) actions.save(withRemark(withFollowUp(withSub(moveTask(t, date, time, status, repeat))), remarks)); finish(a); };
+  // Wide and short: the choices sit in tabs beside the task, and the main buttons stay in a bar along the bottom.
+  const hasReply = !!(sc || (subList.length > 0 && !t.subCategory));
+  const tabs = [...(hasReply ? [['reply', 'Reply']] : []), ...(asks ? [['reminder', 'Reminder']] : []), ['move', 'Move'], ['snooze', 'Snooze']];
+  const [tab, setTab] = useState(() => (hasReply ? 'reply' : asks ? 'reminder' : 'move'));
   const tone = String(t.priority).toLowerCase() === 'high' ? 'high' : String(t.priority).toLowerCase() === 'low' ? 'low' : 'medium';
 
   return (
@@ -141,70 +145,94 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
           </div>
           <button type="button" className="alert-close" onClick={() => finish(a)} aria-label="Dismiss this alert">✕</button>
         </div>
-        <div className="alert-body">
-        <h2 className="alert-title">{t.title}</h2>
-        <div className="chips">
-          {t.priority && <span className="chip coral">{t.priority}</span>}
-          {t.category && <span className="chip violet">{t.category}</span>}
-          {t.pendingWith && <span className="chip amber">Pending with: {t.pendingWith}</span>}
-          {t.status && <span className="chip">{t.status}</span>}
-          {t.recurrence !== RECURRENCES[0] && <span className="chip">↻ {t.recurrence}</span>}
-        </div>
-        {(t.reference || t.notes) && (
-          <div className="alert-notes">
-            {t.reference && <p>✉ {t.reference}</p>}
-            {t.notes && <p>{t.notes}</p>}
-          </div>
-        )}
-        {(sc || (subList.length > 0 && !t.subCategory)) && (
-          <div className="alert-sub">
-            <div className="alert-reminder-head"><b>{sub ? sub : `Sub category under ${t.category}`}</b><span className="muted">Typed here, it is saved with the task (and goes into the daily report).</span></div>
-            {!t.subCategory && subList.length > 0 && (
-              <select value={sub} onChange={(e) => { setSub(e.target.value); setSf({}); }} aria-label="Sub category"><option value="">Choose a sub category</option>{subList.map((x) => <option key={x.name}>{x.name}</option>)}</select>
-            )}
-            {sc && sc.fields.length > 0 && (
-              <div className="fields">{sc.fields.map((f) => (
-                <label className="field" key={f.label}>{f.label}
-                  {f.options && f.options.length
-                    ? <select value={sf[f.label] || ''} onChange={(e) => setSf({ ...sf, [f.label]: e.target.value })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
-                    : <input value={sf[f.label] || ''} onChange={(e) => setSf({ ...sf, [f.label]: e.target.value })} placeholder={f.label} />}
-                </label>
-              ))}</div>
-            )}
-            {subErr && <p className="banner err" role="alert">{subErr}</p>}
-            <div><button type="button" className="btn" onClick={saveReply}>Save {sc && sc.fields.length ? 'these details' : 'sub category'}</button></div>
-          </div>
-        )}
-        <input className="alert-remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks / notes for today (optional) — e.g. Nothing to do today" aria-label="Remarks" />
-        {asks && (
-          <div className="alert-reminder">
-            <div className="alert-reminder-head"><b>Next reminder date &amp; time</b><span className="muted">Asked for {t.category} tasks. Your remarks above are saved with it.</span></div>
-            <div className="move-row">
-              <input type="date" value={rDate} onChange={(e) => { setRDate(e.target.value); setRError(''); }} aria-label="Next reminder date" />
-              <button type="button" className="time-btn" onClick={() => setRClock(true)} aria-label="Pick the next reminder time on a clock"><span>{timeLabel(rTime) || 'Set time'}</span></button>
-              <button type="button" className="btn primary" onClick={setReminder} disabled={!rDate}>Save &amp; set next reminder</button>
+        <div className="alert-main">
+          <div className="alert-left">
+            <h2 className="alert-title">{t.title}</h2>
+            <div className="chips">
+              {t.priority && <span className="chip coral">{t.priority}</span>}
+              {t.category && <span className="chip violet">{t.category}</span>}
+              {t.pendingWith && <span className="chip amber">Pending with: {t.pendingWith}</span>}
+              {t.status && <span className="chip">{t.status}</span>}
+              {t.recurrence !== RECURRENCES[0] && <span className="chip">↻ {t.recurrence}</span>}
             </div>
-            {rError && <p className="banner err" role="alert">{rError}</p>}
+            {(t.reference || t.notes) && (
+              <div className="alert-notes">
+                {t.reference && <p>✉ {t.reference}</p>}
+                {t.notes && <p>{t.notes}</p>}
+              </div>
+            )}
+            <input className="alert-remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Remarks / notes for today (optional) — e.g. Nothing to do today" aria-label="Remarks" />
           </div>
-        )}
-        <div className="alert-actions">
+          <div className="alert-right">
+            <div className="alert-tabs" role="tablist" aria-label="More choices">
+              {tabs.map(([k, label]) => (
+                <button key={k} type="button" role="tab" aria-selected={tab === k} className={`alert-tab${tab === k ? ' on' : ''}`} onClick={() => setTab(k)}>
+                  {label}{k === 'reminder' && asks ? <i className="alert-dot" aria-label="asked for" /> : null}
+                </button>
+              ))}
+            </div>
+            <div className="alert-panel">
+              {tab === 'reply' && (
+                <div className="alert-sub">
+                  <div className="alert-reminder-head"><b>{sub ? sub : `Sub category under ${t.category}`}</b><span className="muted">Saved with the task and put in the daily report.</span></div>
+                  {!t.subCategory && subList.length > 0 && (
+                    <select value={sub} onChange={(e) => { setSub(e.target.value); setSf({}); }} aria-label="Sub category"><option value="">Choose a sub category</option>{subList.map((x) => <option key={x.name}>{x.name}</option>)}</select>
+                  )}
+                  {sc && sc.fields.length > 0 && (
+                    <div className="fields">{sc.fields.map((f) => (
+                      <label className="field" key={f.label}>{f.label}
+                        {f.options && f.options.length
+                          ? <select value={sf[f.label] || ''} onChange={(e) => setSf({ ...sf, [f.label]: e.target.value })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
+                          : <input value={sf[f.label] || ''} onChange={(e) => setSf({ ...sf, [f.label]: e.target.value })} placeholder={f.label} />}
+                      </label>
+                    ))}</div>
+                  )}
+                  {subErr && <p className="banner err" role="alert">{subErr}</p>}
+                  <div><button type="button" className="btn" onClick={saveReply}>Save {sc && sc.fields.length ? 'these details' : 'sub category'}</button></div>
+                </div>
+              )}
+              {tab === 'reminder' && (
+                <div className="alert-reminder">
+                  <div className="alert-reminder-head"><b>Next reminder date &amp; time</b><span className="muted">Asked for {t.category} tasks. Your remarks are saved with it.</span></div>
+                  <div className="move-row">
+                    <input type="date" value={rDate} onChange={(e) => { setRDate(e.target.value); setRError(''); }} aria-label="Next reminder date" />
+                    <button type="button" className="time-btn" onClick={() => setRClock(true)} aria-label="Pick the next reminder time on a clock"><span>{timeLabel(rTime) || 'Set time'}</span></button>
+                    <button type="button" className="btn primary" onClick={setReminder} disabled={!rDate}>Save &amp; set next reminder</button>
+                  </div>
+                  {rError && <p className="banner err" role="alert">{rError}</p>}
+                </div>
+              )}
+              {tab === 'move' && (
+                <div className="alert-move">
+                  <span className="field">Move to</span>
+                  <div className="move-row">
+                    <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Move to date" />
+                    <button type="button" className="time-btn" onClick={() => setClock(true)} aria-label="Pick the new time on a clock"><span>{timeLabel(time) || 'Set time'}</span></button>
+                    <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">{(lists.statuses.includes(status) ? lists.statuses : [status, ...lists.statuses]).map((x) => <option key={x}>{x}</option>)}</select>
+                    <select value={repeat} onChange={(e) => setRepeat(e.target.value)} aria-label="Repeat">{RECURRENCES.map((x) => <option key={x}>{x}</option>)}</select>
+                    <button type="button" className="btn primary" onClick={move} disabled={!date}>Move</button>
+                  </div>
+                  {subErr && <p className="banner err" role="alert">{subErr}</p>}
+                </div>
+              )}
+              {tab === 'snooze' && (
+                <div className="alert-move">
+                  <span className="field">Remind me again in</span>
+                  <div className="move-row">
+                    <select value={snooze} onChange={(e) => setSnooze(Number(e.target.value))} aria-label="Snooze for">{SNOOZES.map(([m, l]) => <option key={m} value={m}>{l}</option>)}</select>
+                    <button type="button" className="btn primary" onClick={() => save({ snoozeUntil: Date.now() + snooze * 60000 })}>Snooze</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="alert-actions alert-bar">
           <button type="button" className="btn ok" onClick={() => done(false)}>Mark done</button>
           <button type="button" className="btn ok soft" onClick={() => done(true)}>Done + DAR</button>
           <button type="button" className="btn warn" onClick={() => save({ lastAckDate: today })}>Silence today</button>
           <button type="button" className="btn" onClick={skip}>{a.kind === 'reminder' ? 'Clear reminder' : 'Skip'}</button>
-          <span className="snooze"><select value={snooze} onChange={(e) => setSnooze(Number(e.target.value))} aria-label="Snooze for">{SNOOZES.map(([m, l]) => <option key={m} value={m}>{l}</option>)}</select><button type="button" className="btn primary" onClick={() => save({ snoozeUntil: Date.now() + snooze * 60000 })}>Snooze</button></span>
           {!a.test && <button type="button" className="btn ghost" onClick={() => { finish(a); onOpen(t); }}>Open task</button>}
-        </div>
-        <div className="alert-move">
-          <span className="field">Move to</span>
-          <div className="move-row">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Move to date" />
-            <button type="button" className="time-btn" onClick={() => setClock(true)} aria-label="Pick the new time on a clock"><span>{timeLabel(time) || 'Set time'}</span></button>
-            <button type="button" className="btn primary" onClick={move} disabled={!date}>Move</button>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">{(lists.statuses.includes(status) ? lists.statuses : [status, ...lists.statuses]).map((x) => <option key={x}>{x}</option>)}</select>
-            <select value={repeat} onChange={(e) => setRepeat(e.target.value)} aria-label="Repeat">{RECURRENCES.map((x) => <option key={x}>{x}</option>)}</select>
-          </div>
-        </div>
         </div>
       </div>
       {rClock && <ClockPicker value={rTime} onPick={(v) => { setRTime(v); setRClock(false); }} onClear={() => { setRTime(''); setRClock(false); }} onClose={() => setRClock(false)} />}
