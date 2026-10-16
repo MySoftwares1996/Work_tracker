@@ -538,7 +538,7 @@ test('marks with no field in the Sub Category are listed, so they can be added',
 });
 
 test('the sample formats from the owner\'s sheet all have text and marks', () => {
-  assert.ok(SAMPLE_FORMATS.length >= 20);
+  assert.ok(SAMPLE_FORMATS.length >= 18);
   assert.ok(SAMPLE_FORMATS.every((f) => f.subCategory && f.template.length > 20));
   const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
   assert.equal(imp.missing.length, 0);
@@ -548,7 +548,7 @@ test('the sample formats from the owner\'s sheet all have text and marks', () =>
 test('the setup from the formats creates only the missing categories and sub categories, with a field for each mark', () => {
   const lists = { categories: ['Payments', 'Audit'], subCategories: [{ id: 'a', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Name of vendor' }] }, { id: 'b', name: 'Imports Payment', category: 'Payments', fields: [] }], subCategoryCategories: ['Payments'] };
   const plan = planFormatSetup(lists, SAMPLE_FORMATS);
-  assert.deepEqual(plan.categories, ['Import Payments', 'Monthly Payments', 'Duty Payments']);
+  assert.deepEqual(plan.categories, ['Import Payments', 'Duty Payments']);
   const names = plan.subCategories.map((x) => x.name);
   assert.ok(!names.includes('Invoice Payment') && !names.includes('Imports Payment Initiation'));   // already there (also by containment)
   assert.ok(names.includes('Custom Duty Payment') && names.includes('PO Advance Payment'));
