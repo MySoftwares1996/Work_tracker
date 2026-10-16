@@ -115,8 +115,8 @@ export function LiveStore({ children }) {
     // computer or on the phone is here at once, not only after a refresh.
     let busy = false;
     let last = 0;
-    const refresh = async () => {
-      if (busy || document.hidden || Date.now() - last < 4000) return;
+    const refresh = async (force) => {
+      if (busy || document.hidden || Date.now() - last < (force ? 4000 : 30000)) return;
       busy = true; last = Date.now();
       try {
         const [tasks, metas] = await Promise.all([getDocsFromServer(collection(db, 'users', user.uid, 'tasks')), getDocsFromServer(collection(db, 'users', user.uid, 'meta'))]);
@@ -134,11 +134,14 @@ export function LiveStore({ children }) {
       } catch { /* offline: the live listener catches up when the network returns */ }
       busy = false;
     };
-    const onShow = () => { if (!document.hidden) refresh(); };
+    // Coming back to the tab at most every 30 s re-reads everything; coming back online does it at once.
+    const onShow = () => { if (!document.hidden) refresh(false); };
+    const onFocus = () => refresh(false);
+    const onOnline = () => refresh(true);
     document.addEventListener('visibilitychange', onShow);
-    window.addEventListener('focus', refresh);
-    window.addEventListener('online', refresh);
-    return () => { un1(); un2(); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onOnline);
+    return () => { un1(); un2(); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onOnline); };
   }, [user]);
 
   useEffect(() => {

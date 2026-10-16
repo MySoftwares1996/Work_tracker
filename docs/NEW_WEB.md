@@ -97,3 +97,9 @@ For each Sub Category you can write the exact line the Daily report uses for a t
 ## Inside the Android app
 
 The APK shows this site in a built-in browser (`src/screens/WebApp.js`). `src/nativeBridge.js` talks to it: `token` / `signin` / `signout` (Google ID token from the phone, so the page and the phone are one account), `copy`, `print`, `file` (CSV via the share sheet), `settings`, `classic`. Outside the app none of it is active (`inApp()` is false).
+
+## Speed
+
+- The Report, Config and entry form are separate files (`src/screens/`), loaded when first opened and fetched quietly once the page is idle; Firebase and React are their own cached files (`vite.config.js`). Do not split `@firebase/ai` into its own chunk: the production build then fails at start ("Cannot access ... before initialization"); always open a production build (`npx vite build` + `npx vite preview`), not only the dev server, after changing chunking.
+- `public/sw.js` keeps the hashed files and the last page, so the site (and the Android app) opens again without a connection; the page itself is always fetched fresh first.
+- Register and Completed show 60 tasks and add more on request. Coming back to the tab re-reads the data at most every 30 s (online again: at once).
