@@ -115,12 +115,14 @@ function Dashboard({ onEdit, onNew, go }) {
   };
   return (
     <div className="dash">
+      <div className="dash-head">
       <h1 className="h1">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}</h1>
       <form className="quick" onSubmit={addQuick}>
         <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Quick add a task and press Enter..." aria-label="Quick add" />
         <button className="btn primary" disabled={!quick.trim()}>Add</button>
         <button type="button" className="btn" onClick={onNew}>Full form</button>
       </form>
+      </div>
       <section className="tiles">
         <Tile tone="coral" label="Pending as on Today" value={s.pendingAsOnToday} sub="Overdue + due today" onClick={() => go('register', { due: 'pending' })} />
         <Tile tone="amber" label="Due Today" value={s.dueToday} sub="Still on the clock" onClick={() => go('register', { due: 'today' })} />
