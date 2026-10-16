@@ -54,12 +54,13 @@ export default function App() {
         <div className="who">
           {store.demo && <span className="pill demo">Demo data</span>}
           {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? 'In sync' : 'Syncing...'} />}
-          <span className="name">{store.user.displayName || store.user.email}</span>
+          <span className="name" title={store.user.email}>{store.user.displayName || store.user.email}{store.user.email && store.user.displayName ? <small className="who-mail">{store.user.email}</small> : null}</span>
         </div>
       </header>
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
-        {!store.demo && !store.synced && !store.error ? <div className="loading" role="status"><Logo size={56} mode="spin" /><span className="muted">Loading your tasks…</span></div> : screens[tab]}
+        {!store.demo && store.slow && !store.synced && !store.error && <div className="banner err" role="status">Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.</div>}
+        {!store.demo && !store.synced && !store.error && !store.slow ? <div className="loading" role="status"><Logo size={56} mode="spin" /><span className="muted">Loading your tasks…</span></div> : screens[tab]}
       </main>
       <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
       {form && <TaskForm initial={form} onClose={() => setForm(null)} />}

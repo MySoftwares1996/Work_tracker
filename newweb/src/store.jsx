@@ -63,6 +63,7 @@ export function LiveStore({ children }) {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
+  const [slow, setSlow] = useState(false);              // no answer from the server after 12 s (offline?)
   const tasksRef = useRef([]);
 
   useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); setSynced(false); if (!u) setTaskMap({}); }), []);
@@ -90,6 +91,13 @@ export function LiveStore({ children }) {
     }, onErr);
     return () => { un1(); un2(); };
   }, [user]);
+
+  useEffect(() => {
+    setSlow(false);
+    if (!user || synced) return undefined;
+    const id = setTimeout(() => setSlow(true), 12000);
+    return () => clearTimeout(id);
+  }, [user, synced]);
 
   // The "in use" note the phone reads (users/<you>/meta/presence): written every minute while this tab is open and was used in
   // the last 15 minutes, and cleared when it closes. While it is fresh the phone only shows a notification; otherwise it rings.
@@ -136,7 +144,7 @@ export function LiveStore({ children }) {
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, error, synced, actions, notify: flash,
+    demo: false, user, tasks, lists, calendar, links, error, synced, slow, actions, notify: flash,
     // Options added or removed here reach the phone and the old website too (meta/lists, newest write wins).
     saveLists: (next) => {
       if (!user) return;
@@ -162,7 +170,7 @@ export function LiveStore({ children }) {
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, error, synced, actions]);
+  }), [user, tasks, lists, calendar, links, error, synced, slow, actions]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }

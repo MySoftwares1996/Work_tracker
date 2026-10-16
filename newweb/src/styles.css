@@ -432,3 +432,5 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 @keyframes wd-pop { 0% { transform: scale(1); } 40% { transform: scale(1.2) rotate(-6deg); } 100% { transform: scale(1); } }
 @keyframes wd-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -5px; } }
 @media (prefers-reduced-motion: reduce) { .wd-logo, .wd-logo * { animation: none !important; stroke-dashoffset: 0 !important; } }
+
+.who-mail { display: block; font-size: 11px; font-weight: 500; opacity: 0.7; }
