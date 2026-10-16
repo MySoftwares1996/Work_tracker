@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, doc, getFirestore, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, doc, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
 import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, toDoc, isOpen, writeListsValue } from './data';
 import { demoTasks } from './demo';
@@ -10,6 +10,15 @@ export const useStore = () => useContext(Ctx);
 export const DEMO = typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo');
 
 const NOTE_MS = 4000;
+
+/** Firebase's own wording says little; a refused read or write almost always means the security rules are not published yet. */
+export function friendlyError(e) {
+  const msg = e?.message || String(e);
+  if (e?.code === 'permission-denied' || /insufficient permissions/i.test(msg)) {
+    return 'Firebase is refusing access to your data. Publish the security rules in the Firebase console: Firestore Database > Rules > paste the rules from firestore.rules in the repository > Publish. Then reload this page.';
+  }
+  return msg;
+}
 
 /** The shared actions, written once for both the live and the demo store. `commit` saves one task. */
 function makeActions(commit, getTasks, notify) {
@@ -35,6 +44,15 @@ function Toast({ note }) {
   return note ? <div className="toast" role="status">{note}</div> : null;
 }
 
+// One Firestore instance. Auto-detecting long polling keeps the first load quick on phone networks / proxies where the
+// default streaming connection stalls (the first screen then stayed at zero until a refresh).
+let firestoreDb;
+const dbOf = () => {
+  if (firestoreDb) return firestoreDb;
+  try { firestoreDb = initializeFirestore(firebaseApp(), { experimentalAutoDetectLongPolling: true }); } catch { firestoreDb = getFirestore(firebaseApp()); }
+  return firestoreDb;
+};
+
 export function LiveStore({ children }) {
   const [user, setUser] = useState(undefined);       // undefined = still checking, null = signed out
   const [taskMap, setTaskMap] = useState({});
@@ -45,14 +63,15 @@ export function LiveStore({ children }) {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
+  const [slow, setSlow] = useState(false);              // no answer from the server after 12 s (offline?)
   const tasksRef = useRef([]);
 
-  useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); if (!u) { setTaskMap({}); setSynced(false); } }), []);
+  useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); setSynced(false); if (!u) setTaskMap({}); }), []);
 
   useEffect(() => {
     if (!user) return undefined;
-    const db = getFirestore(firebaseApp());
-    const onErr = (e) => setError(e?.message || String(e));
+    const db = dbOf();
+    const onErr = (e) => setError(friendlyError(e));
     const un1 = onSnapshot(collection(db, 'users', user.uid, 'tasks'), (snap) => {
       setTaskMap((m) => {
         const next = { ...m };
@@ -73,6 +92,44 @@ export function LiveStore({ children }) {
     return () => { un1(); un2(); };
   }, [user]);
 
+  useEffect(() => {
+    setSlow(false);
+    if (!user || synced) return undefined;
+    const id = setTimeout(() => setSlow(true), 12000);
+    return () => clearTimeout(id);
+  }, [user, synced]);
+
+  // The "in use" note the phone reads (users/<you>/meta/presence): written every minute while this tab is open and was used in
+  // the last 15 minutes, and cleared when it closes. While it is fresh the phone only shows a notification; otherwise it rings.
+  useEffect(() => {
+    if (!user) return undefined;
+    const ref = doc(dbOf(), 'users', user.uid, 'meta', 'presence');
+    const IDLE = 15 * 60000;
+    let lastInput = Date.now();
+    let lastSent = 0;
+    const put = (webActiveAt, lastInputAt) => setDoc(ref, { webActiveAt, lastInputAt }, { merge: true }).catch(() => {});
+    const send = (force) => {
+      const now = Date.now();
+      if (now - lastInput > IDLE) return;
+      if (!force && now - lastSent < 50000) return;
+      lastSent = now;
+      put(now, lastInput);
+    };
+    const onInput = () => { const idleBefore = Date.now() - lastInput > 60000; lastInput = Date.now(); if (idleBefore) send(true); };
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'];
+    events.forEach((ev) => window.addEventListener(ev, onInput, { passive: true }));
+    const onHide = () => put(0, 0);
+    window.addEventListener('pagehide', onHide);
+    send(true);
+    const timer = setInterval(() => send(false), 60000);
+    return () => {
+      clearInterval(timer);
+      events.forEach((ev) => window.removeEventListener(ev, onInput));
+      window.removeEventListener('pagehide', onHide);
+      put(0, 0);
+    };
+  }, [user]);
+
   const tasks = useMemo(() => Object.values(taskMap).filter((t) => !t.purged), [taskMap]);
   tasksRef.current = tasks;
 
@@ -81,31 +138,59 @@ export function LiveStore({ children }) {
     const commit = (t) => {
       if (!user) return;
       setError('');
-      setDoc(doc(getFirestore(firebaseApp()), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(e?.message || String(e)));
+      setDoc(doc(dbOf(), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(friendlyError(e)));
     };
     return makeActions(commit, () => tasksRef.current, flash);
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, error, synced, actions,
+    demo: false, user, tasks, lists, calendar, links, error, synced, slow, actions, notify: flash,
     // Options added or removed here reach the phone and the old website too (meta/lists, newest write wins).
     saveLists: (next) => {
       if (!user) return;
       setLists(next);
-      setDoc(doc(getFirestore(firebaseApp()), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
+      setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
         .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
-        .catch((e) => setError(e?.message || String(e)));
+        .catch((e) => setError(friendlyError(e)));
+    },
+    // Writes an import plan (importBackup.js): the tasks in batches, then the lists and the calendar. Merged, so nothing else is cleared.
+    importPlan: async (plan) => {
+      if (!user) throw new Error('Sign in first.');
+      const db = dbOf();
+      for (let i = 0; i < plan.tasks.length; i += 400) {
+        const batch = writeBatch(db);
+        plan.tasks.slice(i, i + 400).forEach((x) => batch.set(doc(db, 'users', user.uid, 'tasks', x.id), x.doc, { merge: true }));
+        await batch.commit();
+      }
+      const merged = { ...plan.lists };
+      await setDoc(doc(db, 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, merged), ts: Date.now() }, { merge: true });
+      rawLists.current = writeListsValue(rawLists.current, merged);
+      setLists((l) => ({ ...l, ...merged }));
+      if (Object.keys(plan.calendar).length) await setDoc(doc(db, 'users', user.uid, 'meta', 'calendar'), { ...plan.calendar, ts: Date.now() }, { merge: true });
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, error, synced, actions]);
+  }), [user, tasks, lists, calendar, links, error, synced, slow, actions]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
 
 export function DemoStore({ children }) {
   const [tasks, setTasks] = useState(demoTasks);
-  const [lists, setLists] = useState(DEFAULT_LISTS);
+  const [lists, setLists] = useState({
+    ...DEFAULT_LISTS,
+    subCategories: [
+      { id: 'p1', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }, { label: 'Invoice No' }] },
+      { id: 'p2', name: 'Urgent Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] },
+      { id: 'p3', name: 'Import Payment', category: 'Payments', fields: [{ label: 'Bill of Entry' }, { label: 'Mode', options: ['TT', 'LC'] }] },
+      { id: 'p4', name: 'Customs Duty', category: 'Payments', fields: [{ label: 'BE No' }] },
+      { id: 'p5', name: 'Demand Draft', category: 'Payments', fields: [] },
+      { id: 'a1', name: 'Statutory Audit', category: 'Audit', fields: [] },
+      { id: 'a2', name: 'Internal Audit', category: 'Audit', fields: [] },
+    ],
+    subCategoryCategories: ['Payments', 'Audit'],
+    reminderCategories: ['Payments', 'Follow-up'],
+  });
   const [note, setNote] = useState('');
   const ref = useRef(tasks);
   ref.current = tasks;
@@ -118,7 +203,8 @@ export function DemoStore({ children }) {
   const calendar = useMemo(() => ({ holidays: [{ date: '2026-10-20', name: 'Sample holiday' }], leaveDays: [] }), []);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, error: '', synced: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, error: '', synced: true, actions,
+    importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
   }), [visible, lists, calendar, links, actions]);
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;

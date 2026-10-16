@@ -13,11 +13,14 @@ With it, within a few seconds. The app side is built in; only the small server f
    cd functions && npm install && cd ..
    firebase deploy --only functions
    ```
+   Or, without a computer: GitHub > Actions > **Deploy instant sync** > Run workflow (uses the `FIREBASE_SERVICE_ACCOUNT`
+   secret; give that service account the roles *Cloud Functions Admin*, *Service Account User*, *Cloud Build Editor*,
+   *Artifact Registry Administrator*, *Eventarc Admin* and *Service Usage Admin* in Google Cloud > IAM, and use Blaze).
 4. Install the new APK, open the app once while signed in with Google (it saves the phone's token to
    `users/<uid>/meta/devices`), then edit a task on the website: the phone follows within seconds.
 
 What it does: when any document in `users/<uid>/tasks` changes, `tasksChanged` (functions/index.js) sends the phone a
 silent data message `{ kind: 'wd-tasks-changed' }`; the app's background notification task then runs the same refresh the
-15-minute job runs (`refreshWdAlerts`). A burst of edits sends one message. Tokens of removed installs are cleaned up.
+15-minute job runs (`refreshWdAlerts`). A burst of edits sends one message, 1 second after the first. Target: the phone follows an edit within 10 seconds. Tokens of removed installs are cleaned up.
 
 If it does not work: Firebase console -> Functions -> Logs shows each run; `users/<uid>/meta/devices` must hold a token.

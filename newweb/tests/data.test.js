@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
+import { upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -42,13 +43,46 @@ test('the document is written without fields this app does not own (merge keeps 
   ['snoozeUntil', 'narration', 'subCategory', 'paymentDetails', 'checklist', 'attachments', 'keyPoints', 'alertMode'].forEach((k) => assert.ok(!keys.includes(k), k));
 });
 
-test('overdue and due-today count by calendar day', () => {
-  const yesterday = task({ due: new Date(2026, 9, 14, 23, 0) });
-  const today = task({ due: new Date(2026, 9, 15, 9, 0) });
+test('overdue, due today and pending as on today are counted as the phone app counts them', () => {
+  // NOW is 15 Oct 2026 10:00
+  const yesterday = task({ id: 'y', due: new Date(2026, 9, 14, 23, 0), hasTime: true });
+  const todayPast = task({ id: 'tp', due: new Date(2026, 9, 15, 9, 0), hasTime: true });        // timed, its time has passed: overdue
+  const todayLater = task({ id: 'tl', due: new Date(2026, 9, 15, 17, 0), hasTime: true });      // timed, still to come: due today
+  const todayDateOnly = task({ id: 'td', due: new Date(2026, 9, 15), hasTime: false });          // a date only: due all today
+  const yDateOnly = task({ id: 'yd', due: new Date(2026, 9, 14), hasTime: false });
   assert.equal(isOverdue(yesterday, NOW), true);
-  assert.equal(isOverdue(today, NOW), false);
-  const s = stats([yesterday, today, task({ due: new Date(2026, 9, 18) }), task({ done: true, completedAt: new Date(2026, 9, 15, 8) }), task({ binned: true })], NOW);
-  assert.deepEqual([s.open, s.overdue, s.dueToday, s.dueSoon, s.doneToday], [3, 1, 1, 1, 1]);
+  assert.equal(isOverdue(todayPast, NOW), true);
+  assert.equal(isOverdue(todayLater, NOW), false);
+  assert.equal(isOverdue(todayDateOnly, NOW), false);
+  assert.equal(isOverdue(yDateOnly, NOW), true);
+  assert.equal(isDueToday(todayPast, NOW), false);          // overdue is not also "due today"
+  assert.equal(isDueToday(todayLater, NOW), true);
+  assert.equal(isDueToday(todayDateOnly, NOW), true);
+  const rows = [yesterday, todayPast, todayLater, todayDateOnly, yDateOnly, task({ id: 'n7', due: new Date(2026, 9, 18) }), task({ id: 'nd', status: 'Pending' }), task({ id: 'dn', done: true, completedAt: new Date(2026, 9, 15, 8) }), task({ id: 'b', binned: true, due: new Date(2026, 9, 14) })];
+  const s = stats(rows, NOW);
+  assert.equal(s.overdue, 3);              // yesterday, today past, yesterday date-only
+  assert.equal(s.dueToday, 2);
+  assert.equal(s.pendingAsOnToday, 5);     // overdue + due today
+  assert.equal(s.dueSoon, 1);
+  assert.equal(s.noDueDate, 1);
+  assert.equal(s.pending, 1);
+  assert.equal(s.thisMonth, 6);
+  assert.equal(s.open, 7);
+  assert.equal(s.doneToday, 1);
+});
+
+test('the Register can be filtered by due bucket and status, as the Dashboard tiles open it', () => {
+  const a = task({ id: 'a', title: 'A', due: new Date(2026, 9, 14, 9), hasTime: true, status: 'Pending' });
+  const b = task({ id: 'b', title: 'B', due: new Date(2026, 9, 15, 17), hasTime: true, status: 'In Progress' });
+  const c = task({ id: 'c', title: 'C', status: 'Pending' });
+  const names = (o) => filterTasks([a, b, c], o, NOW).map((x) => x.title);
+  assert.deepEqual(names({ due: 'pending' }), ['A', 'B']);
+  assert.deepEqual(names({ due: 'overdue' }), ['A']);
+  assert.deepEqual(names({ due: 'today' }), ['B']);
+  assert.deepEqual(names({ due: 'none' }), ['C']);
+  assert.deepEqual(names({ status: 'Pending' }), ['A', 'C']);
+  assert.deepEqual(names({ due: 'pending', status: 'Pending' }), ['A']);
+  assert.deepEqual(names({}), ['A', 'B', 'C']);
 });
 
 test('sorting and filtering', () => {
@@ -185,4 +219,256 @@ test('every theme in the chooser has its CSS and the tokens the screens use', ()
     assert.ok(m, t.id);
     ['--bg', '--surface', '--ink', '--violet', '--on-accent', '--tile-coral', '--tile-teal-fg', '--danger-bg', '--shadow'].forEach((v) => assert.ok(m[1].includes(v + ':'), `${t.id} ${v}`));
   });
+});
+
+test('sub categories: read from the lists, shown for the right categories, required before Completed', () => {
+  const lists = readLists({ categories: ['Duty Payment', 'Other'], priorities: ['High'], statuses: ['Pending'], pendingWith: [], subCategories: [{ id: 's1', name: 'Customs', fields: [{ label: 'BE No' }, { label: 'Mode', options: ['TT', 'DD'] }] }, 'Plain'], subCategoryCategories: ['Other'] });
+  assert.equal(lists.subCategories.length, 2);
+  assert.deepEqual(lists.subCategories[1].fields, []);
+  assert.equal(categoryCarriesSubCategory(lists, 'Other'), true);
+  assert.equal(categoryCarriesSubCategory(lists, 'Duty Payment'), false);      // the list names the categories, so the default is not used
+  const t = task({ category: 'Other' });
+  assert.match(subCategoryMissing(t, lists), /Select a Sub Category/);
+  assert.match(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1' } }, lists), /Fill in Mode/);
+  assert.equal(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1', Mode: 'TT' } }, lists), '');
+  assert.equal(subCategoryMissing(task({ category: 'Duty Payment' }), lists), '');
+  // with no list of categories, the phone's own default applies
+  const dflt = readLists({ categories: ['Customs Duty', 'Domestic Payment', 'Other'], subCategories: ['X'] });
+  assert.deepEqual(['Customs Duty', 'Domestic Payment', 'Other'].map((c) => categoryCarriesSubCategory(dflt, c)), [true, true, false]);
+  assert.equal(categoryCarriesSubCategory(readLists({ categories: ['Customs Duty'] }), 'Customs Duty'), false);   // nothing to pick from
+});
+
+test('sub categories are added once and deleted, and written back with the lists', () => {
+  const a = addSubCategory([], ' Customs ', ['BE No', ' ', 'Mode']);
+  assert.equal(a.length, 1);
+  assert.deepEqual(a[0].fields, [{ label: 'BE No' }, { label: 'Mode' }]);
+  assert.equal(addSubCategory(a, 'customs'), a);
+  assert.deepEqual(removeSubCategory(a, a[0].id), []);
+  const out = writeListsValue({ categories: [], subCategories: [], narrationTypes: ['n'] }, { categories: ['C'], priorities: [], statuses: [], pendingWith: [], subCategories: a, subCategoryCategories: ['C'] });
+  assert.equal(out.subCategories[0].name, 'Customs');
+  assert.deepEqual(out.subCategoryCategories, ['C']);
+  assert.deepEqual(out.narrationTypes, ['n']);
+  assert.equal(normalizeSubCategories(['A', { name: '' }]).length, 1);
+});
+
+test('a task keeps its sub category and fields; none is invented', () => {
+  const t = fromDoc('q', { description: 'x', status: 'Completed', subCategory: 'Customs', subCategoryFields: { 'BE No': '9' } });
+  assert.equal(t.subCategory, 'Customs');
+  const out = toDoc(t, NOW);
+  assert.equal(out.subCategory, 'Customs');
+  assert.deepEqual(out.subCategoryFields, { 'BE No': '9' });
+  const plain = toDoc(task({}), NOW);
+  assert.ok(!('subCategory' in plain) && !('subCategoryFields' in plain));
+  assert.equal(toDoc({ ...t, subCategory: '' }, NOW).subCategory, null);          // cleared on purpose, since the document had one
+});
+
+test('sub categories are kept under a category', () => {
+  const subs = [{ id: '1', name: 'Domestic Payment', category: 'Payments', fields: [] }, { id: '2', name: 'Statutory Audit', category: 'Audit', fields: [] }, { id: '3', name: 'Old one', category: '', fields: [] }];
+  const lists = readLists({ categories: ['Payments', 'Audit', 'Other'], subCategories: subs });
+  assert.deepEqual(subCategoriesFor(lists, 'Payments').map((x) => x.name), ['Domestic Payment', 'Old one']);
+  assert.deepEqual(subCategoriesFor(lists, 'Audit').map((x) => x.name), ['Statutory Audit', 'Old one']);
+  assert.equal(readLists({ subCategories: subs }).subCategories[0].category, 'Payments');
+  // a category with sub categories of its own carries them, without being in any list of categories
+  assert.equal(categoryCarriesSubCategory(lists, 'Payments'), true);
+  assert.equal(categoryCarriesSubCategory(lists, 'Audit'), true);
+  assert.equal(categoryCarriesSubCategory(lists, 'Other'), false);
+  // written back with its category, and the carrying list gains it
+  const out = writeListsValue({}, { categories: [], priorities: [], statuses: [], pendingWith: [], subCategories: lists.subCategories });
+  assert.equal(out.subCategories[0].category, 'Payments');
+  assert.ok(!('category' in out.subCategories[2]));
+  assert.deepEqual(withCarrying({ categories: ['Payments'], subCategoryCategories: ['Audit'] }, 'Payments'), ['Audit', 'Payments']);
+  assert.deepEqual(withCarrying({ categories: ['Customs Duty', 'Other'] }, 'Other'), ['Customs Duty', 'Other']);
+});
+
+test('several sub categories can be pasted at once', () => {
+  const items = parseSubCategoryLines('Domestic Payment: Vendor Name, Invoice No\n\n  Urgent Payment \nImport Payment: Bill of Entry\n: junk');
+  assert.deepEqual(items.map((x) => x.name), ['Domestic Payment', 'Urgent Payment', 'Import Payment']);
+  const { list, added } = addSubCategories([], items, 'Payments');
+  assert.equal(added, 3);
+  assert.ok(list.every((x) => x.category === 'Payments'));
+  assert.deepEqual(list[0].fields.map((f) => f.label), ['Vendor Name', 'Invoice No']);
+  assert.equal(addSubCategories(list, items, 'Audit').added, 0);       // a name is kept once across categories
+});
+
+test('the next reminder is asked only under the categories that need it', () => {
+  const lists = readLists({ categories: ['Payments', 'Audit'], reminderCategories: ['Payments'] });
+  assert.equal(categoryAsksReminder(lists, 'Payments'), true);
+  assert.equal(categoryAsksReminder(lists, 'Audit'), false);
+  assert.equal(categoryAsksReminder(readLists({ categories: ['Payments'] }), 'Payments'), false);     // nothing chosen yet = not asked
+  assert.deepEqual(toggleReminderCategory(lists, 'Audit').reminderCategories, ['Payments', 'Audit']);
+  assert.deepEqual(toggleReminderCategory(lists, 'Payments').reminderCategories, []);
+  const out = writeListsValue({ narrationTypes: ['n'] }, { ...lists, reminderCategories: ['Audit'] });
+  assert.deepEqual(out.reminderCategories, ['Audit']);
+  assert.deepEqual(out.narrationTypes, ['n']);
+});
+
+test('a next reminder date and time is kept on the task, and shown as due once it has passed', () => {
+  const d = reminderFrom('2026-10-20', '17:30');
+  assert.equal(d.getHours(), 17);
+  assert.equal(reminderFrom('2026-10-20', '').getHours(), 9);      // no time chosen = 9:00 AM
+  assert.equal(reminderFrom('', '17:30'), null);
+  const t = fromDoc('r', { description: 'x', status: 'Pending', nextReminderAt: d.toISOString() });
+  assert.equal(t.nextReminder.getTime(), d.getTime());
+  assert.equal(toDoc(t, NOW).nextReminderAt, d.toISOString());
+  assert.equal(toDoc({ ...t, nextReminder: null }, NOW).nextReminderAt, null);                  // cleared on purpose, since the document had one
+  assert.ok(!('nextReminderAt' in toDoc(task({}), NOW)));                                       // none invented
+  assert.equal(isReminderDue(task({ nextReminder: new Date(2026, 9, 15, 9, 0) }), NOW), true);
+  assert.equal(isReminderDue(task({ nextReminder: new Date(2026, 9, 15, 11, 0) }), NOW), false);
+  assert.equal(isReminderDue(task({ done: true, nextReminder: new Date(2026, 9, 14) }), NOW), false);
+  assert.match(reminderLabel(task({ nextReminder: new Date(2026, 9, 16, 9, 0) }), NOW), /^Tomorrow/);
+});
+
+test('a Sub Category can be edited: renamed, fields renamed, added and removed, with choices', () => {
+  const list = [{ id: 'a', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor' }, { label: 'Inv No' }] }, { id: 'b', name: 'Urgent Payment', category: 'Payments', fields: [] }];
+  assert.equal(validateSubCategory(list, 'a', ' ', []), 'Give the Sub Category a name.');
+  assert.match(validateSubCategory(list, 'a', 'urgent payment', []), /already exists/);
+  assert.equal(validateSubCategory(list, 'a', 'domestic payment', []), '');
+  assert.match(validateSubCategory(list, 'a', 'X', [{ label: 'Vendor' }, { label: ' vendor ' }]), /same name/);
+  assert.equal(validateSubCategory(list, 'a', 'X', [{ label: '' }, { label: '' }]), '');
+  const out = applySubCategoryEdit(list, 'a', ' Domestic Pay ', [{ label: 'Vendor Name' }, { label: '' }, { label: 'Mode', options: 'TT, DD, ,' }, { label: 'Ref' }]);
+  assert.equal(out[0].name, 'Domestic Pay');
+  assert.deepEqual(out[0].fields, [{ label: 'Vendor Name' }, { label: 'Mode', options: ['TT', 'DD'] }, { label: 'Ref' }]);
+  assert.equal(out[0].category, 'Payments');
+  assert.equal(out[0].id, 'a');
+  assert.equal(out[1], list[1]);
+  assert.deepEqual(applySubCategoryEdit(list, 'a', 'X', []).find((x) => x.id === 'a').fields, []);
+});
+
+test('an alert comes at the due time, once, and respects snooze, silence and skip', () => {
+  const now = new Date(2026, 9, 15, 18, 45, 30);
+  const due = task({ id: 'd1', due: new Date(2026, 9, 15, 18, 45), hasTime: true, priority: 'Medium' });
+  assert.equal(pendingAlerts([due], now).length, 1);
+  assert.equal(alertHeading(pendingAlerts([due], now)[0]), 'Medium priority due now');
+  assert.equal(pendingAlerts([{ ...due, due: new Date(2026, 9, 15, 18, 46) }], now).length, 0);               // not yet
+  assert.equal(pendingAlerts([{ ...due, due: new Date(2026, 9, 15, 5, 0) }], now).length, 0);                  // fell due over 12 hours ago: not popped up on opening
+  const key = pendingAlerts([due], now)[0].key;
+  assert.equal(pendingAlerts([due], now, new Set([key])).length, 0);                                           // shown once
+  assert.equal(pendingAlerts([{ ...due, snoozeUntil: now.getTime() + 600000 }], now).length, 0);               // snoozed
+  const later = new Date(now.getTime() + 601000);
+  const again = pendingAlerts([{ ...due, snoozeUntil: now.getTime() + 600000 }], later);
+  assert.equal(again.length, 1);                                                                               // rings again when the snooze ends
+  assert.notEqual(again[0].key, key);
+  assert.equal(pendingAlerts([{ ...due, lastAckDate: '2026-10-15' }], now).length, 0);                          // silenced today
+  assert.equal(pendingAlerts([{ ...due, skippedDates: ['2026-10-15'] }], now).length, 0);                       // skipped today
+  assert.equal(pendingAlerts([{ ...due, done: true }], now).length, 0);
+  assert.equal(pendingAlerts([{ ...due, binned: true }], now).length, 0);
+});
+
+test('a task with a date but no time alerts at 9:00 AM; a next reminder alerts too', () => {
+  const dateOnly = task({ id: 'd2', due: new Date(2026, 9, 15), hasTime: false });
+  assert.equal(dueAlertAt(dateOnly).getHours(), 9);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 8, 59)).length, 0);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 9, 1)).length, 1);
+  const rem = task({ id: 'd3', nextReminder: new Date(2026, 9, 15, 10, 0) });
+  const a = pendingAlerts([rem], new Date(2026, 9, 15, 10, 1));
+  assert.equal(a.length, 1);
+  assert.equal(a[0].kind, 'reminder');
+  assert.equal(alertHeading(a[0]), 'Reminder due now');
+  assert.equal(pendingAlerts([task({ id: 'd4' })], new Date()).length, 0);                                     // no due date, no alert
+  assert.deepEqual(SNOOZES.map((x) => x[0]), [15, 30, 60, 120, 180, 300]);
+});
+
+test('snooze, silence and skip are saved with the task in the phone app\'s own fields; moving clears them', () => {
+  const t = fromDoc('s', { description: 'x', status: 'Pending', dueDate: '2026-10-15', dueTime: '18:45', snoozeUntil: 1790000000000, lastAckDate: '2026-10-15', skippedDates: ['2026-10-14'] });
+  assert.equal(t.snoozeUntil, 1790000000000);
+  const out = toDoc(t, NOW);
+  assert.equal(out.snoozeUntil, 1790000000000);
+  assert.equal(out.lastAckDate, '2026-10-15');
+  assert.deepEqual(out.skippedDates, ['2026-10-14']);
+  const plain = toDoc(task({}), NOW);
+  ['snoozeUntil', 'lastAckDate', 'skippedDates'].forEach((k) => assert.ok(!(k in plain), k));
+  const moved = moveTask(t, '2026-10-16', '10:30', 'In Progress', 'Daily');
+  assert.equal(moved.due.getHours(), 10);
+  assert.equal(moved.status, 'In Progress');
+  assert.equal(moved.recurrence, 'Daily');
+  assert.equal(moved.snoozeUntil, 0);
+  assert.equal(moved.lastAckDate, '');
+  assert.equal(toDoc(moved, NOW).snoozeUntil, null);                                                           // cleared, since the document had one
+});
+
+test('the daily report carries the banker\'s reply (a sub category field) and the notes', () => {
+  const day = new Date(2026, 9, 15, 12);
+  const t = task({ title: 'HDFC FD Statement Collation.', category: "Bank Follow-up's", done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, subCategory: "Urgent Bank Follow Up's", subCategoryFields: { "Banker's Reply's:": 'Need to collect on an urgent basis', Empty: ' ' }, notes: 'Called twice.\nStatement due tomorrow.' });
+  const text = reportText([t], day);
+  assert.match(text, /Urgent Bank Follow Up's - Banker's Reply's: Need to collect on an urgent basis/);
+  assert.match(text, /Notes: Called twice\. Statement due tomorrow\./);
+  assert.ok(!text.includes('Empty'));
+  assert.ok(!reportText([t], day, { subFields: false }).includes("Banker's Reply's"));
+  const only = reportText([task({ title: 'Plain', done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, notes: 'n' })], day);
+  assert.ok(!only.includes('undefined') && /Notes: n/.test(only));
+});
+
+const backup = () => ({
+  app: 'My_Personal_Tracker', exportedAt: '2026-10-10T08:00:00.000Z',
+  data: { workingDashboard: {
+    categories: ['Payments', 'Audit'], priorities: ['High', 'Low'], statuses: ['Pending', 'Completed'], assignees: ['Accounts', 'Self'],
+    subCategories: [{ id: 's1', name: 'Domestic Payment', fields: [{ label: 'Vendor' }] }, 'Urgent Payment'], subCategoryCategories: ['Payments'],
+    narrationTypes: [{ name: 'Imports', fields: [] }], holidays: [{ date: '2026-01-26', name: 'Republic Day' }], leaveDays: [],
+    entries: [
+      { id: 'e1', title: 'Pay vendor', category: 'Payments', priority: 'High', status: 'Pending', pendingWith: 'Accounts', dueAt: '2026-10-20T11:30:00.000Z', reference: 'RE: inv', notes: 'n', recurrence: 'weekly', dar: false, subCategory: 'Domestic Payment', subCategoryFields: { Vendor: 'ACME' }, bankFollowUps: [{ d: '2026-10-09', remarks: 'called' }], narration: { typeName: 'Imports' }, updatedAt: 1760000000000 },
+      { id: 'e2', title: 'Done thing', status: 'Completed', done: true, completedAt: '2026-10-09T10:00:00.000Z', createdAt: '2026-10-01T00:00:00.000Z' },
+      { id: 'e3', title: 'Binned', binned: true, binnedAt: '2026-10-08T00:00:00.000Z' },
+      { id: 'web1', description: 'From the website', status: 'Pending', dueDate: '2026-10-21', dueTime: '10:00', mailChain: 'x', category: 'Audit' },
+      { id: 'gone', title: 'Purged', purged: true },
+      { title: 'no id' },
+    ],
+  } },
+});
+
+test('a backup file becomes tasks, lists and sub categories to write', () => {
+  const plan = planImport(backup(), { ids: new Set(['e2']), lists: { categories: ['Other', 'audit'], priorities: [], statuses: ['Pending'], pendingWith: ['Self'], subCategories: [] } }, NOW);
+  assert.deepEqual(plan.tasks.map((x) => x.id), ['e1', 'e3', 'web1']);            // e2 exists, 'gone' was purged, the last row has no id
+  assert.equal(plan.summary.skippedExisting, 1);
+  assert.equal(plan.summary.notTasks, 2);
+  const e1 = plan.tasks[0].doc;
+  assert.equal(e1.description, 'Pay vendor');
+  assert.equal(e1.dueDate.length, 10);
+  assert.equal(e1.recurrence, 'Weekly');
+  assert.equal(e1.darInclude, false);
+  assert.equal(e1.subCategory, 'Domestic Payment');
+  assert.deepEqual(e1.subCategoryFields, { Vendor: 'ACME' });
+  assert.deepEqual(e1.bankFollowUps, [{ d: '2026-10-09', remarks: 'called' }]);         // carried over untouched
+  assert.deepEqual(e1.narration, { typeName: 'Imports' });
+  assert.equal(e1.updatedAt, 1760000000000);
+  assert.equal(plan.tasks[1].doc.deleted, true);
+  assert.equal(plan.tasks[2].doc.description, 'From the website');                    // a website-shaped row is written as it is
+  assert.equal(JSON.stringify(plan).includes('undefined'), false);
+  // lists are added to, never replaced; case-insensitive duplicates are not repeated
+  assert.deepEqual(plan.lists.categories, ['Other', 'audit', 'Payments']);
+  assert.deepEqual(plan.lists.pendingWith, ['Self', 'Accounts']);
+  assert.deepEqual(plan.lists.subCategories.map((x) => [x.name, x.category]), [['Domestic Payment', 'Payments'], ['Urgent Payment', 'Payments']]);   // grouped under the one category that carries them
+  assert.deepEqual(plan.lists.subCategoryCategories, ['Payments']);
+  assert.equal(plan.lists.narrationTypes.length, 1);
+  assert.equal(plan.calendar.holidays.length, 1);
+  assert.ok(!('leaveDays' in plan.calendar));
+  assert.equal(plan.summary.subCategories, 2);
+});
+
+test('importing again adds nothing twice, and overwrite replaces; a wrong file is refused', () => {
+  const again = planImport(backup(), { ids: new Set(['e1', 'e2', 'e3', 'web1']), lists: { categories: ['Payments', 'Audit'], priorities: ['High', 'Low'], statuses: ['Pending', 'Completed'], pendingWith: ['Accounts', 'Self'], subCategories: [{ id: 'x', name: 'domestic payment', fields: [], category: 'Payments' }, { id: 'y', name: 'Urgent Payment', fields: [], category: 'Payments' }] } }, NOW);
+  assert.equal(again.tasks.length, 0);
+  assert.equal(again.summary.subCategories, 0);
+  assert.equal(planImport(backup(), { ids: new Set(['e1']), overwrite: true }, NOW).tasks.some((x) => x.id === 'e1'), true);
+  assert.throws(() => planImport({ nothing: 1 }), /not a Working Dashboard/);
+  assert.equal(rowToDoc({ id: 'p', purged: true }), null);
+  assert.equal(backupSection({ data: { workingDashboard: { entries: [] } } }).entries.length, 0);
+  // two carrying categories: the sub categories are not guessed onto one of them
+  const two = backup(); two.data.workingDashboard.subCategoryCategories = ['Payments', 'Audit'];
+  assert.ok(planImport(two, {}, NOW).lists.subCategories.every((x) => x.category === ''));
+});
+
+test('a timed task gives a notification-only heads-up within the hour before it is due', () => {
+  const now = new Date(2026, 9, 15, 10, 0);
+  const t = task({ title: 'Call bank', due: new Date(2026, 9, 15, 10, 45), hasTime: true });
+  assert.equal(upcomingWarnings([t], now).length, 1);
+  assert.equal(upcomingWarnings([{ ...t, due: new Date(2026, 9, 15, 11, 30) }], now).length, 0);   // more than an hour away
+  assert.equal(upcomingWarnings([{ ...t, hasTime: false }], now).length, 0);                       // date only: no heads-up
+  assert.equal(upcomingWarnings([{ ...t, due: new Date(2026, 9, 15, 9, 59) }], now).length, 0);    // already due
+  assert.equal(upcomingWarnings([t], now, new Set([upcomingWarnings([t], now)[0].key])).length, 0);
+});
+
+test('the due response follows the task\'s own alert choice', () => {
+  assert.deepEqual(dueResponse({ alertMode: 'alarm' }, { popup: false, sound: false }), { popup: true, sound: true });
+  assert.deepEqual(dueResponse({ alertMode: 'gentle' }, { popup: true, sound: true }), { popup: false, sound: false });
+  assert.deepEqual(dueResponse({ alertMode: '' }, { popup: true, sound: false }), { popup: true, sound: false });
 });
