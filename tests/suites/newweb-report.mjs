@@ -56,4 +56,13 @@ export async function run({ ck, section }) {
   const ddRep = buildReport([{ ...dd, completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
   ck('the Demand Draft line is written from its format', /^Prepared Online Demand Draft application forms/m.test(ddRep.model.sections.find((x) => x.key === 'oth').rows[0].line));
   ck('and it is not moved under Payments', ddRep.model.data.payments === 0 && ddRep.model.data.others === 1);
+
+  section('New website: remarks written in the Notes follow every payment line');
+  const noted = { ...pay, notes: 'Remarks: paid after the manager approved it', completedAt: new Date(2026, 9, 16, 9, 30) };
+  const withNote = buildReport([noted], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
+  ck('a formatted payment line ends with the Notes', /INV-4471 towards \[Towards\]\. Paid after the manager approved it\.$/m.test(withNote.model.sections.find((x) => x.key === 'pay').rows[0].line));
+  const noNote = buildReport([{ ...noted, notes: '' }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
+  ck('without Notes the line is only the format', /towards \[Towards\]\.$/m.test(noNote.model.sections.find((x) => x.key === 'pay').rows[0].line));
+  const plainPay = buildReport([{ ...noted, subCategory: '' }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: [] });
+  ck('a payment with no format also carries its Notes', /Paid after the manager approved it/.test(plainPay.text));
 }

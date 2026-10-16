@@ -4,7 +4,7 @@
  * activities, Other activities. Domestic and Urgent payments are left out, as there.
  */
 import { findFormat, renderTemplate, isPaymentCategory } from './reportFormats.js';
-import { buildReportModel, reportLineFor, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees, DEFAULT_PAYMENT_INTRO } from '../../src/workingDashboardReport.js';
+import { buildReportModel, reportLineFor, withEntryNotes, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees, DEFAULT_PAYMENT_INTRO } from '../../src/workingDashboardReport.js';
 import { buildStylePrompt } from '../../src/reportStyle.js';
 import { paymentLists, withWebNarrationTypes } from '../../src/workingDashboardPayments.js';
 import { dayKey } from './data.js';
@@ -71,7 +71,7 @@ export function applyFormats(model, formats, lists = {}) {
       const f = row.entry && row.entry.subCategory ? findFormat(formats, row.entry.subCategory) : null;
       if (!f) return;
       const out = renderTemplate(f.template, row.entry);
-      row.line = out.text;
+      row.line = withEntryNotes(out.text, row.entry);   // the task's remarks (Notes) follow the format line
       row.fixed = false;
       row.formatted = true;
       if (out.missing.length) model.missing.push({ title: row.entry.title, marks: out.missing });
@@ -109,7 +109,7 @@ export function applyMoves(model, moves = {}, { lists = {}, formats = [], date =
   const placed = { oth: [], pay: [], fol: [] };
   const put = (target, entry, line, row) => {
     const f = target === 'pay' && formats && formats.length && entry.subCategory ? findFormat(formats, entry.subCategory) : null;
-    const text = f ? renderTemplate(f.template, entry).text : line || reportLineFor(entry, reportLists(lists), date, { details });
+    const text = f ? withEntryNotes(renderTemplate(f.template, entry).text, entry) : line || reportLineFor(entry, reportLists(lists), date, { details });
     placed[target].push(row ? Object.assign(row, { line: text }) : { line: text, entry, moved: true });
   };
   ['oth', 'pay', 'fol'].forEach((k) => {
