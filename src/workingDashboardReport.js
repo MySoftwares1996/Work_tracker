@@ -145,8 +145,10 @@ export function reportTaskWithNotes(e) {
 /** `line` followed by the entry's notes, each one not already in it. */
 export function withEntryNotes(line, e) {
   const base = clean(line);
-  const have = key(base);
-  const extra = notesForReport(e).filter((n) => !have.includes(key(n)));
+  const have = ` ${key(base)} `;
+  // A note is left out only when the line already says it in full: a short remark ("Paid", "Urgent") is always kept, even when
+  // its word happens to be somewhere in the line.
+  const extra = notesForReport(e).filter((n) => { const k = key(n); return !(have.trim() === k || (k.split(' ').length >= 4 && have.includes(` ${k} `))); });
   if (!extra.length) return base;
   return `${/[.!?]$/.test(base) || !base ? base : `${base}.`} ${extra.join(' ')}`.trim();
 }
