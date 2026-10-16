@@ -583,31 +583,64 @@ function Links() {
   );
 }
 
+/** Config is a short menu of topics; a topic opens on its own page with a back arrow, so each page is about one thing. */
 function Config() {
   const { lists, user, signOut, demo, saveLists } = useStore();
-  return (
-    <>
-      <h1 className="h1">Config</h1>
-      <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
-      {inApp() && (
-        <section className="card plain"><span className="card-title">Phone app</span>
-          <span className="muted">Alarms, app lock, backups and text size are set in the phone's own settings.</span>
-          <div className="row-gap"><button className="btn" onClick={() => askNative('settings')}>Open phone settings</button><button className="btn ghost" onClick={() => { if (window.confirm('Switch to the older phone screens? You can switch back in the phone settings.')) askNative('classic'); }}>Use the older phone screens</button></div>
-        </section>
-      )}
-      <ImportBackup />
-      <AlertSettings />
-      <ReportFormats />
-      <GeminiKey />
-      <Appearance />
-      <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+  const [topic, setTopic] = useState('');
+  const topics = [
+    ...(inApp() ? [{ key: 'phone', icon: '📱', title: 'Phone app', hint: 'Alarms, app lock, backups, text size', body: () => (
+      <section className="card plain"><span className="card-title">Phone app</span>
+        <span className="muted">Alarms, app lock, backups and text size are set in the phone's own settings.</span>
+        <div className="row-gap"><button className="btn" onClick={() => askNative('settings')}>Open phone settings</button><button className="btn ghost" onClick={() => { if (window.confirm('Switch to the older phone screens? You can switch back in the phone settings.')) askNative('classic'); }}>Use the older phone screens</button></div>
+      </section>
+    ) }] : []),
+    { key: 'alerts', icon: '🔔', title: 'Alerts', hint: 'When and how a due task alerts you', body: () => <AlertSettings /> },
+    { key: 'look', icon: '🎨', title: 'Appearance', hint: 'Colour theme', body: () => <Appearance /> },
+    { key: 'entry', icon: '📝', title: 'Entry form options', hint: 'Categories, priorities, statuses, pending with', body: () => (
+      <>
+        <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+        <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
+      </>
+    ) },
+    { key: 'subs', icon: '🗂️', title: 'Sub categories', hint: 'Sub categories and their fields, under each category', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><SubCategoryManager lists={lists} /></section> },
+    { key: 'reminder', icon: '⏰', title: 'Next reminder', hint: 'Which categories ask for a next reminder', body: () => (
       <section className="card plain">
         <h2 className="h2">Next reminder date &amp; time</h2>
         <p className="muted">Choose the categories that ask for a next reminder date and time in the entry form. The other categories do not show it.</p>
         <div className="chips">{lists.categories.map((c) => { const on = categoryAsksReminder(lists, c); return <button type="button" key={c} className={`chip toggle${on ? ' on' : ''}`} aria-pressed={on} onClick={() => saveLists(toggleReminderCategory(lists, c))}>{c}</button>; })}</div>
       </section>
-      <section className="card plain"><h2 className="h2">Sub categories</h2><SubCategoryManager lists={lists} /></section>
-      <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
+    ) },
+    { key: 'formats', icon: '🧾', title: 'Report formats', hint: 'The sentence each sub category writes in the report', body: () => <ReportFormats /> },
+    { key: 'gemini', icon: '✨', title: 'Gemini (AI) key', hint: 'Your own key, used only when the free route is busy', body: () => <GeminiKey /> },
+    { key: 'import', icon: '📥', title: 'Import from an older version', hint: 'Bring in a backup file', body: () => <ImportBackup /> },
+  ];
+  const open = topics.find((x) => x.key === topic);
+  if (open) {
+    return (
+      <>
+        <button type="button" className="back-link" onClick={() => setTopic('')}>‹ Config</button>
+        <h1 className="h1">{open.title}</h1>
+        <div className="cfg-page">{open.body()}</div>
+      </>
+    );
+  }
+  return (
+    <>
+      <h1 className="h1">Config</h1>
+      <section className="card plain cfg-account">
+        <span className="cfg-avatar" aria-hidden="true">{(user.displayName || user.email || '?').trim().charAt(0).toUpperCase()}</span>
+        <span className="cfg-who"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span></span>
+        <button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
+      </section>
+      <nav className="cfg-menu" aria-label="Config topics">
+        {topics.map((x) => (
+          <button key={x.key} type="button" className="cfg-row" onClick={() => setTopic(x.key)}>
+            <span className="cfg-icon" aria-hidden="true">{x.icon}</span>
+            <span className="cfg-text"><b>{x.title}</b><small>{x.hint}</small></span>
+            <span className="cfg-chev" aria-hidden="true">›</span>
+          </button>
+        ))}
+      </nav>
     </>
   );
 }
@@ -790,7 +823,7 @@ function AlertSettings() {
       <p className="muted">When a task is due (or its next reminder time comes) while this page is open, an alert appears with the task's details and the choices to mark it done, snooze, skip or move it. Keep this page open to get alerts; the phone app rings by itself.</p>
       <label className="field check"><input type="checkbox" checked={s.popup} onChange={(e) => set({ popup: e.target.checked })} /> Show an alert when a task is due</label>
       <label className="field check"><input type="checkbox" checked={s.sound} onChange={(e) => set({ sound: e.target.checked })} /> Play a sound (needs one click or key press on the page first)</label>
-      <div className="add-row">
+      <div>
         <label className="field check"><input type="checkbox" checked={s.notify && perm === 'granted'} disabled={perm === 'unsupported' || perm === 'denied'} onChange={(e) => (e.target.checked ? enableNotify() : set({ notify: false }))} /> Desktop notification when this tab is in the background{perm === 'denied' ? ' (blocked in the browser settings)' : ''}</label>
       </div>
       <div><button type="button" className="btn" onClick={() => window.dispatchEvent(new Event('wd-test-alert'))}>Show a test alert</button></div>

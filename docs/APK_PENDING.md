@@ -52,3 +52,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: sample report formats that are not in an account's saved list (added later from a new Tally sheet) are now used too; the saved ones keep their wording (`effectiveFormats`). Web only.
 
 - APK: the app's home is now the new website inside the app (`WebApp.js`), so the web items above reach the APK with no porting; only the native alarm / presence items still need the next build. Needs the owner's say to build, then a test on a phone: sign-in, opening cards, the entry form, copy, print, CSV, back button, "Use the older phone screens".
+- New web: Config is a menu of topics (Alerts, Appearance, Entry form options, Sub categories, Next reminder, Report formats, Gemini key, Import), each on its own page with a back link. Web (and the APK, which shows the web).
