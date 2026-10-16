@@ -8,9 +8,9 @@ import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from 
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { buildReport, mergeAi, reportPrompt, reportCsvRows, reportHtml } from './reportEngine';
+import { buildReport, mergeAi, reportPrompt, reportCsvRows, reportHtml, vendorTotals, fmtRupees } from './reportEngine';
 import { reportMailUrl } from '../../src/workingDashboardReport.js';
-import { templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { bankFollowUpDesk, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -132,6 +132,7 @@ function Dashboard({ onEdit, onNew, go }) {
         <Tile tone="blue" label="Open tasks" value={s.open} sub="In the register" onClick={() => go('register')} />
         <Tile tone="teal" label="Done today" value={s.doneToday} sub="Completed" onClick={() => go('done')} />
       </section>
+      <Desk tasks={tasks} onEdit={onEdit} go={go} />
       <div className="two">
         <section>
           <h2 className="h2">Needs attention</h2>
@@ -145,6 +146,52 @@ function Dashboard({ onEdit, onNew, go }) {
         </section>
       </div>
     </div>
+  );
+}
+
+/** The Dashboard's desk: bank follow-ups, this month's payments by vendor, and today's report so far. */
+function Desk({ tasks, onEdit, go }) {
+  const { lists, calendar } = useStore();
+  const now = new Date();
+  const bank = useMemo(() => bankFollowUpDesk(tasks, new Date()), [tasks]);
+  const pay = useMemo(() => vendorTotals(tasks, lists, dayKey(new Date()).slice(0, 7)), [tasks, lists]);
+  const today = dayKey(now);
+  const rep = useMemo(() => buildReport(tasks, lists, calendar, today, { headings: true, subFields: true }), [tasks, lists, calendar, today]);
+  const lines = rep.model.sections.filter((s) => s.rows.length).map((s) => ({ title: s.title, rows: s.rows.slice(0, 3), more: Math.max(0, s.rows.length - 3) }));
+  const top = pay.rows.slice(0, 5);
+  const max = top.length ? Math.max(...top.map((r) => r.total), 1) : 1;
+  const fmtNext = (d) => d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  return (
+    <section className="desk">
+      <div className="card plain desk-card">
+        <h2 className="h2">Bank follow-ups {bank.length > 0 && <span className="chip">{bank.length}</span>}</h2>
+        {!bank.length && <p className="muted">No open bank follow-ups.</p>}
+        {bank.slice(0, 5).map((b) => (
+          <button key={b.t.id} className="desk-row" onClick={() => onEdit(b.t)}>
+            <span className="desk-main"><b>{b.t.title}</b>{b.update ? <small>Banker: {b.update}</small> : <small className="muted">No banker update yet</small>}{b.next && <small className="muted">Next follow-up {fmtNext(b.next)}</small>}</span>
+            <span className={`chip ${b.days >= 10 ? 'coral' : b.days >= 5 ? 'amber' : ''}`}>day {b.days}</span>
+          </button>
+        ))}
+        {bank.length > 5 && <p className="muted">+ {bank.length - 5} more in the Register</p>}
+      </div>
+      <div className="card plain desk-card">
+        <h2 className="h2">Payments this month by vendor</h2>
+        {!top.length && <p className="muted">No completed payments this month.</p>}
+        {top.map((r) => (
+          <div key={r.vendor} className="vend"><span title={r.vendor}>{r.vendor}</span><i style={{ width: `${Math.max(6, Math.round((r.total / max) * 100))}%` }} /><b>{r.total > 0 ? fmtRupees(r.total) : `${r.count} paid`}</b></div>
+        ))}
+        {pay.count > 0 && pay.withAmount < pay.count && <p className="muted">{pay.withAmount} of {pay.count} payments have an amount in Key Points.</p>}
+        {pay.count > 0 && <p className="muted"><b>Total {fmtRupees(pay.total)}</b></p>}
+      </div>
+      <div className="card plain desk-card">
+        <h2 className="h2">Today's report so far</h2>
+        {!lines.length && <p className="muted">Nothing completed or followed up yet today.</p>}
+        {lines.map((s) => (
+          <div key={s.title} className="desk-rep"><h5>{s.title}</h5><ul>{s.rows.map((r, i) => <li key={i}>{r.line}</li>)}{s.more > 0 && <li className="muted">+ {s.more} more</li>}</ul></div>
+        ))}
+        <div className="desk-btns"><button className="btn primary" onClick={() => go('report')}>Open Report</button><button className="btn" onClick={() => go('report')}>✨ Gemini</button></div>
+      </div>
+    </section>
   );
 }
 

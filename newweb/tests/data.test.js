@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
-import { geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -502,4 +502,16 @@ test('the Gemini API reply text is read from its parts', () => {
   assert.equal(geminiText({ candidates: [{ content: { parts: [{ text: 'Hello ' }, { text: 'world' }] } }] }), 'Hello world');
   assert.equal(geminiText({ candidates: [] }), '');
   assert.equal(geminiText(null), '');
+});
+
+test('the Dashboard bank desk lists open bank follow-ups, longest open first, with the banker\'s update', () => {
+  const now = new Date(2026, 9, 16, 12);
+  const old = task({ title: 'ICICI LC', category: "Bank Follow-up's", bankFollowUps: [{ d: '2026-10-05', at: new Date(2026, 9, 5, 10).toISOString(), remarks: 'Awaiting head office', next: new Date(2026, 9, 18, 10).toISOString() }] });
+  const fresh = task({ title: 'HDFC FD', category: "Urgent Bank Follow Up's", createdAt: new Date(2026, 9, 14), subCategoryFields: { "Banker's Reply's:": 'Will share tomorrow' } });
+  const other = task({ title: 'Not a bank task', category: 'Audit' });
+  const rows = bankFollowUpDesk([fresh, other, old, { ...old, id: 'x', done: true }], now);
+  assert.deepEqual(rows.map((r) => r.t.title), ['ICICI LC', 'HDFC FD']);
+  assert.equal(rows[0].update, 'Awaiting head office');
+  assert.equal(rows[0].days, 12);
+  assert.equal(rows[1].update, 'Will share tomorrow');
 });

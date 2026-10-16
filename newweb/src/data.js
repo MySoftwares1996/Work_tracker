@@ -597,3 +597,16 @@ export function addFollowUp(t, { remarks, next } = {}, now = new Date()) {
   const status = !String(t.status || '').trim() || isUnstartedStatus(t.status) ? 'In Progress' : t.status;
   return logWork({ ...t, status, bankFollowUps: [...(t.bankFollowUps || []), item], _bf: true }, 'Followed up', now);
 }
+
+/** The Dashboard's bank follow-up list: open tasks in a Bank Follow-up category, longest open first, with the banker's last update and the next follow-up. */
+export function bankFollowUpDesk(tasks, now = new Date()) {
+  return (tasks || []).filter((t) => isOpen(t) && isBankFollowUp(t.category)).map((t) => {
+    const fu = Array.isArray(t.bankFollowUps) ? t.bankFollowUps : [];
+    const last = fu.length ? fu[fu.length - 1] : null;
+    const reply = Object.entries(t.subCategoryFields || {}).find(([k, v]) => /banker|reply|update/i.test(k) && String(v || '').trim());
+    const start = (fu[0] && fu[0].at && new Date(fu[0].at)) || t.createdAt || t.due || now;
+    const days = Math.max(1, Math.floor((now.getTime() - new Date(start).getTime()) / 86400000) + 1);
+    const nextAt = last && last.next ? new Date(last.next) : t.due;
+    return { t, days, update: (last && String(last.remarks || '').trim()) || (reply ? String(reply[1]).trim() : ''), next: nextAt instanceof Date && !Number.isNaN(nextAt.getTime()) ? nextAt : null };
+  }).sort((a, b) => b.days - a.days);
+}

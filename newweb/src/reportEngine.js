@@ -3,7 +3,7 @@
  * site's tasks. Sections, in order: Other work completed, Payments (Tally narration lines), Followed up / in progress, Routine daily
  * activities, Other activities. Domestic and Urgent payments are left out, as there.
  */
-import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml } from '../../src/workingDashboardReport.js';
+import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees } from '../../src/workingDashboardReport.js';
 import { buildStylePrompt } from '../../src/reportStyle.js';
 import { paymentLists, withWebNarrationTypes } from '../../src/workingDashboardPayments.js';
 import { dayKey } from './data.js';
@@ -69,3 +69,7 @@ export function mergeAi(model, aiText, { headings = true } = {}) {
 }
 
 export { reportCsvRows, reportHtml, dayKey };
+
+/** This month's payments by vendor, from the amounts written in each payment task's Key Points: { total, count, withAmount, rows: [{ vendor, total, count }] }. */
+export const vendorTotals = (tasks, lists, monthKey) => paymentsByVendor((tasks || []).map(toEntry), reportLists(lists), monthKey);
+export { fmtRupees };
