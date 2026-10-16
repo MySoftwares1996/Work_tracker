@@ -355,11 +355,16 @@ test('an alert comes at the due time, once, and respects snooze, silence and ski
   assert.equal(pendingAlerts([{ ...due, binned: true }], now).length, 0);
 });
 
-test('a task with a date but no time alerts at 9:00 AM; a next reminder alerts too', () => {
+test('a task with a date but no time alerts at 7:00 PM, once and only on its due date; a next reminder alerts too', () => {
   const dateOnly = task({ id: 'd2', due: new Date(2026, 9, 15), hasTime: false });
-  assert.equal(dueAlertAt(dateOnly).getHours(), 9);
-  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 8, 59)).length, 0);
-  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 9, 1)).length, 1);
+  assert.equal(dueAlertAt(dateOnly).getHours(), 19);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 9, 1)).length, 0);       // not in the morning
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 18, 59)).length, 0);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 19, 1)).length, 1);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 23, 59)).length, 1);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 16, 0, 30)).length, 0);       // never on another day
+  const key = pendingAlerts([dateOnly], new Date(2026, 9, 15, 19, 1))[0].key;
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 20, 0), new Set([key])).length, 0);   // once
   const rem = task({ id: 'd3', nextReminder: new Date(2026, 9, 15, 10, 0) });
   const a = pendingAlerts([rem], new Date(2026, 9, 15, 10, 1));
   assert.equal(a.length, 1);

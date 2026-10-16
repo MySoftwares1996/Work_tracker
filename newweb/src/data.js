@@ -451,9 +451,9 @@ export function reminderLabel(t, now = new Date()) {
 /* ---- alerts at the due date and time ---- */
 export const SNOOZES = [[15, '15 min'], [30, '30 min'], [60, '1 hour'], [120, '2 hours'], [180, '3 hours'], [300, '5 hours']];
 const ALERT_WINDOW_MS = 12 * 3600 * 1000;       // a task that fell due longer ago than this is not popped up on opening the page; it shows under Needs attention
-const DATE_ONLY_HOUR = 9;                       // a task with a date but no time alerts at 9:00 AM that day
+const DATE_ONLY_HOUR = 19;                      // a task with a date but no time alerts once, at 7:00 PM, and only on its due date
 
-/** When a task's due alert is first due: its due time, or 9:00 AM on its due date when it has no time. */
+/** When a task's due alert is first due: its due time, or 7:00 PM on its due date when it has no time (and then only on that date). */
 export function dueAlertAt(t) {
   if (!t.due || Number.isNaN(t.due.getTime())) return null;
   if (t.hasTime) return new Date(t.due);
@@ -475,6 +475,8 @@ export function pendingAlerts(tasks, now = new Date(), handled = new Set()) {
     const add = (kind, at) => {
       if (!at) return;
       const from = Math.max(at.getTime(), Number(t.snoozeUntil) || 0);
+      // A date-only task alerts on its due date only: the evening alert is not repeated the next morning.
+      if (kind === 'due' && !t.hasTime && from === at.getTime() && dayKey(now) !== dayKey(t.due)) return;
       if (from > now.getTime() || now.getTime() - from > ALERT_WINDOW_MS) return;
       const key = `${t.id}|${kind}|${from}`;
       if (!handled.has(key)) out.push({ key, task: t, kind, at: new Date(from) });
