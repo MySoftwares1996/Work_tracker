@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
 import Logo from './Logo';
+import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
 import { planImport } from './importBackup';
 import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from './alerts';
@@ -25,7 +26,8 @@ export default function App() {
   const [preset, setPreset] = useState(null);       // a filter the Dashboard tile asked the Register to open with
   const go = (k, filter = null) => { setPreset(filter ? { ...filter, n: Date.now() } : null); location.hash = k; setTab(k); window.scrollTo({ top: 0 }); };
 
-  if (store.user === undefined) return <div className="center"><div className="spinner" aria-label="Loading" /></div>;
+  if (store.user === undefined) return <LoadingScreen stage="auth" full />;
+  if (store.demo && location.search.includes('loading')) return <LoadingScreen stage="data" full />;      // ?demo&loading previews the loading screen
   if (!store.user) return <SignIn />;
 
   const tasks = store.tasks;
@@ -62,7 +64,7 @@ export default function App() {
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
         {!store.demo && store.slow && !store.synced && !store.error && <div className="banner err" role="status">Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.</div>}
-        {!store.demo && !store.synced && !store.error && !store.slow ? <div className="loading" role="status"><Logo size={56} mode="spin" /><span className="muted">Loading your tasks…</span></div> : screens[tab]}
+        {!store.demo && !store.synced && !store.error && !store.slow ? <LoadingScreen stage="data" /> : screens[tab]}
       </main>
       <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
       {form && <TaskForm initial={form} onClose={() => setForm(null)} />}

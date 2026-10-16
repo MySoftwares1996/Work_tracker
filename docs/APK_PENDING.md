@@ -23,3 +23,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: App Check (reCAPTCHA v3) on the website, for Gemini from 2 Nov 2026; needs the web app id + site key as GitHub variables (docs/NEW_WEB.md). Phone already uses its own app registration; nothing to port.
 - New web: Config > Gemini API key (kept in the browser only); the report rewrite uses the free route first and the key only as a backup. Web only, nothing to port.
 - New web: Report tab rebuilt on the phone's report engine (sections Other work completed / Payments / Followed up, Tally payment lines, bank follow-ups, Excel CSV, Print/PDF, Email, Gemini merge that keeps every item). The website now writes workLog / bankFollowUps. Phone: nothing to port (it is the same engine).
+- New web: interactive loading screen after a refresh (logo draws, orbits, tilts to the pointer, tap = spin + sparkles; real steps and tips; ?demo&loading previews it). Web only, nothing to port.
