@@ -542,3 +542,34 @@ export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
     </View>
   );
 }
+
+/** A finished task as a row: a green dot, the title, when it was completed and whether it is in the daily report, and Reopen. */
+export function PhoneDoneRow({ entry, onPress, onReopen }) {
+  const t = useTheme();
+  const ms = completedTime(entry);
+  const time = ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  const chips = [
+    { text: `✓ ${time || 'done'}`, color: t.ok },
+    { text: entry.dar ? 'In report' : 'Done only', color: entry.dar ? t.accent : t.textDim },
+    entry.category && { text: entry.category, color: t.textDim },
+  ].filter(Boolean);
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={({ pressed }) => ({ backgroundColor: t.surface, borderRadius: 18, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 12, opacity: pressed ? 0.92 : 1, ...t.shadow })}>
+      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.ok, marginTop: 6 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15.5), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
+        <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+          {chips.map((c, i) => (
+            <View key={i} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: c.color + '22' }}>
+              <Text style={{ color: c.color, fontWeight: '700', fontSize: t.fs(11.5) }} numberOfLines={1}>{c.text}</Text>
+            </View>
+          ))}
+        </Row>
+      </View>
+      <Pressable onPress={onReopen} hitSlop={8} accessibilityRole="button" accessibilityLabel="Reopen" style={{ alignItems: 'center' }}>
+        <Text style={{ color: t.accent, fontSize: t.fs(20) }}>↩</Text>
+        <Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(11) }}>Reopen</Text>
+      </Pressable>
+    </Pressable>
+  );
+}
