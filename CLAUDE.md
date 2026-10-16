@@ -75,6 +75,16 @@ attachments and the audit trail ride on the task itself (`cloudSync.js`).
 - Never start, re-run or trigger an APK build (the "Build Android APK" workflow, which also runs on every push to `main`) without the owner saying so in that message.
 - Every change made to the web version is held in `docs/APK_PENDING.md` and goes into the APK only at the next APK build the owner asks for. Add a line there in the same commit as each web change; when the owner asks for the next build, port the listed items, then clear them.
 
+## The APK shows the new web app (`newweb/`) - decided by the owner
+
+The owner asked for the APK to look and work exactly like the current new website (cards open, same forms and look). The Android app's home
+screen is now that website inside a built-in browser (`src/screens/WebApp.js`, `react-native-webview`): every web change reaches the APK
+without a new build. The phone keeps what a page cannot do: the full-screen alarms and background refresh (same Google account, signed in
+natively), Google sign-in (the app gives the page an ID token: `googleIdToken` in `src/firebaseSync.js`, answered through `src/webBridge.js` and
+`newweb/src/nativeBridge.js`), copy, print, saving files and the phone's own Settings. "Use the older phone screens" (Settings > Screens,
+`src/appMode.js`) switches back to the old React Native screens, which are also the fallback when the website cannot load. The phone-width rule
+above (no New / Edit Entry form) applies only to those older screens. The first build with this needs the owner's say and a test on a phone.
+
 ## The new web app (`newweb/`)
 
 A separate Vite + React site with its own look (centred top tab bar, bold tiles), on the same Firebase data as the app. It is not part of the

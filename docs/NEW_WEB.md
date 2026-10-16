@@ -92,3 +92,8 @@ For each Sub Category you can write the exact line the Daily report uses for a t
 - A task with a format is listed under **Payments** with the standard payment lines, and stays word for word when Gemini rewrites the report.
 - The 22 formats from the owner's "Tally Narration formats" sheet are built in (`newweb/src/reportFormats.js`, `SAMPLE_FORMATS`) and used until a format is saved. Saving writes all formats to `users/<uid>/meta/tools` (`reportFormats`), so every browser shows the same ones.
 - If a template has a mark the Sub Category has no field for, Config shows an **Add it to the Sub Category** button.
+
+
+## Inside the Android app
+
+The APK shows this site in a built-in browser (`src/screens/WebApp.js`). `src/nativeBridge.js` talks to it: `token` / `signin` / `signout` (Google ID token from the phone, so the page and the phone are one account), `copy`, `print`, `file` (CSV via the share sheet), `settings`, `classic`. Outside the app none of it is active (`inApp()` is false).

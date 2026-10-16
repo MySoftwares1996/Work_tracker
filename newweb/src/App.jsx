@@ -6,6 +6,7 @@ import AlertCenter from './AlertCenter';
 import { planImport } from './importBackup';
 import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from './alerts';
 import { copyText } from './clipboard';
+import { inApp, askNative } from './nativeBridge';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
 import { finalNarration, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
@@ -461,13 +462,14 @@ function Report() {
     } catch (e) { setAiError(String(e.message || e)); }
     setBusy(false);
   };
-  const copy = async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { notify('Could not copy - select the text and copy it'); } };
+  const copy = async () => { if (await copyText(text)) { setCopied(true); setTimeout(() => setCopied(false), 1800); } else notify('Could not copy - select the text and copy it'); };
   const title = `Daily Activity Report - ${day}`;
-  const print = () => { const w = window.open('', '_blank'); if (!w) { notify('Allow pop-ups to print'); return; } w.document.write(reportHtml(title, text)); w.document.close(); w.focus(); w.print(); };
+  const print = () => { if (inApp()) { askNative('print', { html: reportHtml(title, text) }); return; } const w = window.open('', '_blank'); if (!w) { notify('Allow pop-ups to print'); return; } w.document.write(reportHtml(title, text)); w.document.close(); w.focus(); w.print(); };
   const csv = () => {
     const { rows, columns } = reportCsvRows(aiOn ? null : report.model, text);
     const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const body = [columns.map(q).join(','), ...rows.map((r) => columns.map((c) => q(r[c])).join(','))].join('\r\n');
+    if (inApp()) { askNative('file', { name: `daily-report-${day}.csv`, mime: 'text/csv', text: `\ufeff${body}` }); return; }
     const url = URL.createObjectURL(new Blob(['\ufeff', body], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `daily-report-${day}.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
@@ -587,6 +589,12 @@ function Config() {
     <>
       <h1 className="h1">Config</h1>
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
+      {inApp() && (
+        <section className="card plain"><span className="card-title">Phone app</span>
+          <span className="muted">Alarms, app lock, backups and text size are set in the phone's own settings.</span>
+          <div className="row-gap"><button className="btn" onClick={() => askNative('settings')}>Open phone settings</button><button className="btn ghost" onClick={() => { if (window.confirm('Switch to the older phone screens? You can switch back in the phone settings.')) askNative('classic'); }}>Use the older phone screens</button></div>
+        </section>
+      )}
       <ImportBackup />
       <AlertSettings />
       <ReportFormats />

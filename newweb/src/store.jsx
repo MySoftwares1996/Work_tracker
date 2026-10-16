@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut } from 'firebase/auth';
+import { inApp, askNative } from './nativeBridge';
 import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
 import { readReportFormats, planFormatSetup, effectiveFormats } from './reportFormats';
@@ -78,6 +79,14 @@ export function LiveStore({ children }) {
   const tasksRef = useRef([]);
 
   useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); setSynced(false); if (!u) setTaskMap({}); }), []);
+  // Inside the Android app the person is already signed in with Google there: sign this page in with the same account.
+  useEffect(() => {
+    if (!inApp()) return;
+    askNative('token', {}, 15000).then((idToken) => {
+      const auth = getAuth(firebaseApp());
+      if (idToken && !auth.currentUser) signInWithCredential(auth, GoogleAuthProvider.credential(idToken)).catch(() => {});
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) return undefined;
@@ -242,8 +251,8 @@ export function LiveStore({ children }) {
       setLists((l) => ({ ...l, ...merged }));
       if (Object.keys(plan.calendar).length) await setDoc(doc(db, 'users', user.uid, 'meta', 'calendar'), { ...plan.calendar, ts: Date.now() }, { merge: true });
     },
-    signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
-    signOut: () => signOut(getAuth(firebaseApp())),
+    signIn: async () => { setError(''); try { if (inApp()) { const idToken = await askNative('signin'); if (!idToken) throw new Error('Sign-in was cancelled.'); await signInWithCredential(getAuth(firebaseApp()), GoogleAuthProvider.credential(idToken)); } else await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
+    signOut: async () => { if (inApp()) await askNative('signout', {}, 8000); await signOut(getAuth(firebaseApp())); },
   }), [user, tasks, lists, calendar, links, templates, formats, error, synced, slow, lastSyncAt, actions, persistLists]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;

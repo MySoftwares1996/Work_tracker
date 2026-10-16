@@ -41,6 +41,20 @@ export async function signInWithGoogle() {
 }
 
 /**
+ * A Google ID token for the website shown inside the app (it signs in with it, so the phone and the page are one account).
+ * Quietly with the account already used on this phone; `interactive` asks the person to choose one, and signs the phone in too.
+ * null when there is none.
+ */
+export async function googleIdToken({ interactive = false } = {}) {
+  ensureConfigured();
+  let res;
+  if (interactive) { await GoogleSignin.hasPlayServices(); res = await GoogleSignin.signIn(); } else res = await GoogleSignin.signInSilently();
+  if (!res || !isSuccessResponse(res) || !res.data?.idToken) return null;
+  if (interactive) await signInWithCredential(getAuth(getApp()), GoogleAuthProvider.credential(res.data.idToken));
+  return res.data.idToken;
+}
+
+/**
  * A Google access token with `scopes` for the signed-in person (e.g. Gmail for Fetch Mail). Google asks them once
  * to allow the extra access; after that it is given without asking.
  */

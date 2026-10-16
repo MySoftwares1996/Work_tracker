@@ -11,6 +11,7 @@ import { cancelAll } from '../notify';
 import { armTodaysReminders, syncEntryAlerts } from '../workingDashboardNotify';
 import AppLockSettings from './AppLockSettings';
 import { pinWidget } from '../widgets';
+import { useClassicUi } from '../appMode';
 
 // Home-screen widgets are an Android feature; the browser build has none to set up.
 const hasWidgets = Platform.OS === 'android';
@@ -22,7 +23,8 @@ const hasWidgets = Platform.OS === 'android';
 export const WD_BACKUP_SECTIONS = ['settings', 'workingDashboard'];
 
 /** App-wide settings of the Working Dashboard app: security, appearance, alerts and backups. */
-export default function Settings() {
+export default function Settings({ navigation }) {
+  const [classicUi, setClassicUi] = useClassicUi();
   const t = useTheme();
   const { data, update, replaceAll, flush } = useStore();
 
@@ -141,6 +143,12 @@ export default function Settings() {
   return (
     <Screen>
       <AppLockSettings />
+
+      {Platform.OS === 'android' && (
+        <Group title="Screens" footer="The app shows the same screens as the website. The older phone screens work without internet and are the way back if the website cannot open.">
+          <Item icon="📱" color={t.accent} label="Use the older phone screens" value={classicUi ? 'On' : 'Off'} onPress={() => { setClassicUi(!classicUi); if (!classicUi) navigation.goBack(); }} last />
+        </Group>
+      )}
 
       <Group title="Appearance">
         <Item icon="🎨" color={t.pink} label="Theme" value={THEMES[st.theme]?.label || 'Pearl'} onPress={() => setSheet('theme')} />
