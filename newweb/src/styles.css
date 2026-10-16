@@ -695,3 +695,8 @@ button.chip:hover { filter: brightness(0.95); }
 
 .clear-filters { width: 38px; padding: 0; font-size: 16px; line-height: 1; }
 .clear-filters:disabled { opacity: 0.35; cursor: default; }
+
+.break-group { display: flex; flex-direction: column; gap: 8px; }
+.break-title { margin: 4px 0 0; }
+.breaks.two-up { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 1200px) { .breaks.two-up { grid-template-columns: repeat(2, minmax(0, calc(50% - 6px))); } }

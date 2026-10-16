@@ -43,3 +43,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: the Dashboard fills a wide screen (greeting and quick add on one line, all ten tiles in one row, equal breakdown cards, up to 1900px wide). Web only.
 - New web: a ✕ button in the Register filters clears every filter at once. Web only.
 - New web: Dashboard 'Next Month' tile (open tasks due next month; opens the Register with the new 'Next Month' due filter). Web only.
+- New web: the Dashboard breakdown cards count only tasks due this month; new 'Next month' row with By category and By priority cards; rows and the category window open the Register on the same month. Web only.
