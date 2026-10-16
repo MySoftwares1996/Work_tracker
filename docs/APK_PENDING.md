@@ -35,3 +35,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: the required star (*) sits on the same line as its Sub Category field name. Web only.
 - New web: New / Edit entry uses the whole screen (full window, bigger fields on tall screens, Save / Cancel bar fixed at the bottom). Web only.
 - New web: a Copy button beside Mail chain in the New / Edit entry form. Web only.
+- New web: Daily report chips open a window with the lines inside (other work, payments, followed up, left out, merged duplicates); each line has a Move to choice, moves are kept per day on that computer and drive the text, copy, print, Excel and Gemini; Undo my moves. Shared report engine: `excludedList` and `entry` on duplicates added (additive). Web only.

@@ -206,7 +206,7 @@ export function collectReportData(entries = [], date, lists) {
   const payments = listed.filter((e) => isPaymentEntry(e, lists));
   const others = listed.filter((e) => !isPaymentEntry(e, lists)).concat(importsOpen);
   const followed = live.filter((e) => isOpen(e) && !isImport(e) && workedOn(e, date) && inReport(e));
-  return { payments: payments.sort(byTime), others: others.sort(byTime), followed: followed.sort(byTime), excluded: completed.length - listed.length, skippedPayments };
+  return { payments: payments.sort(byTime), others: others.sort(byTime), followed: followed.sort(byTime), excluded: completed.length - listed.length, excludedList: completed.filter((e) => !inReport(e)), skippedPayments };
 }
 
 /**
@@ -222,10 +222,10 @@ export function buildReportModel({ entries = [], fixedActivities = [], activityL
 
   const seen = new Map();
   const dupeList = [];
-  const keep = (line, section) => {
+  const keep = (line, section, entry) => {
     const k = key(line);
     if (!k) return false;
-    if (seen.has(k)) { dupeList.push({ line: clean(line), section, keptIn: seen.get(k) }); return false; }
+    if (seen.has(k)) { dupeList.push({ line: clean(line), section, keptIn: seen.get(k), entry }); return false; }
     seen.set(k, section);
     return true;
   };
@@ -240,7 +240,7 @@ export function buildReportModel({ entries = [], fixedActivities = [], activityL
   });
   const descRows = (list, section) => list
     .map((e) => ({ line: reportLineFor(e, lists, date, { details }), entry: e, fixed: isFixedReportLine(e, lists) }))
-    .filter((r) => keep(r.line, section));
+    .filter((r) => keep(r.line, section, r.entry));
   const otherRows = descRows(d.others, 'Other work completed');
   const followRows = descRows(d.followed, 'Followed up / in progress');
   const fixedRows = (dayOff ? [] : fixedActivities || [])
@@ -264,7 +264,7 @@ export function buildReportModel({ entries = [], fixedActivities = [], activityL
     date,
     dupes: dupeList.length,
     dupeList,
-    data: { payments: payRows.length, others: otherRows.length, followed: followRows.length, excluded: d.excluded, skippedPayments: d.skippedPayments, bullets },
+    data: { payments: payRows.length, others: otherRows.length, followed: followRows.length, excluded: d.excluded, excludedList: d.excludedList, skippedPayments: d.skippedPayments, bullets },
     sections,
   };
 }

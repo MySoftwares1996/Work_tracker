@@ -9,7 +9,7 @@ import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
 import { finalNarration, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
-import { buildReport, mergeAi, reportPrompt, reportCsvRows, reportHtml, vendorTotals, fmtRupees } from './reportEngine';
+import { buildReport, REPORT_GROUPS, mergeAi, reportPrompt, reportCsvRows, reportHtml, vendorTotals, fmtRupees } from './reportEngine';
 import { reportMailUrl } from '../../src/workingDashboardReport.js';
 import { breakdown, subBreakdown, bankFollowUpDesk, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
@@ -459,7 +459,14 @@ function Report() {
   const flag = (k, dflt) => { try { const v = localStorage.getItem(k); return v === null ? dflt : v === '1'; } catch { return dflt; } };
   const [opts, setOpts] = useState(() => ({ headings: flag('report-headings', true), subFields: flag('report-sub-fields', true), pending: flag('report-pending', false) }));
   const setOpt = (k, storeKey) => (v) => { setOpts((o) => ({ ...o, [k]: v })); try { localStorage.setItem(storeKey, v ? '1' : '0'); } catch { /* not kept */ } };
-  const report = useMemo(() => buildReport(tasks, lists, calendar, day, { headings: opts.headings, subFields: opts.subFields, formats: reportFormats }), [tasks, lists, calendar, day, opts.headings, opts.subFields, reportFormats]);
+  // Lines the person moved between the groups, per day, kept on this computer: { 'YYYY-MM-DD': { taskId: 'oth' | 'pay' | 'fol' | 'out' } }.
+  const [allMoves, setAllMoves] = useState(() => { try { return JSON.parse(localStorage.getItem('report-moves') || '{}') || {}; } catch { return {}; } });
+  const moves = allMoves[day] || {};
+  const saveMoves = (next) => { setAllMoves(next); try { localStorage.setItem('report-moves', JSON.stringify(next)); } catch { /* not kept */ } };
+  const moveTo = (id, group) => saveMoves({ ...allMoves, [day]: { ...moves, [id]: group } });
+  const resetMoves = () => { const { [day]: _gone, ...rest } = allMoves; saveMoves(rest); };
+  const [peek, setPeek] = useState('');
+  const report = useMemo(() => buildReport(tasks, lists, calendar, day, { headings: opts.headings, subFields: opts.subFields, formats: reportFormats, moves }), [tasks, lists, calendar, day, opts.headings, opts.subFields, reportFormats, allMoves]); // eslint-disable-line react-hooks/exhaustive-deps
   const pending = useMemo(() => sortTasks(tasks.filter((t) => isOpen(t) && t.due && dayKey(t.due) <= day), 'priority'), [tasks, day]);
   const pendingText = pending.length ? `\n\nPending:\n${pending.map((t) => `* ${t.title}${t.priority ? ` [${t.priority}]` : ''}`).join('\n')}` : '';
   const draft = report.text + (opts.pending ? pendingText : '');
@@ -479,7 +486,7 @@ function Report() {
     setBusy(true); setAiError('');
     try {
       const { rewriteWithGemini } = await import('./gemini');
-      const forAi = buildReport(tasks, lists, calendar, day, { headings: true, subFields: opts.subFields, formats: reportFormats });
+      const forAi = buildReport(tasks, lists, calendar, day, { headings: true, subFields: opts.subFields, formats: reportFormats, moves });
       const got = await rewriteWithGemini(reportPrompt(forAi.model, forAi.text, extra));
       const merged = mergeAi(forAi.model, got.text, { headings: opts.headings });
       if (merged.error) { setAiError(merged.error); }
@@ -520,14 +527,16 @@ function Report() {
         <label className="check-row"><input type="checkbox" checked={opts.pending} onChange={(e) => setOpt('pending', 'report-pending')(e.target.checked)} /> Add the pending list ({pending.length})</label>
       </div>
       <div className="report-stats">
-        <span className="chip teal">{d.others} other work</span>
-        <span className="chip">{d.payments} payment{d.payments === 1 ? '' : 's'}</span>
-        <span className="chip amber">{d.followed} followed up</span>
-        {d.excluded > 0 && <span className="chip" title="Completed with Done (not DAR): kept out of the report">{d.excluded} left out (Done, not DAR)</span>}
+        <button className="chip teal" onClick={() => setPeek('oth')} title="See the lines and move them">{d.others} other work</button>
+        <button className="chip" onClick={() => setPeek('pay')} title="See the lines and move them">{d.payments} payment{d.payments === 1 ? '' : 's'}</button>
+        <button className="chip amber" onClick={() => setPeek('fol')} title="See the lines and move them">{d.followed} followed up</button>
+        <button className="chip" onClick={() => setPeek('out')} title="Completed with Done (not DAR): kept out of the report. Click to see them and move them in">{d.excluded} left out (Done, not DAR)</button>
         {d.skippedPayments > 0 && <span className="chip" title="Domestic and Urgent payments are not listed in the report">{d.skippedPayments} domestic / urgent payment(s) not listed</span>}
         {(report.model.missing || []).length > 0 && <span className="chip coral" title={report.model.missing.map((m) => `${m.title}: ${m.marks.join(', ')}`).join('\n')}>{report.model.missing.length} line(s) with a missing field [in brackets]</span>}
-        {report.model.dupes > 0 && <span className="chip" title="The same line twice is listed once">{report.model.dupes} duplicate line(s) merged</span>}
+        {report.model.dupes > 0 && <button className="chip" onClick={() => setPeek('dup')} title="The same line twice is listed once. Click to see them and move them into a group">{report.model.dupes} duplicate line(s) merged</button>}
+        {Object.keys(moves).length > 0 && <button className="chip ghost" onClick={resetMoves} title="Put every line back where the report placed it">Undo my moves ({Object.keys(moves).length})</button>}
       </div>
+      {peek && <GroupPeek group={peek} groups={report.model.groups} onMove={moveTo} onClose={() => setPeek('')} />}
       <details className="muted ai-extra"><summary>Instructions for Gemini (optional, remembered on this computer)</summary>
         <textarea rows={3} value={extra} onChange={(e) => saveExtra(e.target.value)} placeholder="e.g. Two lines per task, formal tone, start with the bank's name" aria-label="Instructions for Gemini" />
       </details>
@@ -557,6 +566,34 @@ function Report() {
       )}
       <p className="muted">Built the way the phone app and the old website write it: tasks completed that day with "✓ DAR", the Payments lines from their Tally narration, bank follow-ups with the banker's update, then the tasks followed up that day. Domestic and Urgent payments are left out.</p>
     </>
+  );
+}
+
+const GROUP_TITLES = { oth: 'Other work', pay: 'Payments', fol: 'Followed up / in progress', out: 'Left out (Done, not DAR)', dup: 'Duplicate lines merged' };
+
+/** The lines inside one Report chip, each with a "Move to" choice. */
+function GroupPeek({ group, groups, onMove, onClose }) {
+  const items = groups[group] || [];
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" role="dialog" aria-modal="true" aria-label={GROUP_TITLES[group]} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h2 className="h2">{GROUP_TITLES[group]} ({items.length})</h2><button className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        {!items.length && <p className="muted">Nothing here.</p>}
+        <ul className="peek-list">
+          {items.map((it, i) => (
+            <li key={`${it.id}-${i}`}>
+              <div className="peek-line"><b>{it.title}</b>{it.line && it.line !== it.title && <span className="muted">{it.line}</span>}{group === 'dup' && <span className="muted">Same as a line in {it.keptIn}</span>}</div>
+              <label className="peek-move">Move to
+                <select value={group === 'dup' ? '' : group} onChange={(e) => e.target.value && onMove(it.id, e.target.value)} aria-label={`Move ${it.title}`}>
+                  {group === 'dup' && <option value="">Choose…</option>}
+                  {REPORT_GROUPS.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+                </select>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 

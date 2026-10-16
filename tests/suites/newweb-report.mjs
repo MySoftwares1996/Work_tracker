@@ -37,4 +37,17 @@ export async function run({ ck, section }) {
   ck('without formats the task is written as before', !/Being amount paid/.test(none.text));
   const changed = mergeAi(withFormats.model, withFormats.text.replace('Being amount paid', 'Paid'));
   ck('a format line stays word for word even if Gemini changes it', !changed.error && /Being amount paid against Invoice No\. INV-4471/.test(changed.text));
+
+  section('New website: move lines between the Report groups');
+  const noDar = { ...done, id: 'n', title: 'Left-out task', notes: '', dar: false, completedAt: new Date(2026, 9, 16, 10) };
+  const dupA = { ...done, id: 'd1', title: 'Same job', notes: '', completedAt: new Date(2026, 9, 16, 11) };
+  const dupB = { ...done, id: 'd2', title: 'Same job', notes: '', completedAt: new Date(2026, 9, 16, 12) };
+  const all = [noDar, dupA, dupB];
+  const base = buildReport(all, { categories: [] }, {}, day, { headings: true, subFields: false });
+  ck('the groups list what is inside each chip', base.model.groups.out.length === 1 && base.model.groups.dup.length === 1 && base.model.groups.oth.length === 1);
+  const mv = buildReport(all, { categories: [] }, {}, day, { headings: true, subFields: false, moves: { n: 'oth', d2: 'fol' } });
+  ck('a left-out task moved to Other work is in the report and the count', mv.model.data.others === 2 && mv.model.data.excluded === 0 && /Left-out task/.test(mv.text));
+  ck('a merged duplicate moved to Followed up is listed there', mv.model.data.followed === 1 && mv.model.dupes === 0 && /Followed up/.test(mv.text));
+  const back = buildReport(all, { categories: [] }, {}, day, { headings: true, subFields: false, moves: { d1: 'out' } });
+  ck('a listed task moved to Left out leaves the report', back.model.data.excluded === 2 && back.model.data.others === 0 && back.model.groups.out.some((x) => x.id === 'd1'));
 }
