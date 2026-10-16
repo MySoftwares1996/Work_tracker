@@ -1,0 +1,39 @@
+# Deploys the instant-sync function (functions/, docs/INSTANT_SYNC.md) so the phone follows web edits within seconds.
+# Manual only. Needs the Firebase Blaze plan and the same FIREBASE_SERVICE_ACCOUNT secret the web deploy uses; that service
+# account also needs the roles listed in docs/INSTANT_SYNC.md. It never touches Hosting, the rules or the APK.
+name: Deploy instant sync
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Check the secret is set
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: test -n "$FIREBASE_SERVICE_ACCOUNT" || { echo "::error::Secret FIREBASE_SERVICE_ACCOUNT is not set (docs/DEPLOY_WEB.md, step 3)"; exit 1; }
+
+      - name: Install the function's packages
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+
+      - name: Deploy the function
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          echo '{"functions":{"source":"functions"}}' > "$RUNNER_TEMP/firebase.json"
+          cp -r functions "$RUNNER_TEMP/functions"
+          cd "$RUNNER_TEMP"
+          npx --yes firebase-tools@15 deploy --only functions --project work-tracker-3b728 --non-interactive
+          rm -f "$RUNNER_TEMP/firebase-sa.json"

@@ -11,7 +11,7 @@ const admin = require('firebase-admin');
 
 admin.initializeApp();
 
-const QUIET_MS = 4000;       // a burst of edits (a sync of many tasks) sends one message, 4 s after the first - not one each
+const QUIET_MS = 1000;       // a burst of edits (a sync of many tasks) sends one message, 1 s after the first - not one each (kept short: sync must stay under 10 s)
 
 exports.tasksChanged = onDocumentWritten('users/{uid}/tasks/{taskId}', async (event) => {
   const uid = event.params.uid;
