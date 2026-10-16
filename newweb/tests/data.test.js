@@ -538,7 +538,7 @@ test('marks with no field in the Sub Category are listed, so they can be added',
 });
 
 test('the sample formats from the owner\'s sheet all have text and marks', () => {
-  assert.ok(SAMPLE_FORMATS.length >= 22);
+  assert.ok(SAMPLE_FORMATS.length >= 23);
   assert.ok(SAMPLE_FORMATS.every((f) => f.subCategory && f.template.length > 20));
   const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
   assert.equal(imp.missing.length, 0);
@@ -604,4 +604,9 @@ test('HR Statutory and Monthly Payments formats: short names match exactly, the 
   const entry = { category: 'HR Statutory Payment', subCategory: 'EPFO', subCategoryFields: { Month: 'September 2026', 'Liability Period': 'Aug 2026', 'Amount Paid': '1,00,000', 'Payment Date': '15-10-2026', Status: 'Completed' } };
   assert.equal(renderTemplate(f('EPFO').template, entry).text, 'Made the payment for EPFO for the month of September 2026 - with Month: September 2026, Liability Period: Aug 2026, Amount Paid: 1,00,000, Payment Date: 15-10-2026, Status: Completed.');
   assert.ok(f('Monthly TDS Payments by Section wise: ').template.includes('{TDS Section & Code}'));
+});
+
+test('Rent Payments format is written from its fields', () => {
+  const f = findFormat(SAMPLE_FORMATS, 'Rent Payments');
+  assert.equal(renderTemplate(f.template, { subCategoryFields: { Month: 'October 2026', Premises: 'Head Office', Amount: '85,000' } }).text, 'Being amount paid towards rent for the month of October 2026 for Head Office, amounting to ₹85,000.');
 });
