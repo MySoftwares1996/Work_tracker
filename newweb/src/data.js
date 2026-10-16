@@ -284,7 +284,7 @@ export function subCategoryMissing(t, lists) {
   if (!t.subCategory) return 'Select a Sub Category before marking this Completed.';
   const sc = findSubCategory(lists, t.subCategory);
   const missing = sc ? sc.fields.filter((f) => !String((t.subCategoryFields || {})[f.label] || '').trim()) : [];
-  return missing.length ? `Fill in ${missing.map((f) => f.label).join(', ')} before marking this Completed.` : '';
+  return missing.length ? `Fill all the Sub Category fields before marking this Completed - missing: ${missing.map((f) => String(f.label).replace(/[\s:]+$/, '')).join(', ')}.` : '';
 }
 /** Adds one Sub Category under a category. A name is kept once across all categories, because a task stores only the name. */
 export function addSubCategory(list, name, labels = [], category = '') {

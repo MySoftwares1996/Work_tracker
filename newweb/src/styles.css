@@ -455,3 +455,6 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 
 .alert-sub { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--violet) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--violet) 22%, transparent); }
 .alert-sub .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+
+.field .req { color: var(--coral); font-weight: 800; }
+.field.need input, .field.need select { border-color: var(--coral); box-shadow: 0 0 0 2px color-mix(in srgb, var(--coral) 25%, transparent); }

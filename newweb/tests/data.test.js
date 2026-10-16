@@ -229,7 +229,7 @@ test('sub categories: read from the lists, shown for the right categories, requi
   assert.equal(categoryCarriesSubCategory(lists, 'Duty Payment'), false);      // the list names the categories, so the default is not used
   const t = task({ category: 'Other' });
   assert.match(subCategoryMissing(t, lists), /Select a Sub Category/);
-  assert.match(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1' } }, lists), /Fill in Mode/);
+  assert.match(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1' } }, lists), /missing: Mode/);
   assert.equal(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1', Mode: 'TT' } }, lists), '');
   assert.equal(subCategoryMissing(task({ category: 'Duty Payment' }), lists), '');
   // with no list of categories, the phone's own default applies

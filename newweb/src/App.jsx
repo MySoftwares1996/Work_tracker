@@ -149,8 +149,19 @@ const Empty = ({ text }) => <div className="empty"><Logo size={40} className="fl
 function Chip({ children, tone }) { return <span className={`chip ${tone || ''}`}>{children}</span>; }
 const priTone = (p) => ({ high: 'coral', medium: 'amber', low: 'teal' })[String(p).toLowerCase()] || '';
 
+/** Completing a task from a card or row: a task whose Sub Category has fields needs all of them filled first, so it opens for filling instead. */
+function useCompleter(onEdit) {
+  const { actions, lists, notify } = useStore();
+  return (t, dar) => {
+    const msg = subCategoryMissing(t, lists);
+    if (msg) { notify(msg); onEdit(t); return; }
+    actions.complete(t, dar);
+  };
+}
+
 function TaskCard({ t, onEdit, compact }) {
   const { actions, notify, templates, saveTemplates } = useStore();
+  const complete = useCompleter(onEdit);
   const late = isOverdue(t);
   return (
     <article className={`card pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}`}>
@@ -172,8 +183,8 @@ function TaskCard({ t, onEdit, compact }) {
       </button>
       {isOpen(t) && (
         <div className="card-actions">
-          <button className="btn ok" onClick={() => actions.complete(t, false)} title="Done - kept out of the daily report">✓ Done</button>
-          <button className="btn ok soft" onClick={() => actions.complete(t, true)} title="Done and included in the daily report">✓ DAR</button>
+          <button className="btn ok" onClick={() => complete(t, false)} title="Done - kept out of the daily report">✓ Done</button>
+          <button className="btn ok soft" onClick={() => complete(t, true)} title="Done and included in the daily report">✓ DAR</button>
           <button className="btn ghost" onClick={() => { saveTemplates(saveTemplate(templates, templateFrom(t))); notify(`Template saved: ${t.title}`); }} title="Save as template" aria-label="Save as template">📋</button>
           <button className="btn ghost" onClick={() => actions.bin(t)} aria-label="Move to bin">🗑</button>
         </div>
@@ -223,6 +234,7 @@ function Filters({ f, setF, lists, extra }) {
 
 function Table({ rows, onEdit, done }) {
   const { actions } = useStore();
+  const complete = useCompleter(onEdit);
   return (
     <div className="table-wrap">
       <table>
@@ -235,7 +247,7 @@ function Table({ rows, onEdit, done }) {
               <td>{t.category || '-'}</td>
               <td>{t.pendingWith || '-'}</td>
               <td className={isOverdue(t) ? 'late' : ''}>{done ? (t.completedAt ? t.completedAt.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '-') : dueLabel(t)}</td>
-              <td className="right">{done ? <button className="btn" onClick={() => actions.reopen(t)}>Reopen</button> : <><button className="btn ok" onClick={() => actions.complete(t, false)}>✓</button> <button className="btn ok soft" onClick={() => actions.complete(t, true)}>DAR</button></>}</td>
+              <td className="right">{done ? <button className="btn" onClick={() => actions.reopen(t)}>Reopen</button> : <><button className="btn ok" onClick={() => complete(t, false)}>✓</button> <button className="btn ok soft" onClick={() => complete(t, true)}>DAR</button></>}</td>
             </tr>
           ))}
         </tbody>
@@ -634,7 +646,7 @@ function TaskForm({ initial, onClose }) {
           </select>
           {sc && sc.fields.length > 0 && (
             <div className="fields">{sc.fields.map((f) => (
-              <label className="field" key={f.label}>{f.label}
+              <label className={`field${/^completed$/i.test(t.status) && !String((t.subCategoryFields || {})[f.label] || '').trim() ? ' need' : ''}`} key={f.label}>{f.label}{/^completed$/i.test(t.status) && <span className="req"> *</span>}
                 {f.options && f.options.length ? <select value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
                   : <input value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })} />}
               </label>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
 import Logo from './Logo';
 import ClockPicker from './ClockPicker';
-import { SNOOZES, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
+import { SNOOZES, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
@@ -105,14 +105,17 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
   useEffect(() => { const k = (e) => { if (e.key === 'Escape' && !clock) finish(a); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [a, finish, clock]);
 
   const save = (patch) => { if (!a.test) actions.save(withRemark(withSub({ ...t, ...patch }), remarks)); finish(a); };
-  const done = (dar) => { if (!a.test) actions.complete(withRemark(withSub(t), remarks), dar); finish(a); };
+  const [subErr, setSubErr] = useState('');
+  // Completing needs every Sub Category field filled; the fields are right here in the alert.
+  const needsFields = (x) => { const m = a.test ? '' : subCategoryMissing(x, lists); setSubErr(m); return !!m; };
+  const done = (dar) => { if (needsFields(withSub(t))) return; if (!a.test) actions.complete(withRemark(withSub(t), remarks), dar); finish(a); };
   const setReminder = () => {
     const when = reminderFrom(rDate, rTime);
     if (!when || when.getTime() <= Date.now()) { setRError('Pick a date and time in the future.'); return; }
     save({ nextReminder: when });
   };
   const skip = () => (a.kind === 'reminder' ? save({ nextReminder: null }) : save({ skippedDates: [...(t.skippedDates || []), today] }));
-  const move = () => { if (!a.test) actions.save(withRemark(withSub(moveTask(t, date, time, status, repeat)), remarks)); finish(a); };
+  const move = () => { if (/^completed$/i.test(status) && needsFields(withSub(t))) return; if (!a.test) actions.save(withRemark(withSub(moveTask(t, date, time, status, repeat)), remarks)); finish(a); };
   const tone = String(t.priority).toLowerCase() === 'high' ? 'high' : String(t.priority).toLowerCase() === 'low' ? 'low' : 'medium';
 
   return (
@@ -156,6 +159,7 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
                 </label>
               ))}</div>
             )}
+            {subErr && <p className="banner err" role="alert">{subErr}</p>}
             <div><button type="button" className="btn" onClick={saveReply}>Save {sc && sc.fields.length ? 'these details' : 'sub category'}</button></div>
           </div>
         )}
