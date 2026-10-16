@@ -91,6 +91,37 @@ export function LiveStore({ children }) {
     return () => { un1(); un2(); };
   }, [user]);
 
+  // The "in use" note the phone reads (users/<you>/meta/presence): written every minute while this tab is open and was used in
+  // the last 15 minutes, and cleared when it closes. While it is fresh the phone only shows a notification; otherwise it rings.
+  useEffect(() => {
+    if (!user) return undefined;
+    const ref = doc(dbOf(), 'users', user.uid, 'meta', 'presence');
+    const IDLE = 15 * 60000;
+    let lastInput = Date.now();
+    let lastSent = 0;
+    const put = (webActiveAt, lastInputAt) => setDoc(ref, { webActiveAt, lastInputAt }, { merge: true }).catch(() => {});
+    const send = (force) => {
+      const now = Date.now();
+      if (now - lastInput > IDLE) return;
+      if (!force && now - lastSent < 50000) return;
+      lastSent = now;
+      put(now, lastInput);
+    };
+    const onInput = () => { const idleBefore = Date.now() - lastInput > 60000; lastInput = Date.now(); if (idleBefore) send(true); };
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'];
+    events.forEach((ev) => window.addEventListener(ev, onInput, { passive: true }));
+    const onHide = () => put(0, 0);
+    window.addEventListener('pagehide', onHide);
+    send(true);
+    const timer = setInterval(() => send(false), 60000);
+    return () => {
+      clearInterval(timer);
+      events.forEach((ev) => window.removeEventListener(ev, onInput));
+      window.removeEventListener('pagehide', onHide);
+      put(0, 0);
+    };
+  }, [user]);
+
   const tasks = useMemo(() => Object.values(taskMap).filter((t) => !t.purged), [taskMap]);
   tasksRef.current = tasks;
 

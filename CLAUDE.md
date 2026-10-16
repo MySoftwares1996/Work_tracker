@@ -25,7 +25,7 @@ Several sessions have changed the alert code; check this list before changing it
 - The due moment, deadline, overdue and follow-up alerts are booked on the phone as full-screen alarms,
   `wd:<entry id>:<key>`; the warnings before them (`isWarningKey`: "Due in 1 hr", "Due tomorrow", "Deadline in 2 hr") are always a notification only - on the website too, where they open no alarm window (`src/WebAlarm.js`); the owner asked for this for every task, so there is no setting to make them ring (`src/workingDashboardNotify.js`, native `AlarmReceiver`). Walk / water nudges are `nudge:`.
 - Web in use = phone silent: web.app writes an "in use" note while the tab is open and used (`src/RealtimeSync.js`);
-  the phone shows nothing for task alerts while it is fresh (3 min) and the tab had input in the last 15 min
+  the phone shows only a quiet notification for task alerts while it is fresh (3 min; was nothing before the next APK build) and the tab had input in the last 15 min
   (`webActiveUntil` in `src/firebaseSyncCore.js`, native `WebPresence.kt`). Unknown = it rings.
 - A task alert's full-screen alarm opens the app's own Past Due Alert (full screen, every option: remarks, Mark done,
   Done + DAR, Silence, Skip, Snooze, Move, status, repeat); other alarms use the simple native screen

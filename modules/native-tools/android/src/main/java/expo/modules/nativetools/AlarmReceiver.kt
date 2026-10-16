@@ -31,10 +31,10 @@ class AlarmReceiver : BroadcastReceiver() {
     AlarmStore.forget(context, taskId)        // rung: nothing to restore after a reboot
 
     // A Working Dashboard alert (a task's, or a walk / water reminder) while the web app is in use: the web app
-    // alerts at the desk, so the phone stays completely silent - no ring, no notification. Outside that window
-    // (or when it cannot tell) it rings full screen as usual.
+    // alerts at the desk, so the phone only shows a quiet notification - no ring, no full screen (and nothing at all
+    // for a task already answered on the web app). Outside that window (or when it cannot tell) it rings full screen.
     val isAlert = taskId.startsWith("wd:") || taskId.startsWith("nudge:")
-    if (isAlert && AlarmStore.webInUse(context)) return
+    if (isAlert && AlarmStore.webInUse(context)) { postQuiet(context, taskId, title, body); return }
     if (isAlert && WebPresence.enabled(context)) {
       // The app may not have run for hours, so what it last passed on is stale: ask Firestore now. Off the main
       // thread, a few seconds at most (goAsync keeps the receiver alive); unknown = ring.
@@ -42,7 +42,9 @@ class AlarmReceiver : BroadcastReceiver() {
       Thread {
         try {
           // Quiet while the web app is in use, and for a task already answered on the web app (booked here before).
-          if (!WebPresence.inUseNow(context) && !WebPresence.taskHandled(context, taskId)) ring(context, taskId, title, body)
+          if (WebPresence.taskHandled(context, taskId)) { /* answered on the web app: nothing to show */ }
+          else if (WebPresence.inUseNow(context)) postQuiet(context, taskId, title, body)
+          else ring(context, taskId, title, body)
         } catch (_: Throwable) {
           ring(context, taskId, title, body)
         } finally {
