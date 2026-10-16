@@ -6,7 +6,10 @@ import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
 import { firebaseApp } from './firebase';
 
 // Tried in order: a model that has been retired answers "not found", and the next one is used.
-const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
+// Google retires models; its own error named gemini-3.8-flash as the current one (2.0 and older answer "no longer available").
+// VITE_GEMINI_MODELS (comma separated) overrides the list at build time without a code change.
+const MODELS = String(import.meta.env.VITE_GEMINI_MODELS || 'gemini-3.8-flash,gemini-flash-latest,gemini-2.5-flash,gemini-2.5-flash-lite')
+  .split(',').map((x) => x.trim()).filter(Boolean);
 
 export async function generateWithGemini(prompt) {
   const ai = getAI(firebaseApp(), { backend: new GoogleAIBackend() });
@@ -18,7 +21,7 @@ export async function generateWithGemini(prompt) {
       if (text.trim()) return text;
     } catch (e) {
       lastError = e;
-      if (!/not found|404|not supported/i.test(String(e?.message || ''))) break;    // only a missing model moves on
+      if (!/not found|404|not supported|no longer available/i.test(String(e?.message || ''))) break;    // only a missing model moves on
     }
   }
   const msg = String(lastError?.message || '');
