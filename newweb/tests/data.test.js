@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
 import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../src/reportFormats.js';
-import { breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -609,4 +609,13 @@ test('HR Statutory and Monthly Payments formats: short names match exactly, the 
 test('Rent Payments format is written from its fields', () => {
   const f = findFormat(SAMPLE_FORMATS, 'Rent Payments');
   assert.equal(renderTemplate(f.template, { subCategoryFields: { Month: 'October 2026', Premises: 'Head Office', Amount: '85,000' } }).text, 'Being amount paid towards rent for the month of October 2026 for Head Office, amounting to ₹85,000.');
+});
+
+test('Next Month counts the open tasks due next month, across the year end', () => {
+  const dec = new Date(2026, 11, 15);
+  const jan = task({ due: new Date(2027, 0, 5, 9) });
+  const decTask = task({ due: new Date(2026, 11, 20, 9) });
+  assert.ok(isDueNextMonth(jan, dec) && !isDueNextMonth(decTask, dec));
+  assert.equal(stats([jan, decTask], dec).nextMonth, 1);
+  assert.equal(filterTasks([jan, decTask], { due: 'nextmonth' }, dec).length, 1);
 });

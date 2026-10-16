@@ -163,12 +163,13 @@ export const isDueToday = (t, now = new Date()) => isOpen(t) && !!t.due && dayKe
 export const isPendingAsOnToday = (t, now = new Date()) => isOverdue(t, now) || isDueToday(t, now);
 export const isDueSoon = (t, now = new Date(), days = 7) => isOpen(t) && !!t.due && startOfDay(t.due) > startOfDay(now) && startOfDay(t.due) <= addDays(startOfDay(now), days);
 export const isDueThisMonth = (t, now = new Date()) => isOpen(t) && !!t.due && t.due.getFullYear() === now.getFullYear() && t.due.getMonth() === now.getMonth();
+export const isDueNextMonth = (t, now = new Date()) => { const n = new Date(now.getFullYear(), now.getMonth() + 1, 1); return isOpen(t) && !!t.due && t.due.getFullYear() === n.getFullYear() && t.due.getMonth() === n.getMonth(); };
 export const hasNoDueDate = (t) => isOpen(t) && !t.due;
 export const isStatusPending = (t) => isOpen(t) && /^pending$/i.test(String(t.status).trim());
 
 /** The Register's "Due" choices, as the Dashboard tiles open them. */
-export const DUE_FILTERS = [['pending', 'Pending as on Today'], ['today', 'Due Today'], ['overdue', 'Overdue'], ['next7', 'Next 7 Days'], ['month', 'This Month'], ['none', 'No Due Date']];
-const DUE_TESTS = { pending: isPendingAsOnToday, today: isDueToday, overdue: isOverdue, next7: isDueSoon, month: isDueThisMonth, none: hasNoDueDate };
+export const DUE_FILTERS = [['pending', 'Pending as on Today'], ['today', 'Due Today'], ['overdue', 'Overdue'], ['next7', 'Next 7 Days'], ['month', 'This Month'], ['nextmonth', 'Next Month'], ['none', 'No Due Date']];
+const DUE_TESTS = { pending: isPendingAsOnToday, today: isDueToday, overdue: isOverdue, next7: isDueSoon, month: isDueThisMonth, nextmonth: isDueNextMonth, none: hasNoDueDate };
 
 export function stats(tasks, now = new Date()) {
   const open = tasks.filter(isOpen);
@@ -181,6 +182,7 @@ export function stats(tasks, now = new Date()) {
     dueToday: count(isDueToday),
     dueSoon: count(isDueSoon),
     thisMonth: count(isDueThisMonth),
+    nextMonth: count(isDueNextMonth),
     noDueDate: open.filter(hasNoDueDate).length,
     pending: open.filter(isStatusPending).length,
     high: open.filter((t) => /^high$/i.test(t.priority)).length,
