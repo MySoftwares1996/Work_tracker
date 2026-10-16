@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 // The same Firebase project as the phone app, so both see the same tasks. Any value can be replaced at build time with a
 // VITE_FIREBASE_* variable (the project's own Web app keys, if the default Android key is restricted to Android apps).
@@ -15,4 +16,14 @@ export const firebaseConfig = {
 };
 
 let app;
-export const firebaseApp = () => app || (app = initializeApp(firebaseConfig));
+// App Check (docs/NEW_WEB.md, "App Check"): with a reCAPTCHA v3 site key the page proves to Firebase that its requests come from this
+// website. Google requires it for Gemini (Firebase AI Logic) from 2 November 2026. Without the key the page still works, as before.
+const SITE_KEY = env.VITE_RECAPTCHA_SITE_KEY || '';
+export const firebaseApp = () => {
+  if (app) return app;
+  app = initializeApp(firebaseConfig);
+  if (SITE_KEY && typeof window !== 'undefined') {
+    try { initializeAppCheck(app, { provider: new ReCaptchaV3Provider(SITE_KEY), isTokenAutoRefreshEnabled: true }); } catch { /* the page works without it */ }
+  }
+  return app;
+};

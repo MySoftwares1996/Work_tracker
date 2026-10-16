@@ -49,6 +49,8 @@ jobs:
           # The old EXPO_PUBLIC_* variables are used when the VITE_* ones are not set.
           VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY || vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID || vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          # Optional: the reCAPTCHA v3 site key for App Check (docs/NEW_WEB.md, "App Check").
+          VITE_RECAPTCHA_SITE_KEY: ${{ vars.VITE_RECAPTCHA_SITE_KEY }}
         run: |
           npm ci --no-audit --no-fund
           npm test

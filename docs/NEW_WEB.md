@@ -59,3 +59,18 @@ The Report tab has **✨ Rewrite with Gemini**. It uses Firebase AI Logic with t
 
 The free tier has a daily limit for the whole project. If the button says the limit is reached, try again later. The report
 text is sent to Google's Gemini to be rewritten; nothing else is sent. If Gemini changes or drops a number, the page tells you which.
+
+## App Check (needed for Gemini from 2 November 2026)
+
+Google will require App Check for Firebase AI Logic from 2 November 2026. The page sends an App Check token when it is built with a
+reCAPTCHA v3 site key. Steps (all free):
+
+1. **Register a Web app.** Firebase console > Project settings (gear) > General > Your apps > the `</>` icon > nickname "Working
+   Dashboard web" > Register app. Copy the `appId` shown (it looks like `1:872088776442:web:abc123...`). Do not turn on Hosting there.
+2. **Create a reCAPTCHA v3 key.** https://www.google.com/recaptcha/admin/create > label "Working Dashboard", type **reCAPTCHA v3**, domains:
+   `work-dashboard-3b728.web.app` and `work-tracker-3b728.firebaseapp.com` > Submit. Copy the **Site key** and the **Secret key**.
+3. **Give the secret to Firebase.** Firebase console > App Check > **Apps** tab > the web app > **reCAPTCHA** > paste the **Secret key** > Save.
+4. **Tell GitHub.** Repository > Settings > Secrets and variables > Actions > **Variables** tab: add `VITE_FIREBASE_APP_ID` = the web appId from step 1,
+   and `VITE_RECAPTCHA_SITE_KEY` = the Site key from step 2. (The Site key is public by design; never put the Secret key in GitHub.)
+5. Run **Deploy web version**. Then App Check > APIs > Firebase AI Logic should show verified requests; leave enforcement off until
+   the verified share is near 100%, or let Google enforce it on 2 November.
