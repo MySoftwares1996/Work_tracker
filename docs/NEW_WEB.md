@@ -93,11 +93,6 @@ For each Sub Category you can write the exact line the Daily report uses for a t
 - The 22 formats from the owner's "Tally Narration formats" sheet are built in (`newweb/src/reportFormats.js`, `SAMPLE_FORMATS`) and used until a format is saved. Saving writes all formats to `users/<uid>/meta/tools` (`reportFormats`), so every browser shows the same ones.
 - If a template has a mark the Sub Category has no field for, Config shows an **Add it to the Sub Category** button.
 
-
-## Inside the Android app
-
-The APK shows this site in a built-in browser (`src/screens/WebApp.js`). `src/nativeBridge.js` talks to it: `token` / `signin` / `signout` (Google ID token from the phone, so the page and the phone are one account), `copy`, `print`, `file` (CSV via the share sheet), `settings`, `classic`. Outside the app none of it is active (`inApp()` is false).
-
 ## Speed
 
 - The Report, Config and entry form are separate files (`src/screens/`), loaded when first opened and fetched quietly once the page is idle; Firebase and React are their own cached files (`vite.config.js`). Do not split `@firebase/ai` into its own chunk: the production build then fails at start ("Cannot access ... before initialization"); always open a production build (`npx vite build` + `npx vite preview`), not only the dev server, after changing chunking.

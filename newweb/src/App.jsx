@@ -6,7 +6,6 @@ import AlertCenter from './AlertCenter';
 import { planImport } from './importBackup';
 import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from './alerts';
 import { copyText } from './clipboard';
-import { inApp, askNative } from './nativeBridge';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
 import { finalNarration, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
