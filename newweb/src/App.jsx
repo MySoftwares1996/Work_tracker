@@ -42,7 +42,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <div className="brand"><span className="logo">W</span><span className="brand-name">Working Dashboard</span></div>
+        <div className="brand"><img className="logo" src="/icon-192.png" alt="" /><span className="brand-name">Working Dashboard</span></div>
         <nav className="tabs" aria-label="Sections">
           {TABS.map(([k, label]) => (
             <button key={k} className={`tab${tab === k ? ' on' : ''}`} onClick={() => go(k)} aria-current={tab === k ? 'page' : undefined}>
@@ -72,7 +72,7 @@ function SignIn() {
   return (
     <div className="center">
       <div className="signin">
-        <span className="logo big">W</span>
+        <img className="logo big" src="/icon-192.png" alt="" />
         <h1>Working Dashboard</h1>
         <p>Your tasks, deadlines and daily report - the same account as your phone.</p>
         <button className="btn primary" onClick={signIn}>Sign in with Google</button>

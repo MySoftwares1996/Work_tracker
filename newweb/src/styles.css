@@ -30,7 +30,7 @@ h1, h2, p { margin: 0; }
   padding: 12px 24px; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.3px; }
-.logo { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; color: var(--on-accent); font-weight: 900; background: var(--logo-grad); }
+.logo { object-fit: cover; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; color: var(--on-accent); font-weight: 900; background: var(--logo-grad); }
 .logo.big { width: 64px; height: 64px; font-size: 30px; border-radius: 20px; }
 .tabs { display: flex; gap: 4px; padding: 5px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
