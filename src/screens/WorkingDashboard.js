@@ -47,6 +47,7 @@ import {
   nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isSkippedToday, isOfficeClosed,
 } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
+import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
 import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, HHMM, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, OpenCard, DoneCard, UndoBar, ShowMore, CountList, PhoneTile, PhoneRow, PhoneDoneRow } from './wdCards';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
@@ -2271,6 +2272,18 @@ export default function WorkingDashboard() {
               <Item icon="⚙️" color={t.textDim} label="Config & lists" onPress={() => setTab('config')} />
               <Item icon="🔔" color={t.warn} label="Alerts, app lock & backups" onPress={() => navigation.navigate('Settings')} last />
             </Group>
+            {(() => {
+              // The phone's own updates: whether this build can receive them, which version is running, and a button to look now.
+              const u = updateStatus();
+              if (!u) return null;
+              return (
+                <Group title="App updates" footer={u.enabled ? 'A new version is downloaded when the app opens; tap Restart in the bar that appears.' : 'This build was made without the update settings, so it cannot receive updates - a new APK build is needed.'}>
+                  <Item icon="🔄" color={u.enabled ? t.ok : t.danger} label="Updates" value={u.enabled ? `On${u.channel ? ` · ${u.channel}` : ''}` : 'Off'} />
+                  <Item icon="📦" color={t.textDim} label="Running" value={`${u.running}${u.when ? ` · ${u.when}` : ''}`} />
+                  <Item icon="🔎" color={t.accent} label="Check for an update now" onPress={async () => Alert.alert('App updates', await checkForPhoneUpdate())} last />
+                </Group>
+              );
+            })()}
           </View>
         )}
 
