@@ -613,7 +613,7 @@ test('HR Statutory and Monthly Payments formats: short names match exactly, the 
 
 test('Rent Payments format is written from its fields', () => {
   const f = findFormat(SAMPLE_FORMATS, 'Rent Payments');
-  assert.equal(renderTemplate(f.template, { subCategoryFields: { Month: 'October 2026', Premises: 'Head Office', Amount: '85,000' } }).text, 'Being amount paid towards rent for the month of October 2026 for Head Office, amounting to ₹85,000.');
+  assert.equal(renderTemplate(f.template, { subCategoryFields: { Name: 'Mr Landlord', Month: 'October 2026', Premises: 'Head Office', Amount: '85,000' } }).text, 'Mr Landlord: - Being amount paid towards rent for the month of October 2026 for Head Office, amounting to ₹85,000.');
 });
 
 test('Next Month counts the open tasks due next month, across the year end', () => {
