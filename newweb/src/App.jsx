@@ -8,7 +8,7 @@ import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from 
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
+import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
 import { buildReport, mergeAi, reportPrompt, reportCsvRows, reportHtml, vendorTotals, fmtRupees } from './reportEngine';
 import { reportMailUrl } from '../../src/workingDashboardReport.js';
 import { bankFollowUpDesk, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
@@ -582,6 +582,8 @@ function ReportFormats() {
     ...reportFormats.filter((f) => !subs.some((sc) => findFormat([f], sc.name))).map((f) => ({ key: `f-${f.id}`, sc: null, name: f.subCategory, category: f.category, format: f })),
   ];
   const everyFormat = () => (reportFormatsCustom ? reportFormats : SAMPLE_FORMATS);
+  const setup = planFormatSetup(lists, reportFormats);
+  const missingCount = setup.categories.length + setup.subCategories.length;
   const startEdit = (row) => { setOpen(open === row.key ? '' : row.key); setDraft(row.format ? row.format.template : ''); };
   const save = (row, template) => {
     const list = everyFormat().filter((f) => !(row.format && f.id === row.format.id));
@@ -594,6 +596,16 @@ function ReportFormats() {
     <section className="card plain">
       <h2 className="h2">Report formats</h2>
       <p className="muted">The line the Daily report writes for a task in each Sub Category. Write the sentence and put a task's own value where it goes in {'{'}braces{'}'} - for example <code>Being amount paid against Invoice No. {'{'}Invoice No{'}'}, amounting to ₹{'{'}Amount{'}'}.</code> Each {'{'}mark{'}'} is filled from the task's Sub Category field with that name (then its Key Points); a missing value shows as [mark] in the report. The sample formats from your Tally narration sheet are used until you change one.{reportFormatsCustom ? ' (Your own formats are saved.)' : ''}</p>
+      <div className={`fmt-setup${missingCount ? ' todo' : ''}`}>
+        {missingCount ? (
+          <>
+            <div><b>{setup.categories.length} categor{setup.categories.length === 1 ? 'y' : 'ies'} and {setup.subCategories.length} sub categor{setup.subCategories.length === 1 ? 'y' : 'ies'} from the formats are not in your lists yet.</b>
+              <div className="muted fmt-missing">{setup.categories.length > 0 && <>Categories: {setup.categories.join(', ')}. </>}{setup.subCategories.length > 0 && <>Sub categories: {setup.subCategories.map((x) => `${x.name} (${x.category || 'no category'})`).join('; ')}.</>}</div>
+              <div className="muted">Only what is missing is created, each new Sub Category with a field for every {'{'}mark{'}'} of its format. Nothing you already have is changed.</div></div>
+            <button type="button" className="btn primary" onClick={() => saveLists(setup.lists)}>Create the missing ones</button>
+          </>
+        ) : <span className="muted">✓ Every category and sub category in the formats is already in your lists.</span>}
+      </div>
       <div className="fmt-list">
         {rows.map((row) => {
           const labels = row.sc ? row.sc.fields.map((f) => f.label) : [];

@@ -98,3 +98,39 @@ export const SAMPLE_FORMATS = [
   { category: 'Payments', subCategory: 'Refund of Sale', template: 'Being amount paid towards sales refund against Order ID: {Order ID}, amounting to ₹{Amount}.' },
   { category: 'Payments', subCategory: 'Credit Card Payments', template: 'Being the amount paid towards {Towards}, amounting to ₹{Amount}, as per the email subject: {Email subject}.' },
 ].map((f, i) => ({ id: `sample-${i}`, ...f }));
+
+const OWN_MARKS = new Set(['title', 'category', 'sub category', 'mail', 'notes']);
+
+/**
+ * What it takes for every format to have its Category and Sub Category (only what is missing is created, nothing existing is touched):
+ * { categories: [names], subCategories: [{ name, category, labels }], lists } - `lists` is the lists object with them added.
+ * A new Sub Category gets a field for each {mark} of its format. Categories are matched by name (a plural "s" is ignored);
+ * Sub Categories as findFormat does, so "Imports Payment" is not created again beside "Imports Payment Initiation".
+ */
+export function planFormatSetup(lists = {}, formats = []) {
+  const cats = Array.isArray(lists.categories) ? [...lists.categories] : [];
+  const subs = Array.isArray(lists.subCategories) ? [...lists.subCategories] : [];
+  const addedCats = [];
+  const addedSubs = [];
+  const hasCat = (name) => cats.some((c) => normName(c) === normName(name));
+  const hasSub = (name) => { const n = normName(name); return subs.some((x) => { const m = normName(x.name); return m && (m === n || m.includes(n) || n.includes(m)); }); };
+  (formats || []).forEach((f) => {
+    if (!f || !f.subCategory || !f.template) return;
+    const category = clean(f.category);
+    if (category && !hasCat(category)) { cats.push(category); addedCats.push(category); }
+    if (!hasSub(f.subCategory)) {
+      const labels = [];
+      placeholdersOf(f.template).forEach((mark) => { if (!OWN_MARKS.has(mark.toLowerCase()) && !labels.some((l) => l.toLowerCase() === mark.toLowerCase())) labels.push(mark); });
+      const sc = { id: `sc-${Date.now().toString(36)}-${subs.length}`, name: clean(f.subCategory).replace(/[:\s]+$/, ''), category, fields: labels.map((label) => ({ label })) };
+      subs.push(sc);
+      addedSubs.push({ name: sc.name, category, labels });
+    }
+  });
+  const next = { ...lists, categories: cats, subCategories: subs };
+  if (Array.isArray(lists.subCategoryCategories)) {
+    const carry = [...lists.subCategoryCategories];
+    addedSubs.forEach((x) => { if (x.category && !carry.some((c) => normName(c) === normName(x.category))) carry.push(x.category); });
+    next.subCategoryCategories = carry;
+  }
+  return { categories: addedCats, subCategories: addedSubs, lists: next };
+}

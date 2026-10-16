@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
-import { placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../src/reportFormats.js';
+import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../src/reportFormats.js';
 import { bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
@@ -543,4 +543,19 @@ test('the sample formats from the owner\'s sheet all have text and marks', () =>
   const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
   assert.equal(imp.missing.length, 0);
   assert.match(imp.text, /in favour of Orion Steel towards the 30% Advance payment against dispatch for USD 12,000 through ICICI, Reference No\. RF-9\. Current Status: Pending with bank for processing\./);
+});
+
+test('the setup from the formats creates only the missing categories and sub categories, with a field for each mark', () => {
+  const lists = { categories: ['Payments', 'Audit'], subCategories: [{ id: 'a', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Name of vendor' }] }, { id: 'b', name: 'Imports Payment', category: 'Payments', fields: [] }], subCategoryCategories: ['Payments'] };
+  const plan = planFormatSetup(lists, SAMPLE_FORMATS);
+  assert.deepEqual(plan.categories, ['Import Payments', 'Monthly Payments', 'Duty Payments']);
+  const names = plan.subCategories.map((x) => x.name);
+  assert.ok(!names.includes('Invoice Payment') && !names.includes('Imports Payment Initiation'));   // already there (also by containment)
+  assert.ok(names.includes('Custom Duty Payment') && names.includes('PO Advance Payment'));
+  const po = plan.subCategories.find((x) => x.name === 'PO Advance Payment');
+  assert.deepEqual(po.labels, ['Name', 'Advance %', 'PO No', 'Amount']);
+  assert.equal(plan.lists.subCategories.find((x) => x.name === 'Invoice Payment').fields.length, 1);   // an existing one is not touched
+  assert.ok(plan.lists.subCategoryCategories.includes('Duty Payments'));
+  const again = planFormatSetup(plan.lists, SAMPLE_FORMATS);
+  assert.equal(again.categories.length + again.subCategories.length, 0);                              // nothing left to create
 });
