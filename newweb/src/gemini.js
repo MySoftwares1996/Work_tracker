@@ -11,18 +11,26 @@ import { firebaseApp } from './firebase';
 const MODELS = String(import.meta.env.VITE_GEMINI_MODELS || 'gemini-3.8-flash,gemini-flash-latest,gemini-2.5-flash,gemini-2.5-flash-lite')
   .split(',').map((x) => x.trim()).filter(Boolean);
 
+// A model that is gone ("not found") or too busy ("high demand", 500 / 503) is skipped; the list is then tried once more after a pause.
+const SKIP = /not found|404|not supported|no longer available|\b500\b|\b503\b|high demand|overloaded|UNAVAILABLE|try again later/i;
+
 export async function generateWithGemini(prompt) {
   const ai = getAI(firebaseApp(), { backend: new GoogleAIBackend() });
   let lastError = null;
-  for (const model of MODELS) {
-    try {
-      const result = await getGenerativeModel(ai, { model, generationConfig: { temperature: 0.4 } }).generateContent(prompt);
-      const text = result?.response?.text?.() || '';
-      if (text.trim()) return text;
-    } catch (e) {
-      lastError = e;
-      if (!/not found|404|not supported|no longer available/i.test(String(e?.message || ''))) break;    // only a missing model moves on
+  for (let pass = 0; pass < 2; pass += 1) {
+    if (pass) await new Promise((r) => setTimeout(r, 3000));
+    for (const model of MODELS) {
+      try {
+        const result = await getGenerativeModel(ai, { model, generationConfig: { temperature: 0.4 } }).generateContent(prompt);
+        const text = result?.response?.text?.() || '';
+        if (text.trim()) return text;
+      } catch (e) {
+        lastError = e;
+        if (!SKIP.test(String(e?.message || ''))) pass = 99;      // any other error (key, permission, quota) will not change on a retry
+        if (pass === 99) break;
+      }
     }
+    if (pass === 99) break;
   }
   const msg = String(lastError?.message || '');
   // The first words of Google's own reason are kept, so the real cause can be seen (switched off, key blocked, template-only mode...).
@@ -31,6 +39,7 @@ export async function generateWithGemini(prompt) {
   if (/api.*(not been used|disabled)|api-not-enabled|firebasevertexai.*enabled/i.test(msg)) throw new Error(`Gemini is not switched on for this project yet (Firebase console > AI Logic > Get started; see docs/NEW_WEB.md). Details: ${why}`);
   if (/PERMISSION_DENIED|403|blocked|referer|API key|API_KEY/i.test(msg)) throw new Error(`Google refused the request (permission): ${why}`);
   if (/failed to fetch|network/i.test(msg)) throw new Error('No internet connection to Gemini.');
+  if (/\b500\b|\b503\b|high demand|overloaded|UNAVAILABLE/i.test(msg)) throw new Error('Gemini is very busy right now (Google side). Wait a minute and press the button again.');
   if (/429|quota|RESOURCE_EXHAUSTED/i.test(msg)) throw new Error('Gemini is busy (free daily limit) - try again later.');
   throw lastError || new Error('Gemini gave no answer.');
 }
