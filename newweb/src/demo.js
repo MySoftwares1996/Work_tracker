@@ -7,7 +7,7 @@ let n = 0;
 const mk = (title, o) => ({ ...blankTask(), id: `demo-${n++}`, title, createdAt: at(-3), ...o, due: o.d === undefined ? null : at(o.d, o.h || 0, o.m || 0), hasTime: !!o.h });
 
 export const demoTasks = [
-  mk('Release vendor payment - ICICI invoice', { d: -2, h: 17, category: 'Payments', priority: 'High', pendingWith: 'Accounts', reference: 'RE: Invoice 4471 - approval' }),
+  mk('Release vendor payment - ICICI invoice', { d: -2, h: 17, category: 'Payments', priority: 'High', pendingWith: 'Accounts', reference: 'RE: Invoice 4471 - approval', checklist: [{ id: 'c1', text: 'Verify invoice', done: true }, { id: 'c2', text: 'Get approval', done: true }, { id: 'c3', text: 'Upload to bank', done: true }, { id: 'c4', text: 'Release', done: true }, { id: 'c5', text: 'Send advice', done: false }, { id: 'c6', text: 'File copy', done: false }] }),
   mk('Reply to the audit query on cash book', { d: -1, h: 11, category: 'Audit', priority: 'High', pendingWith: 'Auditor' }),
   mk('Bank reconciliation - HDFC current account', { d: 0, h: 15, category: 'Bank', priority: 'Medium', status: 'In Progress' }),
   mk('Call the branch about the cheque book', { d: 0, h: 11, m: 30, category: 'Follow-up', priority: 'Low' }),

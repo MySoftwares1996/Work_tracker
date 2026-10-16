@@ -176,6 +176,16 @@ function TaskCard({ t, onEdit, compact }) {
           {t.recurrence !== RECURRENCES[0] && <Chip>↻ {t.recurrence}</Chip>}
           {isOpen(t) && t.nextReminder && <Chip tone={isReminderDue(t) ? 'coral' : ''}>⏰ {reminderLabel(t)}</Chip>}
         </span>
+        {Array.isArray(t.checklist) && t.checklist.length > 0 && (() => {
+          const total = t.checklist.length;
+          const n = t.checklist.filter((c) => c.done).length;
+          return (
+            <span className={`card-checklist${n === total ? ' all' : ''}`} title={t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.text}`).join('\n')}>
+              <span className="cl-label">Checklist ({n}/{total} done)</span>
+              <span className="cl-bar" aria-hidden="true"><span style={{ width: `${Math.round((n / total) * 100)}%` }} /></span>
+            </span>
+          );
+        })()}
         {!compact && t.reference && (
           <span className="card-note mail-copy" title="Click to copy the mail subject and open the task"
             onClick={async () => { notify((await copyText(t.reference)) ? 'Mail subject copied' : 'Could not copy the mail subject'); }}>✉ {t.reference}</span>

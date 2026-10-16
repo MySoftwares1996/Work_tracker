@@ -458,3 +458,10 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 
 .field .req { color: var(--coral); font-weight: 800; }
 .field.need input, .field.need select { border-color: var(--coral); box-shadow: 0 0 0 2px color-mix(in srgb, var(--coral) 25%, transparent); }
+
+/* checklist progress on a card: "CHECKLIST (4/6 DONE)" with a thin bar */
+.card-checklist { display: flex; flex-direction: column; gap: 4px; }
+.card-checklist .cl-label { font-size: 11px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: var(--muted); }
+.card-checklist .cl-bar { display: block; height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.card-checklist .cl-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--violet); transition: width 0.3s; }
+.card-checklist.all .cl-bar > span { background: var(--teal); }
