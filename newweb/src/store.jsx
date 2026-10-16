@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, doc, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
-import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue } from './data';
+import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
 import { demoTasks } from './demo';
 
 const Ctx = createContext(null);
@@ -22,11 +22,15 @@ export function friendlyError(e) {
 
 /** The shared actions, written once for both the live and the demo store. `commit` saves one task. */
 function makeActions(commit, getTasks, notify) {
-  const save = (t) => commit(t);
+  // A status moved on (In Progress, Waiting...) is a day worked on: it goes into the task's work log, which the Daily report is written from.
+  const save = (t) => {
+    const old = (getTasks() || []).find((x) => x.id === t.id);
+    commit(!t.done && (!old || old.status !== t.status) ? logWork(t, t.status) : t);
+  };
   return {
     save,
     complete(t, dar = true) {
-      commit({ ...t, done: true, completedAt: new Date(), dar });
+      commit({ ...logWork(t, 'Completed'), done: true, completedAt: new Date(), dar });
       if (t.recurrence && t.recurrence !== "Doesn't repeat") {
         const next = nextOccurrence(t, getTasks());
         if (next) { commit(next); notify(`Next ${t.recurrence.toLowerCase()} task added`); }

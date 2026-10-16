@@ -1,3 +1,4 @@
+import { noteWork, isUnstartedStatus } from '../../src/workingDashboardPayments.js';
 /**
  * The task data, in the shape the phone app and the old website already share (users/<uid>/tasks, the "web app's task
  * document"): description, dueDate + dueTime, mailChain, status "Completed", deleted... Nothing here touches Firebase, so
@@ -81,6 +82,12 @@ export function fromDoc(id, d = {}) {
     has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d, snoozeUntil: 'snoozeUntil' in d, lastAckDate: 'lastAckDate' in d, skippedDates: 'skippedDates' in d },
     createdAt: asDate(d.dateLogged),
     updatedAt: Number(d.updatedAt) || 0,
+    // Kept as read, for the report (the phone app and the old website write them): the days worked on, the bank follow-ups, the Tally narration.
+    workLog: Array.isArray(d.workLog) ? d.workLog.filter((w) => w && w.d) : [],
+    bankFollowUps: Array.isArray(d.bankFollowUps) ? d.bankFollowUps.filter((f) => f && f.d) : [],
+    narration: d.narration && typeof d.narration === 'object' ? d.narration : null,
+    paymentDetails: d.paymentDetails && typeof d.paymentDetails === 'object' ? d.paymentDetails : null,
+    escalation: d.escalation && typeof d.escalation === 'object' ? d.escalation : null,
   };
 }
 
@@ -130,6 +137,8 @@ export function toDoc(t, now = new Date()) {
     doc.subCategory = t.subCategory || null;
     doc.subCategoryFields = t.subCategory ? { ...(t.subCategoryFields || {}) } : null;
   }
+  if (t._wl) doc.workLog = (t.workLog || []).slice(-20);                       // written only after this app changed them
+  if (t._bf) doc.bankFollowUps = t.bankFollowUps || [];
   if (t.recurrence === 'Custom') doc.recurrenceEveryMin = Number(t.recurrenceEveryMin) || null;
   if (t.alertMode === 'alarm' || t.alertMode === 'gentle') doc.alertMode = t.alertMode;
   return doc;
@@ -569,4 +578,22 @@ export function numbersLost(draft, ai) {
 export function geminiText(json) {
   const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
   return Array.isArray(parts) ? parts.map((p) => (p && typeof p.text === 'string' ? p.text : '')).join('').trim() : '';
+}
+
+/* ---- The work log and bank follow-ups the Daily report is written from (same fields as the phone app: workLog [{ d, s }], bankFollowUps [{ d, at, remarks, next }]) ---- */
+export const isBankFollowUp = (cat) => /bank/i.test(String(cat || '')) && /follow\s*-?\s*ups?\b/i.test(String(cat || ''));
+
+/** Today goes into the task's work log (so the report lists it), unless the status is "not started". */
+export function logWork(t, status, now = new Date()) {
+  const next = noteWork(t, status, now);
+  return next === t ? t : { ...next, _wl: true };
+}
+
+/** A bank follow-up made today: the banker's remarks and the next follow-up date. The task moves off Not Yet Started and today is logged. */
+export function addFollowUp(t, { remarks, next } = {}, now = new Date()) {
+  const text = String(remarks || '').replace(/\s+/g, ' ').trim();
+  if (!text && !next) return t;
+  const item = { d: dayKey(now), at: now.toISOString(), remarks: text, next: next instanceof Date && !Number.isNaN(next.getTime()) ? next.toISOString() : null };
+  const status = !String(t.status || '').trim() || isUnstartedStatus(t.status) ? 'In Progress' : t.status;
+  return logWork({ ...t, status, bankFollowUps: [...(t.bankFollowUps || []), item], _bf: true }, 'Followed up', now);
 }

@@ -472,3 +472,16 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 
 .key-row { flex-wrap: wrap; gap: 8px; }
 .key-row input { flex: 1; min-width: 260px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: inherit; }
+
+/* ---- daily report ---- */
+.report-bar { align-items: center; flex-wrap: wrap; gap: 8px; }
+.report-bar .grow { flex: 1; }
+.report-opts { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 4px 0 10px; }
+.report-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.report-view { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 26px; }
+.report-title { font-size: 17px; font-weight: 800; margin-bottom: 10px; }
+.report-sec { margin-top: 14px; }
+.report-sec .h2 { margin: 0 0 6px; font-size: 15px; }
+.report-sec ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; line-height: 1.55; }
+.report-edit { width: 100%; font: inherit; line-height: 1.55; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: inherit; resize: vertical; }
+.empty-note { color: var(--muted); }

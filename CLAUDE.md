@@ -79,7 +79,7 @@ attachments and the audit trail ride on the task itself (`cloudSync.js`).
 
 A separate Vite + React site with its own look (centred top tab bar, bold tiles), on the same Firebase data as the app. It is not part of the
 Expo build; its own tests are `cd newweb && npm test`, and it is what the "Deploy web version" workflow now puts on the main website
-(`docs/NEW_WEB.md`; the Expo website is no longer deployed, the APK is unchanged). A change to the task data shape must be mirrored in `newweb/src/data.js`.
+(`docs/NEW_WEB.md`; the Expo website is no longer deployed, the APK is unchanged). A change to the task data shape must be mirrored in `newweb/src/data.js`. Its Report tab uses the phone's report engine directly (`newweb/src/reportEngine.js` imports `src/workingDashboardReport.js`, `reportStyle.js`, `workingDashboardPayments.js`; the website replaces AsyncStorage with a stub in `vite.config.js`), so the two write the same report; the website writes `workLog` / `bankFollowUps` when it completes a task, moves its status or logs a bank follow-up (`logWork`, `addFollowUp` in `newweb/src/data.js`). Its tests are `tests/suites/newweb-report.mjs`.
 
 ## Checks before a deploy or build
 

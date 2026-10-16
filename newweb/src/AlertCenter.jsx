@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
 import Logo from './Logo';
 import ClockPicker from './ClockPicker';
-import { SNOOZES, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
+import { SNOOZES, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
@@ -101,21 +101,29 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
   const subList = subCategoriesFor(lists, t.category);
   const sc = findSubCategory(lists, sub);
   const withSub = (x) => (sub ? { ...x, subCategory: sub, subCategoryFields: sf } : x);
-  const saveReply = () => { if (!a.test) actions.save(withSub(t)); if (notify) notify('Saved'); };
+  // A bank follow-up: what is typed as remarks, or as the Banker's reply, is kept as today's follow-up (the Daily report writes from it).
+  const bankReply = (() => {
+    if (!sc) return '';
+    const f = sc.fields.find((x) => /banker|reply|update/i.test(x.label));
+    const now = f ? String(sf[f.label] || '').trim() : '';
+    return f && now && now !== String((t.subCategoryFields || {})[f.label] || '').trim() ? now : '';
+  })();
+  const withFollowUp = (x, next) => (isBankFollowUp(t.category) && (remarks.trim() || bankReply) ? addFollowUp(x, { remarks: remarks.trim() || bankReply, next }) : x);
+  const saveReply = () => { if (!a.test) actions.save(withFollowUp(withSub(t))); if (notify) notify('Saved'); };
   useEffect(() => { const k = (e) => { if (e.key === 'Escape' && !clock) finish(a); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [a, finish, clock]);
 
-  const save = (patch) => { if (!a.test) actions.save(withRemark(withSub({ ...t, ...patch }), remarks)); finish(a); };
+  const save = (patch) => { if (!a.test) actions.save(withRemark(withFollowUp(withSub({ ...t, ...patch }), patch.nextReminder), remarks)); finish(a); };
   const [subErr, setSubErr] = useState('');
   // Completing needs every Sub Category field filled; the fields are right here in the alert.
   const needsFields = (x) => { const m = a.test ? '' : subCategoryMissing(x, lists); setSubErr(m); return !!m; };
-  const done = (dar) => { if (needsFields(withSub(t))) return; if (!a.test) actions.complete(withRemark(withSub(t), remarks), dar); finish(a); };
+  const done = (dar) => { if (needsFields(withSub(t))) return; if (!a.test) actions.complete(withRemark(withFollowUp(withSub(t)), remarks), dar); finish(a); };
   const setReminder = () => {
     const when = reminderFrom(rDate, rTime);
     if (!when || when.getTime() <= Date.now()) { setRError('Pick a date and time in the future.'); return; }
     save({ nextReminder: when });
   };
   const skip = () => (a.kind === 'reminder' ? save({ nextReminder: null }) : save({ skippedDates: [...(t.skippedDates || []), today] }));
-  const move = () => { if (/^completed$/i.test(status) && needsFields(withSub(t))) return; if (!a.test) actions.save(withRemark(withSub(moveTask(t, date, time, status, repeat)), remarks)); finish(a); };
+  const move = () => { if (/^completed$/i.test(status) && needsFields(withSub(t))) return; if (!a.test) actions.save(withRemark(withFollowUp(withSub(moveTask(t, date, time, status, repeat))), remarks)); finish(a); };
   const tone = String(t.priority).toLowerCase() === 'high' ? 'high' : String(t.priority).toLowerCase() === 'low' ? 'low' : 'medium';
 
   return (
