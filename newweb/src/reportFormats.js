@@ -134,3 +134,22 @@ export function planFormatSetup(lists = {}, formats = []) {
   }
   return { categories: addedCats, subCategories: addedSubs, lists: next };
 }
+
+/** A Payments category: any whose name has "payment" (Payments, Import Payments, Monthly Payments, Duty Payments...). */
+export const isPaymentCategory = (category) => /payment/i.test(String(category || ''));
+
+/** The narration of a report line: what comes after the first ": -" ("Name: - Being amount paid..." -> "Being amount paid..."); a line with no ": -" is all narration. */
+export function narrationOf(line) {
+  const text = clean(line);
+  const m = /:\s*-\s+/.exec(text);
+  return m ? text.slice(m.index + m[0].length) : text;
+}
+
+/** The Final Narration of an entry in a Payments category with a format: { text, missing } - or null (no Payments category, or no format for its Sub Category). */
+export function finalNarration(entry, formats) {
+  if (!entry || !isPaymentCategory(entry.category) || !entry.subCategory) return null;
+  const f = findFormat(formats, entry.subCategory);
+  if (!f) return null;
+  const out = renderTemplate(f.template, entry);
+  return { text: narrationOf(out.text), missing: out.missing };
+}

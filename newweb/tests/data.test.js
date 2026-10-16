@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
-import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../src/reportFormats.js';
+import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../src/reportFormats.js';
 import { breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
@@ -581,4 +581,17 @@ test('the Register filter can pick a sub category, or the tasks with none', () =
   const list = [task({ id: 'a', category: 'P', subCategory: 'X' }), task({ id: 'b', category: 'P', subCategory: '' }), task({ id: 'c', category: 'P', subCategory: 'Y' })];
   assert.deepEqual(filterTasks(list, { category: 'P', subCategory: 'X' }).map((t) => t.id), ['a']);
   assert.deepEqual(filterTasks(list, { category: 'P', subCategory: '__none' }).map((t) => t.id), ['b']);
+});
+
+test('the Final Narration is what follows the dash of a payment line, for Payments categories only', () => {
+  const entry = { category: 'Payments', subCategory: 'PO Advance Payment', subCategoryFields: { 'Name of vendor': 'Techwizer Infotech Private Limited', 'Advance %': '100', 'PO No': 'INPO/PP/26-27/0154', Amount: '16,22,933.00' } };
+  const line = renderTemplate(findFormat(SAMPLE_FORMATS, 'PO Advance Payment').template, entry).text;
+  assert.equal(line, 'Techwizer Infotech Private Limited: - Being 100% advance amount paid against the Po No: INPO/PP/26-27/0154 & Amount: 16,22,933.00/-');
+  assert.equal(narrationOf(line), 'Being 100% advance amount paid against the Po No: INPO/PP/26-27/0154 & Amount: 16,22,933.00/-');
+  assert.equal(finalNarration(entry, SAMPLE_FORMATS).text, narrationOf(line));
+  assert.equal(finalNarration({ ...entry, category: 'Audit' }, SAMPLE_FORMATS), null);                    // not a Payments category
+  assert.equal(finalNarration({ ...entry, subCategory: 'Something else' }, SAMPLE_FORMATS), null);       // no format
+  assert.equal(narrationOf('Made the payment for TDS - with Month: Sept'), 'Made the payment for TDS - with Month: Sept');   // no ": -": the whole line
+  assert.ok(isPaymentCategory('Import Payments') && isPaymentCategory('Monthly Payments') && !isPaymentCategory('Audit'));
+  assert.deepEqual(finalNarration({ ...entry, subCategoryFields: {} }, SAMPLE_FORMATS).missing, ['Name', 'Advance %', 'PO No', 'Amount']);
 });

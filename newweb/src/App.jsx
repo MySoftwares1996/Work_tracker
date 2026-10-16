@@ -8,7 +8,7 @@ import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from 
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
+import { finalNarration, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
 import { buildReport, mergeAi, reportPrompt, reportCsvRows, reportHtml, vendorTotals, fmtRupees } from './reportEngine';
 import { reportMailUrl } from '../../src/workingDashboardReport.js';
 import { breakdown, subBreakdown, bankFollowUpDesk, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
@@ -644,6 +644,21 @@ function ImportBackup() {
 }
 
 /** Config > Alerts: pop up a due alert, play a sound, and show a desktop notification when this tab is in the background. */
+/** "Final Narration": the narration of the task's report line (after the dash), for tasks in a Payments category whose Sub Category has a report format. Read-only; follows the fields as they are typed. */
+function NarrationBox({ t }) {
+  const { reportFormats, notify } = useStore();
+  const n = finalNarration(t, reportFormats);
+  if (!n) return null;
+  const copy = async () => { notify((await copyText(n.text)) ? 'Narration copied' : 'Could not copy the narration'); };
+  return (
+    <div className="narration">
+      <div className="field-head"><b>Final Narration:</b><button type="button" className="mini" onClick={copy}>Copy</button></div>
+      <p>{n.text}</p>
+      {n.missing.length > 0 && <small className="muted">Still to fill: {n.missing.join(', ')}</small>}
+    </div>
+  );
+}
+
 /** Config > Report formats: the line the Daily report writes for a task, per Sub Category, with {Field name} marks filled from the task. */
 function ReportFormats() {
   const { lists, saveLists, tasks, reportFormats, reportFormatsCustom, saveReportFormats } = useStore();
@@ -1064,6 +1079,7 @@ function TaskForm({ initial, onClose }) {
         {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
         </div><div className="col">
         {subBlock}
+        <NarrationBox t={t} />
         <div className="fields">
           <div className="field">Alert at the due time
             <div className="seg" role="group" aria-label="Alert at the due time" title="Alarm = pop-up + sound, Reminder = notification only">

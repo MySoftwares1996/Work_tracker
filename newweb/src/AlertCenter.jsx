@@ -3,6 +3,7 @@ import { useStore } from './store';
 import Logo from './Logo';
 import ClockPicker from './ClockPicker';
 import { SNOOZES, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
+import { finalNarration } from './reportFormats';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
@@ -80,6 +81,14 @@ export default function AlertCenter({ onOpen }) {
   if (!current) return null;
   const finish = (a) => { handled.current.set(a.key, Date.now()); saveHandled(handled.current); setQueue((q) => q.filter((x) => x.key !== a.key)); };
   return <AlertCard key={current.key} a={current} count={live.length} lists={lists} actions={actions} finish={finish} onOpen={onOpen} notify={notify} />;
+}
+
+/** The Final Narration inside the alert's Reply tab (Payments categories with a report format). */
+function AlertNarration({ t }) {
+  const { reportFormats } = useStore();
+  const n = finalNarration(t, reportFormats);
+  if (!n) return null;
+  return <div className="narration"><b>Final Narration:</b><p>{n.text}</p>{n.missing.length > 0 && <small className="muted">Still to fill: {n.missing.join(', ')}</small>}</div>;
 }
 
 function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
@@ -187,6 +196,7 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
                       </label>
                     ))}</div>
                   )}
+                  <AlertNarration t={{ ...t, subCategory: sub, subCategoryFields: sf }} />
                   {subErr && <p className="banner err" role="alert">{subErr}</p>}
                   <div><button type="button" className="btn" onClick={saveReply}>Save {sc && sc.fields.length ? 'these details' : 'sub category'}</button></div>
                 </div>
