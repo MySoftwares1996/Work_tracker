@@ -81,3 +81,14 @@ Config > **Gemini API key**: paste a key from https://aistudio.google.com/apikey
 report rewrite always tries the free Firebase route first; only when that fails (busy, free limit, App Check) the saved key is used.
 The key stays in that browser only (localStorage) - it is not saved in the database and not sent anywhere except Google's Gemini.
 Anyone who can use that browser profile can see it, so remove it (**Remove key**) on a shared computer.
+
+## Report formats (Config > Report formats)
+
+For each Sub Category you can write the exact line the Daily report uses for a task in it, with the task's own values in `{braces}`:
+
+`{Name}: - Being amount paid against Invoice No. {Invoice No}, amounting to ₹{Amount}.`
+
+- Each `{mark}` is filled from the task's Sub Category field with that name (the closest name wins; "Name" finds "Name of vendor or suppler"), then from its Key Points. A mark with no value shows as `[mark]` and the Report tab counts those lines.
+- A task with a format is listed under **Payments** with the standard payment lines, and stays word for word when Gemini rewrites the report.
+- The 22 formats from the owner's "Tally Narration formats" sheet are built in (`newweb/src/reportFormats.js`, `SAMPLE_FORMATS`) and used until a format is saved. Saving writes all formats to `users/<uid>/meta/tools` (`reportFormats`), so every browser shows the same ones.
+- If a template has a mark the Sub Category has no field for, Config shows an **Add it to the Sub Category** button.

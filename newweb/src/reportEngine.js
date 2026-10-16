@@ -3,7 +3,8 @@
  * site's tasks. Sections, in order: Other work completed, Payments (Tally narration lines), Followed up / in progress, Routine daily
  * activities, Other activities. Domestic and Urgent payments are left out, as there.
  */
-import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees } from '../../src/workingDashboardReport.js';
+import { findFormat, renderTemplate } from './reportFormats.js';
+import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees, DEFAULT_PAYMENT_INTRO } from '../../src/workingDashboardReport.js';
 import { buildStylePrompt } from '../../src/reportStyle.js';
 import { paymentLists, withWebNarrationTypes } from '../../src/workingDashboardPayments.js';
 import { dayKey } from './data.js';
@@ -33,12 +34,13 @@ const dateKeys = (list) => (Array.isArray(list) ? list.map((x) => (typeof x === 
  * { model, text, plain }: `text` has the section headings when `headings` is set. `subFields` adds each task's Sub Category fields
  * ("Banker's Reply's: ...") to its line (payment and fixed-wording lines stay word for word).
  */
-export function buildReport(tasks, lists, calendar, date, { headings = true, subFields = true } = {}) {
+export function buildReport(tasks, lists, calendar, date, { headings = true, subFields = true, formats = [] } = {}) {
   const entries = (tasks || []).map(toEntry);
   const model = buildReportModel({
     entries, date, lists: reportLists(lists), details: true, paymentIntro: lists && lists.darPaymentIntro,
     holidays: (calendar && calendar.holidays) || [], leaveDays: dateKeys(calendar && calendar.leaveDays),
   });
+  applyFormats(model, formats, lists);
   if (subFields) {
     model.sections.forEach((sec) => {
       if (sec.key === 'pay') return;
@@ -51,6 +53,37 @@ export function buildReport(tasks, lists, calendar, date, { headings = true, sub
     });
   }
   return { model, text: reportModelToText(model, { headings }) };
+}
+
+/**
+ * A task whose Sub Category has a format (Config > Report formats) is written from it, and goes under "Payments" with the other payment
+ * lines. `model.missing` lists the lines that still have a [mark] with no value.
+ */
+export function applyFormats(model, formats, lists = {}) {
+  model.missing = [];
+  if (!formats || !formats.length) return model;
+  const pay = model.sections.find((s) => s.key === 'pay');
+  const moved = [];
+  model.sections.forEach((sec) => {
+    if (sec.key === 'fix' || sec.key === 'gen') return;
+    sec.rows.forEach((row) => {
+      const f = row.entry && row.entry.subCategory ? findFormat(formats, row.entry.subCategory) : null;
+      if (!f) return;
+      const out = renderTemplate(f.template, row.entry);
+      row.line = out.text;
+      row.fixed = false;
+      row.formatted = true;
+      if (out.missing.length) model.missing.push({ title: row.entry.title, marks: out.missing });
+      if (sec.key !== 'pay') moved.push({ sec, row });
+    });
+  });
+  moved.forEach(({ sec, row }) => { sec.rows.splice(sec.rows.indexOf(row), 1); pay.rows.push(row); });
+  if (pay.rows.length && !(pay.intro && pay.intro.length)) pay.intro = (lists.darPaymentIntro && lists.darPaymentIntro.length ? lists.darPaymentIntro : DEFAULT_PAYMENT_INTRO).map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
+  model.data.payments = pay.rows.length;
+  model.data.others = model.sections.find((s) => s.key === 'oth').rows.length;
+  model.data.followed = model.sections.find((s) => s.key === 'fol').rows.length;
+  model.data.bullets = model.sections.reduce((n, s) => n + s.rows.length + (s.intro ? s.intro.length : 0), 0);
+  return model;
 }
 
 /** The mail subjects of the report's tasks (the AI must not copy them in). */

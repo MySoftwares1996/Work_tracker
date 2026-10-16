@@ -8,6 +8,7 @@ import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from 
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
+import { placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
 import { buildReport, mergeAi, reportPrompt, reportCsvRows, reportHtml, vendorTotals, fmtRupees } from './reportEngine';
 import { reportMailUrl } from '../../src/workingDashboardReport.js';
 import { bankFollowUpDesk, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
@@ -151,12 +152,12 @@ function Dashboard({ onEdit, onNew, go }) {
 
 /** The Dashboard's desk: bank follow-ups, this month's payments by vendor, and today's report so far. */
 function Desk({ tasks, onEdit, go }) {
-  const { lists, calendar } = useStore();
+  const { lists, calendar, reportFormats } = useStore();
   const now = new Date();
   const bank = useMemo(() => bankFollowUpDesk(tasks, new Date()), [tasks]);
   const pay = useMemo(() => vendorTotals(tasks, lists, dayKey(new Date()).slice(0, 7)), [tasks, lists]);
   const today = dayKey(now);
-  const rep = useMemo(() => buildReport(tasks, lists, calendar, today, { headings: true, subFields: true }), [tasks, lists, calendar, today]);
+  const rep = useMemo(() => buildReport(tasks, lists, calendar, today, { headings: true, subFields: true, formats: reportFormats }), [tasks, lists, calendar, today, reportFormats]);
   const lines = rep.model.sections.filter((s) => s.rows.length).map((s) => ({ title: s.title, rows: s.rows.slice(0, 3), more: Math.max(0, s.rows.length - 3) }));
   const top = pay.rows.slice(0, 5);
   const max = top.length ? Math.max(...top.map((r) => r.total), 1) : 1;
@@ -380,12 +381,12 @@ function Bin() {
 }
 
 function Report() {
-  const { tasks, lists, calendar, notify } = useStore();
+  const { tasks, lists, calendar, notify, reportFormats } = useStore();
   const [day, setDay] = useState(dayKey(new Date()));
   const flag = (k, dflt) => { try { const v = localStorage.getItem(k); return v === null ? dflt : v === '1'; } catch { return dflt; } };
   const [opts, setOpts] = useState(() => ({ headings: flag('report-headings', true), subFields: flag('report-sub-fields', true), pending: flag('report-pending', false) }));
   const setOpt = (k, storeKey) => (v) => { setOpts((o) => ({ ...o, [k]: v })); try { localStorage.setItem(storeKey, v ? '1' : '0'); } catch { /* not kept */ } };
-  const report = useMemo(() => buildReport(tasks, lists, calendar, day, { headings: opts.headings, subFields: opts.subFields }), [tasks, lists, calendar, day, opts.headings, opts.subFields]);
+  const report = useMemo(() => buildReport(tasks, lists, calendar, day, { headings: opts.headings, subFields: opts.subFields, formats: reportFormats }), [tasks, lists, calendar, day, opts.headings, opts.subFields, reportFormats]);
   const pending = useMemo(() => sortTasks(tasks.filter((t) => isOpen(t) && t.due && dayKey(t.due) <= day), 'priority'), [tasks, day]);
   const pendingText = pending.length ? `\n\nPending:\n${pending.map((t) => `* ${t.title}${t.priority ? ` [${t.priority}]` : ''}`).join('\n')}` : '';
   const draft = report.text + (opts.pending ? pendingText : '');
@@ -405,7 +406,7 @@ function Report() {
     setBusy(true); setAiError('');
     try {
       const { rewriteWithGemini } = await import('./gemini');
-      const forAi = buildReport(tasks, lists, calendar, day, { headings: true, subFields: opts.subFields });
+      const forAi = buildReport(tasks, lists, calendar, day, { headings: true, subFields: opts.subFields, formats: reportFormats });
       const got = await rewriteWithGemini(reportPrompt(forAi.model, forAi.text, extra));
       const merged = mergeAi(forAi.model, got.text, { headings: opts.headings });
       if (merged.error) { setAiError(merged.error); }
@@ -451,6 +452,7 @@ function Report() {
         <span className="chip amber">{d.followed} followed up</span>
         {d.excluded > 0 && <span className="chip" title="Completed with Done (not DAR): kept out of the report">{d.excluded} left out (Done, not DAR)</span>}
         {d.skippedPayments > 0 && <span className="chip" title="Domestic and Urgent payments are not listed in the report">{d.skippedPayments} domestic / urgent payment(s) not listed</span>}
+        {(report.model.missing || []).length > 0 && <span className="chip coral" title={report.model.missing.map((m) => `${m.title}: ${m.marks.join(', ')}`).join('\n')}>{report.model.missing.length} line(s) with a missing field [in brackets]</span>}
         {report.model.dupes > 0 && <span className="chip" title="The same line twice is listed once">{report.model.dupes} duplicate line(s) merged</span>}
       </div>
       <details className="muted ai-extra"><summary>Instructions for Gemini (optional, remembered on this computer)</summary>
@@ -510,6 +512,7 @@ function Config() {
       <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
       <ImportBackup />
       <AlertSettings />
+      <ReportFormats />
       <GeminiKey />
       <Appearance />
       <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
@@ -568,6 +571,65 @@ function ImportBackup() {
 }
 
 /** Config > Alerts: pop up a due alert, play a sound, and show a desktop notification when this tab is in the background. */
+/** Config > Report formats: the line the Daily report writes for a task, per Sub Category, with {Field name} marks filled from the task. */
+function ReportFormats() {
+  const { lists, saveLists, tasks, reportFormats, reportFormatsCustom, saveReportFormats } = useStore();
+  const [open, setOpen] = useState('');
+  const [draft, setDraft] = useState('');
+  const subs = lists.subCategories || [];
+  const rows = [
+    ...subs.map((sc) => ({ key: `s-${sc.id || sc.name}`, sc, name: sc.name, category: sc.category || '', format: findFormat(reportFormats, sc.name) })),
+    ...reportFormats.filter((f) => !subs.some((sc) => findFormat([f], sc.name))).map((f) => ({ key: `f-${f.id}`, sc: null, name: f.subCategory, category: f.category, format: f })),
+  ];
+  const everyFormat = () => (reportFormatsCustom ? reportFormats : SAMPLE_FORMATS);
+  const startEdit = (row) => { setOpen(open === row.key ? '' : row.key); setDraft(row.format ? row.format.template : ''); };
+  const save = (row, template) => {
+    const list = everyFormat().filter((f) => !(row.format && f.id === row.format.id));
+    const text = template.trim();
+    saveReportFormats(text ? [...list, { id: row.format ? row.format.id : `rf-${Date.now().toString(36)}`, category: row.category || (row.format && row.format.category) || '', subCategory: row.format ? row.format.subCategory : row.name, template: text }] : list);
+  };
+  const addFields = (row, marks) => saveLists({ ...lists, subCategories: subs.map((sc) => (sc === row.sc ? { ...sc, fields: [...sc.fields, ...marks.map((label) => ({ label }))] } : sc)) });
+  const sample = (row) => { const mine = tasks.filter((t) => t.subCategory && row.sc && t.subCategory === row.sc.name && Object.keys(t.subCategoryFields || {}).length); return mine.length ? mine[0] : { subCategoryFields: {} }; };
+  return (
+    <section className="card plain">
+      <h2 className="h2">Report formats</h2>
+      <p className="muted">The line the Daily report writes for a task in each Sub Category. Write the sentence and put a task's own value where it goes in {'{'}braces{'}'} - for example <code>Being amount paid against Invoice No. {'{'}Invoice No{'}'}, amounting to ₹{'{'}Amount{'}'}.</code> Each {'{'}mark{'}'} is filled from the task's Sub Category field with that name (then its Key Points); a missing value shows as [mark] in the report. The sample formats from your Tally narration sheet are used until you change one.{reportFormatsCustom ? ' (Your own formats are saved.)' : ''}</p>
+      <div className="fmt-list">
+        {rows.map((row) => {
+          const labels = row.sc ? row.sc.fields.map((f) => f.label) : [];
+          const marks = placeholdersOf(draft);
+          const lack = row.sc ? unmatchedMarks(draft, labels) : [];
+          const prev = renderTemplate(draft, sample(row));
+          return (
+            <div key={row.key} className={`fmt-row${open === row.key ? ' open' : ''}`}>
+              <button type="button" className="fmt-head" onClick={() => startEdit(row)} aria-expanded={open === row.key}>
+                <span><b>{row.name}</b>{row.category && <small className="muted"> · {row.category}</small>}</span>
+                <span className={`chip ${row.format ? 'teal' : ''}`}>{row.format ? 'Format set' : 'No format'}</span>
+              </button>
+              {open === row.key && (
+                <div className="fmt-edit">
+                  <textarea rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="e.g. Being amount paid against Invoice No. {Invoice No}, amounting to ₹{Amount}." aria-label={`Report format for ${row.name}`} />
+                  {labels.length > 0 && <div className="fmt-chips"><span className="muted">Insert a field:</span>{labels.map((l) => <button key={l} type="button" className="chip" onClick={() => setDraft((d) => `${d}${d && !/\s$/.test(d) ? ' ' : ''}{${l.replace(/[\s:]+$/, '')}}`)}>{l.replace(/[\s:]+$/, '')}</button>)}</div>}
+                  {lack.length > 0 && <div className="banner err">No field named {lack.map((m) => `"${m}"`).join(', ')} in this Sub Category yet. <button type="button" className="btn" onClick={() => addFields(row, lack)}>Add {lack.length === 1 ? 'it' : 'them'} to the Sub Category</button></div>}
+                  {!row.sc && <p className="muted">There is no Sub Category with this name yet - add it under Sub categories (above) to fill these marks from a task.</p>}
+                  <div className="fmt-prev"><span className="muted">Preview{sample(row).id ? ' with your latest task' : ''}:</span><p>{prev.text || '(empty - this Sub Category uses the standard line)'}</p></div>
+                  <div className="row">
+                    <button type="button" className="btn primary" onClick={() => { save(row, draft); setOpen(''); }}>Save format</button>
+                    {row.format && <button type="button" className="btn" onClick={() => { save(row, ''); setOpen(''); }}>Remove format</button>}
+                    {reportFormatsCustom && <button type="button" className="btn ghost" onClick={() => { if (window.confirm('Go back to the sample formats from the Tally narration sheet? Your own formats are removed.')) saveReportFormats([]); }}>Use the sample formats again</button>}
+                    <span className="muted">{marks.length} mark(s)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {!rows.length && <p className="muted">Add Sub categories first (above), then give each a format.</p>}
+      </div>
+    </section>
+  );
+}
+
 function GeminiKey() {
   const [saved, setSaved] = useState(() => { try { return !!localStorage.getItem('wd-gemini-key'); } catch { return false; } });
   const [value, setValue] = useState('');

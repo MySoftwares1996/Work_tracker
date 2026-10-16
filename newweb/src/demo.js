@@ -7,6 +7,7 @@ let n = 0;
 const mk = (title, o) => ({ ...blankTask(), id: `demo-${n++}`, title, createdAt: at(-3), ...o, due: o.d === undefined ? null : at(o.d, o.h || 0, o.m || 0), hasTime: !!o.h });
 
 export const demoTasks = [
+  mk('Pay Orion Steel - invoice 5521', { d: 0, category: 'Payments', priority: 'High', done: true, completedAt: at(0, 11, 20), status: 'Completed', subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor': 'Orion Steel', 'Invoice No': 'INV-5521', Towards: 'steel coil supply' } }),
   mk('HDFC FD Statement Collation.', { d: 0, h: 10, m: 50, category: "Bank Follow-up's", priority: 'High', pendingWith: 'Pending at Bank', status: 'In Progress', createdAt: at(-6), bankFollowUps: [{ d: '2026-10-10', at: at(-6, 11).toISOString(), remarks: 'Banker will share the statement tomorrow', next: at(1, 10).toISOString() }] }),
   mk('ICICI LC amendment', { d: 2, h: 10, category: "Urgent Bank Follow Up's", priority: 'High', pendingWith: 'Pending at Bank', createdAt: at(-11), bankFollowUps: [{ d: '2026-10-12', at: at(-4, 12).toISOString(), remarks: 'Awaiting head office approval', next: at(2, 10).toISOString() }] }),
   mk('Pay ACME Traders - invoice 4471', { d: 0, category: 'Payments', priority: 'High', done: true, completedAt: at(0, 9, 10), status: 'Completed', keyPoints: [{ key: 'Amount', value: '₹4,35,000' }], notes: 'Paid through RTGS.' }),

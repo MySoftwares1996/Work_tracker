@@ -1,5 +1,6 @@
 import { buildReport, toEntry, mergeAi } from '../../newweb/src/reportEngine.js';
 import { fromDoc, addFollowUp, logWork, toDoc } from '../../newweb/src/data.js';
+import { SAMPLE_FORMATS } from '../../newweb/src/reportFormats.js';
 
 export async function run({ ck, section }) {
   section('New website: the Daily Report uses the phone app\'s report engine');
@@ -23,4 +24,17 @@ export async function run({ ck, section }) {
   const aiBad = mergeAi(doc.model, 'Nothing here');
   ck('a Gemini reply that drops items is rejected', !!aiBad.error);
   ck('toEntry keeps dates as ISO strings', typeof toEntry({ ...done, completedAt: new Date() }).completedAt === 'string');
+
+  section('New website: report formats per Sub Category (Tally narration sheet)');
+  const pay = fromDoc('p', { description: 'Pay ACME', category: 'Payments', status: 'Completed', completedAt: '2026-10-16T09:30:00.000Z', darInclude: true, subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor': 'ACME Traders', 'Invoice No': 'INV-4471' } });
+  const withFormats = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }, { ...done, completedAt: new Date(2026, 9, 16, 9, 0) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
+  const paySec = withFormats.model.sections.find((x) => x.key === 'pay');
+  ck('a task with a format goes under Payments, written from the format', paySec.rows.length === 1 && /^ACME Traders: - Being amount paid against Invoice No\. INV-4471 towards \[Towards\]\.$/.test(paySec.rows[0].line));
+  ck('the standard payment lines come with it', paySec.intro.length >= 1 && /Payments/.test(withFormats.text));
+  ck('a field with no value is reported as missing', withFormats.model.missing.length === 1 && withFormats.model.missing[0].marks[0] === 'Towards');
+  ck('other tasks stay where they were', /Shared with the manager/.test(withFormats.text));
+  const none = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: [] });
+  ck('without formats the task is written as before', !/Being amount paid/.test(none.text));
+  const changed = mergeAi(withFormats.model, withFormats.text.replace('Being amount paid', 'Paid'));
+  ck('a format line stays word for word even if Gemini changes it', !changed.error && /Being amount paid against Invoice No\. INV-4471/.test(changed.text));
 }

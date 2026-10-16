@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
+import { readReportFormats, SAMPLE_FORMATS } from './reportFormats';
 import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
 import { demoTasks } from './demo';
 
@@ -65,6 +66,7 @@ export function LiveStore({ children }) {
   const [calendar, setCalendar] = useState({ holidays: [], leaveDays: [] });
   const [links, setLinks] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [formats, setFormats] = useState([]);              // the saved report formats (empty = the sample formats are used)
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
@@ -81,7 +83,7 @@ export function LiveStore({ children }) {
     const applyMeta = (id, d) => {
       if (id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
       if (id === 'calendar') setCalendar(readCalendar(d));
-      if (id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); }
+      if (id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); setFormats(readReportFormats(d)); }
     };
     const un1 = onSnapshot(collection(db, 'users', user.uid, 'tasks'), (snap) => {
       setTaskMap((m) => {
@@ -178,7 +180,14 @@ export function LiveStore({ children }) {
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, templates, error, synced, slow, lastSyncAt, actions, notify: flash,
+    demo: false, user, tasks, lists, calendar, links, templates, reportFormats: formats.length ? formats : SAMPLE_FORMATS, reportFormatsCustom: formats.length > 0,
+    saveReportFormats: (next) => {
+      if (!user) return;
+      const now = Date.now();
+      setFormats(next);
+      setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { reportFormats: next, stamps: { reportFormats: now }, ts: now }, { merge: true }).catch((e) => setError(friendlyError(e)));
+    },
+    error, synced, slow, lastSyncAt, actions, notify: flash,
     // Written with its own stamp in meta/tools, the way the phone stamps it, so the newest edit wins on both.
     saveTemplates: (next) => {
       if (!user) return;
@@ -211,7 +220,7 @@ export function LiveStore({ children }) {
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, templates, error, synced, slow, lastSyncAt, actions]);
+  }), [user, tasks, lists, calendar, links, templates, formats, error, synced, slow, lastSyncAt, actions]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
@@ -225,6 +234,7 @@ export function DemoStore({ children }) {
       { id: 'p2', name: 'Urgent Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] },
       { id: 'p3', name: 'Import Payment', category: 'Payments', fields: [{ label: 'Bill of Entry' }, { label: 'Mode', options: ['TT', 'LC'] }] },
       { id: 'p4', name: 'Customs Duty', category: 'Payments', fields: [{ label: 'BE No' }] },
+      { id: 'p6', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Name of vendor' }, { label: 'Invoice No' }] },
       { id: 'p5', name: 'Demand Draft', category: 'Payments', fields: [] },
       { id: 'b1', name: "Urgent Bank Follow Up's", category: 'Follow-up', fields: [{ label: "Banker's Reply's:" }] },
       { id: 'a1', name: 'Statutory Audit', category: 'Audit', fields: [] },
@@ -244,12 +254,13 @@ export function DemoStore({ children }) {
   const visible = useMemo(() => tasks.filter((t) => !t.purged), [tasks]);
   const calendar = useMemo(() => ({ holidays: [{ date: '2026-10-20', name: 'Sample holiday' }], leaveDays: [] }), []);
   const [templates, setTemplates] = useState([]);
+  const [formats, setFormats] = useState([]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, error: '', synced: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: formats.length ? formats : SAMPLE_FORMATS, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, actions,
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
-  }), [visible, lists, calendar, links, templates, actions]);
+  }), [visible, lists, calendar, links, templates, formats, actions]);
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
 

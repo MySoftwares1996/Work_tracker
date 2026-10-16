@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
+import { placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../src/reportFormats.js';
 import { bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
@@ -514,4 +515,32 @@ test('the Dashboard bank desk lists open bank follow-ups, longest open first, wi
   assert.equal(rows[0].update, 'Awaiting head office');
   assert.equal(rows[0].days, 12);
   assert.equal(rows[1].update, 'Will share tomorrow');
+});
+
+test('a report format fills its marks from the Sub Category fields, then Key Points, and shows what is missing', () => {
+  const e = { title: 'Pay ACME', subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor or suppler:': 'ACME Traders', 'Invoice No': 'INV-4471', 'Amount paid': '' }, keyPoints: [{ key: 'Amount', value: '4,35,000' }] };
+  assert.deepEqual(placeholdersOf('{Name}: Being paid against {Invoice No} for {Amount} {Amount}'), ['Name', 'Invoice No', 'Amount']);
+  const r = renderTemplate('{Name}: - Being amount paid against Invoice No. {Invoice No} towards {Towards}, amounting to ₹{Amount}.', e);
+  assert.equal(r.text, 'ACME Traders: - Being amount paid against Invoice No. INV-4471 towards [Towards], amounting to ₹4,35,000.');
+  assert.deepEqual(r.missing, ['Towards']);
+});
+
+test('a format is found by Sub Category name, also when one name contains the other', () => {
+  assert.equal(findFormat(SAMPLE_FORMATS, 'Imports Payment').subCategory, 'Imports Payment Initiation');
+  assert.equal(findFormat(SAMPLE_FORMATS, 'invoice payment').subCategory, 'Invoice Payment');
+  assert.equal(findFormat(SAMPLE_FORMATS, "Employee Advance's").subCategory, "Employee Advance's");
+  assert.equal(findFormat(SAMPLE_FORMATS, 'Something else'), null);
+  assert.equal(findFormat(SAMPLE_FORMATS, ''), null);
+});
+
+test('marks with no field in the Sub Category are listed, so they can be added', () => {
+  assert.deepEqual(unmatchedMarks('{Name} paid {Invoice No} on {Date paid}', ['Name of vendor', 'Invoice no']), ['Date paid']);
+});
+
+test('the sample formats from the owner\'s sheet all have text and marks', () => {
+  assert.ok(SAMPLE_FORMATS.length >= 20);
+  assert.ok(SAMPLE_FORMATS.every((f) => f.subCategory && f.template.length > 20));
+  const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
+  assert.equal(imp.missing.length, 0);
+  assert.match(imp.text, /in favour of Orion Steel towards the 30% Advance payment against dispatch for USD 12,000 through ICICI, Reference No\. RF-9\. Current Status: Pending with bank for processing\./);
 });
