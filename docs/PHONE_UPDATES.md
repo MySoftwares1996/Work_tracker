@@ -16,6 +16,8 @@ instead of after a 12-minute build and a re-install.
 ## Every change after that
 
 - GitHub > Actions > **Publish phone update** > Run workflow > type what changed. It runs the checks, then publishes. Nothing runs by itself.
+  (GitHub only lists a workflow there once its file is on `main`. Until then, or any time, `git tag phone-update-N && git push origin phone-update-N`
+  publishes the update from the tagged commit.)
 - On the phone: the app looks for an update when it opens and when it comes back to the front (at most once a minute), downloads it quietly,
   and shows "A new version of the app is ready - Restart" (`src/PhoneUpdate.js`).
 

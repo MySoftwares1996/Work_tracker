@@ -3,11 +3,15 @@
 name: Publish phone update
 
 on:
+  # A workflow that exists only on a feature branch cannot be started from the Actions page or the API; pushing a tag named
+  # phone-update-<anything> runs the workflow file of the tagged commit instead (the tag's commit message is the update's message).
+  push:
+    tags: ['phone-update-*']
   workflow_dispatch:
     inputs:
       message:
         description: 'What this update changes (shown in expo.dev)'
-        required: true
+        required: false
         default: 'Phone screens update'
 
 concurrency:
@@ -48,5 +52,5 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
-          MESSAGE: ${{ inputs.message }}
-        run: npx --yes eas-cli@latest update --channel production --platform android --message "$MESSAGE" --non-interactive
+          MESSAGE: ${{ inputs.message || github.event.head_commit.message || 'Phone screens update' }}
+        run: npx --yes eas-cli@latest update --channel production --platform android --message "$(printf %s "$MESSAGE" | head -n 1)" --non-interactive
