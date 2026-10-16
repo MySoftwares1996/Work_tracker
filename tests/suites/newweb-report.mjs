@@ -50,4 +50,10 @@ export async function run({ ck, section }) {
   ck('a merged duplicate moved to Followed up is listed there', mv.model.data.followed === 1 && mv.model.dupes === 0 && /Followed up/.test(mv.text));
   const back = buildReport(all, { categories: [] }, {}, day, { headings: true, subFields: false, moves: { d1: 'out' } });
   ck('a listed task moved to Left out leaves the report', back.model.data.excluded === 2 && back.model.data.others === 0 && back.model.groups.out.some((x) => x.id === 'd1'));
+
+  section('New website: a Demand Draft task is written from its format and stays in Other work');
+  const dd = fromDoc('dd', { description: 'Prepare DD', category: 'Demand Draft', status: 'Completed', completedAt: '2026-10-16T09:30:00.000Z', darInclude: true, subCategory: 'Online', subCategoryFields: { 'Payee Name': 'High Court', 'DD No': '1', Amount: '5,000', 'Case No': 'C1' } });
+  const ddRep = buildReport([{ ...dd, completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
+  ck('the Demand Draft line is written from its format', /^Prepared Online Demand Draft application forms/m.test(ddRep.model.sections.find((x) => x.key === 'oth').rows[0].line));
+  ck('and it is not moved under Payments', ddRep.model.data.payments === 0 && ddRep.model.data.others === 1);
 }

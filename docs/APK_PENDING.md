@@ -45,3 +45,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: Dashboard 'Next Month' tile (open tasks due next month; opens the Register with the new 'Next Month' due filter). Web only.
 - New web: the Dashboard breakdown cards count only tasks due this month; new 'Next month' row with By category and By priority cards; rows and the category window open the Register on the same month. Web only.
 - New web: a task with a due date but no time alerts once at 7:00 PM and only on its due date (was 9:00 AM, and could pop up next morning). The phone app still alerts such tasks at its own time; port the 7 PM rule to the phone's alert booking (`entryAlertPlan`) at the next APK build. Web only for now.
+- New web: report formats 'Demand Draft' > Online / Offline from the Tally sheet (written under Other work, not Payments; only Payments categories go under Payments). Web only.

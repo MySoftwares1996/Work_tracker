@@ -543,7 +543,7 @@ test('marks with no field in the Sub Category are listed, so they can be added',
 });
 
 test('the sample formats from the owner\'s sheet all have text and marks', () => {
-  assert.ok(SAMPLE_FORMATS.length >= 23);
+  assert.ok(SAMPLE_FORMATS.length >= 25);
   assert.ok(SAMPLE_FORMATS.every((f) => f.subCategory && f.template.length > 20));
   const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
   assert.equal(imp.missing.length, 0);
@@ -553,7 +553,7 @@ test('the sample formats from the owner\'s sheet all have text and marks', () =>
 test('the setup from the formats creates only the missing categories and sub categories, with a field for each mark', () => {
   const lists = { categories: ['Payments', 'Audit'], subCategories: [{ id: 'a', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Name of vendor' }] }, { id: 'b', name: 'Imports Payment', category: 'Payments', fields: [] }], subCategoryCategories: ['Payments'] };
   const plan = planFormatSetup(lists, SAMPLE_FORMATS);
-  assert.deepEqual(plan.categories, ['Import Payments', 'Duty Payments', 'HR Statutory Payment', 'Monthly Payments']);
+  assert.deepEqual(plan.categories, ['Import Payments', 'Duty Payments', 'HR Statutory Payment', 'Monthly Payments', 'Demand Draft']);
   const names = plan.subCategories.map((x) => x.name);
   assert.ok(!names.includes('Invoice Payment') && !names.includes('Imports Payment Initiation'));   // already there (also by containment)
   assert.ok(names.includes('Custom Duty Payment') && names.includes('PO Advance Payment'));
@@ -623,4 +623,11 @@ test('Next Month counts the open tasks due next month, across the year end', () 
   assert.ok(isDueNextMonth(jan, dec) && !isDueNextMonth(decTask, dec));
   assert.equal(stats([jan, decTask], dec).nextMonth, 1);
   assert.equal(filterTasks([jan, decTask], { due: 'nextmonth' }, dec).length, 1);
+});
+
+test('Demand Draft Online / Offline formats are written from their fields', () => {
+  const f = findFormat(SAMPLE_FORMATS, 'Offline');
+  assert.equal(f.category, 'Demand Draft');
+  const out = renderTemplate(f.template, { subCategoryFields: { 'Payee Name': 'High Court', 'DD No': '123456', Amount: '5,000', 'Case No': 'WP/12/2026' } });
+  assert.ok(out.missing.length === 0 && out.text.startsWith('Prepared Offline Demand Draft application forms') && out.text.includes('Payee Name: High Court, DD No: 123456, Amount: 5,000 & Case No: WP/12/2026.'));
 });

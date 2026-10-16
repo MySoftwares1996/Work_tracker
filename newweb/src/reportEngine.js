@@ -3,7 +3,7 @@
  * site's tasks. Sections, in order: Other work completed, Payments (Tally narration lines), Followed up / in progress, Routine daily
  * activities, Other activities. Domestic and Urgent payments are left out, as there.
  */
-import { findFormat, renderTemplate } from './reportFormats.js';
+import { findFormat, renderTemplate, isPaymentCategory } from './reportFormats.js';
 import { buildReportModel, reportLineFor, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees, DEFAULT_PAYMENT_INTRO } from '../../src/workingDashboardReport.js';
 import { buildStylePrompt } from '../../src/reportStyle.js';
 import { paymentLists, withWebNarrationTypes } from '../../src/workingDashboardPayments.js';
@@ -75,7 +75,8 @@ export function applyFormats(model, formats, lists = {}) {
       row.fixed = false;
       row.formatted = true;
       if (out.missing.length) model.missing.push({ title: row.entry.title, marks: out.missing });
-      if (sec.key !== 'pay') moved.push({ sec, row });
+      // Only a Payments category goes under "Payments"; other formatted tasks keep their section (a Demand Draft is other work).
+      if (sec.key !== 'pay' && isPaymentCategory(f.category || row.entry.category)) moved.push({ sec, row });
     });
   });
   moved.forEach(({ sec, row }) => { sec.rows.splice(sec.rows.indexOf(row), 1); pay.rows.push(row); });

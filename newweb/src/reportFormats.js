@@ -103,6 +103,8 @@ export const SAMPLE_FORMATS = [
   { category: 'HR Statutory Payment', subCategory: 'PT', template: 'Made the payment for PT for the month of {Month} - with Month: {Month}, Liability Period: {Liability Period}, Amount Paid: {Amount Paid}, Payment Date: {Payment Date}, Status: {Status}.' },
   { category: 'Monthly Payments', subCategory: 'Monthly TDS Payments by Section wise', template: 'Made the payment for TDS for the month of {Month} - with Month: {Month}, TDS Section & Code: {TDS Section & Code}, Liability Period: {Liability Period}, Amount Paid: {Amount Paid}, Payment Date: {Payment Date}, Status: {Status}.' },
   { category: 'Payments', subCategory: 'Rent Payments', template: 'Being amount paid towards rent for the month of {Month} for {Premises}, amounting to ₹{Amount}.' },
+  { category: 'Demand Draft', subCategory: 'Online', template: 'Prepared Online Demand Draft application forms with all required details, coordinated with bank officials with Payee Name: {Payee Name}, DD No: {DD No}, Amount: {Amount} & Case No: {Case No}. Shared email acknowledgment with the Legal team confirming that the Demand Draft is ready for pickup.' },
+  { category: 'Demand Draft', subCategory: 'Offline', template: 'Prepared Offline Demand Draft application forms with all required details, coordinated with bank officials with Payee Name: {Payee Name}, DD No: {DD No}, Amount: {Amount} & Case No: {Case No}. Shared email acknowledgment with the Legal team confirming that the Demand Draft is ready for pickup.' },
 ].map((f, i) => ({ id: `sample-${i}`, ...f }));
 
 const OWN_MARKS = new Set(['title', 'category', 'sub category', 'mail', 'notes']);
