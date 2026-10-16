@@ -648,3 +648,25 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 
 .flabel { display: inline; }
 .flabel .req { display: inline; margin-left: 2px; }
+
+/* New / Edit entry: the whole screen */
+.overlay:has(> .sheet.wide) { padding: 0; place-items: stretch; overflow: hidden; background: var(--bg); }
+.sheet.wide { width: 100vw; max-width: none; height: 100vh; max-height: none; border-radius: 0; box-shadow: none; padding: 16px 28px 14px; gap: 12px; overflow: hidden; }
+.sheet.wide .sheet-head h2 { font-size: 24px; }
+.sheet.wide .cols3 { flex: 1; min-height: 0; overflow-y: auto; gap: 18px 34px; padding: 2px 4px 8px; }
+.sheet.wide .col { gap: 12px; }
+.sheet.wide .col textarea { min-height: 110px; }
+.sheet.wide .sheet-foot { border-top: 1px solid var(--line); padding-top: 10px; }
+@media (max-width: 720px) { .sheet.wide { padding: 12px; } }
+
+/* On a tall screen the form uses the room: bigger fields and writing areas */
+@media (min-height: 860px) {
+  .sheet.wide .col { gap: 16px; }
+  .sheet.wide .col input, .sheet.wide .col select, .sheet.wide .col .time-btn { padding: 12px 13px; font-size: 15px; }
+  .sheet.wide .col .field { font-size: 12.5px; gap: 5px; }
+  .sheet.wide .col .field.check { font-size: 15px; }
+  .sheet.wide .col textarea { font-size: 15px; padding: 12px 13px; }
+  .sheet.wide .cols3 > .col:first-child textarea { min-height: 170px; }
+  .sheet.wide .cols3 > .col:last-child textarea { min-height: 260px; }
+  .sheet.wide .manage-panel, .sheet.wide .side-panel { padding: 14px; }
+}
