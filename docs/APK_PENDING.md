@@ -34,3 +34,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: 'Final Narration' (the report line after the dash) shown read-only with a Copy button in the New / Edit entry form and the due alert's Reply tab, for Payments categories whose Sub Category has a report format. Web only.
 - New web: the required star (*) sits on the same line as its Sub Category field name. Web only.
 - New web: New / Edit entry uses the whole screen (full window, bigger fields on tall screens, Save / Cancel bar fixed at the bottom). Web only.
+- New web: a Copy button beside Mail chain in the New / Edit entry form. Web only.
