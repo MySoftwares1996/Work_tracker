@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Pressable, Linking, Platform, Animated, Easing, AppState } from 'react-native';
+import { View, Text, StyleSheet, Alert, Pressable, ScrollView, Linking, Platform, Animated, Easing, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AnimatedLogo from '../AnimatedLogo';
 import * as Clipboard from 'expo-clipboard';
-import { BottomTabs, useLayout, useAboveBottomBar, FadeInUp, AnimatedNumber, Screen, Card, H2, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, SwipeTabs, RingtonePicker, prefersReducedMotion } from '../ui';
+import { BottomTabs, Group, Item, useLayout, useAboveBottomBar, FadeInUp, AnimatedNumber, Screen, Card, H2, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, SwipeTabs, RingtonePicker, prefersReducedMotion } from '../ui';
 import WdAlertSettings from './WdAlertSettings';
 import { SOURCES } from '../optionSources';
 import { useTheme, blend, THEMES, FONT_LEVELS } from '../theme';
@@ -47,7 +47,7 @@ import {
   nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isSkippedToday, isOfficeClosed,
 } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
-import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, HHMM, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, OpenCard, DoneCard, UndoBar, ShowMore, CountList } from './wdCards';
+import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, HHMM, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, OpenCard, DoneCard, UndoBar, ShowMore, CountList, PhoneTile, PhoneRow, PhoneDoneRow } from './wdCards';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
 const NO_LIST = [];
@@ -61,7 +61,7 @@ const REPORT_PRESETS = [
 ];
 
 // web.app only, and not on phone-width screens: a Narration tab after the Bin - the Tally narration builder, whatever an entry's status.
-const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', ...(narration ? ['narration'] : []), ...(Platform.OS === 'web' ? ['links'] : []), 'report'];
+const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', ...(narration ? ['narration'] : []), ...(Platform.OS === 'web' ? ['links'] : []), 'report'];
 // Bottom bar, same order as the web app (Report is reached from the Dashboard).
 const makeBarTabs = (narration) => [
   { key: 'dashboard', label: 'Dashboard' },
@@ -73,7 +73,16 @@ const makeBarTabs = (narration) => [
   ...(narration ? [{ key: 'narration', label: 'Narration', icon: 'list' }] : []),
   ...(Platform.OS === 'web' ? [{ key: 'links', label: 'Links', icon: 'links' }] : []),
 ];
-const TAB_TITLES = { dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', report: 'Daily Report' };
+// The phone's bottom bar: five tabs; Holidays, Bin and Config are reached from More.
+const PHONE_TABS = [
+  { key: 'dashboard', label: 'Home' },
+  { key: 'register', label: 'Tasks' },
+  { key: 'report', label: 'Report' },
+  { key: 'done', label: 'Done' },
+  { key: 'more', label: 'More' },
+];
+const MORE_PAGES = ['holidays', 'bin', 'config', 'links'];      // pages opened from More: the header shows a back arrow to it
+const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', report: 'Daily Report' };
 export default function WorkingDashboard() {
   const insets = useSafeAreaInsets();
   const { wide, tablet: tabletWidth, sideBar } = useLayout();
@@ -81,9 +90,9 @@ export default function WorkingDashboard() {
   // one column, laid out like the web app's (Config as one page with every section open, not a list of sheets).
   const phoneLayout = !tabletWidth;
   // "Both" (phone-width screens): no New / Edit Entry form and no Narration tab - the owner removed them there.
-  const formOn = !phoneLayout;
+  const formOn = true;      // the New / Edit Entry form opens on a phone too: the owner wants every card to open
   const TAB_KEYS = makeTabKeys(Platform.OS === 'web' && !phoneLayout);
-  const BAR_TABS = makeBarTabs(Platform.OS === 'web' && !phoneLayout);
+  const BAR_TABS = phoneLayout ? PHONE_TABS : makeBarTabs(Platform.OS === 'web' && !phoneLayout);
   // Bank follow-ups (📞 and the form section): phone-width screens ("Both") and web.app at every size.
   const followUpHere = phoneLayout || Platform.OS === 'web';
   // web.app's Narration tab: three fields to a row on a wide screen (900+), two on anything narrower.
@@ -121,6 +130,7 @@ export default function WorkingDashboard() {
   const setFilter = (patch) => { setFilters((f) => ({ ...f, ...patch })); setVisibleCount(5); };
 
   const [entrySheet, setEntrySheet] = useState(null); // draft entry, or null
+  const [accOpen, setAccOpen] = useState({});           // phone form: which folded rows (checklist, mail chain, notes...) the person opened
   const [entryMore, setEntryMore] = useState(false);   // phone form: mail chain, notes and key points opened out
   const [recurrenceOpen, setRecurrenceOpen] = useState(false);
   const [holidaySheet, setHolidaySheet] = useState(null);
@@ -175,6 +185,8 @@ export default function WorkingDashboard() {
   const [mailQuery, setMailQuery] = useState('');
   const [emails, setEmails] = useState([]);
   const [reportDate, setReportDate] = useState(toDateKey(new Date()));
+  const [shareOpen, setShareOpen] = useState(false);     // phone Report: the Email / PDF / Excel sheet
+  const [aiOpen, setAiOpen] = useState(false);       // phone Report: the AI instructions row, folded until opened
   const [reportText, setReportText] = useState('');
   const [reportKind, setReportKind] = useState('day');      // 'day' (the Daily Activity Report), 'week' or 'month' (a summary)
   const [reportModel, setReportModel] = useState(null);
@@ -250,6 +262,12 @@ export default function WorkingDashboard() {
   const doneEntries = useMemo(() => sortEntries(filterEntries(allDone, doneFilters, new Date(), { deep: phoneLayout }), doneSort), [allDone, doneFilters, doneSort, phoneLayout]);
   const doneNarrowed = isWdFilterActive(doneFilters) || doneSort !== 'completedDesc';
   const clearDone = () => { setDoneFilters(EMPTY_WD_FILTER); setVisibleCount(5); if (wd.doneSort && wd.doneSort !== 'completedDesc') updateWd((w) => ({ ...w, doneSort: 'completedDesc' })); };
+  // Home (phone): what needs doing now, and what comes next.
+  const attention = useMemo(() => sortEntries(openEntries.filter((e) => isOverdue(e) || (e.dueAt && toDateKey(new Date(e.dueAt)) === toDateKey(new Date()))), 'dueAsc').slice(0, 5), [openEntries]);
+  const comingUp = useMemo(() => {
+    const now = new Date(); const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 8).getTime(); const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    return sortEntries(openEntries.filter((e) => { const d = e.dueAt ? new Date(e.dueAt).getTime() : 0; return d >= from && d < end; }), 'dueAsc').slice(0, 4);
+  }, [openEntries]);
   const binnedEntries = useMemo(() => sortEntries(entries.filter((e) => e.binned), 'logged'), [entries]);
   // web.app lists every entry (Register and Completed); the APK adds 20 at a time with "Show more".
   // The cards are drawn in batches so a long Completed list does not freeze the page while it opens.
@@ -297,7 +315,7 @@ export default function WorkingDashboard() {
       narrationDraft: n ? { typeName: n.typeName || '', percent: n.percent || '', docNo: n.docNo || '', poNo: n.poNo || '', purpose: n.purpose || '', fieldsValues: { ...(n.fieldsValues || {}) }, includeMail: n.includeMail !== false } : { typeName: '', includeMail: false },
     };
   };
-  const openNewEntry = () => { if (!formOn) return; setEntryMore(false); setEntrySheet(withDrafts(blankEntry())); };
+  const openNewEntry = () => { if (!formOn) return; setEntryMore(false); setAccOpen({}); setEntrySheet(withDrafts(blankEntry())); };
   // Narrations copied anywhere are kept (the last 30, stars stay) - shown under the narration form.
   useEffect(() => { setNarrationSink((text, typeName) => updateWd((w) => ({ ...w, narrationHistory: addHistory(w.narrationHistory || [], text, typeName) }))); return () => setNarrationSink(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Quick add: a typed sentence opens the New Entry form pre-filled (title, due date and time, priority, category, person).
@@ -342,7 +360,7 @@ export default function WorkingDashboard() {
     setEntrySheet(withDrafts({ ...base, title: p.title || String(text).trim(), ...(p.priority ? { priority: p.priority } : null), ...(p.category ? { category: p.category } : null), ...(p.pendingWith ? { pendingWith: p.pendingWith } : null), ...(p.dueAt ? { dueAt: p.dueAt } : null), ...(p.reference ? { reference: p.reference } : null) }));
     setQuickText('');
   };
-  const openEditEntry = (entry, patch = {}) => { if (!formOn) return; setEntryMore(false); setEntrySheet({ ...withDrafts(entry), ...patch }); };
+  const openEditEntry = (entry, patch = {}) => { if (!formOn) return; setEntryMore(false); setAccOpen({}); setEntrySheet({ ...withDrafts(entry), ...patch }); };
   const closeEntrySheet = () => setEntrySheet(null);
 
   /**
@@ -378,8 +396,9 @@ export default function WorkingDashboard() {
     return row;
   };
 
-  const saveEntry = () => {
-    const d = entrySheet;
+  const saveEntry = (patch) => {
+    // A button may complete the task from the form: { status: 'Completed', dar } (a Save button passes a press event, ignored).
+    const d = patch && patch.status ? { ...entrySheet, ...patch } : entrySheet;
     if (!d.title.trim()) return Alert.alert('A task description is needed');
     const paymentError = validatePaymentDetails(finalizeDraft(d), plists);
     if (paymentError) return Alert.alert('Almost there', paymentError);
@@ -946,10 +965,18 @@ export default function WorkingDashboard() {
   // is scrolled: on phone-width screens, and on the website below 900px (its one-column form). The APK on a tablet
   // keeps them at the end of the form; the desktop form has them beside it.
   const pinSave = !deskForm && (!tabletWidth || Platform.OS === 'web');
-  const entryButtons = (
+  // A saved, open task: Done / DAR / Save in one bar (the phone's way); a new or finished one: Cancel / Save.
+  const completableForm = !!entrySheet && phoneLayout && entries.some((x) => x.id === entrySheet.id && isOpen(x));
+  const entryButtons = completableForm ? (
+    <Row gap={8}>
+      <Btn style={{ flex: 1 }} kind="soft" title="✓ Done" onPress={() => saveEntry({ status: 'Completed', dar: false })} />
+      <Btn style={{ flex: 1 }} kind="ok" title="✓ DAR" onPress={() => saveEntry({ status: 'Completed', dar: true })} />
+      <Btn style={{ flex: 1.2 }} title="Save" onPress={() => saveEntry()} />
+    </Row>
+  ) : (
     <Row gap={10}>
       <Btn style={{ flex: 1 }} kind="soft" title="Cancel" onPress={closeEntrySheet} />
-      <Btn style={{ flex: 2 }} title="Save Entry" onPress={saveEntry} />
+      <Btn style={{ flex: 2 }} title="Save Entry" onPress={() => saveEntry()} />
     </Row>
   );
   const renderEntryForm = () => {
@@ -1178,30 +1205,40 @@ export default function WorkingDashboard() {
     const isSaved = entries.some((x) => x.id === entrySheet.id);
     const binBtn = isSaved && <Btn kind="danger" title="Bin" onPress={() => { act(entries.find((x) => x.id === entrySheet.id) || entrySheet, 'bin'); closeEntrySheet(); }} />;
     if (!deskForm) {
-      // Phone (the APK, and the website below 900px): numbered sections, one column - "Option A".
-      const section = (n, title, children) => (
-        <View style={{ backgroundColor: t.surface, borderRadius: 16, borderWidth: 1, borderColor: t.border, padding: 14, paddingBottom: 2, marginBottom: 12 }}>
-          <Row gap={10} style={{ alignItems: 'center', marginBottom: 12 }}>
-            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(12) }}>{n}</Text></View>
-            <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15) }}>{title}</Text>
-          </Row>
+      // Phone (the APK, and the website below 900px): one column - a small heading per group, and the extras (checklist, mail chain,
+      // notes, attachments, key points, history) fold into rows that open when tapped (open at once when the entry has something there).
+      const section = (title, children) => (
+        <View style={{ marginBottom: 6 }}>
+          <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11.5), letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8, marginLeft: 2 }}>{title}</Text>
           {children}
         </View>
       );
-      // Mail chain, notes and key points fold away until wanted - open at once when the entry already has any.
-      const hasDetails = !!(String(entrySheet.reference || '').trim() || String(entrySheet.notes || '').trim() || (entrySheet.keyPoints || []).length);
-      const showMore = entryMore || hasDetails;
+      const acc = (key, icon, title, summary, node, filled) => {
+        if (!node) return null;
+        const open = accOpen[key] !== undefined ? accOpen[key] : !!filled;
+        return (
+          <View key={key} style={{ marginBottom: 10 }}>
+            <Pressable onPress={() => setAccOpen((m) => ({ ...m, [key]: !open }))} accessibilityRole="button" accessibilityState={{ expanded: open }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14, ...t.shadow }}>
+              <Text style={{ fontSize: t.fs(16) }}>{icon}</Text>
+              <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14.5) }}>{title}</Text>
+              <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', color: t.textDim, fontSize: t.fs(12.5), fontWeight: '600' }}>{summary}</Text>
+              <Text style={{ color: t.textDim, fontSize: t.fs(16) }}>{open ? '⌃' : '⌄'}</Text>
+            </Pressable>
+            {open && <View style={{ paddingTop: 10 }}>{node}</View>}
+          </View>
+        );
+      };
+      const steps = checklistOf(entrySheet);
+      const stepsDone = steps.filter((c) => c.done).length;
       return (
         <View>
-          {section(1, 'Task', (
-            <>
-              {f.templates}
-              {f.title}
-              {f.saveTemplate}
-              <Row gap={10}>{f.category}{f.priority}</Row>
-            </>
-          ))}
-          {section(2, 'When', (
+          {f.templates}
+          {f.title}
+          {f.saveTemplate}
+          <Row gap={10}>{f.category}{f.priority}</Row>
+          <Row gap={10}>{f.status}{f.pendingWith}</Row>
+          {section('When', (
             <>
               {f.due}
               {f.slot}
@@ -1211,25 +1248,13 @@ export default function WorkingDashboard() {
               {f.custom}
             </>
           ))}
-          {section(3, 'Status', <Row gap={10}>{f.status}{f.pendingWith}</Row>)}
           {f.payment}
-          {showMore ? (
-            <View style={{ marginBottom: 4 }}>
-              {f.mail}
-              <View style={{ height: 12 }} />
-              {f.checklist}
-              {f.attachments}
-              {f.notes}
-              {f.keyPoints}
-              {f.history}
-            </View>
-          ) : (
-            <Pressable onPress={() => setEntryMore(true)} accessibilityRole="button"
-              style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: t.border, backgroundColor: t.surfaceAlt, marginBottom: 12 }}>
-              <Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(14) }}>＋ Mail chain, notes, key points</Text>
-              <Text style={{ color: t.accent, fontWeight: '800' }}>⌄</Text>
-            </Pressable>
-          )}
+          {acc('checklist', '☑️', 'Checklist', steps.length ? `${stepsDone} of ${steps.length}` : 'Add steps', f.checklist, steps.length > 0)}
+          {acc('mail', '✉', 'Mail chain', String(entrySheet.reference || '').trim() || 'Add', f.mail, !!String(entrySheet.reference || '').trim())}
+          {acc('notes', '📝', 'Notes & remarks', String(entrySheet.notes || '').trim() ? 'Added' : 'Add', f.notes, !!String(entrySheet.notes || '').trim())}
+          {acc('attach', '📎', 'Attachments', (entrySheet.attachments || []).length ? `${(entrySheet.attachments || []).length}` : 'Add', f.attachments, (entrySheet.attachments || []).length > 0)}
+          {acc('points', '🔑', 'Key points', (entrySheet.keyPoints || []).length ? `${(entrySheet.keyPoints || []).length}` : 'Add', f.keyPoints, (entrySheet.keyPoints || []).length > 0)}
+          {acc('history', '🕘', 'History', '', f.history, false)}
           {f.dar}
           {!pinSave && entryButtons}
           {!!binBtn && <View style={{ marginTop: 8 }}>{binBtn}</View>}
@@ -1512,7 +1537,28 @@ export default function WorkingDashboard() {
 
   return (
     <View style={[{ flex: 1, paddingLeft: sideBar }, t.bgGradient ? { backgroundImage: t.bgGradient } : null]}>
-    <Screen>
+    <Screen headerless bottomBar>
+      {/* The phone's app bar: the logo and title, the finder and the alerts bell - nothing else; sync and settings are under More. */}
+      {phoneLayout && (
+        <Row style={{ alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          {MORE_PAGES.includes(tab) ? (
+            <Pressable onPress={() => setTab('more')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back to More" style={{ paddingRight: 4 }}>
+              <Text style={{ color: t.accent, fontSize: t.fs(30), lineHeight: t.fs(32), fontWeight: '300' }}>‹</Text>
+            </Pressable>
+          ) : (
+            <View style={{ width: 34, height: 34 }}><AnimatedLogo size={34} /></View>
+          )}
+          <Text numberOfLines={1} style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(21), letterSpacing: -0.4 }}>{tab === 'dashboard' ? 'Working Dashboard' : { register: 'Tasks', done: 'Completed' }[tab] || TAB_TITLES[tab]}</Text>
+          <Pressable onPress={() => setPaletteOpen(true)} accessibilityRole="button" accessibilityLabel="Search" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, ...t.shadow }}>
+            <Text style={{ color: t.text, fontSize: t.fs(18) }}>⌕</Text>
+          </Pressable>
+          <Pressable onPress={() => setMeetingOpen(true)} accessibilityRole="button" accessibilityLabel={meetingOn ? 'Meeting mode is on' : 'Meeting mode'} style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: meetingOn ? t.warn + '33' : t.surface, ...t.shadow }}>
+            <Text style={{ fontSize: t.fs(16) }}>{meetingOn ? '🔕' : '🔔'}</Text>
+          </Pressable>
+        </Row>
+      )}
+      {!phoneLayout && (
+      <>
       {/* web.app: a window-style top bar - frosted, and it stays at the top while the page scrolls. */}
       <Row style={[{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
         Platform.OS === 'web' && t.frosted ? { position: 'sticky', top: 0, zIndex: 20, backgroundColor: t.bar, backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', marginHorizontal: wide ? -28 : tabletWidth ? -20 : -16, paddingHorizontal: wide ? 28 : tabletWidth ? 20 : 16, paddingVertical: 10, marginTop: wide ? -20 : -8, borderBottomWidth: 0.5, borderBottomColor: t.sideEdge } : null]}>
@@ -1556,6 +1602,8 @@ export default function WorkingDashboard() {
           </Pressable>
         )}
       </Row>
+      </>
+      )}
 
       {wd.whatsNewSeen !== WHATS_NEW.id && tab === 'dashboard' && (
         <Card style={{ marginBottom: 12, borderWidth: 1, borderColor: t.accent + '55' }}>
@@ -1602,7 +1650,14 @@ export default function WorkingDashboard() {
         {tab === 'dashboard' && (
           <View>
             {/* web.app only: the greeting, the summary and the past-due alert on ONE line (the header above is the other). */}
-            {Platform.OS === 'web' ? (
+            {phoneLayout ? (
+              <View style={{ marginBottom: 12 }}>
+                <Small style={{ fontWeight: '600' }}>{new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}</Small>
+                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(27), letterSpacing: -0.6 }}>
+                  {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening'}
+                </Text>
+              </View>
+            ) : Platform.OS === 'web' ? (
               <Row style={{ alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: tabletWidth ? 'nowrap' : 'wrap' }}>
                 <Text numberOfLines={tabletWidth ? 1 : undefined} style={{ flex: tabletWidth ? 1 : undefined, width: tabletWidth ? undefined : '100%', color: t.textDim, fontSize: t.fs(15) }}>
                   <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(18) }}>
@@ -1643,14 +1698,41 @@ export default function WorkingDashboard() {
             {formOn && <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
               <Row gap={8} style={{ alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
-                  <Field style={{ marginBottom: 0 }} value={quickText} onChangeText={setQuickText} placeholder='➕ Quick add: "Pay vendor tomorrow 5pm high"' onSubmitEditing={() => quickAdd()} returnKeyType="done" />
+                  <Field style={{ marginBottom: 0 }} value={quickText} onChangeText={setQuickText} placeholder={phoneLayout ? 'Quick add a task…' : '➕ Quick add: "Pay vendor tomorrow 5pm high"'} onSubmitEditing={() => quickAdd()} returnKeyType="done" />
                 </View>
                 {!!SpeechApi && <Btn kind={listening ? 'danger' : 'soft'} title={listening ? '● Listening' : '🎤'} onPress={listenOnce} />}
                 <Btn title="Add" onPress={() => quickAdd()} disabled={!quickText.trim()} />
               </Row>
-              {Platform.OS !== 'web' && !quickText && <Small style={{ marginTop: 6 }}>Tip: tap the 🎤 on your keyboard and say it - "Call the bank tomorrow 11am high".</Small>}
+              {Platform.OS !== 'web' && !phoneLayout && !quickText && <Small style={{ marginTop: 6 }}>Tip: tap the 🎤 on your keyboard and say it - "Call the bank tomorrow 11am high".</Small>}
               {!!quickParsed && !!describeQuickAdd(quickParsed) && <Small style={{ marginTop: 6 }}>→ {describeQuickAdd(quickParsed)}</Small>}
             </Card>}
+            {phoneLayout ? (
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 6, gap: 10 }}>
+                  <PhoneTile label="Overdue" value={stats.overdue} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
+                  <PhoneTile label="Due today" value={stats.dueToday} tone={t.warn} dark onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
+                  <PhoneTile label="Next 7 days" value={stats.next7Days} tone={t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
+                  <PhoneTile label="This month" value={stats.thisMonth} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'This Month' }); }} />
+                  <PhoneTile label="Pending" value={stats.pending} tone={t.ok} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
+                  <PhoneTile label="No due date" value={stats.noDueDate} tone={t.textDim} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
+                </ScrollView>
+                {!!attention.length && (
+                  <View style={{ marginTop: 14 }}>
+                    <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                      <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(17) }}>Needs attention</Text>
+                      <Pressable onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} hitSlop={8}><Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(13.5) }}>See all ›</Text></Pressable>
+                    </Row>
+                    {attention.map((e) => <PhoneRow key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} />)}
+                  </View>
+                )}
+                {!!comingUp.length && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(17), marginBottom: 8 }}>Coming up</Text>
+                    {comingUp.map((e) => <PhoneRow key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} />)}
+                  </View>
+                )}
+              </>
+            ) : (
             <Row style={{ flexWrap: 'wrap', gap: 10 }}>
               <StatTile index={0} label="Pending as on Today" value={stats.pendingAsOnToday} sub="Overdue + due today" color={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
               <StatTile index={1} label="Due Today" value={stats.dueToday} sub="Still on the clock" color={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
@@ -1660,6 +1742,7 @@ export default function WorkingDashboard() {
               <StatTile index={5} label="No Due Date" value={stats.noDueDate} sub="Needs a deadline" color={t.textDim} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
               <StatTile index={6} label="Pending" value={stats.pending} sub="As of now" color={t.warn} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
             </Row>
+            )}
 
             {/* web.app, wide: the panels flow in two columns (CSS columns), so no column is left with empty space under it. */}
             <View style={Platform.OS === 'web' && wide ? { display: 'block', columnCount: 2, columnGap: 16 } : undefined}>
@@ -1783,6 +1866,18 @@ export default function WorkingDashboard() {
                 <Text style={{ fontSize: 20, opacity: pulling ? 0.4 : 1 }}>🔄</Text>
               </Pressable>
             </Row>
+            {phoneLayout && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, marginBottom: 12 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+                {[['All', ANY, openEntries.length], ['Overdue', 'Overdue', stats.overdue], ['Today', 'Today', stats.dueToday], ['Next 7 days', 'Next 7 Days', stats.next7Days], ['This month', 'This Month', stats.thisMonth]].map(([label, v, n]) => {
+                  const on = filters.dueWithin === v;
+                  return (
+                    <Pressable key={label} onPress={() => setFilter({ dueWithin: v })} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
+                      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label} {n}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
             {showFilters && (
               <Card style={{ marginBottom: 12 }}>
               <OptionPicker label="Category" source={SOURCES.wdCategory} value={filters.category === ANY ? null : filters.category} onChange={(v) => setFilter({ category: v || ANY })} allowAny anyLabel="All Categories" />
@@ -1802,13 +1897,11 @@ export default function WorkingDashboard() {
             </Row>
             {(Platform.OS !== 'web' || wide) && <Segmented options={[{ key: 'cards', label: '▦ Cards' }, { key: 'table', label: '☰ Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
             <Segmented options={SORTS} value={sortBy} onChange={setSortBy} style={{ marginBottom: 10 }} />
-            <Small style={{ marginBottom: 12, textAlign: 'center' }}>{formOn ? 'Tap a card to edit · ' : ''}✓ completes it{WEB_DAR ? ' · DAR completes it into the daily report' : ''}{Platform.OS === 'web' && !phoneLayout ? ' · Keys: N new entry, / search, ⌘K finder, ? all shortcuts' : ''}</Small>
+            {!phoneLayout && <Small style={{ marginBottom: 12, textAlign: 'center' }}>{formOn ? 'Tap a card to edit · ' : ''}✓ completes it{WEB_DAR ? ' · DAR completes it into the daily report' : ''}{Platform.OS === 'web' && !phoneLayout ? ' · Keys: N new entry, / search, ⌘K finder, ? all shortcuts' : ''}</Small>}
             {!filteredOpen.length && <P dim>Nothing matches.</P>}
             {phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}
             {phoneLayout && !tableView && visibleRegister.map((entry) => (
-              <OpenCard key={entry.id} entry={entry} ring={alertModeOf(entry, wd.alerts) === 'alarm'} onToggleAlert={() => toggleAlert(entry)}
-                onEscalate={needsEscalationPrompt(entry) ? (yes) => answerEscalation(entry, yes) : undefined}
-                onOpen={() => openEditEntry(entry)} onToggleDar={() => toggleDar(entry)} onComplete={(opts) => act(entry, 'complete', opts)} narration={narrationFor(entry, plists)}
+              <PhoneRow key={entry.id} entry={entry} onPress={() => openEditEntry(entry)} onDone={() => act(entry, 'complete', { dar: false })} onDar={() => act(entry, 'complete', { dar: true })}
                 onFollowUp={isBankFollowUpCategory(entry.category) ? () => openFollowUp(entry) : undefined} />
             ))}
             {!phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}
@@ -1882,9 +1975,19 @@ export default function WorkingDashboard() {
             {!allDone.length && <P dim>Nothing completed yet.</P>}
             {!!allDone.length && !doneEntries.length && <P dim>Nothing matches.</P>}
             {phoneLayout && tableView && <EntryTable mode="done" completedAt={completedTime} entries={visibleDone} onOpen={(e) => openEditEntry(e)} />}
-            {phoneLayout && !tableView && visibleDone.map((entry) => (
-              <DoneCard key={entry.id} entry={entry} narration={narrationFor(entry, plists)} onOpen={() => openEditEntry(entry)} onReopen={() => act(entry, 'reopen')} onBin={() => act(entry, 'bin')} />
-            ))}
+            {phoneLayout && !tableView && visibleDone.map((entry, i) => {
+              // Grouped by the day it was completed: Today, Yesterday, then the date.
+              const ms = completedTime(entry);
+              const dayOf = (m) => (m ? toDateKey(new Date(m)) : '');
+              const label = (m) => { if (!m) return 'Earlier'; const k = dayOf(m); const y = new Date(); y.setDate(y.getDate() - 1); return k === toDateKey(new Date()) ? 'Today' : k === toDateKey(y) ? 'Yesterday' : new Date(m).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }); };
+              const first = i === 0 || dayOf(completedTime(visibleDone[i - 1])) !== dayOf(ms);
+              return (
+                <View key={entry.id}>
+                  {first && <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11.5), letterSpacing: 0.7, textTransform: 'uppercase', marginTop: i ? 8 : 0, marginBottom: 8, marginLeft: 2 }}>{label(ms)}</Text>}
+                  <PhoneDoneRow entry={entry} onPress={() => openEditEntry(entry)} onReopen={() => act(entry, 'reopen')} />
+                </View>
+              );
+            })}
             {!phoneLayout && tableView && <EntryTable mode="done" completedAt={completedTime} entries={visibleDone} onOpen={(e) => openEditEntry(e)} />}
             {!phoneLayout && !tableView && <CardGrid>
             {visibleDone.map((entry) => (
@@ -2022,6 +2125,28 @@ export default function WorkingDashboard() {
 
         {tab === 'report' && (
           <View>
+            {phoneLayout && (
+              <View style={{ marginBottom: 4 }}>
+                <Row gap={8} style={{ alignItems: 'center', marginBottom: 10 }}>
+                  <Pressable onPress={() => { const d = new Date(`${reportDate}T12:00:00`); d.setDate(d.getDate() - 1); const k = toDateKey(d); setReportDate(k); buildReport(k); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Previous day" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, ...t.shadow }}><Text style={{ color: t.accent, fontSize: t.fs(22), marginTop: -2 }}>‹</Text></Pressable>
+                  <View style={{ flex: 1 }}>
+                    <DateTimeField mode="date" value={new Date(`${reportDate}T12:00:00`).toISOString()} onChange={(v) => { const k = toDateKey(new Date(v)); setReportDate(k); buildReport(k); }} />
+                  </View>
+                  <Pressable onPress={() => { const d = new Date(`${reportDate}T12:00:00`); d.setDate(d.getDate() + 1); const k = toDateKey(d); setReportDate(k); buildReport(k); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Next day" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, ...t.shadow }}><Text style={{ color: t.accent, fontSize: t.fs(22), marginTop: -2 }}>›</Text></Pressable>
+                </Row>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, marginBottom: 12 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+                  {[['Today', () => { const k = toDateKey(new Date()); setReportDate(k); buildReport(k); }, reportKind === 'day' && reportDate === toDateKey(new Date())], ['This week', () => buildSummary('week'), reportKind === 'week'], ['This month', () => buildSummary('month'), reportKind === 'month']].map(([label, fn, on]) => (
+                    <Pressable key={label} onPress={fn} accessibilityRole="button" accessibilityState={{ selected: !!on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
+                      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
+                    </Pressable>
+                  ))}
+                  {!!reportModel && reportKind === 'day' && [[`${reportModel.data.others} other work`, t.ok], [`${reportModel.data.payments} payment${reportModel.data.payments === 1 ? '' : 's'}`, t.textDim], [`${reportModel.data.followed} followed up`, t.warn], ...(reportModel.data.excluded ? [[`${reportModel.data.excluded} left out`, t.textDim]] : [])].map(([label, c]) => (
+                    <View key={label} style={{ borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c + '22' }}><Text style={{ color: c, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text></View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+            {!phoneLayout && (
             <Card>
               <Row gap={10} style={{ alignItems: 'flex-end' }}>
                 <View style={{ flex: 1 }}>
@@ -2057,19 +2182,41 @@ export default function WorkingDashboard() {
               )}
               {!!reportNote && <Small style={{ marginTop: 4 }}>{reportNote}</Small>}
             </Card>
+            )}
+            {phoneLayout && !!reportNote && <Small style={{ marginBottom: 8 }}>{reportNote}</Small>}
 
-            {!!reportText && (
-              <Card style={{ marginTop: 14 }}>
+            {!!reportText && phoneLayout && reportKind === 'day' && !!reportModel && !(reportAlt && reportAlt.showing === 'ai') ? (
+              reportModel.sections.filter((sec) => sec.rows.length || (sec.intro && sec.intro.length)).map((sec) => (
+                <Card key={sec.key} style={{ marginBottom: 10 }}>
+                  <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11.5), letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8 }}>{sec.title}{sec.key === 'pay' ? ` (${sec.rows.length})` : ''}</Text>
+                  {[...(sec.intro || []), ...sec.rows.map((r) => r.line)].map((line, i) => (
+                    <Row key={i} gap={8} style={{ alignItems: 'flex-start', marginBottom: 6 }}>
+                      <Text style={{ color: t.textDim, fontSize: t.fs(14) }}>•</Text>
+                      <Text style={{ flex: 1, color: t.text, fontSize: t.fs(14), lineHeight: t.fs(20) }}>{line}</Text>
+                    </Row>
+                  ))}
+                </Card>
+              ))
+            ) : !!reportText && (
+              <Card style={{ marginTop: phoneLayout ? 0 : 14 }}>
                 <Text style={{ color: t.text, fontSize: t.fs(13.5), lineHeight: t.fs(20) }}>{reportText}</Text>
               </Card>
             )}
 
-            {!!reportText && (
+            {!!reportText && phoneLayout && (
+              <Pressable onPress={() => setAiOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: aiOpen }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14, marginTop: 4, ...t.shadow }}>
+                <Text style={{ fontSize: t.fs(16) }}>✨</Text>
+                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14.5) }}>Instructions for AI</Text>
+                <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', color: t.textDim, fontSize: t.fs(12.5), fontWeight: '600' }}>{(wd[aiKey] || '').trim() ? 'Set' : 'Optional'}</Text>
+                <Text style={{ color: t.textDim, fontSize: t.fs(16) }}>{aiOpen ? '⌃' : '⌄'}</Text>
+              </Pressable>
+            )}
+            {!!reportText && (!phoneLayout || aiOpen) && (
               <Field style={{ marginTop: 12 }} label={`INSTRUCTIONS FOR AI (${reportKind === 'day' ? 'daily report' : 'this summary'})`} value={wd[aiKey] || ''} multiline
                 onChangeText={(v) => setTools((w) => ({ ...w, [aiKey]: v }))}
                 placeholder="e.g. Two lines for each task, in a formal, professional tone." />
             )}
-            {!!reportText && (
+            {!!reportText && (!phoneLayout || aiOpen) && (
               <Row gap={6} style={{ marginTop: 6, flexWrap: 'wrap' }}>
                 {REPORT_PRESETS.map((p) => (
                   <Pressable key={p.label} onPress={() => setTools((w) => ({ ...w, [aiKey]: p.text }))} style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: t.surfaceAlt }}>
@@ -2082,28 +2229,48 @@ export default function WorkingDashboard() {
               <Btn style={{ marginTop: 10 }} kind="soft" title={reportAlt.showing === 'ai' ? 'Show the standard version' : '✨ Show the AI version'}
                 onPress={() => { const next = reportAlt.showing === 'ai' ? 'standard' : 'ai'; setReportText(reportAlt[next]); setReportAlt({ ...reportAlt, showing: next }); }} />
             )}
-            {!!reportText && (
-              <Row gap={10} style={{ marginTop: 14 }}>
-                <Btn style={{ flex: 1 }} kind="soft" title="📋 Copy" onPress={copyReport} />
-                {(phoneLayout || Platform.OS === 'web') && <Btn style={{ flex: 1 }} kind="soft" title="✉️ Email" onPress={emailReport} />}
+            {!!reportText && !phoneLayout && (
+              <Row gap={10} style={{ marginTop: 14, flexWrap: 'wrap' }}>
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="📋 Copy" onPress={copyReport} />
+                {(phoneLayout || Platform.OS === 'web') && <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="✉️ Email" onPress={emailReport} />}
                 {/* "Both" (phone-width screens): the report as a PDF, to send on WhatsApp or attach to a mail. */}
-                <Btn style={{ flex: 1 }} kind="soft" title="📄 PDF" onPress={pdfReport} />
-                <Btn style={{ flex: 1 }} kind="soft" title="⬇ Excel" onPress={csvReport} />
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="📄 PDF" onPress={pdfReport} />
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="⬇ Excel" onPress={csvReport} />
                 {/* The person's own Apps Script if they added one, else the app's built-in AI (aiBuiltin.js). On a phone
                     it has a line of its own below: four buttons in a row were too narrow to read. */}
                 {!phoneLayout && <Btn style={{ flex: 1 }} title={aiBusy ? 'Writing with AI...' : '✨ Rewrite with AI'} disabled={aiBusy} onPress={rewriteAny} />}
               </Row>
             )}
-            {!!reportText && phoneLayout && (
-              <Btn style={{ marginTop: 10 }} title={aiBusy ? 'Writing with AI...' : '✨ Rewrite with AI'} disabled={aiBusy} onPress={rewriteAny} />
-            )}
-            {/* "Both" (phone-width screens): the address Email fills in (saved; several can be separated by commas). */}
-            {!!reportText && phoneLayout && (
-              <Field style={{ marginTop: 12 }} label="SEND TO (Email fills this in)" value={wd.reportEmail || ''} keyboardType="email-address" autoCapitalize="none"
-                onChangeText={(v) => updateWd((w) => ({ ...w, reportEmail: v }))} placeholder="manager@company.com" />
-            )}
 
             {!reportText && <P dim style={{ marginTop: 10 }}>Pick a date and tap Generate - the report is built instantly from that day's completed entries (all but those marked "Done" only), entries whose status moved that day, routine activities and anything logged. Domestic and Urgent payments are left out, as on the web app.</P>}
+          </View>
+        )}
+
+        {tab === 'more' && (
+          <View>
+            <Card style={{ marginBottom: 14 }}>
+              <Row gap={12} style={{ alignItems: 'center' }}>
+                <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(19) }}>{String(googleUser?.displayName || googleUser?.email || 'W').trim().charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{googleUser?.displayName || (googleUser ? 'Signed in' : 'This device only')}</Text>
+                  <Small numberOfLines={1}>{googleUser?.email || 'Sign in with Google under Config to sync'}</Small>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surfaceAlt, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : t.textDim }} />
+                  <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline' : googleUser && realtimeError ? 'sync error' : googleUser ? 'in sync' : 'local'}</Text>
+                </View>
+              </Row>
+            </Card>
+            <Group title="Manage">
+              <Item icon="📅" color={t.accent} label="Holidays & leave" onPress={() => setTab('holidays')} />
+              <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
+            </Group>
+            <Group title="Settings">
+              <Item icon="⚙️" color={t.textDim} label="Config & lists" onPress={() => setTab('config')} />
+              <Item icon="🔔" color={t.warn} label="Alerts, app lock & backups" onPress={() => navigation.navigate('Settings')} last />
+            </Group>
           </View>
         )}
 
@@ -2135,6 +2302,8 @@ export default function WorkingDashboard() {
           );
           return (
             <View>
+              {/* The month at a glance: holidays, leave and the tasks due each day. */}
+              <View style={{ marginBottom: 12 }}><WdCalendar entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={(e) => openEditEntry(e)} /></View>
               <Row gap={8} style={{ marginBottom: 8 }}>
                 <View style={{ flex: 1 }}><Field style={{ marginBottom: 0 }} value={holQuery} onChangeText={setHolQuery} placeholder="🔍 Search holidays..." /></View>
                 <Pressable onPress={openNewHoliday} accessibilityLabel="Add holiday" style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent }}>
@@ -2542,6 +2711,21 @@ export default function WorkingDashboard() {
         )}
       </Sheet>
     </Screen>
+
+    {/* Phone Report: Copy, the AI rewrite and the send options stay at the foot of the screen, above the tab bar. */}
+    {phoneLayout && tab === 'report' && !!reportText && (
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: aboveBar - 8, flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, backgroundColor: t.surface, borderTopWidth: 0.5, borderTopColor: t.border }}>
+        <Btn style={{ flex: 1.4 }} title="📋 Copy" onPress={copyReport} />
+        <Btn style={{ flex: 1.4 }} kind="soft" title={aiBusy ? 'Writing…' : '✨ AI'} disabled={aiBusy} onPress={rewriteAny} />
+        <Btn style={{ flex: 1 }} kind="soft" title="⤴ Send" onPress={() => setShareOpen(true)} />
+      </View>
+    )}
+    <Sheet visible={shareOpen} onClose={() => setShareOpen(false)} title="Send the report">
+      <Field label="SEND TO (Email fills this in)" value={wd.reportEmail || ''} keyboardType="email-address" autoCapitalize="none" onChangeText={(v) => updateWd((w) => ({ ...w, reportEmail: v }))} placeholder="manager@company.com" />
+      <Btn style={{ marginBottom: 8 }} title="✉️ Email" onPress={() => { setShareOpen(false); emailReport(); }} />
+      <Btn style={{ marginBottom: 8 }} kind="soft" title="📄 PDF" onPress={() => { setShareOpen(false); pdfReport(); }} />
+      <Btn kind="soft" title="⬇ Excel" onPress={() => { setShareOpen(false); csvReport(); }} />
+    </Sheet>
 
     {formOn && (tab === 'dashboard' || tab === 'register') && (
       <Pressable

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
-import { upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS, effectiveFormats } from '../src/reportFormats.js';
+import { breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -229,7 +230,7 @@ test('sub categories: read from the lists, shown for the right categories, requi
   assert.equal(categoryCarriesSubCategory(lists, 'Duty Payment'), false);      // the list names the categories, so the default is not used
   const t = task({ category: 'Other' });
   assert.match(subCategoryMissing(t, lists), /Select a Sub Category/);
-  assert.match(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1' } }, lists), /Fill in Mode/);
+  assert.match(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1' } }, lists), /missing: Mode/);
   assert.equal(subCategoryMissing({ ...t, subCategory: 'Customs', subCategoryFields: { 'BE No': '1', Mode: 'TT' } }, lists), '');
   assert.equal(subCategoryMissing(task({ category: 'Duty Payment' }), lists), '');
   // with no list of categories, the phone's own default applies
@@ -354,11 +355,16 @@ test('an alert comes at the due time, once, and respects snooze, silence and ski
   assert.equal(pendingAlerts([{ ...due, binned: true }], now).length, 0);
 });
 
-test('a task with a date but no time alerts at 9:00 AM; a next reminder alerts too', () => {
+test('a task with a date but no time alerts at 7:00 PM, once and only on its due date; a next reminder alerts too', () => {
   const dateOnly = task({ id: 'd2', due: new Date(2026, 9, 15), hasTime: false });
-  assert.equal(dueAlertAt(dateOnly).getHours(), 9);
-  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 8, 59)).length, 0);
-  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 9, 1)).length, 1);
+  assert.equal(dueAlertAt(dateOnly).getHours(), 19);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 9, 1)).length, 0);       // not in the morning
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 18, 59)).length, 0);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 19, 1)).length, 1);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 23, 59)).length, 1);
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 16, 0, 30)).length, 0);       // never on another day
+  const key = pendingAlerts([dateOnly], new Date(2026, 9, 15, 19, 1))[0].key;
+  assert.equal(pendingAlerts([dateOnly], new Date(2026, 9, 15, 20, 0), new Set([key])).length, 0);   // once
   const rem = task({ id: 'd3', nextReminder: new Date(2026, 9, 15, 10, 0) });
   const a = pendingAlerts([rem], new Date(2026, 9, 15, 10, 1));
   assert.equal(a.length, 1);
@@ -471,4 +477,166 @@ test('the due response follows the task\'s own alert choice', () => {
   assert.deepEqual(dueResponse({ alertMode: 'alarm' }, { popup: false, sound: false }), { popup: true, sound: true });
   assert.deepEqual(dueResponse({ alertMode: 'gentle' }, { popup: true, sound: true }), { popup: false, sound: false });
   assert.deepEqual(dueResponse({ alertMode: '' }, { popup: true, sound: false }), { popup: true, sound: false });
+});
+
+test('a template keeps the usual fields, never the dates, and starts a new task', () => {
+  const src = task({ title: 'Month-end reconciliation', category: 'Payments', priority: 'High', notes: 'Check ledgers', due: new Date(2026, 9, 31), keyPoints: [{ key: 'Ledger', value: 'HDFC' }], checklist: [{ id: 'a', text: 'Export', done: true }] });
+  const tpl = templateFrom(src);
+  assert.equal(tpl.name, 'Month-end reconciliation');
+  assert.ok(!('due' in tpl.fields) && !('dueDate' in tpl.fields));
+  assert.deepEqual(tpl.fields.keyPoints, [{ key: 'Ledger', value: '' }]);
+  assert.equal(tpl.fields.checklist[0].done, false);
+  const fresh = applyTemplate(blankTask(), tpl);
+  assert.equal(fresh.category, 'Payments');
+  assert.equal(fresh.priority, 'High');
+  assert.equal(fresh.due, null);
+  const list = saveTemplate(saveTemplate([], tpl), { ...tpl, id: 'other' });                 // same name replaces
+  assert.equal(list.length, 1);
+  assert.deepEqual(readTemplates({ templates: list }).map((x) => x.name), ['Month-end reconciliation']);
+});
+
+test('the Gemini prompt keeps the draft and the person\'s instructions; lost numbers are found', () => {
+  const p = buildReportPrompt('1. Paid vendor 12500 (Payments)', 'Two lines per task');
+  assert.match(p, /Paid vendor 12500/);
+  assert.match(p, /Two lines per task/);
+  assert.ok(!/MY INSTRUCTIONS/.test(buildReportPrompt('x', '')));
+  assert.deepEqual(numbersLost('Paid 12,500', 'Paid 12500'), []);
+  assert.deepEqual(numbersLost('Paid 12,500 and 4471', 'Paid 12500'), ['4471']);
+});
+
+test('the Gemini API reply text is read from its parts', () => {
+  assert.equal(geminiText({ candidates: [{ content: { parts: [{ text: 'Hello ' }, { text: 'world' }] } }] }), 'Hello world');
+  assert.equal(geminiText({ candidates: [] }), '');
+  assert.equal(geminiText(null), '');
+});
+
+test('the Dashboard bank desk lists open bank follow-ups, longest open first, with the banker\'s update', () => {
+  const now = new Date(2026, 9, 16, 12);
+  const old = task({ title: 'ICICI LC', category: "Bank Follow-up's", bankFollowUps: [{ d: '2026-10-05', at: new Date(2026, 9, 5, 10).toISOString(), remarks: 'Awaiting head office', next: new Date(2026, 9, 18, 10).toISOString() }] });
+  const fresh = task({ title: 'HDFC FD', category: "Urgent Bank Follow Up's", createdAt: new Date(2026, 9, 14), subCategoryFields: { "Banker's Reply's:": 'Will share tomorrow' } });
+  const other = task({ title: 'Not a bank task', category: 'Audit' });
+  const rows = bankFollowUpDesk([fresh, other, old, { ...old, id: 'x', done: true }], now);
+  assert.deepEqual(rows.map((r) => r.t.title), ['ICICI LC', 'HDFC FD']);
+  assert.equal(rows[0].update, 'Awaiting head office');
+  assert.equal(rows[0].days, 12);
+  assert.equal(rows[1].update, 'Will share tomorrow');
+});
+
+test('a report format fills its marks from the Sub Category fields, then Key Points, and shows what is missing', () => {
+  const e = { title: 'Pay ACME', subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor or suppler:': 'ACME Traders', 'Invoice No': 'INV-4471', 'Amount paid': '' }, keyPoints: [{ key: 'Amount', value: '4,35,000' }] };
+  assert.deepEqual(placeholdersOf('{Name}: Being paid against {Invoice No} for {Amount} {Amount}'), ['Name', 'Invoice No', 'Amount']);
+  const r = renderTemplate('{Name}: - Being amount paid against Invoice No. {Invoice No} towards {Towards}, amounting to ₹{Amount}.', e);
+  assert.equal(r.text, 'ACME Traders: - Being amount paid against Invoice No. INV-4471 towards [Towards], amounting to ₹4,35,000.');
+  assert.deepEqual(r.missing, ['Towards']);
+});
+
+test('a format is found by Sub Category name, also when one name contains the other', () => {
+  assert.equal(findFormat(SAMPLE_FORMATS, 'Imports Payment').subCategory, 'Imports Payment Initiation');
+  assert.equal(findFormat(SAMPLE_FORMATS, 'invoice payment').subCategory, 'Invoice Payment');
+  assert.equal(findFormat(SAMPLE_FORMATS, "Employee Advance's").subCategory, "Employee Advance's");
+  assert.equal(findFormat(SAMPLE_FORMATS, 'Something else'), null);
+  assert.equal(findFormat(SAMPLE_FORMATS, ''), null);
+});
+
+test('marks with no field in the Sub Category are listed, so they can be added', () => {
+  assert.deepEqual(unmatchedMarks('{Name} paid {Invoice No} on {Date paid}', ['Name of vendor', 'Invoice no']), ['Date paid']);
+});
+
+test('the sample formats from the owner\'s sheet all have text and marks', () => {
+  assert.ok(SAMPLE_FORMATS.length >= 25);
+  assert.ok(SAMPLE_FORMATS.every((f) => f.subCategory && f.template.length > 20));
+  const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
+  assert.equal(imp.missing.length, 0);
+  assert.match(imp.text, /in favour of Orion Steel towards the 30% Advance payment against dispatch for USD 12,000 through ICICI, Reference No\. RF-9\. Current Status: Pending with bank for processing\./);
+});
+
+test('the setup from the formats creates only the missing categories and sub categories, with a field for each mark', () => {
+  const lists = { categories: ['Payments', 'Audit'], subCategories: [{ id: 'a', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Name of vendor' }] }, { id: 'b', name: 'Imports Payment', category: 'Payments', fields: [] }], subCategoryCategories: ['Payments'] };
+  const plan = planFormatSetup(lists, SAMPLE_FORMATS);
+  assert.deepEqual(plan.categories, ['Import Payments', 'Duty Payments', 'HR Statutory Payment', 'Monthly Payments', 'Demand Draft']);
+  const names = plan.subCategories.map((x) => x.name);
+  assert.ok(!names.includes('Invoice Payment') && !names.includes('Imports Payment Initiation'));   // already there (also by containment)
+  assert.ok(names.includes('Custom Duty Payment') && names.includes('PO Advance Payment'));
+  const po = plan.subCategories.find((x) => x.name === 'PO Advance Payment');
+  assert.deepEqual(po.labels, ['Name', 'Advance %', 'PO No', 'Amount']);
+  assert.equal(plan.lists.subCategories.find((x) => x.name === 'Invoice Payment').fields.length, 1);   // an existing one is not touched
+  assert.ok(plan.lists.subCategoryCategories.includes('Duty Payments'));
+  const again = planFormatSetup(plan.lists, SAMPLE_FORMATS);
+  assert.equal(again.categories.length + again.subCategories.length, 0);                              // nothing left to create
+});
+
+test('the Dashboard breakdowns count open tasks by category, status, person and priority, and a category by sub category', () => {
+  const now = new Date(2026, 9, 16, 12);
+  const list = [
+    task({ id: '1', category: 'Payments', subCategory: 'Invoice Payment', priority: 'High', status: 'Pending', pendingWith: 'Accounts', due: new Date(2026, 9, 14) }),
+    task({ id: '2', category: 'Payments', subCategory: 'Invoice Payment', priority: 'Low', status: 'In Progress', pendingWith: 'Accounts', due: new Date(2026, 9, 20) }),
+    task({ id: '3', category: 'Payments', subCategory: '', priority: 'High', status: 'Pending', pendingWith: '' }),
+    task({ id: '4', category: 'Audit', priority: 'High', status: 'Pending', pendingWith: 'Auditor' }),
+    task({ id: '5', category: 'Payments', subCategory: 'Invoice Payment', done: true }),
+  ];
+  assert.deepEqual(breakdown(list, 'category', now).map((r) => [r.name, r.count]), [['Payments', 3], ['Audit', 1]]);
+  assert.deepEqual(breakdown(list, 'priority', now).map((r) => [r.name, r.count]), [['High', 3], ['Low', 1]]);
+  assert.equal(breakdown(list, 'pendingWith', now).find((r) => r.name === '').label, 'Not set');
+  assert.equal(breakdown(list, 'status', now)[0].count, 3);
+  const subs = subBreakdown(list, 'Payments', now);
+  assert.deepEqual(subs.map((r) => [r.label, r.count, r.overdue]), [['Invoice Payment', 2, 1], ['No sub category', 1, 0]]);
+});
+
+test('the Register filter can pick a sub category, or the tasks with none', () => {
+  const list = [task({ id: 'a', category: 'P', subCategory: 'X' }), task({ id: 'b', category: 'P', subCategory: '' }), task({ id: 'c', category: 'P', subCategory: 'Y' })];
+  assert.deepEqual(filterTasks(list, { category: 'P', subCategory: 'X' }).map((t) => t.id), ['a']);
+  assert.deepEqual(filterTasks(list, { category: 'P', subCategory: '__none' }).map((t) => t.id), ['b']);
+});
+
+test('the Final Narration is what follows the dash of a payment line, for Payments categories only', () => {
+  const entry = { category: 'Payments', subCategory: 'PO Advance Payment', subCategoryFields: { 'Name of vendor': 'Techwizer Infotech Private Limited', 'Advance %': '100', 'PO No': 'INPO/PP/26-27/0154', Amount: '16,22,933.00' } };
+  const line = renderTemplate(findFormat(SAMPLE_FORMATS, 'PO Advance Payment').template, entry).text;
+  assert.equal(line, 'Techwizer Infotech Private Limited: - Being 100% advance amount paid against the Po No: INPO/PP/26-27/0154 & Amount: 16,22,933.00/-');
+  assert.equal(narrationOf(line), 'Being 100% advance amount paid against the Po No: INPO/PP/26-27/0154 & Amount: 16,22,933.00/-');
+  assert.equal(finalNarration(entry, SAMPLE_FORMATS).text, narrationOf(line));
+  assert.equal(finalNarration({ ...entry, category: 'Audit' }, SAMPLE_FORMATS), null);                    // not a Payments category
+  assert.equal(finalNarration({ ...entry, subCategory: 'Something else' }, SAMPLE_FORMATS), null);       // no format
+  assert.equal(narrationOf('Made the payment for TDS - with Month: Sept'), 'Made the payment for TDS - with Month: Sept');   // no ": -": the whole line
+  assert.ok(isPaymentCategory('Import Payments') && isPaymentCategory('Monthly Payments') && !isPaymentCategory('Audit'));
+  assert.deepEqual(finalNarration({ ...entry, subCategoryFields: {} }, SAMPLE_FORMATS).missing, ['Name', 'Advance %', 'PO No', 'Amount']);
+});
+
+test('HR Statutory and Monthly Payments formats: short names match exactly, the line is written from the fields', () => {
+  const f = (name) => findFormat(SAMPLE_FORMATS, name);
+  assert.equal(f('ESI').subCategory, 'ESI');
+  assert.equal(f('PT').subCategory, 'PT');
+  assert.equal(f('Prompt'), null);
+  const entry = { category: 'HR Statutory Payment', subCategory: 'EPFO', subCategoryFields: { Month: 'September 2026', 'Liability Period': 'Aug 2026', 'Amount Paid': '1,00,000', 'Payment Date': '15-10-2026', Status: 'Completed' } };
+  assert.equal(renderTemplate(f('EPFO').template, entry).text, 'Made the payment for EPFO for the month of September 2026 - with Month: September 2026, Liability Period: Aug 2026, Amount Paid: 1,00,000, Payment Date: 15-10-2026, Status: Completed.');
+  assert.ok(f('Monthly TDS Payments by Section wise: ').template.includes('{TDS Section & Code}'));
+});
+
+test('Rent Payments format is written from its fields', () => {
+  const f = findFormat(SAMPLE_FORMATS, 'Rent Payments');
+  assert.equal(renderTemplate(f.template, { subCategoryFields: { Name: 'Mr Landlord', Month: 'October 2026', Premises: 'Head Office', Amount: '85,000' } }).text, 'Mr Landlord: - Being amount paid towards rent for the month of October 2026 for Head Office, amounting to ₹85,000.');
+});
+
+test('Next Month counts the open tasks due next month, across the year end', () => {
+  const dec = new Date(2026, 11, 15);
+  const jan = task({ due: new Date(2027, 0, 5, 9) });
+  const decTask = task({ due: new Date(2026, 11, 20, 9) });
+  assert.ok(isDueNextMonth(jan, dec) && !isDueNextMonth(decTask, dec));
+  assert.equal(stats([jan, decTask], dec).nextMonth, 1);
+  assert.equal(filterTasks([jan, decTask], { due: 'nextmonth' }, dec).length, 1);
+});
+
+test('Demand Draft Online / Offline formats are written from their fields', () => {
+  const f = findFormat(SAMPLE_FORMATS, 'Offline');
+  assert.equal(f.category, 'Demand Draft');
+  const out = renderTemplate(f.template, { subCategoryFields: { 'Payee Name': 'High Court', 'DD No': '123456', Amount: '5,000', 'Case No': 'WP/12/2026' } });
+  assert.ok(out.missing.length === 0 && out.text.startsWith('Prepared Offline Demand Draft application forms') && out.text.includes('Payee Name: High Court, DD No: 123456, Amount: 5,000 & Case No: WP/12/2026.'));
+});
+
+test('saved report formats keep their wording; samples added later still reach the account', () => {
+  assert.equal(effectiveFormats([]), SAMPLE_FORMATS);
+  const mine = [{ id: 'x', category: 'Payments', subCategory: 'Invoice Payment', template: 'MY WORDING {Name}' }];
+  const all = effectiveFormats(mine);
+  assert.equal(findFormat(all, 'Invoice Payment').template, 'MY WORDING {Name}');
+  assert.ok(findFormat(all, 'Imports Payment Initiation') && findFormat(all, 'Offline') && findFormat(all, 'ESI'));
+  assert.equal(all.filter((f) => f.subCategory === 'Invoice Payment').length, 1);
 });

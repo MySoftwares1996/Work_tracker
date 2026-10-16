@@ -79,7 +79,17 @@ object WebPresence {
       val snoozeUntil = (call(snap, "get", "snoozeUntil") as? Number)?.toLong() ?: 0L
       val ackDate = (call(snap, "get", "lastAckDate") as? String).orEmpty()
       val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
-      deleted || status.startsWith("complet") || status == "done" || snoozeUntil > System.currentTimeMillis() || ackDate == today
+      // Moved to a later date or time on the web app (Move in the due alert, the entry form): the booked alarm is out of date.
+      val dueDate = (call(snap, "get", "dueDate") as? String).orEmpty().trim()
+      val dueTime = (call(snap, "get", "dueTime") as? String).orEmpty().trim()
+      val movedLater = try {
+        if (dueDate.isEmpty()) false else {
+          val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+          val due = fmt.parse("$dueDate ${if (dueTime.matches(Regex("\\d{1,2}:\\d{2}"))) dueTime else "09:00"}")
+          due != null && due.time > System.currentTimeMillis() + 90_000L
+        }
+      } catch (_: Throwable) { false }
+      deleted || status.startsWith("complet") || status == "done" || snoozeUntil > System.currentTimeMillis() || ackDate == today || movedLater
     } catch (_: Throwable) {
       false
     }

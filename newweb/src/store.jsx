@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, doc, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
+import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut } from 'firebase/auth';
+import { inApp, askNative } from './nativeBridge';
+import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
-import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, toDoc, isOpen, writeListsValue } from './data';
+import { readReportFormats, planFormatSetup, effectiveFormats } from './reportFormats';
+import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
 import { demoTasks } from './demo';
 
 const Ctx = createContext(null);
@@ -22,11 +24,15 @@ export function friendlyError(e) {
 
 /** The shared actions, written once for both the live and the demo store. `commit` saves one task. */
 function makeActions(commit, getTasks, notify) {
-  const save = (t) => commit(t);
+  // A status moved on (In Progress, Waiting...) is a day worked on: it goes into the task's work log, which the Daily report is written from.
+  const save = (t) => {
+    const old = (getTasks() || []).find((x) => x.id === t.id);
+    commit(!t.done && (!old || old.status !== t.status) ? logWork(t, t.status) : t);
+  };
   return {
     save,
     complete(t, dar = true) {
-      commit({ ...t, done: true, completedAt: new Date(), dar });
+      commit({ ...logWork(t, 'Completed'), done: true, completedAt: new Date(), dar });
       if (t.recurrence && t.recurrence !== "Doesn't repeat") {
         const next = nextOccurrence(t, getTasks());
         if (next) { commit(next); notify(`Next ${t.recurrence.toLowerCase()} task added`); }
@@ -60,18 +66,37 @@ export function LiveStore({ children }) {
   const rawLists = useRef(null);
   const [calendar, setCalendar] = useState({ holidays: [], leaveDays: [] });
   const [links, setLinks] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [formats, setFormats] = useState([]);              // the saved report formats (empty = the sample formats are used)
+  const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
+  const [metaReady, setMetaReady] = useState(false);      // the lists and tools have arrived from the server
+  const [setupDone, setSetupDone] = useState(false);      // the one-time automatic setup of the formats' categories ran for this account
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
   const [slow, setSlow] = useState(false);              // no answer from the server after 12 s (offline?)
+  const [lastSyncAt, setLastSyncAt] = useState(0);       // when data last arrived from the server (shown on the sync dot)
   const tasksRef = useRef([]);
 
   useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); setSynced(false); if (!u) setTaskMap({}); }), []);
+  // Inside the Android app the person is already signed in with Google there: sign this page in with the same account.
+  useEffect(() => {
+    if (!inApp()) return;
+    askNative('token', {}, 15000).then((idToken) => {
+      const auth = getAuth(firebaseApp());
+      if (idToken && !auth.currentUser) signInWithCredential(auth, GoogleAuthProvider.credential(idToken)).catch(() => {});
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) return undefined;
     const db = dbOf();
     const onErr = (e) => setError(friendlyError(e));
+    const applyMeta = (id, d) => {
+      if (id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
+      if (id === 'calendar') setCalendar(readCalendar(d));
+      if (id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); setFormats(readReportFormats(d)); setSetupDone(!!d.formatSetupAt); }
+    };
     const un1 = onSnapshot(collection(db, 'users', user.uid, 'tasks'), (snap) => {
       setTaskMap((m) => {
         const next = { ...m };
@@ -79,17 +104,44 @@ export function LiveStore({ children }) {
         return next;
       });
       setSynced(!snap.metadata.fromCache);
+      if (!snap.metadata.fromCache) setLastSyncAt(Date.now());
     }, onErr);
     const un2 = onSnapshot(collection(db, 'users', user.uid, 'meta'), (snap) => {
-      snap.docChanges().forEach((ch) => {
-        if (ch.type === 'removed') return;
-        const d = ch.doc.data() || {};
-        if (ch.doc.id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
-        if (ch.doc.id === 'calendar') setCalendar(readCalendar(d));
-        if (ch.doc.id === 'tools') setLinks(readLinks(d));
-      });
+      snap.docChanges().forEach((ch) => { if (ch.type !== 'removed') applyMeta(ch.doc.id, ch.doc.data() || {}); });
+      if (!snap.metadata.fromCache) setMetaReady(true);
     }, onErr);
-    return () => { un1(); un2(); };
+    // Device to device: the live listeners can stall (a sleeping laptop, a network change). When this tab is shown again, comes back
+    // online, or is clicked after a while, the server is asked directly and anything newer is taken - so an edit made on another
+    // computer or on the phone is here at once, not only after a refresh.
+    let busy = false;
+    let last = 0;
+    const refresh = async (force) => {
+      if (busy || document.hidden || Date.now() - last < (force ? 4000 : 30000)) return;
+      busy = true; last = Date.now();
+      try {
+        const [tasks, metas] = await Promise.all([getDocsFromServer(collection(db, 'users', user.uid, 'tasks')), getDocsFromServer(collection(db, 'users', user.uid, 'meta'))]);
+        setTaskMap((m) => {
+          const next = { ...m };
+          tasks.docs.forEach((x) => {
+            const fresh = fromDoc(x.id, x.data());
+            const have = next[x.id];
+            if (!have || (fresh.updatedAt || 0) >= (have.updatedAt || 0)) next[x.id] = fresh;
+          });
+          return next;
+        });
+        metas.docs.forEach((x) => applyMeta(x.id, x.data() || {}));
+        setLastSyncAt(Date.now());
+      } catch { /* offline: the live listener catches up when the network returns */ }
+      busy = false;
+    };
+    // Coming back to the tab at most every 30 s re-reads everything; coming back online does it at once.
+    const onShow = () => { if (!document.hidden) refresh(false); };
+    const onFocus = () => refresh(false);
+    const onOnline = () => refresh(true);
+    document.addEventListener('visibilitychange', onShow);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onOnline);
+    return () => { un1(); un2(); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onOnline); };
   }, [user]);
 
   useEffect(() => {
@@ -130,6 +182,32 @@ export function LiveStore({ children }) {
     };
   }, [user]);
 
+  const persistLists = useCallback((next) => {
+    if (!user) return;
+    setLists(next);
+    setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
+      .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
+      .catch((e) => setError(friendlyError(e)));
+  }, [user]);
+
+  // Once per account, automatically: every Category and Sub Category the report formats need is created if it is missing (nothing existing is
+  // changed). The flag (meta/tools.formatSetupAt) stops it running again, so a category deleted later stays deleted; Config > Report formats
+  // has the button for doing it again.
+  const setupRan = useRef(false);
+  useEffect(() => {
+    if (!user || !metaReady || setupDone || setupRan.current) return;
+    setupRan.current = true;
+    const plan = planFormatSetup(lists, allFormats);
+    if (plan.categories.length || plan.subCategories.length) {
+      persistLists(plan.lists);
+      setNote(`Added ${plan.categories.length} categor${plan.categories.length === 1 ? 'y' : 'ies'} and ${plan.subCategories.length} sub categor${plan.subCategories.length === 1 ? 'y' : 'ies'} from your report formats`);
+      setTimeout(() => setNote(''), NOTE_MS * 2);
+    }
+    setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { formatSetupAt: Date.now() }, { merge: true }).catch(() => {});
+    setSetupDone(true);
+  }, [user, metaReady, setupDone, lists, formats, persistLists]);
+  useEffect(() => { setupRan.current = false; setMetaReady(false); }, [user]);
+
   const tasks = useMemo(() => Object.values(taskMap).filter((t) => !t.purged), [taskMap]);
   tasksRef.current = tasks;
 
@@ -144,15 +222,23 @@ export function LiveStore({ children }) {
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, error, synced, slow, actions, notify: flash,
-    // Options added or removed here reach the phone and the old website too (meta/lists, newest write wins).
-    saveLists: (next) => {
+    demo: false, user, tasks, lists, calendar, links, templates, reportFormats: allFormats, reportFormatsCustom: formats.length > 0,
+    saveReportFormats: (next) => {
       if (!user) return;
-      setLists(next);
-      setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
-        .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
-        .catch((e) => setError(friendlyError(e)));
+      const now = Date.now();
+      setFormats(next);
+      setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { reportFormats: next, stamps: { reportFormats: now }, ts: now }, { merge: true }).catch((e) => setError(friendlyError(e)));
     },
+    error, synced, slow, lastSyncAt, actions, notify: flash,
+    // Written with its own stamp in meta/tools, the way the phone stamps it, so the newest edit wins on both.
+    saveTemplates: (next) => {
+      if (!user) return;
+      const now = Date.now();
+      setTemplates(next);
+      setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { templates: next, stamps: { templates: now }, ts: now }, { merge: true }).catch((e) => setError(friendlyError(e)));
+    },
+    // Options added or removed here reach the phone and the old website too (meta/lists, newest write wins).
+    saveLists: persistLists,
     // Writes an import plan (importBackup.js): the tasks in batches, then the lists and the calendar. Merged, so nothing else is cleared.
     importPlan: async (plan) => {
       if (!user) throw new Error('Sign in first.');
@@ -168,9 +254,9 @@ export function LiveStore({ children }) {
       setLists((l) => ({ ...l, ...merged }));
       if (Object.keys(plan.calendar).length) await setDoc(doc(db, 'users', user.uid, 'meta', 'calendar'), { ...plan.calendar, ts: Date.now() }, { merge: true });
     },
-    signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
-    signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, error, synced, slow, actions]);
+    signIn: async () => { setError(''); try { if (inApp()) { const idToken = await askNative('signin'); if (!idToken) throw new Error('Sign-in was cancelled.'); await signInWithCredential(getAuth(firebaseApp()), GoogleAuthProvider.credential(idToken)); } else await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
+    signOut: async () => { if (inApp()) await askNative('signout', {}, 8000); await signOut(getAuth(firebaseApp())); },
+  }), [user, tasks, lists, calendar, links, templates, formats, error, synced, slow, lastSyncAt, actions, persistLists]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
@@ -184,7 +270,9 @@ export function DemoStore({ children }) {
       { id: 'p2', name: 'Urgent Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] },
       { id: 'p3', name: 'Import Payment', category: 'Payments', fields: [{ label: 'Bill of Entry' }, { label: 'Mode', options: ['TT', 'LC'] }] },
       { id: 'p4', name: 'Customs Duty', category: 'Payments', fields: [{ label: 'BE No' }] },
+      { id: 'p6', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Name of vendor' }, { label: 'Invoice No' }] },
       { id: 'p5', name: 'Demand Draft', category: 'Payments', fields: [] },
+      { id: 'b1', name: "Urgent Bank Follow Up's", category: 'Follow-up', fields: [{ label: "Banker's Reply's:" }] },
       { id: 'a1', name: 'Statutory Audit', category: 'Audit', fields: [] },
       { id: 'a2', name: 'Internal Audit', category: 'Audit', fields: [] },
     ],
@@ -201,12 +289,15 @@ export function DemoStore({ children }) {
   }, [flash]);
   const visible = useMemo(() => tasks.filter((t) => !t.purged), [tasks]);
   const calendar = useMemo(() => ({ holidays: [{ date: '2026-10-20', name: 'Sample holiday' }], leaveDays: [] }), []);
+  const [templates, setTemplates] = useState([]);
+  const [formats, setFormats] = useState([]);
+  const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, error: '', synced: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, actions,
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
-  }), [visible, lists, calendar, links, actions]);
+  }), [visible, lists, calendar, links, templates, formats, actions]);
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
 

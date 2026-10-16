@@ -1,3 +1,4 @@
+import { noteWork, isUnstartedStatus } from '../../src/workingDashboardPayments.js';
 /**
  * The task data, in the shape the phone app and the old website already share (users/<uid>/tasks, the "web app's task
  * document"): description, dueDate + dueTime, mailChain, status "Completed", deleted... Nothing here touches Firebase, so
@@ -81,6 +82,12 @@ export function fromDoc(id, d = {}) {
     has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d, snoozeUntil: 'snoozeUntil' in d, lastAckDate: 'lastAckDate' in d, skippedDates: 'skippedDates' in d },
     createdAt: asDate(d.dateLogged),
     updatedAt: Number(d.updatedAt) || 0,
+    // Kept as read, for the report (the phone app and the old website write them): the days worked on, the bank follow-ups, the Tally narration.
+    workLog: Array.isArray(d.workLog) ? d.workLog.filter((w) => w && w.d) : [],
+    bankFollowUps: Array.isArray(d.bankFollowUps) ? d.bankFollowUps.filter((f) => f && f.d) : [],
+    narration: d.narration && typeof d.narration === 'object' ? d.narration : null,
+    paymentDetails: d.paymentDetails && typeof d.paymentDetails === 'object' ? d.paymentDetails : null,
+    escalation: d.escalation && typeof d.escalation === 'object' ? d.escalation : null,
   };
 }
 
@@ -130,6 +137,8 @@ export function toDoc(t, now = new Date()) {
     doc.subCategory = t.subCategory || null;
     doc.subCategoryFields = t.subCategory ? { ...(t.subCategoryFields || {}) } : null;
   }
+  if (t._wl) doc.workLog = (t.workLog || []).slice(-20);                       // written only after this app changed them
+  if (t._bf) doc.bankFollowUps = t.bankFollowUps || [];
   if (t.recurrence === 'Custom') doc.recurrenceEveryMin = Number(t.recurrenceEveryMin) || null;
   if (t.alertMode === 'alarm' || t.alertMode === 'gentle') doc.alertMode = t.alertMode;
   return doc;
@@ -154,12 +163,13 @@ export const isDueToday = (t, now = new Date()) => isOpen(t) && !!t.due && dayKe
 export const isPendingAsOnToday = (t, now = new Date()) => isOverdue(t, now) || isDueToday(t, now);
 export const isDueSoon = (t, now = new Date(), days = 7) => isOpen(t) && !!t.due && startOfDay(t.due) > startOfDay(now) && startOfDay(t.due) <= addDays(startOfDay(now), days);
 export const isDueThisMonth = (t, now = new Date()) => isOpen(t) && !!t.due && t.due.getFullYear() === now.getFullYear() && t.due.getMonth() === now.getMonth();
+export const isDueNextMonth = (t, now = new Date()) => { const n = new Date(now.getFullYear(), now.getMonth() + 1, 1); return isOpen(t) && !!t.due && t.due.getFullYear() === n.getFullYear() && t.due.getMonth() === n.getMonth(); };
 export const hasNoDueDate = (t) => isOpen(t) && !t.due;
 export const isStatusPending = (t) => isOpen(t) && /^pending$/i.test(String(t.status).trim());
 
 /** The Register's "Due" choices, as the Dashboard tiles open them. */
-export const DUE_FILTERS = [['pending', 'Pending as on Today'], ['today', 'Due Today'], ['overdue', 'Overdue'], ['next7', 'Next 7 Days'], ['month', 'This Month'], ['none', 'No Due Date']];
-const DUE_TESTS = { pending: isPendingAsOnToday, today: isDueToday, overdue: isOverdue, next7: isDueSoon, month: isDueThisMonth, none: hasNoDueDate };
+export const DUE_FILTERS = [['pending', 'Pending as on Today'], ['today', 'Due Today'], ['overdue', 'Overdue'], ['next7', 'Next 7 Days'], ['month', 'This Month'], ['nextmonth', 'Next Month'], ['none', 'No Due Date']];
+const DUE_TESTS = { pending: isPendingAsOnToday, today: isDueToday, overdue: isOverdue, next7: isDueSoon, month: isDueThisMonth, nextmonth: isDueNextMonth, none: hasNoDueDate };
 
 export function stats(tasks, now = new Date()) {
   const open = tasks.filter(isOpen);
@@ -172,6 +182,7 @@ export function stats(tasks, now = new Date()) {
     dueToday: count(isDueToday),
     dueSoon: count(isDueSoon),
     thisMonth: count(isDueThisMonth),
+    nextMonth: count(isDueNextMonth),
     noDueDate: open.filter(hasNoDueDate).length,
     pending: open.filter(isStatusPending).length,
     high: open.filter((t) => /^high$/i.test(t.priority)).length,
@@ -192,7 +203,7 @@ export function sortTasks(list, by = 'due') {
   return out;
 }
 
-export function filterTasks(list, { q = '', priority = '', category = '', pendingWith = '', status = '', due = '' } = {}, now = new Date()) {
+export function filterTasks(list, { q = '', priority = '', category = '', subCategory = '', pendingWith = '', status = '', due = '' } = {}, now = new Date()) {
   const needle = q.trim().toLowerCase();
   const dueTest = DUE_TESTS[due];
   return list.filter((t) => {
@@ -200,6 +211,7 @@ export function filterTasks(list, { q = '', priority = '', category = '', pendin
     if (dueTest && !dueTest(t, now)) return false;
     if (priority && t.priority !== priority) return false;
     if (category && t.category !== category) return false;
+    if (subCategory && (subCategory === '__none' ? !!t.subCategory : t.subCategory !== subCategory)) return false;
     if (pendingWith && t.pendingWith !== pendingWith) return false;
     if (!needle) return true;
     return `${t.title} ${t.reference} ${t.notes} ${t.category} ${t.pendingWith}`.toLowerCase().includes(needle);
@@ -284,7 +296,7 @@ export function subCategoryMissing(t, lists) {
   if (!t.subCategory) return 'Select a Sub Category before marking this Completed.';
   const sc = findSubCategory(lists, t.subCategory);
   const missing = sc ? sc.fields.filter((f) => !String((t.subCategoryFields || {})[f.label] || '').trim()) : [];
-  return missing.length ? `Fill in ${missing.map((f) => f.label).join(', ')} before marking this Completed.` : '';
+  return missing.length ? `Fill all the Sub Category fields before marking this Completed - missing: ${missing.map((f) => String(f.label).replace(/[\s:]+$/, '')).join(', ')}.` : '';
 }
 /** Adds one Sub Category under a category. A name is kept once across all categories, because a task stores only the name. */
 export function addSubCategory(list, name, labels = [], category = '') {
@@ -439,9 +451,9 @@ export function reminderLabel(t, now = new Date()) {
 /* ---- alerts at the due date and time ---- */
 export const SNOOZES = [[15, '15 min'], [30, '30 min'], [60, '1 hour'], [120, '2 hours'], [180, '3 hours'], [300, '5 hours']];
 const ALERT_WINDOW_MS = 12 * 3600 * 1000;       // a task that fell due longer ago than this is not popped up on opening the page; it shows under Needs attention
-const DATE_ONLY_HOUR = 9;                       // a task with a date but no time alerts at 9:00 AM that day
+const DATE_ONLY_HOUR = 19;                      // a task with a date but no time alerts once, at 7:00 PM, and only on its due date
 
-/** When a task's due alert is first due: its due time, or 9:00 AM on its due date when it has no time. */
+/** When a task's due alert is first due: its due time, or 7:00 PM on its due date when it has no time (and then only on that date). */
 export function dueAlertAt(t) {
   if (!t.due || Number.isNaN(t.due.getTime())) return null;
   if (t.hasTime) return new Date(t.due);
@@ -463,6 +475,8 @@ export function pendingAlerts(tasks, now = new Date(), handled = new Set()) {
     const add = (kind, at) => {
       if (!at) return;
       const from = Math.max(at.getTime(), Number(t.snoozeUntil) || 0);
+      // A date-only task alerts on its due date only: the evening alert is not repeated the next morning.
+      if (kind === 'due' && !t.hasTime && from === at.getTime() && dayKey(now) !== dayKey(t.due)) return;
       if (from > now.getTime() || now.getTime() - from > ALERT_WINDOW_MS) return;
       const key = `${t.id}|${kind}|${from}`;
       if (!handled.has(key)) out.push({ key, task: t, kind, at: new Date(from) });
@@ -507,4 +521,115 @@ export function alertHeading(a) {
 export function moveTask(t, date, time, status, recurrence) {
   const due = date ? parseDue(date, time || '09:00') : null;
   return { ...t, due, hasTime: !!(due && time), status: status || t.status, recurrence: recurrence || t.recurrence, snoozeUntil: 0, lastAckDate: '' };
+}
+
+/* ---- Templates: a task's usual fields saved once, then a new task starts from one. Same shape as the phone app's (src/templates.js);
+   kept in users/<uid>/meta/tools as `templates`, so the phone and the website share them. Dates are never part of a template. ---- */
+const TEMPLATE_FIELDS = ['title', 'category', 'priority', 'status', 'pendingWith', 'recurrence', 'recurrenceEveryMin', 'notes', 'alertMode', 'checklist'];
+const plain = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
+
+/** A template from a task or form draft; `name` defaults to its title. Key points keep their labels, not their values. */
+export function templateFrom(task, name) {
+  const fields = {};
+  TEMPLATE_FIELDS.forEach((k) => { if (task[k] !== undefined && task[k] !== null && task[k] !== '') fields[k] = plain(task[k]); });
+  if (Array.isArray(task.keyPoints)) fields.keyPoints = task.keyPoints.map((kp) => ({ key: String((kp && kp.key) || '').trim(), value: '' })).filter((kp) => kp.key);
+  if (Array.isArray(fields.checklist)) fields.checklist = fields.checklist.map((c) => ({ ...c, done: false }));
+  const label = String(name || task.title || '').trim();
+  return { id: `tpl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e4)}`, name: label || 'Template', fields };
+}
+
+/** The draft with the template's fields on top; the draft's own id, dates and mail chain stay. */
+export function applyTemplate(draft, tpl) {
+  const f = plain((tpl && tpl.fields) || {});
+  if (Array.isArray(f.checklist)) f.checklist = f.checklist.map((c, i) => ({ id: c.id || `c${Date.now()}${i}`, ...c, done: false }));
+  return { ...draft, ...f, keyPoints: Array.isArray(f.keyPoints) ? f.keyPoints.map((k) => ({ key: k.key || '', value: k.value || '' })) : draft.keyPoints };
+}
+
+/** Adds or replaces (same name) a template; newest first, at most 30. */
+export function saveTemplate(list = [], tpl) {
+  const rest = list.filter((x) => String(x.name).toLowerCase() !== String(tpl.name).toLowerCase());
+  return [tpl, ...rest].slice(0, 30);
+}
+
+export function readTemplates(d = {}) {
+  return (Array.isArray(d.templates) ? d.templates : []).filter((x) => x && x.name && x.fields && typeof x.fields === 'object').map((x) => ({ id: String(x.id || x.name), name: String(x.name), fields: x.fields }));
+}
+
+/* ---- AI rewrite of the daily report (Gemini, src/gemini.js). The prompt keeps every fact; numbersLost checks nothing was dropped. ---- */
+export function buildReportPrompt(draft, extra = '') {
+  return [
+    'You rewrite my Daily Activity Report so it reads as professional sentences.',
+    'Rules - follow every one:',
+    '1. Keep every item, numbered as in the draft, in the same section and order. Do not merge, split, add or drop items.',
+    '2. Keep every fact exactly: amounts, numbers, dates, names, party and vendor names, references, invoice and ticket numbers. Never invent anything that is not in the draft.',
+    '3. Keep the title line and the section headings (for example "Pending:") as they are.',
+    '4. Where an item carries a Sub Category line (for example "Banker\'s Reply\'s: ...") or Notes, put that content into the sentence for that item.',
+    '5. Reply with the report text only - no preface, no notes.',
+    extra && String(extra).trim() ? `6. MY INSTRUCTIONS (they decide tone, length and layout; rules 1-3 win if they clash):\n${String(extra).trim()}` : '',
+    '',
+    'DRAFT TO REWRITE:',
+    draft,
+  ].filter((x) => x !== '').join('\n');
+}
+
+/** Numbers of 2+ digits in the draft that the rewrite lost - an empty list means it is safe to use. */
+export function numbersLost(draft, ai) {
+  const hay = String(ai || '').replace(/,(?=\d{2,3}\b)/g, '');
+  const want = String(draft || '').replace(/,(?=\d{2,3}\b)/g, '').match(/\d{2,}(?:\.\d+)?/g) || [];
+  return [...new Set(want)].filter((n) => !hay.includes(n));
+}
+
+/** The text of a Gemini API (generateContent) reply, or ''; a blocked or empty reply gives ''. */
+export function geminiText(json) {
+  const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
+  return Array.isArray(parts) ? parts.map((p) => (p && typeof p.text === 'string' ? p.text : '')).join('').trim() : '';
+}
+
+/* ---- The work log and bank follow-ups the Daily report is written from (same fields as the phone app: workLog [{ d, s }], bankFollowUps [{ d, at, remarks, next }]) ---- */
+export const isBankFollowUp = (cat) => /bank/i.test(String(cat || '')) && /follow\s*-?\s*ups?\b/i.test(String(cat || ''));
+
+/** Today goes into the task's work log (so the report lists it), unless the status is "not started". */
+export function logWork(t, status, now = new Date()) {
+  const next = noteWork(t, status, now);
+  return next === t ? t : { ...next, _wl: true };
+}
+
+/** A bank follow-up made today: the banker's remarks and the next follow-up date. The task moves off Not Yet Started and today is logged. */
+export function addFollowUp(t, { remarks, next } = {}, now = new Date()) {
+  const text = String(remarks || '').replace(/\s+/g, ' ').trim();
+  if (!text && !next) return t;
+  const item = { d: dayKey(now), at: now.toISOString(), remarks: text, next: next instanceof Date && !Number.isNaN(next.getTime()) ? next.toISOString() : null };
+  const status = !String(t.status || '').trim() || isUnstartedStatus(t.status) ? 'In Progress' : t.status;
+  return logWork({ ...t, status, bankFollowUps: [...(t.bankFollowUps || []), item], _bf: true }, 'Followed up', now);
+}
+
+/** The Dashboard's bank follow-up list: open tasks in a Bank Follow-up category, longest open first, with the banker's last update and the next follow-up. */
+export function bankFollowUpDesk(tasks, now = new Date()) {
+  return (tasks || []).filter((t) => isOpen(t) && isBankFollowUp(t.category)).map((t) => {
+    const fu = Array.isArray(t.bankFollowUps) ? t.bankFollowUps : [];
+    const last = fu.length ? fu[fu.length - 1] : null;
+    const reply = Object.entries(t.subCategoryFields || {}).find(([k, v]) => /banker|reply|update/i.test(k) && String(v || '').trim());
+    const start = (fu[0] && fu[0].at && new Date(fu[0].at)) || t.createdAt || t.due || now;
+    const days = Math.max(1, Math.floor((now.getTime() - new Date(start).getTime()) / 86400000) + 1);
+    const nextAt = last && last.next ? new Date(last.next) : t.due;
+    return { t, days, update: (last && String(last.remarks || '').trim()) || (reply ? String(reply[1]).trim() : ''), next: nextAt instanceof Date && !Number.isNaN(nextAt.getTime()) ? nextAt : null };
+  }).sort((a, b) => b.days - a.days);
+}
+
+/** Open tasks counted by a field (category, status, pendingWith, priority): [{ name, count, overdue }], most first; a task with no value is counted as "Not set". */
+export function breakdown(tasks, field, now = new Date()) {
+  const map = new Map();
+  (tasks || []).filter(isOpen).forEach((t) => {
+    const name = String(t[field] || '').trim();
+    const row = map.get(name) || { name, count: 0, overdue: 0 };
+    row.count += 1;
+    if (isOverdue(t, now)) row.overdue += 1;
+    map.set(name, row);
+  });
+  return [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).map((r) => ({ ...r, label: r.name || 'Not set' }));
+}
+
+/** The open tasks of one category counted by Sub Category: [{ name, count, overdue }]; "" = no Sub Category chosen. */
+export function subBreakdown(tasks, category, now = new Date()) {
+  return breakdown((tasks || []).filter((t) => t.category === category), 'subCategory', now).map((r) => ({ ...r, label: r.name || 'No sub category' }));
 }

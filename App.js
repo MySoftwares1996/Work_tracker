@@ -23,6 +23,7 @@ import { trackerAvailable, isExactAlarmAllowed, requestExactAlarmPermission, sho
 import RealtimeSync from './src/RealtimeSync';
 import WebAlarmHost from './src/WebAlarm';
 import NewVersion from './src/NewVersion';
+import PhoneUpdate from './src/PhoneUpdate';
 import { useRealtimeStatus, setRealtimeStatus } from './src/realtimeStatus';
 import { watchAuthState } from './src/firebaseSync';
 import { needsWelcome } from './src/account';
@@ -31,6 +32,8 @@ import { runAutoBackup } from './src/autoBackup';
 import Settings from './src/screens/Settings';
 import PastDueAlert from './src/screens/PastDueAlert';
 import WorkingDashboard from './src/screens/WorkingDashboard';
+import WebApp from './src/screens/WebApp';
+import { useWebUi } from './src/appMode';
 import Welcome from './src/screens/Welcome';
 import AnimatedLogo from './src/AnimatedLogo';
 
@@ -39,6 +42,16 @@ import AnimatedLogo from './src/AnimatedLogo';
  * Working Dashboard tool inside My Personal Tracker, opening straight on it.
  */
 const Stack = createNativeStackNavigator();
+
+/**
+ * The Android app's home: its own phone screens (the default), or - when chosen in Settings - the new website inside the app.
+ */
+function Home(props) {
+  const [webUi, , ready] = useWebUi();
+  if (Platform.OS === 'web' || !webUi) return <WorkingDashboard {...props} />;
+  if (!ready) return null;
+  return <WebApp {...props} />;
+}
 
 // Lets the header buttons below call navigate()/goBack() the same way every screen already does.
 const navRef = createNavigationContainerRef();
@@ -330,6 +343,7 @@ function Root() {
       {/* Sync runs whatever is on screen: the sign-in screen included, so it sees the sign-in happen. */}
       <RealtimeSync />
       {Platform.OS === 'web' && <NewVersion />}
+      {Platform.OS !== 'web' && <PhoneUpdate />}
       {Platform.OS === 'web' && <WebAlarmHost onOpen={(id) => openWd(id ? wdAlarmId(id, 'due') : null)} />}
       {showWelcome ? <Welcome /> : (
       <NavigationContainer
@@ -346,7 +360,7 @@ function Root() {
       >
         <StatusBar style={t.dark ? 'light' : 'dark'} />
         <Stack.Navigator screenOptions={screenOptions} initialRouteName="WorkingDashboard">
-          <Stack.Screen name="WorkingDashboard" component={WorkingDashboard} options={{ title: 'Working Dashboard', headerShown: Platform.OS !== 'web', headerRight: (props) => <SettingsButton {...props} /> }} />
+          <Stack.Screen name="WorkingDashboard" component={Home} options={{ title: 'Working Dashboard', headerShown: false, headerRight: (props) => <SettingsButton {...props} /> }} />
           <Stack.Screen name="Settings" component={Settings} options={{ title: 'Settings' }} />
           <Stack.Screen name="PastDueAlert" component={PastDueAlert} options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         </Stack.Navigator>

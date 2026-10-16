@@ -5,6 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, Pressable, Platform, Animated, Easing } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useLayout, FadeInUp, AnimatedNumber, Card, Small, Btn, Row, prefersReducedMotion } from '../ui';
 import { useTheme, blend } from '../theme';
 import { checklistText } from '../checklist';
@@ -475,3 +476,100 @@ export function CountList({ title, total, rows, activeLabel, onPress }) {
   );
 }
 
+
+
+/*
+ * The phone's own pieces (the app-style Home and Tasks): a coloured tile for the Home carousel, and a compact task row that
+ * slides open to Done / DAR.
+ */
+
+/** A coloured count tile for the Home carousel. `tone`: a theme colour; `dark` puts dark text on a light tone (amber). */
+export function PhoneTile({ label, value, tone, dark, onPress }) {
+  const t = useTheme();
+  const ink = dark ? '#3B2A00' : '#fff';
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={({ pressed }) => ({ width: 118, height: 84, borderRadius: 18, padding: 12, backgroundColor: tone, overflow: 'hidden', transform: [{ scale: pressed ? 0.97 : 1 }], ...t.shadow })}>
+      <View style={{ position: 'absolute', right: -16, top: -16, width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.22)' }} />
+      <Text style={{ color: ink, fontWeight: '700', fontSize: t.fs(12), opacity: 0.95 }} numberOfLines={2}>{label}</Text>
+      <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(30), letterSpacing: -1, marginTop: 'auto' }}>{value}</Text>
+    </Pressable>
+  );
+}
+
+/** A task as one rounded row: a priority dot, the title, chips, and when it is due. With onDone / onDar it slides open to ✓ Done and ✓ DAR. */
+export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
+  const t = useTheme();
+  const swipe = useRef(null);
+  const due = entry.dueAt ? new Date(entry.dueAt) : null;
+  const overdue = isOverdue(entry);
+  const pc = t[PRIORITY_COLOR[entry.priority]] || t.textDim;
+  const late = overdue && due ? daysLate(due) : 0;
+  const when = due
+    ? (overdue ? `Overdue${late ? `\n${late} d` : ''}` : `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })}${isMidnight(due) ? '' : `\n${due.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}`)
+    : 'No date';
+  const chips = [entry.priority && { text: entry.priority, color: pc }, entry.category && { text: entry.category }, entry.pendingWith && { text: entry.pendingWith }, entry.recurrence && entry.recurrence !== 'none' && { text: `↻ ${recurrenceLabel(entry)}` }, checklistText(entry) && { text: `☑ ${checklistText(entry)}` }].filter(Boolean);
+  const body = (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={({ pressed }) => ({ backgroundColor: t.surface, borderRadius: 18, paddingVertical: 13, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12, opacity: pressed ? 0.92 : 1, ...(onDone ? null : t.shadow) })}>
+      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: pc, marginTop: 6 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15.5), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
+        <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+          {chips.map((c, i) => (
+            <View key={i} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (c.color || t.textDim) + '22' }}>
+              <Text style={{ color: c.color || t.textDim, fontWeight: '700', fontSize: t.fs(11.5) }} numberOfLines={1}>{c.text}</Text>
+            </View>
+          ))}
+        </Row>
+      </View>
+      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+        <Text style={{ color: overdue ? t.danger : t.textDim, fontWeight: '700', fontSize: t.fs(11.5), textAlign: 'right', lineHeight: t.fs(15) }}>{when}</Text>
+        {!!onFollowUp && <Pressable onPress={onFollowUp} hitSlop={8} accessibilityRole="button" accessibilityLabel="Bank follow-up"><Text style={{ fontSize: t.fs(18) }}>📞</Text></Pressable>}
+      </View>
+    </Pressable>
+  );
+  if (!onDone) return <View style={{ marginBottom: 10 }}>{body}</View>;
+  const action = (label, color, fn) => (
+    <Pressable onPress={() => { if (swipe.current) swipe.current.close(); fn(); }} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete'} style={{ width: 70, alignItems: 'center', justifyContent: 'center', backgroundColor: color }}>
+      <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(17) }}>✓</Text>
+      <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(12) }}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={{ marginBottom: 10, borderRadius: 18, overflow: 'hidden', ...t.shadow }}>
+      <Swipeable ref={swipe} overshootRight={false} friction={1.6} rightThreshold={40} renderRightActions={() => <View style={{ flexDirection: 'row' }}>{action('Done', t.ok, onDone)}{onDar ? action('DAR', blend(t.text, 0.3, t.ok), onDar) : null}</View>}>
+        {body}
+      </Swipeable>
+    </View>
+  );
+}
+
+/** A finished task as a row: a green dot, the title, when it was completed and whether it is in the daily report, and Reopen. */
+export function PhoneDoneRow({ entry, onPress, onReopen }) {
+  const t = useTheme();
+  const ms = completedTime(entry);
+  const time = ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  const chips = [
+    { text: `✓ ${time || 'done'}`, color: t.ok },
+    { text: entry.dar ? 'In report' : 'Done only', color: entry.dar ? t.accent : t.textDim },
+    entry.category && { text: entry.category, color: t.textDim },
+  ].filter(Boolean);
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={({ pressed }) => ({ backgroundColor: t.surface, borderRadius: 18, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 12, opacity: pressed ? 0.92 : 1, ...t.shadow })}>
+      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.ok, marginTop: 6 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15.5), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
+        <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+          {chips.map((c, i) => (
+            <View key={i} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: c.color + '22' }}>
+              <Text style={{ color: c.color, fontWeight: '700', fontSize: t.fs(11.5) }} numberOfLines={1}>{c.text}</Text>
+            </View>
+          ))}
+        </Row>
+      </View>
+      <Pressable onPress={onReopen} hitSlop={8} accessibilityRole="button" accessibilityLabel="Reopen" style={{ alignItems: 'center' }}>
+        <Text style={{ color: t.accent, fontSize: t.fs(20) }}>↩</Text>
+        <Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(11) }}>Reopen</Text>
+      </Pressable>
+    </Pressable>
+  );
+}

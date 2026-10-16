@@ -47,3 +47,59 @@ The rules let each signed-in person read and write only their own `users/<their 
 created (Build > Firestore Database > Create database).
 To publish them from GitHub instead: give the deploy service account the "Firebase Rules Admin" role and set the repository variable
 `DEPLOY_FIRESTORE_RULES` to `true`; "Deploy web version" then publishes `firestore.rules` with the site.
+
+## Gemini for the report (free)
+
+The Report tab has **✨ Rewrite with Gemini**. It uses Firebase AI Logic with the free Gemini Developer API in this project
+(`work-tracker-3b728`), so there is no key in the page. Switch it on once:
+
+1. Firebase console > your project > **AI Logic** (under Build) > **Get started**.
+2. Choose **Gemini Developer API** (the free one) and accept. It works on the free Spark plan.
+3. Reload the website and press **✨ Rewrite with Gemini** on the Report tab.
+
+The free tier has a daily limit for the whole project. If the button says the limit is reached, try again later. The report
+text is sent to Google's Gemini to be rewritten; nothing else is sent. If Gemini changes or drops a number, the page tells you which.
+
+## App Check (needed for Gemini from 2 November 2026)
+
+Google will require App Check for Firebase AI Logic from 2 November 2026. The page sends an App Check token when it is built with a
+reCAPTCHA v3 site key. Steps (all free):
+
+1. **Register a Web app.** Firebase console > Project settings (gear) > General > Your apps > the `</>` icon > nickname "Working
+   Dashboard web" > Register app. Copy the `appId` shown (it looks like `1:872088776442:web:abc123...`). Do not turn on Hosting there.
+2. **Create a reCAPTCHA v3 key.** https://www.google.com/recaptcha/admin/create > label "Working Dashboard", type **reCAPTCHA v3**, domains:
+   `work-dashboard-3b728.web.app` and `work-tracker-3b728.firebaseapp.com` > Submit. Copy the **Site key** and the **Secret key**.
+3. **Give the secret to Firebase.** Firebase console > App Check > **Apps** tab > the web app > **reCAPTCHA** > paste the **Secret key** > Save.
+4. **Tell GitHub.** Repository > Settings > Secrets and variables > Actions > **Variables** tab: add `VITE_FIREBASE_APP_ID` = the web appId from step 1,
+   and `VITE_RECAPTCHA_SITE_KEY` = the Site key from step 2. (The Site key is public by design; never put the Secret key in GitHub.)
+5. Run **Deploy web version**. Then App Check > APIs > Firebase AI Logic should show verified requests; leave enforcement off until
+   the verified share is near 100%, or let Google enforce it on 2 November.
+
+## Your own Gemini API key (backup)
+
+Config > **Gemini API key**: paste a key from https://aistudio.google.com/apikey and press **Save key** (**Test key** checks it). The
+report rewrite always tries the free Firebase route first; only when that fails (busy, free limit, App Check) the saved key is used.
+The key stays in that browser only (localStorage) - it is not saved in the database and not sent anywhere except Google's Gemini.
+Anyone who can use that browser profile can see it, so remove it (**Remove key**) on a shared computer.
+
+## Report formats (Config > Report formats)
+
+For each Sub Category you can write the exact line the Daily report uses for a task in it, with the task's own values in `{braces}`:
+
+`{Name}: - Being amount paid against Invoice No. {Invoice No}, amounting to ₹{Amount}.`
+
+- Each `{mark}` is filled from the task's Sub Category field with that name (the closest name wins; "Name" finds "Name of vendor or suppler"), then from its Key Points. A mark with no value shows as `[mark]` and the Report tab counts those lines.
+- A task with a format is listed under **Payments** with the standard payment lines, and stays word for word when Gemini rewrites the report.
+- The 22 formats from the owner's "Tally Narration formats" sheet are built in (`newweb/src/reportFormats.js`, `SAMPLE_FORMATS`) and used until a format is saved. Saving writes all formats to `users/<uid>/meta/tools` (`reportFormats`), so every browser shows the same ones.
+- If a template has a mark the Sub Category has no field for, Config shows an **Add it to the Sub Category** button.
+
+
+## Inside the Android app
+
+The APK shows this site in a built-in browser (`src/screens/WebApp.js`). `src/nativeBridge.js` talks to it: `token` / `signin` / `signout` (Google ID token from the phone, so the page and the phone are one account), `copy`, `print`, `file` (CSV via the share sheet), `settings`, `classic`. Outside the app none of it is active (`inApp()` is false).
+
+## Speed
+
+- The Report, Config and entry form are separate files (`src/screens/`), loaded when first opened and fetched quietly once the page is idle; Firebase and React are their own cached files (`vite.config.js`). Do not split `@firebase/ai` into its own chunk: the production build then fails at start ("Cannot access ... before initialization"); always open a production build (`npx vite build` + `npx vite preview`), not only the dev server, after changing chunking.
+- `public/sw.js` keeps the hashed files and the last page, so the site (and the Android app) opens again without a connection; the page itself is always fetched fresh first.
+- Register and Completed show 60 tasks and add more on request. Coming back to the tab re-reads the data at most every 30 s (online again: at once).

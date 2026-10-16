@@ -49,6 +49,7 @@ const config = {
       // '/' and every other page address (no dot in the name) are served index.html by the rewrite above, and
       // the header rule goes by the address asked for, not the file served: without these, a browser could keep
       // showing the previous deploy until it was refreshed.
+      { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
       { source: '/index.html', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
       { source: '/', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
       { source: '**/!(*.*)', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },

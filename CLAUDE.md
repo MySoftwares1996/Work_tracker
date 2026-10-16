@@ -56,8 +56,7 @@ Several sessions have changed the alert code; check this list before changing it
 - APK and phone width: the same tiles, cards, finder (search button in the header, `src/CommandPalette.js`) and Register / Completed
   table switch (`src/EntryTable.js`); the APK tab bar is `AppTabs` in `src/ui.js`.
 
-- Phone width (APK and web under 600): no New / Edit Entry form (`formOn` in `WorkingDashboard.js`), no Quick add bar, no + button and no
-  Narration tab; tablets and desktop keep them. The owner asked for this; entries cannot be added or edited at phone width.
+- Phone width: the New / Edit Entry form, Quick add and the + button are available again (the owner wants every card to open); no Narration tab.
 
 ## Features added in the 20-feature round (where they live)
 
@@ -75,11 +74,29 @@ attachments and the audit trail ride on the task itself (`cloudSync.js`).
 - Never start, re-run or trigger an APK build (the "Build Android APK" workflow, which also runs on every push to `main`) without the owner saying so in that message.
 - Every change made to the web version is held in `docs/APK_PENDING.md` and goes into the APK only at the next APK build the owner asks for. Add a line there in the same commit as each web change; when the owner asks for the next build, port the listed items, then clear them.
 
+## The APK's phone screens - decided by the owner
+
+The owner wants the APK to look and feel like a real phone app (not the website): `Both` / phone width now uses a new layout in the native screens
+(`WorkingDashboard.js`, `wdCards.js`, `ui.js`): a five-tab bottom bar (Home, Tasks, Report, Done, More; Holidays, Bin and Config are reached from More,
+with a back arrow in the app bar), a compact app bar (logo, title, finder, alerts bell), Home with coloured tiles you swipe sideways and "Needs attention" /
+"Coming up" rows (`PhoneTile`, `PhoneRow`), Tasks with filter chips and rows that slide open to Done / DAR, and the New / Edit Entry form on the phone too
+(every card opens; the old "no form at phone width" rule is gone). The website screens inside the app (`src/screens/WebApp.js`, `react-native-webview`) are an
+option only: Settings > Screens > "Show the website screens instead" (`src/appMode.js`, default off); the phone keeps its alarms, Google sign-in link
+(`src/webBridge.js`, `newweb/src/nativeBridge.js`), copy, print and file saving for it. The previews the owner approved are the model; more screens
+(entry form, Report, Done) are being brought to the same look step by step, each shown to the owner first.
+
+## Phone updates (over the air) - `docs/PHONE_UPDATES.md`
+
+A JavaScript-only change to the phone app can be published without a new APK: the "Publish phone update" workflow (manual, `.github/workflows/phone-update.yml`,
+needs the `EXPO_TOKEN` secret and `EAS_PROJECT_ID` variable the owner sets) sends it to builds made with the update settings (`app.config.js`, read from
+`EAS_PROJECT_ID`); the phone offers "Restart" (`src/PhoneUpdate.js`). Native changes (Kotlin, new libraries, permissions) still need a full build and a new
+`version` in `app.json`. Never run the update workflow or an APK build without the owner saying so in that message.
+
 ## The new web app (`newweb/`)
 
 A separate Vite + React site with its own look (centred top tab bar, bold tiles), on the same Firebase data as the app. It is not part of the
 Expo build; its own tests are `cd newweb && npm test`, and it is what the "Deploy web version" workflow now puts on the main website
-(`docs/NEW_WEB.md`; the Expo website is no longer deployed, the APK is unchanged). A change to the task data shape must be mirrored in `newweb/src/data.js`.
+(`docs/NEW_WEB.md`; the Expo website is no longer deployed, the APK is unchanged). A change to the task data shape must be mirrored in `newweb/src/data.js`. Its Report tab uses the phone's report engine directly (`newweb/src/reportEngine.js` imports `src/workingDashboardReport.js`, `reportStyle.js`, `workingDashboardPayments.js`; the website replaces AsyncStorage with a stub in `vite.config.js`), so the two write the same report; the website writes `workLog` / `bankFollowUps` when it completes a task, moves its status or logs a bank follow-up (`logWork`, `addFollowUp` in `newweb/src/data.js`). Its tests are `tests/suites/newweb-report.mjs`.
 
 ## Checks before a deploy or build
 

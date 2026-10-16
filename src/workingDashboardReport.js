@@ -145,8 +145,10 @@ export function reportTaskWithNotes(e) {
 /** `line` followed by the entry's notes, each one not already in it. */
 export function withEntryNotes(line, e) {
   const base = clean(line);
-  const have = key(base);
-  const extra = notesForReport(e).filter((n) => !have.includes(key(n)));
+  const have = ` ${key(base)} `;
+  // A note is left out only when the line already says it in full: a short remark ("Paid", "Urgent") is always kept, even when
+  // its word happens to be somewhere in the line.
+  const extra = notesForReport(e).filter((n) => { const k = key(n); return !(have.trim() === k || (k.split(' ').length >= 4 && have.includes(` ${k} `))); });
   if (!extra.length) return base;
   return `${/[.!?]$/.test(base) || !base ? base : `${base}.`} ${extra.join(' ')}`.trim();
 }
@@ -206,7 +208,7 @@ export function collectReportData(entries = [], date, lists) {
   const payments = listed.filter((e) => isPaymentEntry(e, lists));
   const others = listed.filter((e) => !isPaymentEntry(e, lists)).concat(importsOpen);
   const followed = live.filter((e) => isOpen(e) && !isImport(e) && workedOn(e, date) && inReport(e));
-  return { payments: payments.sort(byTime), others: others.sort(byTime), followed: followed.sort(byTime), excluded: completed.length - listed.length, skippedPayments };
+  return { payments: payments.sort(byTime), others: others.sort(byTime), followed: followed.sort(byTime), excluded: completed.length - listed.length, excludedList: completed.filter((e) => !inReport(e)), skippedPayments };
 }
 
 /**
@@ -222,10 +224,10 @@ export function buildReportModel({ entries = [], fixedActivities = [], activityL
 
   const seen = new Map();
   const dupeList = [];
-  const keep = (line, section) => {
+  const keep = (line, section, entry) => {
     const k = key(line);
     if (!k) return false;
-    if (seen.has(k)) { dupeList.push({ line: clean(line), section, keptIn: seen.get(k) }); return false; }
+    if (seen.has(k)) { dupeList.push({ line: clean(line), section, keptIn: seen.get(k), entry }); return false; }
     seen.set(k, section);
     return true;
   };
@@ -240,7 +242,7 @@ export function buildReportModel({ entries = [], fixedActivities = [], activityL
   });
   const descRows = (list, section) => list
     .map((e) => ({ line: reportLineFor(e, lists, date, { details }), entry: e, fixed: isFixedReportLine(e, lists) }))
-    .filter((r) => keep(r.line, section));
+    .filter((r) => keep(r.line, section, r.entry));
   const otherRows = descRows(d.others, 'Other work completed');
   const followRows = descRows(d.followed, 'Followed up / in progress');
   const fixedRows = (dayOff ? [] : fixedActivities || [])
@@ -264,7 +266,7 @@ export function buildReportModel({ entries = [], fixedActivities = [], activityL
     date,
     dupes: dupeList.length,
     dupeList,
-    data: { payments: payRows.length, others: otherRows.length, followed: followRows.length, excluded: d.excluded, skippedPayments: d.skippedPayments, bullets },
+    data: { payments: payRows.length, others: otherRows.length, followed: followRows.length, excluded: d.excluded, excludedList: d.excludedList, skippedPayments: d.skippedPayments, bullets },
     sections,
   };
 }

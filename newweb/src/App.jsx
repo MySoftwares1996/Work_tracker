@@ -1,13 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
 import Logo from './Logo';
+import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
 import { planImport } from './importBackup';
 import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from './alerts';
 import { copyText } from './clipboard';
+import { inApp, askNative } from './nativeBridge';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { finalNarration, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from './reportFormats';
+import { buildReport, REPORT_GROUPS, mergeAi, reportPrompt, reportCsvRows, reportHtml } from './reportEngine';
+import { reportMailUrl } from '../../src/workingDashboardReport.js';
+import { breakdown, subBreakdown, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueNextMonth, isDueThisMonth, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+
+// The Report, Config and the entry form load when first opened (and are fetched quietly once the page is idle), so the page starts smaller.
+const loadReport = () => import('./screens/Report');
+const loadConfig = () => import('./screens/Config');
+const loadForm = () => import('./screens/TaskForm');
+const Report = lazy(loadReport);
+const Config = lazy(loadConfig);
+const TaskForm = lazy(loadForm);
+const prefetch = () => { loadForm(); loadReport(); loadConfig(); };
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -17,13 +31,15 @@ const tabFromHash = () => { const k = location.hash.replace('#', ''); return TAB
 
 export default function App() {
   const store = useStore();
+  useEffect(() => { const id = window.requestIdleCallback ? window.requestIdleCallback(prefetch, { timeout: 4000 }) : setTimeout(prefetch, 2500); return () => { if (window.cancelIdleCallback && window.requestIdleCallback) window.cancelIdleCallback(id); else clearTimeout(id); }; }, []);
   const [tab, setTab] = useState(tabFromHash);
   const [form, setForm] = useState(null);
   useEffect(() => { const f = () => setTab(tabFromHash()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
   const [preset, setPreset] = useState(null);       // a filter the Dashboard tile asked the Register to open with
   const go = (k, filter = null) => { setPreset(filter ? { ...filter, n: Date.now() } : null); location.hash = k; setTab(k); window.scrollTo({ top: 0 }); };
 
-  if (store.user === undefined) return <div className="center"><div className="spinner" aria-label="Loading" /></div>;
+  if (store.user === undefined) return <LoadingScreen stage="auth" full />;
+  if (store.demo && location.search.includes('loading')) return <LoadingScreen stage="data" full />;      // ?demo&loading previews the loading screen
   if (!store.user) return <SignIn />;
 
   const tasks = store.tasks;
@@ -53,17 +69,17 @@ export default function App() {
         </nav>
         <div className="who">
           {store.demo && <span className="pill demo">Demo data</span>}
-          {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? 'In sync' : 'Syncing...'} />}
+          {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? `In sync${store.lastSyncAt ? ` - last update from the server ${new Date(store.lastSyncAt).toLocaleTimeString()}` : ''}` : 'Syncing...'} />}
           <span className="name" title={store.user.email}>{store.user.displayName || store.user.email}{store.user.email && store.user.displayName ? <small className="who-mail">{store.user.email}</small> : null}</span>
         </div>
       </header>
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
         {!store.demo && store.slow && !store.synced && !store.error && <div className="banner err" role="status">Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.</div>}
-        {!store.demo && !store.synced && !store.error && !store.slow ? <div className="loading" role="status"><Logo size={56} mode="spin" /><span className="muted">Loading your tasks…</span></div> : screens[tab]}
+        {!store.demo && !store.synced && !store.error && !store.slow ? <LoadingScreen stage="data" /> : <Suspense fallback={<LoadingScreen stage="data" />}>{screens[tab]}</Suspense>}
       </main>
       <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
-      {form && <TaskForm initial={form} onClose={() => setForm(null)} />}
+      {form && <Suspense fallback={null}><TaskForm initial={form} onClose={() => setForm(null)} /></Suspense>}
       <AlertCenter onOpen={openForm} />
     </div>
   );
@@ -109,25 +125,29 @@ function Dashboard({ onEdit, onNew, go }) {
     setQuick('');
   };
   return (
-    <>
+    <div className="dash">
+      <div className="dash-head">
       <h1 className="h1">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}</h1>
       <form className="quick" onSubmit={addQuick}>
         <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Quick add a task and press Enter..." aria-label="Quick add" />
         <button className="btn primary" disabled={!quick.trim()}>Add</button>
         <button type="button" className="btn" onClick={onNew}>Full form</button>
       </form>
+      </div>
       <section className="tiles">
         <Tile tone="coral" label="Pending as on Today" value={s.pendingAsOnToday} sub="Overdue + due today" onClick={() => go('register', { due: 'pending' })} />
         <Tile tone="amber" label="Due Today" value={s.dueToday} sub="Still on the clock" onClick={() => go('register', { due: 'today' })} />
         <Tile tone="pink" label="Overdue" value={s.overdue} sub="Past the due time" onClick={() => go('register', { due: 'overdue' })} />
         <Tile tone="violet" label="Next 7 Days" value={s.dueSoon} sub="Coming up" onClick={() => go('register', { due: 'next7' })} />
         <Tile tone="blue" label="This Month" value={s.thisMonth} sub={`Due in ${new Date().toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'month' })} />
+        <Tile tone="violet" label="Next Month" value={s.nextMonth} sub={`Due in ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'nextmonth' })} />
         <Tile tone="teal" label="No Due Date" value={s.noDueDate} sub="Needs a deadline" onClick={() => go('register', { due: 'none' })} />
         <Tile tone="amber" label="Pending" value={s.pending} sub="Status Pending" onClick={() => go('register', { status: 'Pending' })} />
         <Tile tone="coral" label="High priority" value={s.high} sub="Open tasks" onClick={() => go('register', { priority: 'High' })} />
         <Tile tone="blue" label="Open tasks" value={s.open} sub="In the register" onClick={() => go('register')} />
         <Tile tone="teal" label="Done today" value={s.doneToday} sub="Completed" onClick={() => go('done')} />
       </section>
+      <Breakdowns tasks={tasks} go={go} />
       <div className="two">
         <section>
           <h2 className="h2">Needs attention</h2>
@@ -140,17 +160,118 @@ function Dashboard({ onEdit, onNew, go }) {
           <div className="list">{soon.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} compact />)}</div>
         </section>
       </div>
+    </div>
+  );
+}
+
+/** The Dashboard's four breakdowns of the open tasks: by Category, Status, Pending with and Priority. A Category opens its Sub Category breakdown; the others open the Register filtered. */
+const BREAK_CARDS = [
+  { key: 'category', title: 'By category', field: 'category', hint: 'Click a category for its sub categories' },
+  { key: 'status', title: 'By status', field: 'status' },
+  { key: 'pendingWith', title: 'By pending with', field: 'pendingWith' },
+  { key: 'priority', title: 'By priority', field: 'priority' },
+];
+
+/** This month's open tasks by category, status, pending with and priority; next month's by category and priority. A row opens the Register on the same month. */
+function Breakdowns({ tasks, go }) {
+  const [pop, setPop] = useState(null);
+  const monthName = (add) => new Date(new Date().getFullYear(), new Date().getMonth() + add, 1).toLocaleString([], { month: 'long' });
+  const thisTasks = useMemo(() => tasks.filter((t) => isDueThisMonth(t)), [tasks]);
+  const nextTasks = useMemo(() => tasks.filter((t) => isDueNextMonth(t)), [tasks]);
+  const groups = [
+    { due: 'month', name: monthName(0), title: `This month - ${monthName(0)}`, tasks: thisTasks, cards: BREAK_CARDS },
+    { due: 'nextmonth', name: monthName(1), title: `Next month - ${monthName(1)}`, tasks: nextTasks, cards: BREAK_CARDS.filter((c) => c.key === 'category' || c.key === 'priority') },
+  ];
+  return (
+    <>
+      {groups.map((g) => (
+        <section key={g.due} className="break-group">
+          <h2 className="h2 break-title">{g.title} <span className="muted">({g.tasks.length} open)</span></h2>
+          <div className={`breaks${g.cards.length < 4 ? ' two-up' : ''}`}>
+            {g.cards.map((c) => {
+              const rows = breakdown(g.tasks, c.field);
+              const max = Math.max(1, ...rows.map((r) => r.count));
+              const open = (row) => { if (!row.name) return; if (c.key === 'category') setPop({ category: row.name, due: g.due, tasks: g.tasks }); else go('register', { [c.key]: row.name, due: g.due }); };
+              return (
+                <div key={c.key} className="card plain break-card">
+                  <h2 className="h2">{c.title}</h2>
+                  {!rows.length && <p className="muted">No open tasks due in {g.name}.</p>}
+                  {rows.slice(0, 7).map((r) => (
+                    <button key={r.label} type="button" className={`break-row${r.name ? '' : ' none'}`} onClick={() => open(r)} disabled={!r.name} title={r.name ? (c.key === 'category' ? `Sub categories of ${r.name}` : `Open ${r.name} in the Register`) : ''}>
+                      <span className="break-name">{r.label}</span>
+                      <span className="break-bar"><i style={{ width: `${Math.max(6, Math.round((r.count / max) * 100))}%` }} /></span>
+                      {r.overdue > 0 && <span className="chip coral" title="overdue">{r.overdue}</span>}
+                      <b>{r.count}</b>
+                    </button>
+                  ))}
+                  {rows.length > 7 && <p className="muted">+ {rows.length - 7} more</p>}
+                  {c.hint && <p className="muted break-hint">{c.hint}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+      {pop && <CategoryPopup category={pop.category} tasks={pop.tasks} due={pop.due} onClose={() => setPop(null)} go={go} />}
     </>
   );
 }
+
+/** The window a Category opens: its open tasks counted by Sub Category. A row opens the Register filtered to it. */
+function CategoryPopup({ category, tasks, due, onClose, go }) {
+  useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  const rows = useMemo(() => subBreakdown(tasks, category), [tasks, category]);
+  const total = rows.reduce((n, r) => n + r.count, 0);
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  const to = (extra) => { onClose(); go('register', { category, due, ...extra }); };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" role="dialog" aria-modal="true" aria-label={`${category} by sub category`} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><div><h2>{category}</h2><span className="muted">{total} open task{total === 1 ? '' : 's'} by sub category</span></div><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="modal-body">
+          {rows.map((r) => (
+            <button key={r.label} type="button" className="break-row big" onClick={() => to({ subCategory: r.name || '__none' })}>
+              <span className="break-name">{r.label}</span>
+              <span className="break-bar"><i style={{ width: `${Math.max(6, Math.round((r.count / max) * 100))}%` }} /></span>
+              {r.overdue > 0 && <span className="chip coral" title="overdue">{r.overdue} overdue</span>}
+              <b>{r.count}</b>
+            </button>
+          ))}
+        </div>
+        <div className="modal-foot"><button type="button" className="btn primary" onClick={() => to({})}>Open all {category} tasks</button><button type="button" className="btn" onClick={onClose}>Close</button></div>
+      </div>
+    </div>
+  );
+}
+
+const PAGE = 60;
+/** Long lists draw the first page and add more on request, so hundreds of tasks do not slow the screen. The page starts over when `resetKey` changes. */
+function usePaged(rows, resetKey) {
+  const [limit, setLimit] = useState(PAGE);
+  useEffect(() => { setLimit(PAGE); }, [resetKey]);
+  const more = rows.length - limit;
+  return { shown: rows.length > limit ? rows.slice(0, limit) : rows, more: more > 0 ? more : 0, showMore: () => setLimit((n) => n + PAGE) };
+}
+const MoreButton = ({ more, onClick }) => (more > 0 ? <div className="more-row"><button type="button" className="btn" onClick={onClick}>Show {Math.min(more, PAGE)} more ({more} left)</button></div> : null);
 
 const Empty = ({ text }) => <div className="empty"><Logo size={40} className="float" /><p>{text}</p></div>;
 
 function Chip({ children, tone }) { return <span className={`chip ${tone || ''}`}>{children}</span>; }
 const priTone = (p) => ({ high: 'coral', medium: 'amber', low: 'teal' })[String(p).toLowerCase()] || '';
 
+/** Completing a task from a card or row: a task whose Sub Category has fields needs all of them filled first, so it opens for filling instead. */
+function useCompleter(onEdit) {
+  const { actions, lists, notify } = useStore();
+  return (t, dar) => {
+    const msg = subCategoryMissing(t, lists);
+    if (msg) { notify(msg); onEdit(t); return; }
+    actions.complete(t, dar);
+  };
+}
+
 function TaskCard({ t, onEdit, compact }) {
-  const { actions, notify } = useStore();
+  const { actions, notify, templates, saveTemplates } = useStore();
+  const complete = useCompleter(onEdit);
   const late = isOverdue(t);
   return (
     <article className={`card pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}`}>
@@ -165,6 +286,16 @@ function TaskCard({ t, onEdit, compact }) {
           {t.recurrence !== RECURRENCES[0] && <Chip>↻ {t.recurrence}</Chip>}
           {isOpen(t) && t.nextReminder && <Chip tone={isReminderDue(t) ? 'coral' : ''}>⏰ {reminderLabel(t)}</Chip>}
         </span>
+        {Array.isArray(t.checklist) && t.checklist.length > 0 && (() => {
+          const total = t.checklist.length;
+          const n = t.checklist.filter((c) => c.done).length;
+          return (
+            <span className={`card-checklist${n === total ? ' all' : ''}`} title={t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.text}`).join('\n')}>
+              <span className="cl-label">Checklist ({n}/{total} done)</span>
+              <span className="cl-bar" aria-hidden="true"><span style={{ width: `${Math.round((n / total) * 100)}%` }} /></span>
+            </span>
+          );
+        })()}
         {!compact && t.reference && (
           <span className="card-note mail-copy" title="Click to copy the mail subject and open the task"
             onClick={async () => { notify((await copyText(t.reference)) ? 'Mail subject copied' : 'Could not copy the mail subject'); }}>✉ {t.reference}</span>
@@ -172,8 +303,9 @@ function TaskCard({ t, onEdit, compact }) {
       </button>
       {isOpen(t) && (
         <div className="card-actions">
-          <button className="btn ok" onClick={() => actions.complete(t, false)} title="Done - kept out of the daily report">✓ Done</button>
-          <button className="btn ok soft" onClick={() => actions.complete(t, true)} title="Done and included in the daily report">✓ DAR</button>
+          <button className="btn ok" onClick={() => complete(t, false)} title="Done - kept out of the daily report">✓ Done</button>
+          <button className="btn ok soft" onClick={() => complete(t, true)} title="Done and included in the daily report">✓ DAR</button>
+          <button className="btn ghost" onClick={() => { saveTemplates(saveTemplate(templates, templateFrom(t))); notify(`Template saved: ${t.title}`); }} title="Save as template" aria-label="Save as template">📋</button>
           <button className="btn ghost" onClick={() => actions.bin(t)} aria-label="Move to bin">🗑</button>
         </div>
       )}
@@ -183,29 +315,33 @@ function TaskCard({ t, onEdit, compact }) {
 
 function Register({ onEdit, preset }) {
   const { tasks, lists } = useStore();
-  const [f, setF] = useState(() => ({ q: '', priority: '', category: '', pendingWith: '', status: '', due: '', ...(preset || {}) }));
-  useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
+  const [f, setF] = useState(() => ({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...(preset || {}) }));
+  useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
   const [by, setBy] = useState('due');
   const [view, setView] = useState('cards');
   const open = tasks.filter(isOpen);
-  const shown = sortTasks(filterTasks(open, f), by);
+  const sorted = sortTasks(filterTasks(open, f), by);
+  const { shown, more, showMore } = usePaged(sorted, JSON.stringify(f) + by);
   return (
     <>
       <h1 className="h1">Register</h1>
-      <Filters f={f} setF={setF} lists={lists} extra={(
+      {f.subCategory && <div className="filters"><span className="chip violet">Sub category: {f.subCategory === '__none' ? 'none chosen' : f.subCategory} <button type="button" className="chip-x" onClick={() => setF({ ...f, subCategory: '' })} aria-label="Clear the sub category filter">✕</button></span></div>}
+      <Filters f={f} setF={setF} lists={lists} onClear={() => setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '' })} extra={(
         <>
           <select value={by} onChange={(e) => setBy(e.target.value)} aria-label="Sort">{Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>Sort: {v}</option>)}</select>
           <div className="seg" role="group" aria-label="View"><button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')}>Cards</button><button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>Table</button></div>
         </>
       )} />
-      <p className="muted">{shown.length} of {open.length} open entries</p>
-      {!shown.length && <Empty text="Nothing matches." />}
+      <p className="muted">{sorted.length} of {open.length} open entries</p>
+      {!sorted.length && <Empty text="Nothing matches." />}
       {view === 'cards' ? <div className="grid">{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div> : <Table rows={shown} onEdit={onEdit} />}
+      <MoreButton more={more} onClick={showMore} />
     </>
   );
 }
 
-function Filters({ f, setF, lists, extra }) {
+function Filters({ f, setF, lists, extra, onClear }) {
+  const active = ['q', 'priority', 'category', 'subCategory', 'pendingWith', 'status', 'due'].some((k) => f[k]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
     <div className="filters">
@@ -215,6 +351,7 @@ function Filters({ f, setF, lists, extra }) {
       {lists.pendingWith.length > 0 && <select value={f.pendingWith} onChange={set('pendingWith')} aria-label="Pending with"><option value="">Anyone</option>{lists.pendingWith.map((x) => <option key={x}>{x}</option>)}</select>}
       {f.due !== undefined && <select value={f.due || ''} onChange={set('due')} aria-label="Due"><option value="">Any due date</option>{DUE_FILTERS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}
       {f.status !== undefined && <select value={f.status || ''} onChange={set('status')} aria-label="Status"><option value="">Any status</option>{lists.statuses.map((x) => <option key={x}>{x}</option>)}</select>}
+      {onClear && <button type="button" className="btn ghost clear-filters" onClick={onClear} disabled={!active} title="Clear all filters" aria-label="Clear all filters">✕</button>}
       {extra}
     </div>
   );
@@ -222,6 +359,7 @@ function Filters({ f, setF, lists, extra }) {
 
 function Table({ rows, onEdit, done }) {
   const { actions } = useStore();
+  const complete = useCompleter(onEdit);
   return (
     <div className="table-wrap">
       <table>
@@ -234,7 +372,7 @@ function Table({ rows, onEdit, done }) {
               <td>{t.category || '-'}</td>
               <td>{t.pendingWith || '-'}</td>
               <td className={isOverdue(t) ? 'late' : ''}>{done ? (t.completedAt ? t.completedAt.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '-') : dueLabel(t)}</td>
-              <td className="right">{done ? <button className="btn" onClick={() => actions.reopen(t)}>Reopen</button> : <><button className="btn ok" onClick={() => actions.complete(t, false)}>✓</button> <button className="btn ok soft" onClick={() => actions.complete(t, true)}>DAR</button></>}</td>
+              <td className="right">{done ? <button className="btn" onClick={() => actions.reopen(t)}>Reopen</button> : <><button className="btn ok" onClick={() => complete(t, false)}>✓</button> <button className="btn ok soft" onClick={() => complete(t, true)}>DAR</button></>}</td>
             </tr>
           ))}
         </tbody>
@@ -247,6 +385,7 @@ function Completed({ onEdit }) {
   const { tasks, lists, actions } = useStore();
   const [f, setF] = useState({ q: '', priority: '', category: '', pendingWith: '' });
   const rows = filterTasks(tasks.filter((t) => t.done && !t.binned), f).sort((a, b) => (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0));
+  const { shown, more, showMore } = usePaged(rows, JSON.stringify(f));
   return (
     <>
       <h1 className="h1">Completed</h1>
@@ -254,7 +393,7 @@ function Completed({ onEdit }) {
       <p className="muted">{rows.length} completed</p>
       {!rows.length && <Empty text="No completed tasks yet." />}
       <div className="grid">
-        {rows.map((t) => (
+        {shown.map((t) => (
           <article key={t.id} className="card is-done">
             <button className="card-main" onClick={() => onEdit(t)}>
               <span className="card-title">{t.title}</span>
@@ -268,6 +407,7 @@ function Completed({ onEdit }) {
           </article>
         ))}
       </div>
+      <MoreButton more={more} onClick={showMore} />
     </>
   );
 }
@@ -305,24 +445,6 @@ function Bin() {
   );
 }
 
-function Report() {
-  const { tasks } = useStore();
-  const [day, setDay] = useState(dayKey(new Date()));
-  const [copied, setCopied] = useState(false);
-  const [subFields, setSubFields] = useState(() => { try { return localStorage.getItem('report-sub-fields') !== '0'; } catch { return true; } });
-  const toggleSub = (v) => { setSubFields(v); try { localStorage.setItem('report-sub-fields', v ? '1' : '0'); } catch { /* not kept */ } };
-  const text = useMemo(() => reportText(tasks, new Date(`${day}T12:00:00`), { subFields }), [tasks, day, subFields]);
-  const copy = async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* the text is selectable */ } };
-  return (
-    <>
-      <h1 className="h1">Daily report</h1>
-      <div className="filters"><input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Report date" /><label className="check-row"><input type="checkbox" checked={subFields} onChange={(e) => toggleSub(e.target.checked)} /> Include Sub Category fields (field name: value)</label><button className="btn primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy report'}</button></div>
-      <pre className="report">{text}</pre>
-      <p className="muted">Lists tasks completed that day with "✓ DAR", then what is still open and due. The phone app's report has more detail (payment lines, AI rewrite).</p>
-    </>
-  );
-}
-
 function Links() {
   const { links } = useStore();
   const folders = [...new Set(links.map((l) => l.folder))].sort();
@@ -337,413 +459,5 @@ function Links() {
         </section>
       ))}
     </>
-  );
-}
-
-function Config() {
-  const { lists, user, signOut, demo, saveLists } = useStore();
-  return (
-    <>
-      <h1 className="h1">Config</h1>
-      <section className="card plain"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span><div><button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button></div></section>
-      <ImportBackup />
-      <AlertSettings />
-      <Appearance />
-      <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
-      <section className="card plain">
-        <h2 className="h2">Next reminder date &amp; time</h2>
-        <p className="muted">Choose the categories that ask for a next reminder date and time in the entry form. The other categories do not show it.</p>
-        <div className="chips">{lists.categories.map((c) => { const on = categoryAsksReminder(lists, c); return <button type="button" key={c} className={`chip toggle${on ? ' on' : ''}`} aria-pressed={on} onClick={() => saveLists(toggleReminderCategory(lists, c))}>{c}</button>; })}</div>
-      </section>
-      <section className="card plain"><h2 className="h2">Sub categories</h2><SubCategoryManager lists={lists} /></section>
-      <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
-    </>
-  );
-}
-
-/** Config > Import: bring the tasks, lists and Sub Categories of an older version into this account from its backup file. */
-function ImportBackup() {
-  const { tasks, lists, importPlan, demo } = useStore();
-  const [plan, setPlan] = useState(null);
-  const [overwrite, setOverwrite] = useState(false);
-  const [file, setFile] = useState(null);
-  const [state, setState] = useState({ busy: false, msg: '', error: '' });
-  const ids = useMemo(() => new Set(tasks.map((t) => t.id)), [tasks]);
-  const read = async (f, over = overwrite) => {
-    setState({ busy: false, msg: '', error: '' });
-    try { setPlan(planImport(JSON.parse(await f.text()), { ids, lists, overwrite: over })); setFile(f); }
-    catch (e) { setPlan(null); setState({ busy: false, msg: '', error: e instanceof SyntaxError ? 'That file is not a backup (it is not valid JSON).' : e.message }); }
-  };
-  const run = async () => {
-    setState({ busy: true, msg: '', error: '' });
-    try { await importPlan(plan); setState({ busy: false, msg: `Imported ${plan.summary.tasks} task${plan.summary.tasks === 1 ? '' : 's'}, the lists and ${plan.summary.subCategories} Sub Categor${plan.summary.subCategories === 1 ? 'y' : 'ies'}.`, error: '' }); setPlan(null); setFile(null); }
-    catch (e) { setState({ busy: false, msg: '', error: e?.message || String(e) }); }
-  };
-  const sm = plan && plan.summary;
-  return (
-    <section className="card plain">
-      <h2 className="h2">Import from an older version</h2>
-      <p className="muted">Pick the backup file from the phone app or the old website (Config &gt; Data Backup). Its tasks, categories, priorities, statuses, people, Sub Categories, narration types and holidays are added to this account. Nothing is deleted.{demo ? ' (Demo: nothing is saved.)' : ''}</p>
-      <input type="file" accept=".json,application/json" aria-label="Backup file" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) read(f); e.target.value = ''; }} />
-      {sm && (
-        <div className="import-summary" role="status">
-          <b>Ready to import{sm.exportedAt ? ` (backup of ${new Date(sm.exportedAt).toLocaleDateString()})` : ''}:</b>
-          <ul>
-            <li>{sm.tasks} task{sm.tasks === 1 ? '' : 's'}{sm.skippedExisting ? `, ${sm.skippedExisting} already here (left as they are)` : ''}</li>
-            <li>{plan.lists.categories.length} categories, {plan.lists.priorities.length} priorities, {plan.lists.statuses.length} statuses, {plan.lists.pendingWith.length} people</li>
-            <li>{sm.subCategories} new Sub Categor{sm.subCategories === 1 ? 'y' : 'ies'}{sm.narrationTypes ? `, ${sm.narrationTypes} narration types` : ''}</li>
-            {(sm.holidays || sm.leaveDays) > 0 && <li>{sm.holidays} holidays, {sm.leaveDays} leave days</li>}
-          </ul>
-          <label className="field check"><input type="checkbox" checked={overwrite} onChange={(e) => { setOverwrite(e.target.checked); if (file) read(file, e.target.checked); }} /> Replace tasks that are already here with the backup's copy</label>
-          <div><button type="button" className="btn primary" onClick={run} disabled={state.busy}>{state.busy ? 'Importing...' : 'Import'}</button> <button type="button" className="btn" onClick={() => { setPlan(null); setFile(null); }}>Cancel</button></div>
-        </div>
-      )}
-      {state.msg && <p className="banner ok" role="status">{state.msg}</p>}
-      {state.error && <p className="banner err" role="alert">{state.error}</p>}
-    </section>
-  );
-}
-
-/** Config > Alerts: pop up a due alert, play a sound, and show a desktop notification when this tab is in the background. */
-function AlertSettings() {
-  const [s, setS] = useState(loadAlertSettings);
-  const [perm, setPerm] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
-  const set = (patch) => { const next = { ...s, ...patch }; setS(next); saveAlertSettings(next); window.dispatchEvent(new Event('wd-alert-settings')); };
-  const enableNotify = async () => { const r = await askNotificationPermission(); setPerm(r); set({ notify: r === 'granted' }); };
-  return (
-    <section className="card plain">
-      <h2 className="h2">Alerts</h2>
-      <p className="muted">When a task is due (or its next reminder time comes) while this page is open, an alert appears with the task's details and the choices to mark it done, snooze, skip or move it. Keep this page open to get alerts; the phone app rings by itself.</p>
-      <label className="field check"><input type="checkbox" checked={s.popup} onChange={(e) => set({ popup: e.target.checked })} /> Show an alert when a task is due</label>
-      <label className="field check"><input type="checkbox" checked={s.sound} onChange={(e) => set({ sound: e.target.checked })} /> Play a sound (needs one click or key press on the page first)</label>
-      <div className="add-row">
-        <label className="field check"><input type="checkbox" checked={s.notify && perm === 'granted'} disabled={perm === 'unsupported' || perm === 'denied'} onChange={(e) => (e.target.checked ? enableNotify() : set({ notify: false }))} /> Desktop notification when this tab is in the background{perm === 'denied' ? ' (blocked in the browser settings)' : ''}</label>
-      </div>
-      <div><button type="button" className="btn" onClick={() => window.dispatchEvent(new Event('wd-test-alert'))}>Show a test alert</button></div>
-    </section>
-  );
-}
-
-/** Config > Appearance: pick a colour theme; it applies at once and is remembered on this device. */
-function Appearance() {
-  const [theme, setTheme] = useState(savedTheme);
-  return (
-    <section className="card plain">
-      <h2 className="h2">Appearance</h2>
-      <p className="muted">Pick a colour theme. It applies at once and is kept on this device.</p>
-      <div className="themes">
-        {THEMES.map((t) => (
-          <button key={t.id} type="button" className="theme-card" aria-pressed={theme === t.id} onClick={() => setTheme(applyTheme(t.id))}>
-            <span className="swatch" style={{ background: t.swatch.bg }}>
-              <span className="sw-pill" style={{ background: t.swatch.card }}><i style={{ background: t.swatch.accent }} /><i style={{ background: t.swatch.tileInk[0], opacity: 0.25 }} /><i style={{ background: t.swatch.tileInk[3], opacity: 0.25 }} /></span>
-              <span className="sw-tiles">{t.swatch.tiles.map((c, i) => <i key={i} style={{ background: c }} />)}</span>
-              <span className="sw-card" style={{ background: t.swatch.card }} />
-            </span>
-            <span className="theme-name"><span>{t.name}<br /><small>{t.note}</small></span><i className="tick" /></span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/**
- * Sub Categories live under a category (Payments > Domestic Payment, Urgent Payment...). One group per category, each with its own
- * Sub Categories and an add box; "only" shows just one category's group (the entry form). Several can be pasted at once,
- * one per line, as "Name" or "Name: Field A, Field B".
- */
-function SubCategoryManager({ lists, only }) {
-  const { saveLists } = useStore();
-  const [draft, setDraft] = useState({});       // per category: { name, fields, many }
-  const [msg, setMsg] = useState('');
-  const [editing, setEditing] = useState('');       // id of the Sub Category being edited
-  const subs = lists.subCategories || [];
-  const cats = only ? [only] : lists.categories;
-  const get = (c) => draft[c] || { name: '', fields: '', many: '' };
-  const set = (c, patch) => setDraft((d) => ({ ...d, [c]: { ...get(c), ...patch } }));
-  const save = (next, cat) => saveLists({ ...lists, subCategories: next, subCategoryCategories: withCarrying(lists, cat) });
-  const add = (cat) => {
-    const d = get(cat);
-    const next = addSubCategory(subs, d.name, d.fields.split(','), cat);
-    if (next === subs) { setMsg(d.name.trim() ? `"${d.name.trim()}" already exists. A Sub Category name can be used once.` : ''); return; }
-    setMsg(''); save(next, cat); set(cat, { name: '', fields: '' });
-  };
-  const addMany = (cat) => {
-    const { list, added } = addSubCategories(subs, parseSubCategoryLines(get(cat).many), cat);
-    setMsg(added ? `${added} added under ${cat}.` : 'Nothing new to add (the names already exist).');
-    if (added) { save(list, cat); set(cat, { many: '' }); }
-  };
-  const remove = (sc) => { if (confirm(`Delete the Sub Category "${sc.name}"? Tasks using it keep it.`)) saveLists({ ...lists, subCategories: removeSubCategory(subs, sc.id) }); };
-  const chip = (sc) => <span key={sc.id} className="chip removable" title={sc.fields.map((f) => f.label).join(', ')}>{sc.name}{sc.fields.length > 0 && <small>{sc.fields.length} field{sc.fields.length > 1 ? 's' : ''}</small>}<button type="button" className="edit-btn" onClick={() => setEditing(editing === sc.id ? '' : sc.id)} aria-label={`Edit ${sc.name}`} title="Edit the name and fields">✎</button><button type="button" onClick={() => remove(sc)} aria-label={`Delete ${sc.name}`}>✕</button></span>;
-  const general = subs.filter((x) => !x.category);
-  if (only === '') return <p className="muted">Choose a Category first. Sub Categories are kept under a category.</p>;
-  return (
-    <div className="manager">
-      {msg && <p className="muted" role="status">{msg}</p>}
-      {cats.map((cat) => {
-        const own = subs.filter((x) => x.category === cat);
-        const d = get(cat);
-        return (
-          <div key={cat} className="cat-group">
-            <h3 className="cat-title">{cat} <small>{own.length ? `${own.length} Sub Categor${own.length > 1 ? 'ies' : 'y'}` : 'none yet'}</small></h3>
-            <div className="chips">{own.map(chip)}</div>
-            {own.filter((x) => x.id === editing).map((sc) => <SubCategoryEditor key={sc.id} sc={sc} subs={subs} onCancel={() => setEditing('')} onSave={(name, rows) => { saveLists({ ...lists, subCategories: applySubCategoryEdit(subs, sc.id, name, rows) }); setEditing(''); setMsg(`${name.trim()} saved.`); }} />)}
-            <div className="add-row">
-              <input value={d.name} onChange={(e) => set(cat, { name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && add(cat)} placeholder={`New Sub Category under ${cat}`} aria-label={`New Sub Category under ${cat}`} />
-              <input value={d.fields} onChange={(e) => set(cat, { fields: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && add(cat)} placeholder="Fields to fill in (comma separated, optional)" aria-label={`Fields of the new Sub Category under ${cat}`} />
-              <button type="button" className="btn primary" onClick={() => add(cat)} disabled={!d.name.trim()}>Add</button>
-            </div>
-            <details className="many">
-              <summary>Add several at once</summary>
-              <textarea rows={4} value={d.many} onChange={(e) => set(cat, { many: e.target.value })} placeholder={'One per line, for example:\nDomestic Payment: Vendor Name, Invoice No\nUrgent Payment\nImport Payment: Bill of Entry'} aria-label={`Several Sub Categories under ${cat}`} />
-              <button type="button" className="btn" onClick={() => addMany(cat)} disabled={!d.many.trim()}>Add these</button>
-            </details>
-          </div>
-        );
-      })}
-      {!only && general.length > 0 && (
-        <div className="cat-group"><h3 className="cat-title">Not under a category <small>from the phone app or the old website, offered under every category</small></h3><div className="chips">{general.map(chip)}</div>{general.filter((x) => x.id === editing).map((sc) => <SubCategoryEditor key={sc.id} sc={sc} subs={subs} onCancel={() => setEditing('')} onSave={(name, rows) => { saveLists({ ...lists, subCategories: applySubCategoryEdit(subs, sc.id, name, rows) }); setEditing(''); setMsg(`${name.trim()} saved.`); }} />)}</div>
-      )}
-    </div>
-  );
-}
-
-/** Edit one Sub Category: its name, and its fields - rename, delete, add, and give a field fixed choices ("TT, DD"). */
-function SubCategoryEditor({ sc, subs, onSave, onCancel }) {
-  const [name, setName] = useState(sc.name);
-  const [rows, setRows] = useState(() => sc.fields.map((f) => ({ key: newId(), label: f.label, options: (f.options || []).join(', ') })));
-  const [error, setError] = useState('');
-  const setRow = (key, patch) => setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
-  const save = () => {
-    const msg = validateSubCategory(subs, sc.id, name, rows);
-    if (msg) { setError(msg); return; }
-    onSave(name, rows);
-  };
-  return (
-    <div className="sc-editor" role="group" aria-label={`Edit ${sc.name}`}>
-      <label className="field">Sub Category name<input value={name} onChange={(e) => setName(e.target.value)} aria-label="Sub Category name" /></label>
-      <div className="field">Fields to fill in
-        {rows.map((r) => (
-          <div key={r.key} className="field-row">
-            <input value={r.label} onChange={(e) => setRow(r.key, { label: e.target.value })} placeholder="Field name" aria-label="Field name" />
-            <input value={r.options} onChange={(e) => setRow(r.key, { options: e.target.value })} placeholder="Choices, comma separated (optional)" aria-label="Choices for this field" />
-            <button type="button" className="btn ghost" onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))} aria-label={`Delete field ${r.label || ''}`}>✕</button>
-          </div>
-        ))}
-        {!rows.length && <span className="muted">No fields yet.</span>}
-        <div><button type="button" className="btn" onClick={() => setRows((x) => [...x, { key: newId(), label: '', options: '' }])}>+ Add field</button></div>
-      </div>
-      <p className="muted">Tasks already saved keep what they typed under the old field or Sub Category name.</p>
-      {error && <p className="banner err" role="alert">{error}</p>}
-      <div className="add-row"><button type="button" className="btn primary" onClick={save}>Save changes</button><button type="button" className="btn" onClick={onCancel}>Cancel</button></div>
-    </div>
-  );
-}
-
-const LIST_META = [['categories', 'Categories'], ['priorities', 'Priorities'], ['statuses', 'Statuses'], ['pendingWith', 'Pending with']];
-
-/** Add and delete the options of one list (Category, Priority, Status, Pending with). onAdd gets the new value, so a form can pick it. */
-function ListManager({ listKey, label, lists, onAdd }) {
-  const { saveLists } = useStore();
-  const [text, setText] = useState('');
-  const list = lists[listKey] || [];
-  const add = (e) => {
-    e?.preventDefault();
-    const next = addOption(list, text);
-    if (next === list) { setText(''); return; }
-    saveLists({ ...lists, [listKey]: next });
-    if (onAdd) onAdd(next[next.length - 1]);
-    setText('');
-  };
-  const remove = (v) => {
-    if (listKey === 'statuses' && DONE_STATUS.test(v)) { alert(`"${v}" is what marks a task as done, so it cannot be deleted.`); return; }
-    if ((listKey === 'priorities' || listKey === 'statuses') && list.length <= 1) { alert(`Keep at least one ${label.toLowerCase().replace(/es$|s$/, '')}.`); return; }
-    if (confirm(`Delete "${v}" from ${label}? Tasks using it keep it.`)) saveLists({ ...lists, [listKey]: removeOption(list, v) });
-  };
-  return (
-    <div className="manager">
-      <div className="chips">
-        {list.map((v) => <span key={v} className="chip removable">{v}<button type="button" onClick={() => remove(v)} aria-label={`Delete ${v}`}>✕</button></span>)}
-        {!list.length && <span className="muted">None yet</span>}
-      </div>
-      <div className="add-row">
-        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add(e)} placeholder={`Add to ${label}...`} aria-label={`Add to ${label}`} />
-        <button type="button" className="btn primary" onClick={add} disabled={!text.trim()}>Add</button>
-      </div>
-    </div>
-  );
-}
-
-const toInputDate = (d) => (d ? dayKey(d) : '');
-const toInputTime = (t) => (t.due && t.hasTime ? `${pad(t.due.getHours())}:${pad(t.due.getMinutes())}` : '');
-
-function TaskForm({ initial, onClose }) {
-  const { tasks, lists, actions } = useStore();
-  const isNew = !tasks.some((t) => t.id === initial.id);
-  const [t, setT] = useState(initial);
-  const [date, setDate] = useState(toInputDate(initial.due));
-  const [time, setTime] = useState(toInputTime(initial));
-  const [managing, setManaging] = useState('');       // the list whose options are being added / deleted
-  const [step, setStep] = useState('');
-  const [clockOpen, setClockOpen] = useState(false);
-  const [remDate, setRemDate] = useState(initial.nextReminder ? dayKey(initial.nextReminder) : '');
-  const [remTime, setRemTime] = useState(initial.nextReminder ? `${pad(initial.nextReminder.getHours())}:${pad(initial.nextReminder.getMinutes())}` : '');
-  const [remClock, setRemClock] = useState(false);
-  const { saveLists } = useStore();
-  const [att, setAtt] = useState({ title: '', url: '' });
-  const [kp, setKp] = useState({ key: '', value: '' });
-  useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
-  const set = (k) => (e) => {
-    const v = e.target.value;
-    if (k === 'category' && t.subCategory && !subCategoriesFor(lists, v).some((x) => x.name === t.subCategory)) setT({ ...t, category: v, subCategory: '', subCategoryFields: {} });
-    else setT({ ...t, [k]: v });
-  };
-  const opts = (list, cur) => (cur && !list.includes(cur) ? [cur, ...list] : list);
-  const submit = (e) => {
-    e.preventDefault();
-    if (!t.title.trim()) return;
-    if (/^completed$/i.test(t.status)) { const msg = subCategoryMissing(t, lists); if (msg) { setSubError(msg); return; } }
-    setSubError('');
-    const [h, m] = time ? time.split(':').map(Number) : [0, 0];
-    const due = date ? new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m) : null;
-    const next = { ...t, title: t.title.trim(), due, hasTime: !!(date && time), nextReminder: reminderFrom(remDate, remTime) };
-    if (/^completed$/i.test(t.status) && !t.done) actions.complete(next, t.dar);
-    else actions.save(next);
-    onClose();
-  };
-  // A select with its own "Edit" link: add or delete the options right here.
-  const pick = (key, label, field, blank) => (
-    <div className="field">
-      <span className="field-head">{label}<button type="button" className="mini" onClick={() => setManaging(managing === key ? '' : key)}>{managing === key ? 'Done' : '+ / − Edit'}</button></span>
-      <select value={t[field]} onChange={set(field)} aria-label={label}>{blank && <option value="">-</option>}{opts(lists[key], t[field]).map((x) => <option key={x}>{x}</option>)}</select>
-    </div>
-  );
-  const subs = subCategoriesFor(lists, t.category);
-  const sc = findSubCategory(lists, t.subCategory);
-  const needSub = categoryCarriesSubCategory(lists, t.category);
-  const [subError, setSubError] = useState('');
-  const subBlock = (
-    <div className="manage-panel sub-panel">
-      <div className="field-head"><span className="field">Sub category{t.category ? ` under ${t.category}` : ''}{needSub && <span className="muted"> (needed to mark Completed)</span>}</span><button type="button" className="mini" onClick={() => setManaging(managing === 'sub' ? '' : 'sub')}>{managing === 'sub' ? 'Done' : '+ / − Edit'}</button></div>
-      {managing === 'sub' ? <SubCategoryManager lists={lists} only={t.category} /> : (
-        <>
-          <select value={t.subCategory} onChange={(e) => setT({ ...t, subCategory: e.target.value, subCategoryFields: e.target.value === t.subCategory ? t.subCategoryFields : {} })} aria-label="Sub category" disabled={!t.category && !t.subCategory}>
-            <option value="">{t.category ? '-' : 'Choose a Category first'}</option>{(t.subCategory && !subs.some((x) => x.name === t.subCategory) ? [{ name: t.subCategory }, ...subs] : subs).map((x) => <option key={x.name}>{x.name}</option>)}
-          </select>
-          {sc && sc.fields.length > 0 && (
-            <div className="fields">{sc.fields.map((f) => (
-              <label className="field" key={f.label}>{f.label}
-                {f.options && f.options.length ? <select value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
-                  : <input value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })} />}
-              </label>
-            ))}</div>
-          )}
-          {t.category && !subs.length && <p className="muted">No Sub Categories under {t.category} yet. Use + / − Edit to add them.</p>}
-        </>
-      )}
-    </div>
-  );
-  const manager = managing && managing !== 'sub' && (
-    <div className="manage-panel"><ListManager listKey={managing} label={LIST_META.find(([k]) => k === managing)[1]} lists={lists} onAdd={(v) => setT((d) => ({ ...d, [{ categories: 'category', priorities: 'priority', statuses: 'status', pendingWith: 'pendingWith' }[managing]]: v }))} /></div>
-  );
-  const addStepNow = () => { if (step.trim()) { setT({ ...t, checklist: [...t.checklist, { id: newId(), text: step.trim(), done: false }] }); setStep(''); } };
-  const addAtt = () => {
-    const url = /^https?:\/\//i.test(att.url.trim()) ? att.url.trim() : `https://${att.url.trim()}`;
-    if (!att.url.trim() || !/^https?:\/\/[^/.\s]+\.[^\s]+/i.test(url)) return;
-    setT({ ...t, attachments: [...t.attachments, { id: newId(), title: att.title.trim() || url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, ''), url }] });
-    setAtt({ title: '', url: '' });
-  };
-  const addKp = () => { if (kp.key.trim() || kp.value.trim()) { setT({ ...t, keyPoints: [...t.keyPoints, { key: kp.key.trim(), value: kp.value.trim() }] }); setKp({ key: '', value: '' }); } };
-  const repeatsEvery = t.recurrence === 'Hourly' || t.recurrence === 'Custom';
-  return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="sheet wide" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
-        <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
-        <div className="cols3">
-        <div className="col">
-        <label className="field full">Task description<textarea rows={3} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
-        <div className="fields">
-          {pick('categories', 'Category', 'category', true)}
-          {pick('priorities', 'Priority', 'priority')}
-          {pick('statuses', 'Status', 'status')}
-          {pick('pendingWith', 'Pending with', 'pendingWith', true)}
-        </div>
-        {manager}
-        {t.category && (
-          <label className="field check ask-reminder"><input type="checkbox" checked={categoryAsksReminder(lists, t.category)} onChange={() => saveLists(toggleReminderCategory(lists, t.category))} /> Ask for a next reminder date &amp; time under {t.category}</label>
-        )}
-        {(categoryAsksReminder(lists, t.category) || remDate) && (
-          <div className="manage-panel reminder-panel">
-            <span className="field">Next reminder date &amp; time <span className="muted">(9:00 AM if no time)</span></span>
-            <div className="fields">
-              <label className="field">Date<input type="date" value={remDate} onChange={(e) => setRemDate(e.target.value)} /></label>
-              <div className="field">Time
-                <button type="button" className="time-btn" onClick={() => setRemClock(true)} disabled={!remDate} aria-label="Pick the reminder time on a clock">
-                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                  <span>{timeLabel(remTime) || (remDate ? 'Set time' : 'Pick a date first')}</span>
-                </button>
-              </div>
-              {remDate && <div className="field">&nbsp;<button type="button" className="btn ghost" onClick={() => { setRemDate(''); setRemTime(''); }}>Clear reminder</button></div>}
-            </div>
-          </div>
-        )}
-        </div><div className="col">
-        {subBlock}
-        <div className="fields">
-          <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-          <div className="field">Due time
-            <button type="button" className="time-btn" onClick={() => setClockOpen(true)} disabled={!date} aria-label="Pick the due time on a clock">
-              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-              <span>{timeLabel(time) || (date ? 'Set time' : 'Pick a date first')}</span>
-            </button>
-          </div>
-          <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
-          {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
-          <div className="field">Alert at the due time
-            <div className="seg" role="group" aria-label="Alert at the due time">
-              {[['', 'Default'], ['alarm', 'Alarm (pop-up + sound)'], ['gentle', 'Reminder (notification only)']].map(([v, l]) => <button type="button" key={v} className={t.alertMode === v ? 'on' : ''} onClick={() => setT({ ...t, alertMode: v })}>{l}</button>)}
-            </div>
-          </div>
-          <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
-        </div>
-        {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
-        <label className="field full">Mail chain<input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" /></label>
-        </div><div className="col">
-        <label className="field full">Notes<textarea rows={4} value={t.notes} onChange={set('notes')} /></label>
-        <div className="side-panel">
-        <div className="field full">Checklist{t.checklist.length > 0 && <span className="muted"> ({t.checklist.filter((c) => c.done).length}/{t.checklist.length} done)</span>}
-          {t.checklist.map((c) => (
-            <div key={c.id} className="row">
-              <label className="check-row"><input type="checkbox" checked={c.done} onChange={() => setT({ ...t, checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)) })} /><span className={c.done ? 'struck' : ''}>{c.text}</span></label>
-              <button type="button" className="btn ghost" onClick={() => setT({ ...t, checklist: t.checklist.filter((x) => x.id !== c.id) })} aria-label={`Remove ${c.text}`}>✕</button>
-            </div>
-          ))}
-          <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
-        </div>
-        <div className="field full">Attachment links (invoice, bank advice, Drive file...)
-          {t.attachments.map((a) => (
-            <div key={a.id} className="row"><a href={a.url} target="_blank" rel="noopener noreferrer" className="attach">{a.title}</a><button type="button" className="btn ghost" onClick={() => setT({ ...t, attachments: t.attachments.filter((x) => x.id !== a.id) })} aria-label={`Remove ${a.title}`}>✕</button></div>
-          ))}
-          <div className="add-row"><input value={att.title} onChange={(e) => setAtt({ ...att, title: e.target.value })} placeholder="Title (optional)" /><input value={att.url} onChange={(e) => setAtt({ ...att, url: e.target.value })} placeholder="https://..." /><button type="button" className="btn" onClick={addAtt} disabled={!att.url.trim()}>Add</button></div>
-        </div>
-        <div className="field full">Key points (go into the daily report line)
-          {t.keyPoints.map((k, i) => (
-            <div key={i} className="row"><span className="kp"><b>{k.key}</b>{k.key && k.value ? ': ' : ''}{k.value}</span><button type="button" className="btn ghost" onClick={() => setT({ ...t, keyPoints: t.keyPoints.filter((_, n) => n !== i) })} aria-label="Remove key point">✕</button></div>
-          ))}
-          <div className="add-row"><input value={kp.key} onChange={(e) => setKp({ ...kp, key: e.target.value })} placeholder="Label (e.g. Invoice no.)" /><input value={kp.value} onChange={(e) => setKp({ ...kp, value: e.target.value })} placeholder="Value" /><button type="button" className="btn" onClick={addKp} disabled={!kp.key.trim() && !kp.value.trim()}>Add</button></div>
-        </div>
-        </div>
-        </div></div>
-        {subError && <div className="banner err" role="alert">{subError}</div>}
-        <div className="sheet-foot">
-          {!isNew && !t.binned && <button type="button" className="btn danger" onClick={() => { actions.bin(t); onClose(); }}>Move to bin</button>}
-          <span className="grow" />
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={!t.title.trim()}>Save</button>
-        </div>
-      </form>
-      {remClock && <ClockPicker value={remTime} onPick={(v) => { setRemTime(v); setRemClock(false); }} onClear={() => { setRemTime(''); setRemClock(false); }} onClose={() => setRemClock(false)} />}
-      {clockOpen && <ClockPicker value={time} onPick={(v) => { setTime(v); setClockOpen(false); }} onClear={() => { setTime(''); setClockOpen(false); }} onClose={() => setClockOpen(false)} />}
-    </div>
   );
 }
