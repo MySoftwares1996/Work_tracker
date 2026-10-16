@@ -294,7 +294,7 @@ function Register({ onEdit, preset }) {
     <>
       <h1 className="h1">Register</h1>
       {f.subCategory && <div className="filters"><span className="chip violet">Sub category: {f.subCategory === '__none' ? 'none chosen' : f.subCategory} <button type="button" className="chip-x" onClick={() => setF({ ...f, subCategory: '' })} aria-label="Clear the sub category filter">✕</button></span></div>}
-      <Filters f={f} setF={setF} lists={lists} extra={(
+      <Filters f={f} setF={setF} lists={lists} onClear={() => setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '' })} extra={(
         <>
           <select value={by} onChange={(e) => setBy(e.target.value)} aria-label="Sort">{Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>Sort: {v}</option>)}</select>
           <div className="seg" role="group" aria-label="View"><button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')}>Cards</button><button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>Table</button></div>
@@ -307,7 +307,8 @@ function Register({ onEdit, preset }) {
   );
 }
 
-function Filters({ f, setF, lists, extra }) {
+function Filters({ f, setF, lists, extra, onClear }) {
+  const active = ['q', 'priority', 'category', 'subCategory', 'pendingWith', 'status', 'due'].some((k) => f[k]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
     <div className="filters">
@@ -317,6 +318,7 @@ function Filters({ f, setF, lists, extra }) {
       {lists.pendingWith.length > 0 && <select value={f.pendingWith} onChange={set('pendingWith')} aria-label="Pending with"><option value="">Anyone</option>{lists.pendingWith.map((x) => <option key={x}>{x}</option>)}</select>}
       {f.due !== undefined && <select value={f.due || ''} onChange={set('due')} aria-label="Due"><option value="">Any due date</option>{DUE_FILTERS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}
       {f.status !== undefined && <select value={f.status || ''} onChange={set('status')} aria-label="Status"><option value="">Any status</option>{lists.statuses.map((x) => <option key={x}>{x}</option>)}</select>}
+      {onClear && <button type="button" className="btn ghost clear-filters" onClick={onClear} disabled={!active} title="Clear all filters" aria-label="Clear all filters">✕</button>}
       {extra}
     </div>
   );
