@@ -7,7 +7,7 @@ import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from 
 import { copyText } from './clipboard';
 import { THEMES, applyTheme, savedTheme } from './themes';
 import { useStore } from './store';
-import { templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
+import { buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, DUE_FILTERS, DONE_STATUS, applySubCategoryEdit, validateSubCategory, categoryAsksReminder, isReminderDue, reminderFrom, reminderLabel, toggleReminderCategory, addSubCategories, addSubCategory, categoryCarriesSubCategory, parseSubCategoryLines, subCategoriesFor, withCarrying, findSubCategory, removeSubCategory, subCategoryMissing, RECURRENCES, SORTS, addOption, blankTask, dayKey, dueLabel, filterTasks, isDueSoon, isDueToday, isOpen, isOverdue, pad, newId, removeOption, timeLabel, reportText, sortTasks, stats } from './data';
 
 const TABS = [
   ['dashboard', 'Dashboard'], ['register', 'Register'], ['done', 'Completed'], ['holidays', 'Holidays'],
@@ -329,19 +329,46 @@ function Bin() {
 }
 
 function Report() {
-  const { tasks } = useStore();
+  const { tasks, notify } = useStore();
   const [day, setDay] = useState(dayKey(new Date()));
   const [copied, setCopied] = useState(false);
   const [subFields, setSubFields] = useState(() => { try { return localStorage.getItem('report-sub-fields') !== '0'; } catch { return true; } });
   const toggleSub = (v) => { setSubFields(v); try { localStorage.setItem('report-sub-fields', v ? '1' : '0'); } catch { /* not kept */ } };
-  const text = useMemo(() => reportText(tasks, new Date(`${day}T12:00:00`), { subFields }), [tasks, day, subFields]);
+  const draft = useMemo(() => reportText(tasks, new Date(`${day}T12:00:00`), { subFields }), [tasks, day, subFields]);
+  // The Gemini rewrite of the draft; it is dropped whenever the draft changes, so it never shows a stale report.
+  const [ai, setAi] = useState({ text: '', for: '' });
+  const [busy, setBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [extra, setExtra] = useState(() => { try { return localStorage.getItem('report-ai-instructions') || ''; } catch { return ''; } });
+  const saveExtra = (v) => { setExtra(v); try { localStorage.setItem('report-ai-instructions', v); } catch { /* not kept */ } };
+  const [showOriginal, setShowOriginal] = useState(false);
+  const useAi = ai.text && ai.for === draft && !showOriginal;
+  const text = useAi ? ai.text : draft;
+  const rewrite = async () => {
+    setBusy(true); setAiError('');
+    try {
+      const { generateWithGemini } = await import('./gemini');
+      const out = (await generateWithGemini(buildReportPrompt(draft, extra))).trim();
+      const lost = numbersLost(draft, out);
+      setAi({ text: out, for: draft }); setShowOriginal(false);
+      if (lost.length) notify(`Check these numbers in the rewrite: ${lost.slice(0, 6).join(', ')}`);
+    } catch (e) { setAiError(String(e.message || e)); }
+    setBusy(false);
+  };
   const copy = async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* the text is selectable */ } };
   return (
     <>
       <h1 className="h1">Daily report</h1>
-      <div className="filters"><input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Report date" /><label className="check-row"><input type="checkbox" checked={subFields} onChange={(e) => toggleSub(e.target.checked)} /> Include Sub Category fields (field name: value)</label><button className="btn primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy report'}</button></div>
+      <div className="filters"><input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Report date" /><label className="check-row"><input type="checkbox" checked={subFields} onChange={(e) => toggleSub(e.target.checked)} /> Include Sub Category fields (field name: value)</label>
+        <button className="btn" onClick={rewrite} disabled={busy} title="Rewrites the report as professional sentences with Gemini (free)">{busy ? 'Gemini is writing…' : '✨ Rewrite with Gemini'}</button>
+        {ai.text && ai.for === draft && <button className="btn ghost" onClick={() => setShowOriginal(!showOriginal)}>{showOriginal ? 'Show the Gemini version' : 'Show the original'}</button>}
+        <button className="btn primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy report'}</button></div>
+      <details className="muted ai-extra"><summary>Instructions for Gemini (optional, remembered on this computer)</summary>
+        <textarea rows={3} value={extra} onChange={(e) => saveExtra(e.target.value)} placeholder="e.g. Two lines per task, formal tone, start with the bank's name" aria-label="Instructions for Gemini" />
+      </details>
+      {aiError && <div className="banner err" role="alert">{aiError}</div>}
       <pre className="report">{text}</pre>
-      <p className="muted">Lists tasks completed that day with "✓ DAR", then what is still open and due. The phone app's report has more detail (payment lines, AI rewrite).</p>
+      <p className="muted">{useAi ? 'Written by Gemini from the report below - check it before you send it.' : 'Lists tasks completed that day with "✓ DAR", then what is still open and due.'}</p>
     </>
   );
 }

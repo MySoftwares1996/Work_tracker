@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
-import { templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -487,4 +487,13 @@ test('a template keeps the usual fields, never the dates, and starts a new task'
   const list = saveTemplate(saveTemplate([], tpl), { ...tpl, id: 'other' });                 // same name replaces
   assert.equal(list.length, 1);
   assert.deepEqual(readTemplates({ templates: list }).map((x) => x.name), ['Month-end reconciliation']);
+});
+
+test('the Gemini prompt keeps the draft and the person\'s instructions; lost numbers are found', () => {
+  const p = buildReportPrompt('1. Paid vendor 12500 (Payments)', 'Two lines per task');
+  assert.match(p, /Paid vendor 12500/);
+  assert.match(p, /Two lines per task/);
+  assert.ok(!/MY INSTRUCTIONS/.test(buildReportPrompt('x', '')));
+  assert.deepEqual(numbersLost('Paid 12,500', 'Paid 12500'), []);
+  assert.deepEqual(numbersLost('Paid 12,500 and 4471', 'Paid 12500'), ['4471']);
 });

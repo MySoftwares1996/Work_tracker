@@ -540,3 +540,27 @@ export function saveTemplate(list = [], tpl) {
 export function readTemplates(d = {}) {
   return (Array.isArray(d.templates) ? d.templates : []).filter((x) => x && x.name && x.fields && typeof x.fields === 'object').map((x) => ({ id: String(x.id || x.name), name: String(x.name), fields: x.fields }));
 }
+
+/* ---- AI rewrite of the daily report (Gemini, src/gemini.js). The prompt keeps every fact; numbersLost checks nothing was dropped. ---- */
+export function buildReportPrompt(draft, extra = '') {
+  return [
+    'You rewrite my Daily Activity Report so it reads as professional sentences.',
+    'Rules - follow every one:',
+    '1. Keep every item, numbered as in the draft, in the same section and order. Do not merge, split, add or drop items.',
+    '2. Keep every fact exactly: amounts, numbers, dates, names, party and vendor names, references, invoice and ticket numbers. Never invent anything that is not in the draft.',
+    '3. Keep the title line and the section headings (for example "Pending:") as they are.',
+    '4. Where an item carries a Sub Category line (for example "Banker\'s Reply\'s: ...") or Notes, put that content into the sentence for that item.',
+    '5. Reply with the report text only - no preface, no notes.',
+    extra && String(extra).trim() ? `6. MY INSTRUCTIONS (they decide tone, length and layout; rules 1-3 win if they clash):\n${String(extra).trim()}` : '',
+    '',
+    'DRAFT TO REWRITE:',
+    draft,
+  ].filter((x) => x !== '').join('\n');
+}
+
+/** Numbers of 2+ digits in the draft that the rewrite lost - an empty list means it is safe to use. */
+export function numbersLost(draft, ai) {
+  const hay = String(ai || '').replace(/,(?=\d{2,3}\b)/g, '');
+  const want = String(draft || '').replace(/,(?=\d{2,3}\b)/g, '').match(/\d{2,}(?:\.\d+)?/g) || [];
+  return [...new Set(want)].filter((n) => !hay.includes(n));
+}

@@ -47,3 +47,15 @@ The rules let each signed-in person read and write only their own `users/<their 
 created (Build > Firestore Database > Create database).
 To publish them from GitHub instead: give the deploy service account the "Firebase Rules Admin" role and set the repository variable
 `DEPLOY_FIRESTORE_RULES` to `true`; "Deploy web version" then publishes `firestore.rules` with the site.
+
+## Gemini for the report (free)
+
+The Report tab has **✨ Rewrite with Gemini**. It uses Firebase AI Logic with the free Gemini Developer API in this project
+(`work-tracker-3b728`), so there is no key in the page. Switch it on once:
+
+1. Firebase console > your project > **AI Logic** (under Build) > **Get started**.
+2. Choose **Gemini Developer API** (the free one) and accept. It works on the free Spark plan.
+3. Reload the website and press **✨ Rewrite with Gemini** on the Report tab.
+
+The free tier has a daily limit for the whole project. If the button says the limit is reached, try again later. The report
+text is sent to Google's Gemini to be rewritten; nothing else is sent. If Gemini changes or drops a number, the page tells you which.

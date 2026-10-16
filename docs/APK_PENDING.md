@@ -19,3 +19,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: marking a task Completed needs ALL its Sub Category fields filled (form, card ✓ / DAR, table, and the due alert's Mark done / Done + DAR / Move to Completed); other statuses leave them optional. Port to the phone's Complete / Done buttons at the next APK build (ask the owner).
 - New web: cards show 'CHECKLIST (4/6 DONE)' with a progress bar. The phone's cards: port the same line at the next APK build if the owner wants it.
 - New web: entry form columns rebalanced (due date / time / repeats moved under the first column, key points and attachment links under the middle), so there is no empty space. Web only, nothing to port.
+- New web: Report tab '✨ Rewrite with Gemini' (Firebase AI Logic, free tier; optional instructions kept on the computer). The phone already has its own AI rewrite (src/aiBuiltin.js); nothing to port. Owner must switch on AI Logic once (docs/NEW_WEB.md).
