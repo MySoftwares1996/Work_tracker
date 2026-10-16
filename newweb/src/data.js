@@ -238,7 +238,7 @@ export function nextOccurrence(t, existing = [], now = new Date()) {
 }
 
 /** The Daily Activity Report text for one day: what was completed (with DAR on), then what is still open and due. */
-export function reportText(tasks, date = new Date()) {
+export function reportText(tasks, date = new Date(), { subFields = true } = {}) {
   const day = dayKey(date);
   const done = tasks.filter((t) => t.done && !t.binned && !t.purged && t.dar && t.completedAt && dayKey(t.completedAt) === day);
   const heading = date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -248,7 +248,7 @@ export function reportText(tasks, date = new Date()) {
     const bits = [t.category, t.pendingWith && `with ${t.pendingWith}`].filter(Boolean).join(', ');
     lines.push(`${i + 1}. ${t.title}${bits ? ` (${bits})` : ''}`);
     // The Sub Category's fields (the banker's reply among them) and the notes both go into the report.
-    const fields = Object.entries(t.subCategoryFields || {}).filter(([, v]) => String(v || '').trim()).map(([k, v]) => `${String(k).replace(/[\s:]+$/, '')}: ${String(v).trim().replace(/\n+/g, ' ')}`);
+    const fields = !subFields ? [] : Object.entries(t.subCategoryFields || {}).filter(([, v]) => String(v || '').trim()).map(([k, v]) => `${String(k).replace(/[\s:]+$/, '')}: ${String(v).trim().replace(/\n+/g, ' ')}`);
     if (t.subCategory && fields.length) lines.push(`   ${t.subCategory} - ${fields.join('; ')}`);
     else if (fields.length) lines.push(`   ${fields.join('; ')}`);
     if (t.notes) lines.push(`   Notes: ${t.notes.replace(/\n+/g, ' ')}`);

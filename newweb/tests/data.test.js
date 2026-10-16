@@ -393,6 +393,7 @@ test('the daily report carries the banker\'s reply (a sub category field) and th
   assert.match(text, /Urgent Bank Follow Up's - Banker's Reply's: Need to collect on an urgent basis/);
   assert.match(text, /Notes: Called twice\. Statement due tomorrow\./);
   assert.ok(!text.includes('Empty'));
+  assert.ok(!reportText([t], day, { subFields: false }).includes("Banker's Reply's"));
   const only = reportText([task({ title: 'Plain', done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, notes: 'n' })], day);
   assert.ok(!only.includes('undefined') && /Notes: n/.test(only));
 });

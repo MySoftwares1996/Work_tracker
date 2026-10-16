@@ -307,12 +307,14 @@ function Report() {
   const { tasks } = useStore();
   const [day, setDay] = useState(dayKey(new Date()));
   const [copied, setCopied] = useState(false);
-  const text = useMemo(() => reportText(tasks, new Date(`${day}T12:00:00`)), [tasks, day]);
+  const [subFields, setSubFields] = useState(() => { try { return localStorage.getItem('report-sub-fields') !== '0'; } catch { return true; } });
+  const toggleSub = (v) => { setSubFields(v); try { localStorage.setItem('report-sub-fields', v ? '1' : '0'); } catch { /* not kept */ } };
+  const text = useMemo(() => reportText(tasks, new Date(`${day}T12:00:00`), { subFields }), [tasks, day, subFields]);
   const copy = async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* the text is selectable */ } };
   return (
     <>
       <h1 className="h1">Daily report</h1>
-      <div className="filters"><input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Report date" /><button className="btn primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy report'}</button></div>
+      <div className="filters"><input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Report date" /><label className="check-row"><input type="checkbox" checked={subFields} onChange={(e) => toggleSub(e.target.checked)} /> Include Sub Category fields (field name: value)</label><button className="btn primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy report'}</button></div>
       <pre className="report">{text}</pre>
       <p className="muted">Lists tasks completed that day with "✓ DAR", then what is still open and due. The phone app's report has more detail (payment lines, AI rewrite).</p>
     </>

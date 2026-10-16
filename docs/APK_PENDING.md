@@ -22,3 +22,4 @@ Shared data (already compatible with the phone's fields, noted where the phone n
 9. **Alerts settings** (pop-up, sound, desktop notification, test alert) and the full-width pages, mail-subject copy on cards (web only).
 
 Not for the APK (web only): colour themes, three-column form, desktop notification, full-width layout.
+- New web: Daily report has a checkbox to include the Sub Category fields (field name: value). Port to the phone report at the next APK build.
