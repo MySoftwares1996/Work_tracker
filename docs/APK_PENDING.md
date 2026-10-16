@@ -39,3 +39,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: the 'Monthly Payments' category and its two sample report formats (HR Statutory Payment, Monthly TDS Payments) are no longer created by the automatic setup. Web only.
 - New web: sample report formats updated from the new Tally sheet: category 'HR Statutory Payment' (sub categories EPFO, ESI, PT) and 'Monthly Payments' (Monthly TDS Payments by Section wise); short sub category names (ESI, PT) now match only exactly. Web only.
 - New web: sample report format 'Rent Payments' (category Payments) added from the Tally sheet. Web only.
+- New web: the Dashboard no longer shows the Bank follow-ups, Payments this month by vendor and Today's report so far cards. Web only.
