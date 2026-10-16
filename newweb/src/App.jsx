@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from './ClockPicker';
+import Logo from './Logo';
 import AlertCenter from './AlertCenter';
 import { planImport } from './importBackup';
 import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from './alerts';
@@ -42,7 +43,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <div className="brand"><img className="logo" src="/icon-192.png" alt="" /><span className="brand-name">Working Dashboard</span></div>
+        <div className="brand"><Logo size={34} className="brand-logo" /><span className="brand-name">Working Dashboard</span></div>
         <nav className="tabs" aria-label="Sections">
           {TABS.map(([k, label]) => (
             <button key={k} className={`tab${tab === k ? ' on' : ''}`} onClick={() => go(k)} aria-current={tab === k ? 'page' : undefined}>
@@ -58,7 +59,7 @@ export default function App() {
       </header>
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
-        {!store.demo && !store.synced && !store.error ? <div className="muted loading" role="status">Loading your tasks…</div> : screens[tab]}
+        {!store.demo && !store.synced && !store.error ? <div className="loading" role="status"><Logo size={56} mode="spin" /><span className="muted">Loading your tasks…</span></div> : screens[tab]}
       </main>
       <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
       {form && <TaskForm initial={form} onClose={() => setForm(null)} />}
@@ -72,7 +73,7 @@ function SignIn() {
   return (
     <div className="center">
       <div className="signin">
-        <img className="logo big" src="/icon-192.png" alt="" />
+        <Logo size={84} className="float" />
         <h1>Working Dashboard</h1>
         <p>Your tasks, deadlines and daily report - the same account as your phone.</p>
         <button className="btn primary" onClick={signIn}>Sign in with Google</button>
@@ -142,7 +143,7 @@ function Dashboard({ onEdit, onNew, go }) {
   );
 }
 
-const Empty = ({ text }) => <p className="empty">{text}</p>;
+const Empty = ({ text }) => <div className="empty"><Logo size={40} className="float" /><p>{text}</p></div>;
 
 function Chip({ children, tone }) { return <span className={`chip ${tone || ''}`}>{children}</span>; }
 const priTone = (p) => ({ high: 'coral', medium: 'amber', low: 'teal' })[String(p).toLowerCase()] || '';

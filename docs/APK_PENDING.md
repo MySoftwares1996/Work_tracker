@@ -27,3 +27,4 @@ Not for the APK (web only): colour themes, three-column form, desktop notificati
 - New web: one hour before a timed task is due a notification-only heads-up; at the due time the task's own Alert choice decides (Alarm = pop-up + sound, Reminder = notification only, Default = Config > Alerts). The phone app already has its own warnings (Due in 1 hr).
 - Phone + web in step: new web writes the "in use" note (meta/presence). Phone change already made in code (`AlarmReceiver.kt`): while the web app is in use the phone shows a quiet notification instead of nothing; rings when the web app is not in use. Goes live only in the next APK build you ask for.
 - New web: the app's own icon (check circle) is now the site logo, tab icon and home-screen icon. Web only, nothing to port.
+- New web: animated logo (draws itself, breathes, spins while loading) in the header, sign-in, loading, empty states and the due alert. Web only, nothing to port.

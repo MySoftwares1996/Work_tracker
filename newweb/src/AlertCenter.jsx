@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
+import Logo from './Logo';
 import ClockPicker from './ClockPicker';
 import { SNOOZES, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
@@ -111,7 +112,7 @@ function AlertCard({ a, count, lists, actions, finish, onOpen }) {
     <div className="alert-overlay" role="alertdialog" aria-modal="true" aria-label="Task due now">
       <div className={`alert-card tone-${tone}`}>
         <div className="alert-band">
-          <span className="alert-bell" aria-hidden="true">⏰</span>
+          <span className="alert-bell" aria-hidden="true"><Logo size={44} /></span>
           <div className="alert-band-text">
             <div className="alert-heading">{alertHeading(a)}</div>
             <div className="alert-meta">{a.test ? 'Test alert' : dueLabel(t)}{count > 1 ? ` · ${count - 1} more waiting` : ''}</div>
