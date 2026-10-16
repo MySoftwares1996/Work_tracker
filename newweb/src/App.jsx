@@ -697,9 +697,9 @@ function TaskForm({ initial, onClose }) {
           </div>
           <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
           {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
-          <div className="field">Alert on the phone
-            <div className="seg" role="group" aria-label="Alert on the phone">
-              {[['', 'Default'], ['alarm', 'Alarm'], ['gentle', 'Reminder']].map(([v, l]) => <button type="button" key={v} className={t.alertMode === v ? 'on' : ''} onClick={() => setT({ ...t, alertMode: v })}>{l}</button>)}
+          <div className="field">Alert at the due time
+            <div className="seg" role="group" aria-label="Alert at the due time">
+              {[['', 'Default'], ['alarm', 'Alarm (pop-up + sound)'], ['gentle', 'Reminder (notification only)']].map(([v, l]) => <button type="button" key={v} className={t.alertMode === v ? 'on' : ''} onClick={() => setT({ ...t, alertMode: v })}>{l}</button>)}
             </div>
           </div>
           <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>

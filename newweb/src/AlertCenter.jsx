@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
 import ClockPicker from './ClockPicker';
-import { SNOOZES, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
+import { SNOOZES, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
@@ -15,7 +15,7 @@ const withRemark = (t, text) => {
  * Done + DAR, Silence today, Skip, Snooze, and Move. Snooze, silence and skip are written with the task, so the phone app stays quiet too.
  */
 export default function AlertCenter({ onOpen }) {
-  const { tasks, lists, actions } = useStore();
+  const { tasks, lists, actions, notify } = useStore();
   const [settings, setSettings] = useState(loadAlertSettings);
   const [queue, setQueue] = useState([]);
   const handled = useRef(loadHandled());
@@ -33,19 +33,34 @@ export default function AlertCenter({ onOpen }) {
   }, []);
 
   useEffect(() => {
-    if (!settings.popup) return undefined;
+    const quiet = (a, text) => {
+      handled.current.set(a.key, Date.now()); saveHandled(handled.current);
+      if (notify) notify(`${text}: ${a.task.title}`);
+      showNotification(text, a.task.title);
+    };
     const check = () => {
+      const now = new Date();
+      const seen = new Set(handled.current.keys());
+      // One hour before the due time: a notification only, about the coming task.
+      upcomingWarnings(tasksRef.current, now, seen).forEach((a) => quiet(a, `Due in ${Math.max(1, Math.ceil((a.task.due - now) / 60000))} min`));
+      // At the due time: what happens follows the task's own choice (Alarm rings with a pop-up, Reminder is a notification only).
       const have = new Set(queueRef.current.map((a) => a.key));
-      const fresh = pendingAlerts(tasksRef.current, new Date(), new Set(handled.current.keys())).filter((a) => !have.has(a.key));
-      if (!fresh.length) return;
-      setQueue((q) => [...q, ...fresh]);
-      if (settings.sound) playAlertSound();
-      if (settings.notify && document.hidden) showNotification(alertHeading(fresh[0]), fresh[0].task.title);
+      const fresh = pendingAlerts(tasksRef.current, now, seen).filter((a) => !have.has(a.key));
+      const popups = [];
+      let ring = false;
+      fresh.forEach((a) => {
+        const r = dueResponse(a.task, settings);
+        if (r.popup) { popups.push(a); ring = ring || r.sound; } else quiet(a, alertHeading(a));
+      });
+      if (!popups.length) return;
+      setQueue((q) => [...q, ...popups]);
+      if (ring) playAlertSound();
+      if (settings.notify && document.hidden) showNotification(alertHeading(popups[0]), popups[0].task.title);
     };
     check();
     const id = setInterval(check, 10000);
     return () => clearInterval(id);
-  }, [settings, tasks]);
+  }, [settings, tasks, notify]);
 
   // The shown alert uses the task as it is now; one that was completed or binned elsewhere drops out.
   const live = useMemo(() => queue.map((a) => (a.test ? a : { ...a, task: tasks.find((t) => t.id === a.task.id) })).filter((a) => a.test || (a.task && !a.task.done && !a.task.binned)), [queue, tasks]);

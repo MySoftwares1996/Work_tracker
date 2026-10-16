@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
-import { isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
+import { upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -455,4 +455,20 @@ test('importing again adds nothing twice, and overwrite replaces; a wrong file i
   // two carrying categories: the sub categories are not guessed onto one of them
   const two = backup(); two.data.workingDashboard.subCategoryCategories = ['Payments', 'Audit'];
   assert.ok(planImport(two, {}, NOW).lists.subCategories.every((x) => x.category === ''));
+});
+
+test('a timed task gives a notification-only heads-up within the hour before it is due', () => {
+  const now = new Date(2026, 9, 15, 10, 0);
+  const t = task({ title: 'Call bank', due: new Date(2026, 9, 15, 10, 45), hasTime: true });
+  assert.equal(upcomingWarnings([t], now).length, 1);
+  assert.equal(upcomingWarnings([{ ...t, due: new Date(2026, 9, 15, 11, 30) }], now).length, 0);   // more than an hour away
+  assert.equal(upcomingWarnings([{ ...t, hasTime: false }], now).length, 0);                       // date only: no heads-up
+  assert.equal(upcomingWarnings([{ ...t, due: new Date(2026, 9, 15, 9, 59) }], now).length, 0);    // already due
+  assert.equal(upcomingWarnings([t], now, new Set([upcomingWarnings([t], now)[0].key])).length, 0);
+});
+
+test('the due response follows the task\'s own alert choice', () => {
+  assert.deepEqual(dueResponse({ alertMode: 'alarm' }, { popup: false, sound: false }), { popup: true, sound: true });
+  assert.deepEqual(dueResponse({ alertMode: 'gentle' }, { popup: true, sound: true }), { popup: false, sound: false });
+  assert.deepEqual(dueResponse({ alertMode: '' }, { popup: true, sound: false }), { popup: true, sound: false });
 });

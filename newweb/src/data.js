@@ -473,6 +473,30 @@ export function pendingAlerts(tasks, now = new Date(), handled = new Set()) {
   return out.sort((a, b) => b.at - a.at);
 }
 
+const WARN_MS = 3600 * 1000;                    // the heads-up comes one hour before a timed task is due
+
+/** Heads-ups for timed tasks due within the next hour: a notification only, never a pop-up. `handled` is a set of keys. */
+export function upcomingWarnings(tasks, now = new Date(), handled = new Set()) {
+  const today = dayKey(now);
+  const out = [];
+  tasks.forEach((t) => {
+    if (!isOpen(t) || !t.hasTime || !t.due || Number.isNaN(t.due.getTime())) return;
+    if (t.lastAckDate === today || (t.skippedDates || []).includes(today)) return;
+    const due = t.due.getTime();
+    if (due <= now.getTime() || due - now.getTime() > WARN_MS || (Number(t.snoozeUntil) || 0) > now.getTime()) return;
+    const key = `${t.id}|warn|${due}`;
+    if (!handled.has(key)) out.push({ key, task: t, kind: 'warn', at: new Date(due - WARN_MS) });
+  });
+  return out.sort((a, b) => a.task.due - b.task.due);
+}
+
+/** What a due alert does, from the task's own "Alert on the phone" choice: alarm = pop-up that rings, Reminder = notification only, Default = the Config > Alerts settings. */
+export function dueResponse(t, settings = {}) {
+  if (t.alertMode === 'alarm') return { popup: true, sound: true };
+  if (t.alertMode === 'gentle') return { popup: false, sound: false };
+  return { popup: settings.popup !== false, sound: settings.sound !== false };
+}
+
 export function alertHeading(a) {
   if (a.kind === 'reminder') return 'Reminder due now';
   const p = a.task.priority ? `${a.task.priority} priority` : 'Task';
