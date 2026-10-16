@@ -113,7 +113,7 @@ function Dashboard({ onEdit, onNew, go }) {
     setQuick('');
   };
   return (
-    <>
+    <div className="dash">
       <h1 className="h1">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}</h1>
       <form className="quick" onSubmit={addQuick}>
         <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Quick add a task and press Enter..." aria-label="Quick add" />
@@ -144,7 +144,7 @@ function Dashboard({ onEdit, onNew, go }) {
           <div className="list">{soon.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} compact />)}</div>
         </section>
       </div>
-    </>
+    </div>
   );
 }
 
