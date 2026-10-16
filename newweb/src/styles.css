@@ -645,3 +645,6 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: v
 .narration { background: color-mix(in srgb, var(--teal) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--teal) 35%, transparent); border-radius: 12px; padding: 9px 12px; }
 .narration p { margin: 4px 0 2px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; user-select: all; }
 .narration b { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+
+.flabel { display: inline; }
+.flabel .req { display: inline; margin-left: 2px; }
