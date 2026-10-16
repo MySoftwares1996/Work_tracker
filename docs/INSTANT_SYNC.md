@@ -13,9 +13,8 @@ With it, within a few seconds. The app side is built in; only the small server f
    cd functions && npm install && cd ..
    firebase deploy --only functions
    ```
-   Or, without a computer: GitHub > Actions > **Deploy instant sync** > Run workflow (uses the `FIREBASE_SERVICE_ACCOUNT`
-   secret; give that service account the roles *Cloud Functions Admin*, *Service Account User*, *Cloud Build Editor*,
-   *Artifact Registry Administrator*, *Eventarc Admin* and *Service Usage Admin* in Google Cloud > IAM, and use Blaze).
+   (The "Deploy instant sync" GitHub workflow was removed: the free Spark plan cannot deploy functions, and the deploy failed with a 403.
+   Deploy from a computer with the Blaze plan if instant sync is wanted later.)
 4. Install the new APK, open the app once while signed in with Google (it saves the phone's token to
    `users/<uid>/meta/devices`), then edit a task on the website: the phone follows within seconds.
 
