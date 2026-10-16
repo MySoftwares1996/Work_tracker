@@ -726,8 +726,6 @@ function TaskForm({ initial, onClose }) {
             </div>
           </div>
         )}
-        </div><div className="col">
-        {subBlock}
         <div className="fields">
           <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
           <div className="field">Due time
@@ -738,15 +736,31 @@ function TaskForm({ initial, onClose }) {
           </div>
           <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
           {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
-          <div className="field">Alert at the due time (Alarm = pop-up + sound, Reminder = notification only)
-            <div className="seg" role="group" aria-label="Alert at the due time (Alarm = pop-up + sound, Reminder = notification only)">
+        </div>
+        {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
+        </div><div className="col">
+        {subBlock}
+        <div className="fields">
+          <div className="field">Alert at the due time
+            <div className="seg" role="group" aria-label="Alert at the due time" title="Alarm = pop-up + sound, Reminder = notification only">
               {[['', 'Default'], ['alarm', 'Alarm'], ['gentle', 'Reminder']].map(([v, l]) => <button type="button" key={v} className={t.alertMode === v ? 'on' : ''} onClick={() => setT({ ...t, alertMode: v })}>{l}</button>)}
             </div>
           </div>
           <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
         </div>
-        {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
         <label className="field full">Mail chain<input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" /></label>
+        <div className="field full">Key points (go into the daily report line)
+          {t.keyPoints.map((k, i) => (
+            <div key={i} className="row"><span className="kp"><b>{k.key}</b>{k.key && k.value ? ': ' : ''}{k.value}</span><button type="button" className="btn ghost" onClick={() => setT({ ...t, keyPoints: t.keyPoints.filter((_, n) => n !== i) })} aria-label="Remove key point">✕</button></div>
+          ))}
+          <div className="add-row"><input value={kp.key} onChange={(e) => setKp({ ...kp, key: e.target.value })} placeholder="Label (e.g. Invoice no.)" /><input value={kp.value} onChange={(e) => setKp({ ...kp, value: e.target.value })} placeholder="Value" /><button type="button" className="btn" onClick={addKp} disabled={!kp.key.trim() && !kp.value.trim()}>Add</button></div>
+        </div>
+        <div className="field full">Attachment links (invoice, bank advice, Drive file...)
+          {t.attachments.map((a) => (
+            <div key={a.id} className="row"><a href={a.url} target="_blank" rel="noopener noreferrer" className="attach">{a.title}</a><button type="button" className="btn ghost" onClick={() => setT({ ...t, attachments: t.attachments.filter((x) => x.id !== a.id) })} aria-label={`Remove ${a.title}`}>✕</button></div>
+          ))}
+          <div className="add-row"><input value={att.title} onChange={(e) => setAtt({ ...att, title: e.target.value })} placeholder="Title (optional)" /><input value={att.url} onChange={(e) => setAtt({ ...att, url: e.target.value })} placeholder="https://..." /><button type="button" className="btn" onClick={addAtt} disabled={!att.url.trim()}>Add</button></div>
+        </div>
         </div><div className="col">
         <label className="field full">Notes<textarea rows={4} value={t.notes} onChange={set('notes')} /></label>
         <div className="side-panel">
@@ -758,18 +772,6 @@ function TaskForm({ initial, onClose }) {
             </div>
           ))}
           <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
-        </div>
-        <div className="field full">Attachment links (invoice, bank advice, Drive file...)
-          {t.attachments.map((a) => (
-            <div key={a.id} className="row"><a href={a.url} target="_blank" rel="noopener noreferrer" className="attach">{a.title}</a><button type="button" className="btn ghost" onClick={() => setT({ ...t, attachments: t.attachments.filter((x) => x.id !== a.id) })} aria-label={`Remove ${a.title}`}>✕</button></div>
-          ))}
-          <div className="add-row"><input value={att.title} onChange={(e) => setAtt({ ...att, title: e.target.value })} placeholder="Title (optional)" /><input value={att.url} onChange={(e) => setAtt({ ...att, url: e.target.value })} placeholder="https://..." /><button type="button" className="btn" onClick={addAtt} disabled={!att.url.trim()}>Add</button></div>
-        </div>
-        <div className="field full">Key points (go into the daily report line)
-          {t.keyPoints.map((k, i) => (
-            <div key={i} className="row"><span className="kp"><b>{k.key}</b>{k.key && k.value ? ': ' : ''}{k.value}</span><button type="button" className="btn ghost" onClick={() => setT({ ...t, keyPoints: t.keyPoints.filter((_, n) => n !== i) })} aria-label="Remove key point">✕</button></div>
-          ))}
-          <div className="add-row"><input value={kp.key} onChange={(e) => setKp({ ...kp, key: e.target.value })} placeholder="Label (e.g. Invoice no.)" /><input value={kp.value} onChange={(e) => setKp({ ...kp, value: e.target.value })} placeholder="Value" /><button type="button" className="btn" onClick={addKp} disabled={!kp.key.trim() && !kp.value.trim()}>Add</button></div>
         </div>
         </div>
         </div></div>
