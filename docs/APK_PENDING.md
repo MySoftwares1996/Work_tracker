@@ -23,3 +23,4 @@ Shared data (already compatible with the phone's fields, noted where the phone n
 
 Not for the APK (web only): colour themes, three-column form, desktop notification, full-width layout.
 - New web: Daily report has a checkbox to include the Sub Category fields (field name: value). Port to the phone report at the next APK build.
+- New web: first load shows 'Loading your tasks' until Firestore answers; Firestore uses auto long polling (web only, nothing to port).

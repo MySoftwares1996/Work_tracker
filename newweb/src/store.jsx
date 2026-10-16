@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, doc, getFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
 import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, toDoc, isOpen, writeListsValue } from './data';
 import { demoTasks } from './demo';
@@ -44,6 +44,15 @@ function Toast({ note }) {
   return note ? <div className="toast" role="status">{note}</div> : null;
 }
 
+// One Firestore instance. Auto-detecting long polling keeps the first load quick on phone networks / proxies where the
+// default streaming connection stalls (the first screen then stayed at zero until a refresh).
+let firestoreDb;
+const dbOf = () => {
+  if (firestoreDb) return firestoreDb;
+  try { firestoreDb = initializeFirestore(firebaseApp(), { experimentalAutoDetectLongPolling: true }); } catch { firestoreDb = getFirestore(firebaseApp()); }
+  return firestoreDb;
+};
+
 export function LiveStore({ children }) {
   const [user, setUser] = useState(undefined);       // undefined = still checking, null = signed out
   const [taskMap, setTaskMap] = useState({});
@@ -56,11 +65,11 @@ export function LiveStore({ children }) {
   const [synced, setSynced] = useState(false);
   const tasksRef = useRef([]);
 
-  useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); if (!u) { setTaskMap({}); setSynced(false); } }), []);
+  useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); setSynced(false); if (!u) setTaskMap({}); }), []);
 
   useEffect(() => {
     if (!user) return undefined;
-    const db = getFirestore(firebaseApp());
+    const db = dbOf();
     const onErr = (e) => setError(friendlyError(e));
     const un1 = onSnapshot(collection(db, 'users', user.uid, 'tasks'), (snap) => {
       setTaskMap((m) => {
@@ -90,7 +99,7 @@ export function LiveStore({ children }) {
     const commit = (t) => {
       if (!user) return;
       setError('');
-      setDoc(doc(getFirestore(firebaseApp()), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(friendlyError(e)));
+      setDoc(doc(dbOf(), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(friendlyError(e)));
     };
     return makeActions(commit, () => tasksRef.current, flash);
   }, [user, flash]);
@@ -101,14 +110,14 @@ export function LiveStore({ children }) {
     saveLists: (next) => {
       if (!user) return;
       setLists(next);
-      setDoc(doc(getFirestore(firebaseApp()), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
+      setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, next), ts: Date.now() }, { merge: true })
         .then(() => { rawLists.current = writeListsValue(rawLists.current, next); })
         .catch((e) => setError(friendlyError(e)));
     },
     // Writes an import plan (importBackup.js): the tasks in batches, then the lists and the calendar. Merged, so nothing else is cleared.
     importPlan: async (plan) => {
       if (!user) throw new Error('Sign in first.');
-      const db = getFirestore(firebaseApp());
+      const db = dbOf();
       for (let i = 0; i < plan.tasks.length; i += 400) {
         const batch = writeBatch(db);
         plan.tasks.slice(i, i + 400).forEach((x) => batch.set(doc(db, 'users', user.uid, 'tasks', x.id), x.doc, { merge: true }));

@@ -58,7 +58,7 @@ export default function App() {
       </header>
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
-        {screens[tab]}
+        {!store.demo && !store.synced && !store.error ? <div className="muted loading" role="status">Loading your tasks…</div> : screens[tab]}
       </main>
       <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
       {form && <TaskForm initial={form} onClose={() => setForm(null)} />}
