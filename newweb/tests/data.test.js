@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
-import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../src/reportFormats.js';
+import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS, effectiveFormats } from '../src/reportFormats.js';
 import { breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
@@ -630,4 +630,13 @@ test('Demand Draft Online / Offline formats are written from their fields', () =
   assert.equal(f.category, 'Demand Draft');
   const out = renderTemplate(f.template, { subCategoryFields: { 'Payee Name': 'High Court', 'DD No': '123456', Amount: '5,000', 'Case No': 'WP/12/2026' } });
   assert.ok(out.missing.length === 0 && out.text.startsWith('Prepared Offline Demand Draft application forms') && out.text.includes('Payee Name: High Court, DD No: 123456, Amount: 5,000 & Case No: WP/12/2026.'));
+});
+
+test('saved report formats keep their wording; samples added later still reach the account', () => {
+  assert.equal(effectiveFormats([]), SAMPLE_FORMATS);
+  const mine = [{ id: 'x', category: 'Payments', subCategory: 'Invoice Payment', template: 'MY WORDING {Name}' }];
+  const all = effectiveFormats(mine);
+  assert.equal(findFormat(all, 'Invoice Payment').template, 'MY WORDING {Name}');
+  assert.ok(findFormat(all, 'Imports Payment Initiation') && findFormat(all, 'Offline') && findFormat(all, 'ESI'));
+  assert.equal(all.filter((f) => f.subCategory === 'Invoice Payment').length, 1);
 });

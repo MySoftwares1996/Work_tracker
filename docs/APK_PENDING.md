@@ -49,3 +49,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 - New web: report formats for Employee Advance's / settlement's / salary advance's, Credit Card Payments and Rent Payments now start with 'Name: - ' like the other Payments formats (updated Tally sheet). Web only.
 - New web: remarks written in a task's Notes are added at the end of its report line for payments written from a report format (they were dropped before). Web only.
 - New web: a short remark in Notes (e.g. 'Paid') was dropped from the payment line when its word was already in the line; fixed (shared `withEntryNotes`, used only with details = website). Web only.
+- New web: sample report formats that are not in an account's saved list (added later from a new Tally sheet) are now used too; the saved ones keep their wording (`effectiveFormats`). Web only.

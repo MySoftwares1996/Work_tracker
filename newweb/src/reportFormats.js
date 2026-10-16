@@ -107,6 +107,16 @@ export const SAMPLE_FORMATS = [
   { category: 'Demand Draft', subCategory: 'Offline', template: 'Prepared Offline Demand Draft application forms with all required details, coordinated with bank officials with Payee Name: {Payee Name}, DD No: {DD No}, Amount: {Amount} & Case No: {Case No}. Shared email acknowledgment with the Legal team confirming that the Demand Draft is ready for pickup.' },
 ].map((f, i) => ({ id: `sample-${i}`, ...f }));
 
+/**
+ * The formats in use: the saved ones (Config > Report formats), plus every sample format whose Sub Category has no saved one - so a
+ * format added to the samples later (a new Tally sheet) reaches an account that saved its own list earlier. Nothing saved is changed.
+ */
+export function effectiveFormats(saved = []) {
+  const mine = Array.isArray(saved) ? saved.filter((f) => f && f.subCategory && f.template) : [];
+  if (!mine.length) return SAMPLE_FORMATS;
+  return [...mine, ...SAMPLE_FORMATS.filter((s) => !mine.some((m) => normName(m.subCategory) === normName(s.subCategory)))];
+}
+
 const OWN_MARKS = new Set(['title', 'category', 'sub category', 'mail', 'notes']);
 
 /**

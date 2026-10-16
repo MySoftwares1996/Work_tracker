@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
-import { readReportFormats, planFormatSetup, SAMPLE_FORMATS } from './reportFormats';
+import { readReportFormats, planFormatSetup, effectiveFormats } from './reportFormats';
 import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
 import { demoTasks } from './demo';
 
@@ -67,6 +67,7 @@ export function LiveStore({ children }) {
   const [links, setLinks] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [formats, setFormats] = useState([]);              // the saved report formats (empty = the sample formats are used)
+  const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
   const [metaReady, setMetaReady] = useState(false);      // the lists and tools have arrived from the server
   const [setupDone, setSetupDone] = useState(false);      // the one-time automatic setup of the formats' categories ran for this account
   const [error, setError] = useState('');
@@ -184,7 +185,7 @@ export function LiveStore({ children }) {
   useEffect(() => {
     if (!user || !metaReady || setupDone || setupRan.current) return;
     setupRan.current = true;
-    const plan = planFormatSetup(lists, formats.length ? formats : SAMPLE_FORMATS);
+    const plan = planFormatSetup(lists, allFormats);
     if (plan.categories.length || plan.subCategories.length) {
       persistLists(plan.lists);
       setNote(`Added ${plan.categories.length} categor${plan.categories.length === 1 ? 'y' : 'ies'} and ${plan.subCategories.length} sub categor${plan.subCategories.length === 1 ? 'y' : 'ies'} from your report formats`);
@@ -209,7 +210,7 @@ export function LiveStore({ children }) {
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, templates, reportFormats: formats.length ? formats : SAMPLE_FORMATS, reportFormatsCustom: formats.length > 0,
+    demo: false, user, tasks, lists, calendar, links, templates, reportFormats: allFormats, reportFormatsCustom: formats.length > 0,
     saveReportFormats: (next) => {
       if (!user) return;
       const now = Date.now();
@@ -278,9 +279,10 @@ export function DemoStore({ children }) {
   const calendar = useMemo(() => ({ holidays: [{ date: '2026-10-20', name: 'Sample holiday' }], leaveDays: [] }), []);
   const [templates, setTemplates] = useState([]);
   const [formats, setFormats] = useState([]);
+  const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: formats.length ? formats : SAMPLE_FORMATS, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, actions,
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
   }), [visible, lists, calendar, links, templates, formats, actions]);

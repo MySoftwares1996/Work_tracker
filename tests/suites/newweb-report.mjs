@@ -70,4 +70,5 @@ export async function run({ ck, section }) {
   ck('a short remark that is a word of the line is still added', /\[Towards\]\. Paid\.$/.test(probe('Paid')));
   ck('several remarks are all added, stamps removed', /\. Payment approved by CFO\. Urgent\.$/.test(probe('[16 Oct 2026] Payment approved by CFO\nUrgent')));
   ck('a remark the line already says in full is not repeated', !/Invoice No\. INV-4471 towards \[Towards\]\. .*Invoice No\. INV-4471/.test(probe('Being amount paid against Invoice No. INV-4471')));
+
 }
