@@ -28,11 +28,12 @@ import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
 import { effectiveFormats } from '../reportFormats';
-import { applyFormats, applyMoves } from '../reportExtras';
+import { applyFormats, applyMoves, REPORT_GROUPS } from '../reportExtras';
 import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, DEFAULT_PAYMENT_INTRO, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
 import { PaymentFields, KeyPointsEditor, NarrationForm } from './WdPaymentFields';
+import WdReportFormats from './WdReportFormats';
 import WdCalendar from './WdCalendar';
 import { BankFollowUpForm } from './WdBankFollowUp';
 import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, followUpWho, followUpsByBank, escalateFollowUp, declineEscalation } from '../bankFollowUp';
@@ -57,7 +58,7 @@ const REPORT_PRESETS = [
 ];
 
 // web.app only, and not on phone-width screens: a Narration tab after the Bin - the Tally narration builder, whatever an entry's status.
-const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', ...(narration ? ['narration'] : []), ...(Platform.OS === 'web' ? ['links'] : []), 'report'];
+const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', 'formats', ...(narration ? ['narration'] : []), 'links', 'report'];
 // Bottom bar, same order as the web app (Report is reached from the Dashboard).
 const makeBarTabs = (narration) => [
   { key: 'dashboard', label: 'Dashboard' },
@@ -67,7 +68,7 @@ const makeBarTabs = (narration) => [
   { key: 'config', label: 'Config' },
   { key: 'bin', label: 'Bin' },
   ...(narration ? [{ key: 'narration', label: 'Narration', icon: 'list' }] : []),
-  ...(Platform.OS === 'web' ? [{ key: 'links', label: 'Links', icon: 'links' }] : []),
+  { key: 'links', label: 'Links', icon: 'links' },
 ];
 // The phone's bottom bar: five tabs; Holidays, Bin and Config are reached from More.
 const PHONE_TABS = [
@@ -77,8 +78,8 @@ const PHONE_TABS = [
   { key: 'done', label: 'Done' },
   { key: 'more', label: 'More' },
 ];
-const MORE_PAGES = ['holidays', 'bin', 'config', 'links'];      // pages opened from More: the header shows a back arrow to it
-const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', report: 'Daily Report' };
+const MORE_PAGES = ['holidays', 'bin', 'config', 'links', 'formats'];      // pages opened from More: the header shows a back arrow to it
+const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', formats: 'Report formats', report: 'Daily Report' };
 export default function WorkingDashboard() {
   const insets = useSafeAreaInsets();
   const { wide, tablet: tabletWidth, sideBar } = useLayout();
@@ -105,7 +106,7 @@ export default function WorkingDashboard() {
   const plists = useMemo(() => { const l = paymentLists(wd, wd.categories); return withWebNarrationTypes(l); }, [wd.subCategories, wd.subCategoryCategories, wd.narrationTypes, wd.categories]); // eslint-disable-line react-hooks/exhaustive-deps
   const entries = wd.entries || NO_LIST;
   const followToday = useMemo(() => followUpsDueToday(entries), [entries]);
-  const byBank = useMemo(() => (Platform.OS === 'web' ? followUpsByBank(entries) : []), [entries]);
+  const byBank = useMemo(() => followUpsByBank(entries), [entries]);
   // The newest stored copy of each entry, for handlers whose card may have drawn an older one.
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
@@ -186,7 +187,7 @@ export default function WorkingDashboard() {
   const [reportText, setReportText] = useState('');
   const [reportKind, setReportKind] = useState('day');      // 'day' (the Daily Activity Report), 'week' or 'month' (a summary)
   const [reportModel, setReportModel] = useState(null);
-  const [reportMoves, setReportMoves] = useState({});   // { taskId: 'oth' | 'pay' | 'fol' | 'out' } for the picked day
+  const [groupOpen, setGroupOpen] = useState('');   // the Report box whose tasks are shown (oth / pay / fol / out)
   const [reportNote, setReportNote] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [samples, setSamples] = useState([]);
@@ -482,12 +483,12 @@ export default function WorkingDashboard() {
 
   const act = (shown, kind, opts = {}) => {
     // web.app: ✓ or DAR on a task with a checklist opens the checklist first, to tick the steps before it is completed.
-    if (kind === 'complete' && Platform.OS === 'web' && !opts.checklistOk) {
+    if (kind === 'complete' && !opts.checklistOk) {
       const live = entriesRef.current.find((x) => x.id === shown.id) || shown;
       if (checklistOf(live).length) { setChecklistSheet({ id: live.id, opts }); return; }
     }
     // web.app: DAR on a card first asks for the notes that go into the daily report.
-    if (kind === 'complete' && opts.dar === true && opts.notes === undefined && Platform.OS === 'web') {
+    if (kind === 'complete' && opts.dar === true && opts.notes === undefined) {
       setDarNote({ entry: entriesRef.current.find((x) => x.id === shown.id) || shown, text: '' });
       return;
     }
@@ -814,7 +815,7 @@ export default function WorkingDashboard() {
       details: true });
     const formats = effectiveFormats(wd.reportFormats);
     applyFormats(model, formats, { darPaymentIntro: wd.paymentIntro });
-    applyMoves(model, reportMoves, { lists: { darPaymentIntro: wd.paymentIntro }, payLists: plists, formats, date, details: true });
+    applyMoves(model, (wd.reportMoves || {})[date] || {}, { lists: { darPaymentIntro: wd.paymentIntro }, payLists: plists, formats, date, details: true });
     setReportModel(model);
     setReportAlt(null);
     setReportText(reportModelToText(model));
@@ -822,6 +823,10 @@ export default function WorkingDashboard() {
     setReportKind('day');
     return model;
   };
+  const dayMoves = (wd.reportMoves || {})[reportDate] || {};
+  const moveTask = (id, group) => updateWd((w) => ({ ...w, reportMoves: { ...(w.reportMoves || {}), [reportDate]: { ...((w.reportMoves || {})[reportDate] || {}), [id]: group } } }));
+  const undoMoves = () => updateWd((w) => { const all = { ...(w.reportMoves || {}) }; delete all[reportDate]; return { ...w, reportMoves: all }; });
+  useEffect(() => { if (tab === 'report' && reportKind === 'day' && reportModel) buildReport(); }, [wd.reportMoves]); // eslint-disable-line react-hooks/exhaustive-deps
   // A week's or month's totals up to the picked date (workingDashboardReport.buildPeriodSummary).
   const buildSummary = (kind) => {
     const sum = buildPeriodSummary({ entries, kind, date: reportDate, lists: plists });
@@ -1770,7 +1775,7 @@ export default function WorkingDashboard() {
             )}
 
             {/* web.app: open bank follow-ups by bank - where things are stuck. */}
-            {Platform.OS === 'web' && !!byBank.length && (
+            {!!byBank.length && (
               <View style={colItem}><Card style={{ marginTop: 14 }}>
                 <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 }}>🏦 Bank follow-ups by bank</Small>
                 <Row style={{ paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: t.border }}>
@@ -1796,7 +1801,7 @@ export default function WorkingDashboard() {
             )}
 
             {/* web.app: the month's open tasks by due date. */}
-            {Platform.OS === 'web' && <View style={colItem}><WdCalendar entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={(e) => openEditEntry(e)} /></View>}
+            {<View style={colItem}><WdCalendar entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={(e) => openEditEntry(e)} /></View>}
             {payTotals.count > 0 && (
               <View style={colItem}>
                 <Card style={{ marginTop: 14 }}>
@@ -2058,7 +2063,7 @@ export default function WorkingDashboard() {
           </View>
         )}
 
-        {tab === 'links' && Platform.OS === 'web' && (
+        {tab === 'links' && (
           <View>
             <Card>
               <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(13), marginBottom: 2 }}>USEFUL LINKS</Text>
@@ -2083,7 +2088,7 @@ export default function WorkingDashboard() {
               </Row>
             </Card>
             <Row gap={8} style={{ marginTop: 10, flexWrap: 'wrap' }}>
-              <Btn kind="soft" title="⬇ Import bookmarks" onPress={async () => {
+              <Btn kind="soft" title="⬇ Import bookmarks" style={Platform.OS === 'web' ? undefined : { display: 'none' }} onPress={async () => {
                 const text = await pickTextFile();
                 if (!text) return;
                 const found = parseBookmarks(text);
@@ -2092,7 +2097,7 @@ export default function WorkingDashboard() {
                 setTools((w) => ({ ...w, links: addLinks(w.links, found).links }));
                 Alert.alert('Imported', `${res.added} new link${res.added === 1 ? '' : 's'} added (${found.length - res.added} already here).`);
               }} />
-              {!!(wd.links || []).length && <Btn kind="soft" title="⬆ Export" onPress={() => downloadText('working-dashboard-links.html', bookmarksHtml(wd.links))} />}
+              {Platform.OS === 'web' && !!(wd.links || []).length && <Btn kind="soft" title="⬆ Export" onPress={() => downloadText('working-dashboard-links.html', bookmarksHtml(wd.links))} />}
               {!!linkFolder && <Btn kind="soft" title={`Open all in ${linkFolder}`} onPress={() => (wd.links || []).filter((x) => x.folder === linkFolder).forEach((x) => Linking.openURL(x.url))} />}
             </Row>
             {linkFolders(wd.links).length > 0 && (
@@ -2141,10 +2146,17 @@ export default function WorkingDashboard() {
                       <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
                     </Pressable>
                   ))}
-                  {!!reportModel && reportKind === 'day' && [[`${reportModel.data.others} other work`, t.ok], [`${reportModel.data.payments} payment${reportModel.data.payments === 1 ? '' : 's'}`, t.textDim], [`${reportModel.data.followed} followed up`, t.warn], ...(reportModel.data.excluded ? [[`${reportModel.data.excluded} left out`, t.textDim]] : [])].map(([label, c]) => (
-                    <View key={label} style={{ borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c + '22' }}><Text style={{ color: c, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text></View>
-                  ))}
                 </ScrollView>
+              </View>
+            )}
+            {!!reportModel && reportKind === 'day' && (
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                {[['oth', 'Other work', reportModel.data.others, t.ok], ['pay', 'Payments', reportModel.data.payments, t.accent], ['fol', 'Followed up', reportModel.data.followed, t.warn], ['out', 'Left out', reportModel.data.excluded, t.textDim]].map(([key, label, n, c]) => (
+                  <Pressable key={key} onPress={() => setGroupOpen(key)} accessibilityRole="button" accessibilityLabel={`${n} ${label} - show the tasks`} style={{ flex: 1, borderRadius: 16, paddingVertical: 10, alignItems: 'center', backgroundColor: t.surface, ...t.shadow }}>
+                    <Text style={{ color: c, fontWeight: '800', fontSize: t.fs(20) }}>{n}</Text>
+                    <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(11) }} numberOfLines={1}>{label}</Text>
+                  </Pressable>
+                ))}
               </View>
             )}
             {!phoneLayout && (
@@ -2266,6 +2278,8 @@ export default function WorkingDashboard() {
             </Card>
             <Group title="Manage">
               <Item icon="📅" color={t.accent} label="Holidays & leave" onPress={() => setTab('holidays')} />
+              <Item icon="🔗" color={t.accent2} label="Links" onPress={() => setTab('links')} />
+              <Item icon="🧾" color={t.ok} label="Report formats" onPress={() => setTab('formats')} />
               <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
             </Group>
             <Group title="Settings">
@@ -2286,6 +2300,8 @@ export default function WorkingDashboard() {
             })()}
           </View>
         )}
+
+        {tab === 'formats' && <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={(l) => updateWd((w) => ({ ...w, categories: l.categories, subCategories: l.subCategories, subCategoryCategories: l.subCategoryCategories, listsUpdatedAt: Date.now() }))} />}
 
         {tab === 'holidays' && (() => {
           // "Both" (the APK and the website on a phone): the web app's Holidays tab in one column - search, a holiday
@@ -2733,6 +2749,24 @@ export default function WorkingDashboard() {
         <Btn style={{ flex: 1 }} kind="soft" title="⤴ Send" onPress={() => setShareOpen(true)} />
       </View>
     )}
+    <Sheet visible={!!groupOpen && !!reportModel && !!reportModel.groups} onClose={() => setGroupOpen('')} title={({ oth: 'Other work', pay: 'Payments', fol: 'Followed up', out: 'Left out (Done, not DAR)' })[groupOpen] || ''}>
+      {((reportModel && reportModel.groups && reportModel.groups[groupOpen]) || []).map((it) => (
+        <View key={it.id} style={{ backgroundColor: t.surface, borderRadius: 16, padding: 12, marginBottom: 10, ...t.shadow }}>
+          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14) }}>{it.title}</Text>
+          {!!it.line && it.line !== it.title && <Text style={{ color: t.textDim, fontSize: t.fs(13), marginTop: 3 }}>{it.line}</Text>}
+          <Text style={{ color: t.textDim, fontSize: t.fs(11), fontWeight: '800', marginTop: 8 }}>MOVE TO</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+            {REPORT_GROUPS.map((g) => (
+              <Pressable key={g.key} onPress={() => moveTask(it.id, g.key)} accessibilityRole="button" accessibilityState={{ selected: g.key === groupOpen }} style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: g.key === groupOpen ? t.accent : t.surfaceAlt }}>
+                <Text style={{ color: g.key === groupOpen ? '#fff' : t.text, fontWeight: '800', fontSize: t.fs(12) }}>{g.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ))}
+      {!((reportModel && reportModel.groups && reportModel.groups[groupOpen]) || []).length && <Text style={{ color: t.textDim }}>Nothing here.</Text>}
+      {Object.keys(dayMoves).length > 0 && <Btn title={`Undo my moves (${Object.keys(dayMoves).length})`} kind="ghost" onPress={undoMoves} />}
+    </Sheet>
     <Sheet visible={shareOpen} onClose={() => setShareOpen(false)} title="Send the report">
       <Field label="SEND TO (Email fills this in)" value={wd.reportEmail || ''} keyboardType="email-address" autoCapitalize="none" onChangeText={(v) => updateWd((w) => ({ ...w, reportEmail: v }))} placeholder="manager@company.com" />
       <Btn style={{ marginBottom: 8 }} title="✉️ Email" onPress={() => { setShareOpen(false); emailReport(); }} />
