@@ -117,15 +117,33 @@ export default function TaskForm({ initial, onClose }) {
             ))}
           </div>
         )}
-        <div className="cols3">
-        <div className="col">
-        <label className="field full">Task description<textarea rows={3} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
-        <div className="fields">
+        <div className="strip">
+        <div className="fields one-line">
           {pick('categories', 'Category', 'category', true)}
           {pick('priorities', 'Priority', 'priority')}
           {pick('statuses', 'Status', 'status')}
           {pick('pendingWith', 'Pending with', 'pendingWith', true)}
         </div>
+        <div className="fields one-line">
+          <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+          <label className="field">Month end
+            <select value={monthEnd.some((m) => m.key === date) && !time ? date : ''} onChange={(e) => { if (e.target.value) { setDate(e.target.value); setTime(''); } }} aria-label="Month end: the last working days of the month" title="The last working days of the month (not Sundays, holidays or leave days). A date alone alerts once, at 7 PM that day.">
+              <option value="">Month end ...</option>{monthEnd.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+            </select>
+          </label>
+          <div className="field">Due time
+            <button type="button" className="time-btn" onClick={() => setClockOpen(true)} disabled={!date} aria-label="Pick the due time on a clock">
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+              <span>{timeLabel(time) || (date ? 'Set time' : 'Pick a date first')}</span>
+            </button>
+          </div>
+          <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
+          {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
+        </div>
+        </div>
+        <div className="cols3">
+        <div className="col">
+        <label className="field full">Task description<textarea rows={3} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
         {manager}
         {t.category && (
           <label className="field check ask-reminder"><input type="checkbox" checked={categoryAsksReminder(lists, t.category)} onChange={() => saveLists(toggleReminderCategory(lists, t.category))} /> Ask for a next reminder date &amp; time under {t.category}</label>
@@ -145,22 +163,6 @@ export default function TaskForm({ initial, onClose }) {
             </div>
           </div>
         )}
-        <div className="fields">
-          <div className="field">
-            <label>Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-            <select value={monthEnd.some((m) => m.key === date) && !time ? date : ''} onChange={(e) => { if (e.target.value) { setDate(e.target.value); setTime(''); } }} aria-label="Month end: the last working days of the month" title="The last working days of the month (not Sundays, holidays or leave days). A date alone alerts once, at 7 PM that day.">
-              <option value="">Month end ...</option>{monthEnd.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-            </select>
-          </div>
-          <div className="field">Due time
-            <button type="button" className="time-btn" onClick={() => setClockOpen(true)} disabled={!date} aria-label="Pick the due time on a clock">
-              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-              <span>{timeLabel(time) || (date ? 'Set time' : 'Pick a date first')}</span>
-            </button>
-          </div>
-          <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
-          {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
-        </div>
         {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
         </div><div className="col">
         {subBlock}
