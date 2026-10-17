@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { useStore } from './store';
 import { watchAuthState, listen as listenRealtime, push as pushRealtime, pushPresence, pushTools, saveDeviceToken } from './firebaseSync';
-import { toolsFromRemote, toolsValue } from './links';
-import { mergeRemoteEntries, applyRemovedIds, listsOnReceive, webActiveUntil } from './firebaseSyncCore';
+import { toolsFromRemote, toolsValue, TOOL_KEYS } from './links';
+import { mergeRemoteEntries, applyRemovedIds, listsOnReceive, webActiveUntil, dirtyToolKeys } from './firebaseSyncCore';
 import { setWebActiveUntil, setWebPresenceCheck, stopAlarmRinging } from './tracker';
 import { DEFAULT_ALERTS, isSnoozed, isSilencedToday } from './workingDashboard';
 import { fromWebDocOver, mergeHolidays } from './cloudSync';
 import { blankEntry, withCompletedAt, normalizeCalendar, normalizeHolidays, normalizeLeaveDays } from './workingDashboard';
 import { setRealtimeStatus, useRealtimeStatus } from './realtimeStatus';
-import { forAccount } from './account';
+import { forAccount, saveUnsyncedBackup, takeUnsyncedBackup, mergeUnsynced } from './account';
 import { planFormatSetup, effectiveFormats } from './reportFormats';
 import { paymentLists } from './workingDashboardPayments';
 import { warnQuiet } from './quietCatch';
@@ -43,10 +43,27 @@ export default function RealtimeSync() {
   // or browser starts from their own data, and the previous account's tasks are never sent into theirs. Nothing is
   // received or sent until the device's data is this account's.
   const signedUid = status.user?.uid || null;
+  const switching = useRef('');
   useEffect(() => {
-    if (!ready || !signedUid || wd.accountUid === signedUid) return;
-    updateWd((w) => forAccount(w, signedUid, status.user?.email || ''));
+    if (!ready || !signedUid || wd.accountUid === signedUid || switching.current === signedUid) return;
+    switching.current = signedUid;
+    const email = status.user?.email || '';
+    (async () => {
+      // Someone else's data is about to be cleared from the device: whatever of it was not yet sent is kept aside first
+      // (account.js), and given back when that account signs in here again.
+      const before = wdRef.current;
+      if (before.accountUid && before.accountUid !== signedUid) await saveUnsyncedBackup(before).catch(warnQuiet('RealtimeSync'));
+      const back = await takeUnsyncedBackup(signedUid).catch(() => null);
+      updateWd((w) => mergeUnsynced(forAccount(w, signedUid, email), back));
+    })().catch(warnQuiet('RealtimeSync')).finally(() => { switching.current = ''; });
   }, [ready, signedUid, wd.accountUid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Nothing learned about the previous account carries over: its lists / tools documents had arrived, this one's have not,
+  // so the one-time format setup must wait for them (or it would write defaults over this account's real lists).
+  useEffect(() => {
+    metaSeen.current = { tools: false, lists: false };
+    toolsSentStamps.current = {};
+  }, [signedUid]);
 
   // Bump the lists' timestamp when they really change, so the push knows to write them.
   const listsSnapshot = JSON.stringify([wd.categories, wd.priorities, wd.statuses, wd.assignees]);
@@ -66,7 +83,7 @@ export default function RealtimeSync() {
     // A moment later, so the lists that just arrived are in wd when the plan is made.
     const timer = setTimeout(() => {
       const w = wdRef.current;
-      if (w.formatSetupAt) return;
+      if (w.formatSetupAt || w.accountUid !== signedUid || !metaSeen.current.tools || !metaSeen.current.lists) return;
       const plan = planFormatSetup({ categories: w.categories, subCategories: paymentLists(w, w.categories).subCategories, subCategoryCategories: w.subCategoryCategories }, effectiveFormats(w.reportFormats));
       updateWd((x) => ({ ...x, formatSetupAt: Date.now(), ...(plan.categories.length || plan.subCategories.length ? { categories: plan.lists.categories, subCategories: plan.lists.subCategories, subCategoryCategories: plan.lists.subCategoryCategories, listsUpdatedAt: Date.now() } : null), toolsUpdatedAt: Date.now() }));
     }, 2000);
@@ -129,9 +146,13 @@ export default function RealtimeSync() {
     if (patch.tools || patch.paymentLists || patch.lists) setMetaTick((n) => n + 1);
     if (patch.tools) {
       // Per item: only what is newer in the account is taken; this device's newer items stay and are sent back below.
-      const got = toolsFromRemote(patch.tools, wdRef.current.toolsStamps, wdRef.current);
+      const have = wdRef.current.toolsStamps || {};
+      // What the account holds, per item: an item this device has no newer copy of counts as already in step, so it is
+      // not sent back. A newer local item (an edit still waiting for its push) is NOT marked, and goes out.
+      const rs = patch.tools.stamps && typeof patch.tools.stamps === 'object' ? patch.tools.stamps : {};
+      TOOL_KEYS.forEach((k) => { const at = Number(rs[k]) || Number(patch.tools.ts) || 0; if (at && at >= (Number(have[k]) || 0)) toolsSentStamps.current[k] = Math.max(Number(toolsSentStamps.current[k]) || 0, at); });
+      const got = toolsFromRemote(patch.tools, have, wdRef.current);
       if (got) {
-        toolsSent.current = Math.max(0, ...Object.values(got.stamps).map(Number));
         updateWd((w) => {
           const { holdUntil, ...rest } = got.patch;
           const next = { ...w, ...rest, toolsStamps: got.stamps, toolsUpdatedAt: Math.max(0, ...Object.values(got.stamps).map(Number)) };
@@ -164,7 +185,9 @@ export default function RealtimeSync() {
       // app is where they are edited, so its copy replaces the phone's.
       const pl = patch.paymentLists || {};
       // (unless this phone changed them after the arriving copy was written - then its own copy is sent next)
-      const phoneNewer = Number(w.listsUpdatedAt) > Number(patch.listsUpdatedAt || 0);
+      // A document with no time of its own (an older writer) cannot be told older than the phone's edit: it is taken.
+      const remoteTs = Number(patch.listsUpdatedAt) || 0;
+      const phoneNewer = remoteTs > 0 && Number(w.listsUpdatedAt) > remoteTs;
       if (!phoneNewer) ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
       if (Array.isArray(pl.darPaymentIntro) && pl.darPaymentIntro.some((x) => String(x || '').trim())) next = { ...next, paymentIntro: pl.darPaymentIntro.map((x) => String(x || '')) };
       if (cal) next = { ...next, holidays: mergeHolidays(cal.holidays, normalizeHolidays(w.holidays)).holidays, leaveDays: normalizeLeaveDays([...cal.leaveDays, ...normalizeLeaveDays(w.leaveDays)]) };
@@ -210,22 +233,46 @@ export default function RealtimeSync() {
   }, [ready, uid]);
 
   // Links, templates, the AI instruction boxes and Meeting mode follow the account: sent when edited here (not when they just arrived).
-  const toolsSent = useRef(0);
+  // Per item: only items whose stamp here is newer than the last one sent or received are written, so a stale offline
+  // value never goes over a newer one from the website, and a local edit waiting for the delay is not skipped because a
+  // different item arrived meanwhile.
+  const toolsSentStamps = useRef({});
+  const [toolsTry, setToolsTry] = useState(0);
+  const toolsRetry = useRef(null);
+  useEffect(() => () => clearTimeout(toolsRetry.current), []);
   const toolsKey = JSON.stringify([toolsValue(wd), wd.toolsStamps]);
   useEffect(() => {
-    const newest = Math.max(0, ...Object.values(wd.toolsStamps || {}).map(Number));
-    if (!ready || !uid || wd.accountUid !== uid || !newest || newest <= toolsSent.current) return undefined;
+    if (!ready || !uid || wd.accountUid !== uid || !dirtyToolKeys(wd.toolsStamps, toolsSentStamps.current, TOOL_KEYS).length) return undefined;
     const timer = setTimeout(() => {
-      toolsSent.current = newest;
-      pushTools(uid, { ...toolsValue(wd), stamps: wd.toolsStamps || {}, ts: newest }).catch(() => { toolsSent.current = 0; });
+      const w = wdRef.current;
+      if (w.accountUid !== uid) return;
+      const stamps = w.toolsStamps || {};
+      const keys = dirtyToolKeys(stamps, toolsSentStamps.current, TOOL_KEYS);
+      if (!keys.length) return;
+      const values = toolsValue(w);
+      const payload = {};
+      const sentStamps = {};
+      keys.forEach((k) => { payload[k] = values[k]; sentStamps[k] = Number(stamps[k]); });
+      if (values.formatSetupAt) payload.formatSetupAt = values.formatSetupAt;
+      const before = { ...toolsSentStamps.current };
+      keys.forEach((k) => { toolsSentStamps.current[k] = sentStamps[k]; });
+      pushTools(uid, { ...payload, stamps: sentStamps, ts: Math.max(...Object.values(sentStamps)) }).catch(() => {
+        keys.forEach((k) => { if (toolsSentStamps.current[k] === sentStamps[k]) toolsSentStamps.current[k] = Number(before[k]) || 0; });
+        clearTimeout(toolsRetry.current);
+        toolsRetry.current = setTimeout(() => setToolsTry((n) => n + 1), RETRY_MS);
+      });
     }, 1500);
     return () => clearTimeout(timer);
-  }, [ready, uid, wd.accountUid, toolsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, uid, wd.accountUid, toolsKey, toolsTry]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Send: whatever changed on this phone, shortly after the change; retried if it did not get through.
+  // One push at a time: the delay timer, the app coming back, signing in and the retry can all ask at once, and two
+  // pushes working from the same snapshot would write the same entries twice (and race over the acknowledgements).
+  // A request made while one runs is remembered and run once, when that one ends.
   const retryTimer = useRef(null);
-  pushRef.current = () => {
+  const pushState = useRef({ running: null, again: false });
+  const doPush = () => {
     const u = userRef.current;
     const w = wdRef.current;
     if (!u || !ready || w.accountUid !== u.uid) return Promise.resolve();
@@ -238,13 +285,25 @@ export default function RealtimeSync() {
       deletedIds: w.deletedIds || [],
     }).then((res) => {
       clearTimeout(retryTimer.current);
-      setRealtimeStatus({ pushError: '', lastPushAt: Date.now() });
+      // lastPushAt only when something really reached the server (a no-op or an offline timeout is not a push).
+      setRealtimeStatus({ pushError: '', ...(res && res.wrote ? { lastPushAt: Date.now() } : null) });
       if (res && res.deleted && res.deleted.length) updateWd((x) => ({ ...x, deletedIds: (x.deletedIds || []).filter((id) => !res.deleted.includes(id)) }));
     }).catch((e) => {
       setRealtimeStatus({ pushError: e?.message || 'Could not reach the web app - will try again.' });
       clearTimeout(retryTimer.current);
       retryTimer.current = setTimeout(() => pushRef.current(), RETRY_MS);
     });
+  };
+  pushRef.current = () => {
+    const st = pushState.current;
+    if (st.running) { st.again = true; return st.running; }
+    const run = doPush().finally(() => {
+      const cur = pushState.current;
+      cur.running = null;
+      if (cur.again) { cur.again = false; pushRef.current(); }
+    });
+    st.running = run;
+    return run;
   };
   useEffect(() => {
     if (!ready || !uid) return undefined;
