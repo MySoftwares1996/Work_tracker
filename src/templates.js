@@ -2,6 +2,7 @@
  * Task templates: a task's usual fields saved once ("Month-end reconciliation": category, priority, notes, key points...),
  * then a new task starts from one in a tap. Dates are never part of a template.
  */
+import { newId } from './ids';
 const FIELDS = ['title', 'category', 'priority', 'status', 'pendingWith', 'recurrence', 'recurrenceEveryMin', 'notes', 'alertMode', 'checklist'];
 
 const clean = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
@@ -13,7 +14,7 @@ export function templateFrom(entry, name) {
   if (Array.isArray(entry.keyPoints)) fields.keyPoints = entry.keyPoints.map((kp) => (kp && typeof kp === 'object' ? { key: kp.key || '', value: '' } : kp)).filter((kp) => (typeof kp === 'string' ? kp.trim() : String(kp.key || '').trim()));
   if (Array.isArray(fields.checklist)) fields.checklist = fields.checklist.map((c) => ({ ...c, done: false }));
   const label = String(name || entry.title || '').trim();
-  return { id: `tpl-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e4)}`, name: label || 'Template', fields };
+  return { id: newId('tpl-'), name: label || 'Template', fields };
 }
 
 /** The draft with the template's fields on top; the draft's own id, dates and mail chain stay. */

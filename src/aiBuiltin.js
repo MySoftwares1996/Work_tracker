@@ -4,6 +4,7 @@
  */
 import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { firebaseApp } from './firebaseWebConfig';
 
 const geminiText = (json) => {
@@ -53,8 +54,23 @@ export async function generateWithGemini(prompt) {
 /* ---- The person's own Gemini API key (Config > Gemini API key). It stays on this phone only and is used ONLY when the free
    Firebase route above fails (busy, free limit, App Check...). ---- */
 const KEY_STORE = 'wd-gemini-key';
-export const loadGeminiKey = async () => { try { return (await AsyncStorage.getItem(KEY_STORE)) || ''; } catch { return ''; } };
-export const saveGeminiKey = async (key) => { try { if (key && key.trim()) await AsyncStorage.setItem(KEY_STORE, key.trim()); else await AsyncStorage.removeItem(KEY_STORE); } catch { /* not kept */ } };
+// The key lives in the phone's encrypted secure storage (Android Keystore). One saved in plain app storage by an earlier
+// version is moved over the first time it is read.
+export const loadGeminiKey = async () => {
+  try {
+    const safe = await SecureStore.getItemAsync(KEY_STORE);
+    if (safe) return safe;
+    const old = await AsyncStorage.getItem(KEY_STORE);
+    if (old) { await SecureStore.setItemAsync(KEY_STORE, old); await AsyncStorage.removeItem(KEY_STORE); return old; }
+  } catch { /* nothing kept */ }
+  return '';
+};
+export const saveGeminiKey = async (key) => {
+  try {
+    if (key && key.trim()) await SecureStore.setItemAsync(KEY_STORE, key.trim()); else await SecureStore.deleteItemAsync(KEY_STORE);
+    await AsyncStorage.removeItem(KEY_STORE);
+  } catch { /* not kept */ }
+};
 
 /** One call to the Gemini API with the person's key (direct, not through Firebase). Tries the model list like the free route. */
 export async function generateWithKey(prompt, key) {
@@ -62,9 +78,13 @@ export async function generateWithKey(prompt, key) {
   for (let pass = 0; pass < 2; pass += 1) {
     if (pass) await new Promise((r) => setTimeout(r, 3000));
     for (const model of MODELS) {
+      // A call that has not answered in a minute is dropped, so the button never spins for ever.
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = setTimeout(() => ctl && ctl.abort(), 60000);
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
           method: 'POST',
+          signal: ctl ? ctl.signal : undefined,
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
           body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4 } }),
         });
@@ -74,10 +94,10 @@ export async function generateWithKey(prompt, key) {
         if (text) return text;
         lastError = new Error('Gemini gave no text (the reply was empty or blocked).');
       } catch (e) {
-        lastError = e;
+        lastError = e && e.name === 'AbortError' ? new Error('Gemini took too long (over a minute). Try again.') : e;
         if (/API key not valid|API_KEY_INVALID|\[400\]|\[401\]|\[403\]|PERMISSION_DENIED/i.test(String(e.message))) throw new Error(`Your Gemini API key was refused: ${String(e.message).slice(0, 200)}`);
         if (/failed to fetch|network/i.test(String(e.message))) throw new Error('No internet connection to Gemini.');
-      }
+      } finally { clearTimeout(timer); }
     }
   }
   throw lastError || new Error('Gemini gave no answer.');

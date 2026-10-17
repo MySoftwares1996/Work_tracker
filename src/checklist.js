@@ -1,5 +1,6 @@
+import { newId } from './ids';
 /** A task's checklist: small steps ({ id, text, done }) ticked off before the task is done. */
-const nid = () => `ck-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e5).toString(36)}`;
+const nid = () => newId('ck-');
 
 export const checklistOf = (e) => (Array.isArray(e && e.checklist) ? e.checklist.filter((c) => c && String(c.text || '').trim()) : []);
 export const checklistProgress = (e) => { const l = checklistOf(e); return l.length ? { done: l.filter((c) => c.done).length, total: l.length } : null; };

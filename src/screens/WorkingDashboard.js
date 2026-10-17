@@ -12,6 +12,7 @@ import { shareCsv } from '../csv';
 
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
 import { clearPin } from '../appLock';
+import { newId } from '../ids';
 import { warnQuiet } from '../quietCatch';
 import { seenWebFields } from '../cloudSync';
 import { useRealtimeStatus, setRealtimeStatus } from '../realtimeStatus';
@@ -433,7 +434,7 @@ export default function WorkingDashboard() {
   const [undo, setUndo] = useState(null);       // { message, before: [entries as they were], addedIds }
   // Every undoable change is also kept (the last 25, with the task as it was) for Config > Recent Changes.
   const offerUndo = (message, before, addedIds = []) => {
-    const item = { id: `u-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e4)}`, message, before, addedIds, at: Date.now() };
+    const item = { id: newId('u-'), message, before, addedIds, at: Date.now() };
     setUndo(item);
     updateWd((w) => ({ ...w, undoHistory: [item, ...(w.undoHistory || [])].slice(0, 25) }));
   };
@@ -1725,7 +1726,7 @@ export default function WorkingDashboard() {
                   setTools((w) => {
                     const list = Array.isArray(w.links) ? w.links : [];
                     const row = { title, url, ...(folder ? { folder } : {}) };
-                    return { ...w, links: linkDraft.id ? list.map((x) => (x.id === linkDraft.id ? { id: x.id, ...row } : x)) : [...list, { id: `lnk-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, ...row }] };
+                    return { ...w, links: linkDraft.id ? list.map((x) => (x.id === linkDraft.id ? { id: x.id, ...row } : x)) : [...list, { id: newId('lnk-'), ...row }] };
                   });
                   setLinkDraft({ id: '', title: '', url: '', folder: '' });
                 }} />

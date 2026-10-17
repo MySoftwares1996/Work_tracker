@@ -10,7 +10,7 @@ export default function WdGeminiKey() {
   const [saved, setSaved] = useState(false);
   const [value, setValue] = useState('');
   const [state, setState] = useState({ busy: false, msg: '', bad: false });
-  useEffect(() => { loadGeminiKey().then((k) => setSaved(!!k)); }, []);
+  useEffect(() => { let on = true; loadGeminiKey().then((k) => { if (on) setSaved(!!k); }); return () => { on = false; }; }, []);
   const save = async () => { await saveGeminiKey(value); setSaved(!!value.trim()); setState({ busy: false, msg: value.trim() ? 'Saved on this phone.' : 'Removed.', bad: false }); setValue(''); };
   const test = async () => {
     setState({ busy: true, msg: '', bad: false });

@@ -57,9 +57,13 @@ export async function generateWithKey(prompt, key) {
   for (let pass = 0; pass < 2; pass += 1) {
     if (pass) await new Promise((r) => setTimeout(r, 3000));
     for (const model of MODELS) {
+      // A call that has not answered in a minute is dropped, so the button never spins for ever.
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 60000);
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
           method: 'POST',
+          signal: ctl.signal,
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
           body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4 } }),
         });
@@ -69,10 +73,10 @@ export async function generateWithKey(prompt, key) {
         if (text) return text;
         lastError = new Error('Gemini gave no text (the reply was empty or blocked).');
       } catch (e) {
-        lastError = e;
+        lastError = e && e.name === 'AbortError' ? new Error('Gemini took too long (over a minute). Try again.') : e;
         if (/API key not valid|API_KEY_INVALID|\[400\]|\[401\]|\[403\]|PERMISSION_DENIED/i.test(String(e.message))) throw new Error(`Your Gemini API key was refused: ${String(e.message).slice(0, 200)}`);
         if (/failed to fetch|network/i.test(String(e.message))) throw new Error('No internet connection to Gemini.');
-      }
+      } finally { clearTimeout(timer); }
     }
   }
   throw lastError || new Error('Gemini gave no answer.');

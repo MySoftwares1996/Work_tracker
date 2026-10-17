@@ -7,6 +7,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { warnQuiet } from './quietCatch';
+import { newId } from './ids';
 
 export const KEY = 'MPT_DB_V1';
 
@@ -422,7 +423,7 @@ export async function loadAll() {
 }
 
 
-export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+export const uid = () => newId();
 export const todayKey = (d = new Date()) => {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
