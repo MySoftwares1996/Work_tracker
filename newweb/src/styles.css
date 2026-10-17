@@ -794,3 +794,5 @@ textarea.auto, .sheet.wide .col textarea.auto, .sheet.wide .cols3 > .col:first-c
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .fcard .manage-panel { margin: 0; }
 @media (max-width: 900px) { .two-f { grid-template-columns: minmax(0, 1fr); } }
+
+.narr-btn { align-self: flex-start; }

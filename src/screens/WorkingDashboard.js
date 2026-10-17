@@ -176,6 +176,7 @@ export default function WorkingDashboard() {
   const [reportText, setReportText] = useState('');
   const [reportKind, setReportKind] = useState('day');      // 'day' (the Daily Activity Report), 'week' or 'month' (a summary)
   const [reportModel, setReportModel] = useState(null);
+  const [narrOpen, setNarrOpen] = useState(false);       // the form's Final Narration popup
   const [stepsOpen, setStepsOpen] = useState(false);       // the form's Checklist popup
   const [monthEndOpen, setMonthEndOpen] = useState(false);   // the form's Month end -1 ... -5 drop-down
   const [subPop, setSubPop] = useState(null);       // Home: a category's Sub Categories ({ category, due, list })
@@ -865,18 +866,23 @@ export default function WorkingDashboard() {
             {/* "Both" (phone-width screens): the narration type used last time for this category starts picked. */}
             <PaymentFields draft={entrySheet} setDraft={setEntrySheet} lists={plists} rememberedType={phoneLayout ? (wd.narrationByCategory || {})[entrySheet.category] || '' : ''} />
             {(() => {
-              // "Final Narration": the narration of this task's report line, for a Payments category whose Sub Category has a report format.
+              // "Final Narration": the narration of this task's report line (a Payments category whose Sub Category has a report format), in a popup.
               const n = finalNarration(entrySheet, effectiveFormats(wd.reportFormats));
               if (!n) return null;
               return (
-                <View style={{ backgroundColor: t.surfaceAlt, borderRadius: t.radius - 4, padding: 12, marginBottom: 12 }}>
-                  <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(13) }}>Final Narration</Text>
-                    <Pressable onPress={async () => { await Clipboard.setStringAsync(n.text); Alert.alert('Copied', 'Narration copied.'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Copy the narration"><Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(13) }}>Copy</Text></Pressable>
-                  </Row>
-                  <Text selectable style={{ color: t.text, fontSize: t.fs(14), marginTop: 6 }}>{n.text}</Text>
-                  {n.missing.length > 0 && <Small style={{ marginTop: 4 }}>Still to fill: {n.missing.join(', ')}</Small>}
-                </View>
+                <>
+                  <Pressable onPress={() => setNarrOpen(true)} accessibilityRole="button" style={{ alignSelf: 'flex-start', backgroundColor: t.surfaceAlt, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 12 }}>
+                    <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(13.5) }}>📝 Final Narration{n.missing.length ? ` · ${n.missing.length} to fill` : ''}</Text>
+                  </Pressable>
+                  <Sheet visible={narrOpen} onClose={() => setNarrOpen(false)} title="Final Narration">
+                    <Text selectable style={{ color: t.text, fontSize: t.fs(14.5), marginBottom: 8 }}>{n.text}</Text>
+                    {n.missing.length > 0 && <Small style={{ marginBottom: 8 }}>Still to fill: {n.missing.join(', ')}</Small>}
+                    <Row gap={8}>
+                      <Btn kind="soft" title="Copy" onPress={async () => { await Clipboard.setStringAsync(n.text); Alert.alert('Copied', 'Narration copied.'); }} />
+                      <Btn title="Done" onPress={() => setNarrOpen(false)} />
+                    </Row>
+                  </Sheet>
+                </>
               );
             })()}
             {followUpHere && isBankFollowUpCategory(entrySheet.category) && entries.some((x) => x.id === entrySheet.id) && (

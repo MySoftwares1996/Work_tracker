@@ -15,15 +15,20 @@ const toInputTime = (t) => (t.due && t.hasTime ? `${pad(t.due.getHours())}:${pad
 /** "Final Narration": the narration of the task's report line (after the dash), for tasks in a Payments category whose Sub Category has a report format. Read-only; follows the fields as they are typed. */
 function NarrationBox({ t }) {
   const { reportFormats, notify } = useStore();
+  const [open, setOpen] = useState(false);
   const n = finalNarration(t, reportFormats);
   if (!n) return null;
   const copy = async () => { notify((await copyText(n.text)) ? 'Narration copied' : 'Could not copy the narration'); };
   return (
-    <div className="narration">
-      <div className="field-head"><b>Final Narration:</b><button type="button" className="mini" onClick={copy}>Copy</button></div>
-      <p>{n.text}</p>
-      {n.missing.length > 0 && <small className="muted">Still to fill: {n.missing.join(', ')}</small>}
-    </div>
+    <>
+      <button type="button" className="btn narr-btn" onClick={() => setOpen(true)}>📝 Final Narration{n.missing.length > 0 ? ` · ${n.missing.length} to fill` : ''}</button>
+      {open && (
+        <Popup title="Final Narration" sub="The narration of this task's report line" onClose={() => setOpen(false)}
+          foot={<><button type="button" className="btn" onClick={copy}>Copy</button><button type="button" className="btn primary" onClick={() => setOpen(false)}>Done</button></>}>
+          <div className="narration"><p>{n.text}</p>{n.missing.length > 0 && <small className="muted">Still to fill: {n.missing.join(', ')}</small>}</div>
+        </Popup>
+      )}
+    </>
   );
 }
 
@@ -104,7 +109,7 @@ export default function TaskForm({ initial, onClose }) {
   const subFilled = sc ? sc.fields.filter((f) => String((t.subCategoryFields || {})[f.label] || '').trim()).length : 0;
   const subBlock = (
     <div className="manage-panel sub-panel">
-      <div className="field-head"><span className="field">Sub category{t.category ? ` under ${t.category}` : ''}{needSub && <span className="muted"> (needed to mark Completed)</span>}</span><button type="button" className="mini" onClick={() => setManaging(managing === 'sub' ? '' : 'sub')}>{managing === 'sub' ? 'Done' : '+ / − Edit'}</button></div>
+      <div className="field-head"><span className="field" title={needSub ? 'Needed to mark Completed' : undefined}>Sub category{needSub ? ' *' : ''}</span><button type="button" className="mini" onClick={() => setManaging(managing === 'sub' ? '' : 'sub')}>{managing === 'sub' ? 'Done' : '+ / − Edit'}</button></div>
       {managing === 'sub' && <Popup title={`Sub categories${t.category ? ` under ${t.category}` : ''}`} onClose={() => setManaging('')}><SubCategoryManager lists={lists} only={t.category} /></Popup>}
       {(
         <>
