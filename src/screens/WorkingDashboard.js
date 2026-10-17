@@ -176,6 +176,7 @@ export default function WorkingDashboard() {
   const [reportText, setReportText] = useState('');
   const [reportKind, setReportKind] = useState('day');      // 'day' (the Daily Activity Report), 'week' or 'month' (a summary)
   const [reportModel, setReportModel] = useState(null);
+  const [monthEndOpen, setMonthEndOpen] = useState(false);   // the form's Month end -1 ... -5 drop-down
   const [subPop, setSubPop] = useState(null);       // Home: a category's Sub Categories ({ category, due, list })
   const [groupOpen, setGroupOpen] = useState('');   // the Report box whose tasks are shown (oth / pay / fol / out)
   const [reportNote, setReportNote] = useState('');
@@ -913,16 +914,12 @@ export default function WorkingDashboard() {
                     </Pressable>
                   );
                 })}
-                {monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 4).map((m) => {
-                  const iso = new Date(`${m.key}T00:00:00`).toISOString();      // a date alone: it alerts once, at 7 PM that day
-                  const on = entrySheet.dueAt && toDateKey(new Date(entrySheet.dueAt)) === m.key;
-                  return (
-                    <Pressable key={m.key} onPress={() => setEntrySheet({ ...entrySheet, dueAt: iso })} accessibilityRole="button" accessibilityLabel={`Due ${m.label}`}
-                      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: on ? t.accent : t.accent + '14', borderWidth: 1, borderColor: t.accent + '40' }}>
-                      <Text style={{ color: on ? '#fff' : t.accent, fontSize: t.fs(12.5), fontWeight: '700' }}>{m.label}</Text>
-                    </Pressable>
-                  );
-                })}
+                {(() => {
+                  // A drop-down of the month's last working days: "Month end -1" is the last one. A date alone: it alerts once, at 7 PM that day.
+                  const opts = monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 5);
+                  const cur = entrySheet.dueAt ? opts.find((m) => m.key === toDateKey(new Date(entrySheet.dueAt))) : null;
+                  return <PickerButton text={`${cur ? cur.label : 'Month end ...'}  ▾`} onPress={() => setMonthEndOpen(true)} style={{ alignSelf: 'flex-start' }} />;
+                })()}
               </View>
             )}
             </>
@@ -2328,6 +2325,13 @@ export default function WorkingDashboard() {
       ))}
       {!((reportModel && reportModel.groups && reportModel.groups[groupOpen]) || []).length && <Text style={{ color: t.textDim }}>Nothing here.</Text>}
       {Object.keys(dayMoves).length > 0 && <Btn title={`Undo my moves (${Object.keys(dayMoves).length})`} kind="ghost" onPress={undoMoves} />}
+    </Sheet>
+    <Sheet visible={monthEndOpen} onClose={() => setMonthEndOpen(false)} title="Month end (last working days)">
+      {monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 5).map((m) => (
+        <Pressable key={m.key} onPress={() => { setEntrySheet((d) => ({ ...d, dueAt: new Date(`${m.key}T00:00:00`).toISOString() })); setMonthEndOpen(false); }} accessibilityRole="button" style={{ backgroundColor: t.surface, borderRadius: 14, padding: 14, marginBottom: 8, ...t.shadow }}>
+          <Text style={{ color: t.text, fontWeight: '700' }}>{m.label}</Text>
+        </Pressable>
+      ))}
     </Sheet>
     <Sheet visible={!!subPop} onClose={() => setSubPop(null)} title={subPop ? `${subPop.category} - Sub categories` : ''}>
       {subPop && groupCounts(subPop.list, (e) => e.subCategory, 'None chosen').map((r) => (

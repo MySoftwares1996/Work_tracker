@@ -40,7 +40,7 @@ export default function TaskForm({ initial, onClose }) {
   const [remTime, setRemTime] = useState(initial.nextReminder ? `${pad(initial.nextReminder.getHours())}:${pad(initial.nextReminder.getMinutes())}` : '');
   const [remClock, setRemClock] = useState(false);
   const { saveLists, templates, saveTemplates, notify, calendar } = useStore();
-  const monthEnd = useMemo(() => monthEndOptions(new Date(), (k) => isOffDay(k, calendar), 4), [calendar]);
+  const monthEnd = useMemo(() => monthEndOptions(new Date(), (k) => isOffDay(k, calendar), 5), [calendar]);
   const [tplName, setTplName] = useState(null);      // null = closed; a string = naming the template being saved
   const [att, setAtt] = useState({ title: '', url: '' });
   const [kp, setKp] = useState({ key: '', value: '' });
@@ -157,7 +157,9 @@ export default function TaskForm({ initial, onClose }) {
         <div className="fields">
           <div className="field">
             <label>Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-            <span className="chips">{monthEnd.map((m) => <button type="button" key={m.key} className={`chip toggle${date === m.key && !time ? ' on' : ''}`} onClick={() => { setDate(m.key); setTime(''); }} title="The last working days of the month (not Sundays, holidays or leave days). A date alone alerts once, at 7 PM that day.">{m.label}</button>)}</span>
+            <select value={monthEnd.some((m) => m.key === date) && !time ? date : ''} onChange={(e) => { if (e.target.value) { setDate(e.target.value); setTime(''); } }} aria-label="Month end: the last working days of the month" title="The last working days of the month (not Sundays, holidays or leave days). A date alone alerts once, at 7 PM that day.">
+              <option value="">Month end ...</option>{monthEnd.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+            </select>
           </div>
           <div className="field">Due time
             <button type="button" className="time-btn" onClick={() => setClockOpen(true)} disabled={!date} aria-label="Pick the due time on a clock">
