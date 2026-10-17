@@ -27,6 +27,19 @@ function NarrationBox({ t }) {
   );
 }
 
+/** A popup over the form: anything that adds or edits options opens here, so the form itself never grows. */
+function Popup({ title, sub, onClose, children, foot }) {
+  return (
+    <div className="sub-pop" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={title}>
+      <div className="sub-card">
+        <div className="sub-head"><span><b>{title}</b>{sub && <small>{sub}</small>}</span><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        {children}
+        <div className="sub-foot">{foot || <button type="button" className="btn primary" onClick={onClose}>Done</button>}</div>
+      </div>
+    </div>
+  );
+}
+
 /** A text box that starts as one line and grows as lines are added (Task description, Notes). */
 function AutoText({ value, ...rest }) {
   const ref = useRef(null);
@@ -59,7 +72,7 @@ export default function TaskForm({ initial, onClose }) {
   const submit = (e) => {
     e.preventDefault();
     if (!t.title.trim()) return;
-    if (/^completed$/i.test(t.status)) { const msg = subCategoryMissing(t, lists); if (msg) { setSubError(msg); return; } }
+    if (/^completed$/i.test(t.status)) { const msg = subCategoryMissing(t, lists); if (msg) { setSubError(msg); if (sc && sc.fields.length) openSub(); return; } }
     setSubError('');
     const [h, m] = time ? time.split(':').map(Number) : [0, 0];
     const due = date ? new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m) : null;
@@ -79,21 +92,24 @@ export default function TaskForm({ initial, onClose }) {
   const sc = findSubCategory(lists, t.subCategory);
   const needSub = categoryCarriesSubCategory(lists, t.category);
   const [subError, setSubError] = useState('');
+  // The Sub Category's fields open in a popup (the form does not grow): when one is picked, by the button, or when Completed is refused for missing fields.
+  const [subOpen, setSubOpen] = useState(false);
+  const [remOpen, setRemOpen] = useState(false);
+  const subSnap = useRef({});
+  const openSub = () => { subSnap.current = t.subCategoryFields || {}; setSubOpen(true); };
+  const closeSub = (cancel) => { if (cancel) setT((d) => ({ ...d, subCategoryFields: subSnap.current })); setSubOpen(false); setSubError(''); };
+  const subFilled = sc ? sc.fields.filter((f) => String((t.subCategoryFields || {})[f.label] || '').trim()).length : 0;
   const subBlock = (
     <div className="manage-panel sub-panel">
       <div className="field-head"><span className="field">Sub category{t.category ? ` under ${t.category}` : ''}{needSub && <span className="muted"> (needed to mark Completed)</span>}</span><button type="button" className="mini" onClick={() => setManaging(managing === 'sub' ? '' : 'sub')}>{managing === 'sub' ? 'Done' : '+ / − Edit'}</button></div>
-      {managing === 'sub' ? <SubCategoryManager lists={lists} only={t.category} /> : (
+      {managing === 'sub' && <Popup title={`Sub categories${t.category ? ` under ${t.category}` : ''}`} onClose={() => setManaging('')}><SubCategoryManager lists={lists} only={t.category} /></Popup>}
+      {(
         <>
-          <select value={t.subCategory} onChange={(e) => setT({ ...t, subCategory: e.target.value, subCategoryFields: e.target.value === t.subCategory ? t.subCategoryFields : {} })} aria-label="Sub category" disabled={!t.category && !t.subCategory}>
+          <select value={t.subCategory} onChange={(e) => { const v = e.target.value; setT({ ...t, subCategory: v, subCategoryFields: v === t.subCategory ? t.subCategoryFields : {} }); const nx = findSubCategory(lists, v); if (v && v !== t.subCategory && nx && nx.fields.length) { subSnap.current = {}; setSubOpen(true); } }} aria-label="Sub category" disabled={!t.category && !t.subCategory}>
             <option value="">{t.category ? '-' : 'Choose a Category first'}</option>{(t.subCategory && !subs.some((x) => x.name === t.subCategory) ? [{ name: t.subCategory }, ...subs] : subs).map((x) => <option key={x.name}>{x.name}</option>)}
           </select>
           {sc && sc.fields.length > 0 && (
-            <div className="fields">{sc.fields.map((f) => (
-              <label className={`field${/^completed$/i.test(t.status) && !String((t.subCategoryFields || {})[f.label] || '').trim() ? ' need' : ''}`} key={f.label}><span className="flabel">{f.label}{/^completed$/i.test(t.status) && <span className="req"> *</span>}</span>
-                {f.options && f.options.length ? <select value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
-                  : <input value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })} />}
-              </label>
-            ))}</div>
+            <button type="button" className="btn primary sub-btn" onClick={openSub}>Sub category details <span className="sub-count">{subFilled} of {sc.fields.length} filled</span></button>
           )}
           {t.category && !subs.length && <p className="muted">No Sub Categories under {t.category} yet. Use + / − Edit to add them.</p>}
         </>
@@ -101,7 +117,9 @@ export default function TaskForm({ initial, onClose }) {
     </div>
   );
   const manager = managing && managing !== 'sub' && (
-    <div className="manage-panel"><ListManager listKey={managing} label={LIST_META.find(([k]) => k === managing)[1]} lists={lists} onAdd={(v) => setT((d) => ({ ...d, [{ categories: 'category', priorities: 'priority', statuses: 'status', pendingWith: 'pendingWith' }[managing]]: v }))} /></div>
+    <Popup title={LIST_META.find(([k]) => k === managing)[1]} sub="Add or delete the options" onClose={() => setManaging('')}>
+      <ListManager listKey={managing} label={LIST_META.find(([k]) => k === managing)[1]} lists={lists} onAdd={(v) => setT((d) => ({ ...d, [{ categories: 'category', priorities: 'priority', statuses: 'status', pendingWith: 'pendingWith' }[managing]]: v }))} />
+    </Popup>
   );
   const addStepNow = () => { if (step.trim()) { setT({ ...t, checklist: [...t.checklist, { id: newId(), text: step.trim(), done: false }] }); setStep(''); } };
   const repeatsEvery = t.recurrence === 'Hourly' || t.recurrence === 'Custom';
@@ -156,11 +174,13 @@ export default function TaskForm({ initial, onClose }) {
         <label className="field full">Task description<AutoText value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
         {manager}
         {t.category && (
-          <label className="field check ask-reminder"><input type="checkbox" checked={categoryAsksReminder(lists, t.category)} onChange={() => saveLists(toggleReminderCategory(lists, t.category))} /> Ask for a next reminder date &amp; time under {t.category}</label>
+          <button type="button" className="btn rem-btn" onClick={() => setRemOpen(true)} title="Next reminder date and time">⏰ {remDate ? `Next reminder: ${remDate}${remTime ? ' ' + timeLabel(remTime) : ''}` : 'Next reminder'}</button>
         )}
-        {(categoryAsksReminder(lists, t.category) || remDate) && (
-          <div className="manage-panel reminder-panel">
-            <span className="field">Next reminder date &amp; time <span className="muted">(9:00 AM if no time)</span></span>
+        {remOpen && (
+          <Popup title="Next reminder" sub="9:00 AM if no time" onClose={() => setRemOpen(false)}>
+            {t.category && (
+          <label className="field check"><input type="checkbox" checked={categoryAsksReminder(lists, t.category)} onChange={() => saveLists(toggleReminderCategory(lists, t.category))} /> Ask for a next reminder date &amp; time under {t.category}</label>
+        )}
             <div className="fields">
               <label className="field">Date<input type="date" value={remDate} onChange={(e) => setRemDate(e.target.value)} /></label>
               <div className="field">Time
@@ -171,7 +191,7 @@ export default function TaskForm({ initial, onClose }) {
               </div>
               {remDate && <div className="field">&nbsp;<button type="button" className="btn ghost" onClick={() => { setRemDate(''); setRemTime(''); }}>Clear reminder</button></div>}
             </div>
-          </div>
+          </Popup>
         )}
         {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
         </div><div className="col">
@@ -205,6 +225,21 @@ export default function TaskForm({ initial, onClose }) {
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button className="btn primary" disabled={!t.title.trim()}>Save</button>
         </div>
+      {subOpen && sc && (
+        <div className="sub-pop" onMouseDown={(e) => e.target === e.currentTarget && closeSub(true)} role="dialog" aria-modal="true" aria-label="Sub category details">
+          <div className="sub-card">
+            <div className="sub-head"><span><b>{sc.name}</b><small>Sub category details</small></span><button type="button" className="btn ghost" onClick={() => closeSub(true)} aria-label="Close">✕</button></div>
+            <div className="fields sub-fields">{sc.fields.map((f) => (
+              <label className={`field${/^completed$/i.test(t.status) && !String((t.subCategoryFields || {})[f.label] || '').trim() ? ' need' : ''}`} key={f.label}><span className="flabel">{f.label}{/^completed$/i.test(t.status) && <span className="req"> *</span>}</span>
+                {f.options && f.options.length ? <select value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
+                  : <input value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })} />}
+              </label>
+            ))}</div>
+            {subError && <p className="banner err" role="alert">{subError}</p>}
+            <div className="sub-foot"><button type="button" className="btn" onClick={() => closeSub(true)}>Cancel</button><button type="button" className="btn primary" onClick={() => closeSub(false)}>Done</button></div>
+          </div>
+        </div>
+      )}
       </form>
       {remClock && <ClockPicker value={remTime} onPick={(v) => { setRemTime(v); setRemClock(false); }} onClear={() => { setRemTime(''); setRemClock(false); }} onClose={() => setRemClock(false)} />}
       {clockOpen && <ClockPicker value={time} onPick={(v) => { setTime(v); setClockOpen(false); }} onClear={() => { setTime(''); setClockOpen(false); }} onClose={() => setClockOpen(false)} />}

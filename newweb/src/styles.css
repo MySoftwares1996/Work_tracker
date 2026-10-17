@@ -768,3 +768,19 @@ textarea.auto, .sheet.wide .col textarea.auto, .sheet.wide .cols3 > .col:first-c
 .alert-icons .ai { border: 0; background: none; padding: 7px 11px; font-size: 17px; line-height: 1; opacity: 0.55; }
 .alert-icons .ai.on { background: color-mix(in srgb, var(--violet) 16%, var(--surface)); opacity: 1; }
 .alert-icons .ai + .ai { border-left: 1px solid var(--line); }
+
+/* The Sub Category's fields open in a popup. */
+.sub-btn { align-self: flex-start; display: inline-flex; gap: 8px; align-items: center; }
+.sub-btn .sub-count { background: rgba(255, 255, 255, 0.25); border-radius: 999px; padding: 1px 9px; font-size: 12px; }
+.sub-pop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(18, 11, 58, 0.5); padding: 16px; }
+.sub-card { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border-radius: 20px; padding: 18px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; gap: 12px; }
+.sub-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.sub-head b { display: block; font-size: 17px; } .sub-head small { color: var(--muted); }
+.sub-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sub-foot { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 560px) { .sub-fields { grid-template-columns: 1fr; } }
+
+.rem-btn { align-self: flex-start; }
+.strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 1100px) { .strip { grid-template-columns: minmax(0, 1fr); } }
+.sheet.wide { overflow-x: hidden; }

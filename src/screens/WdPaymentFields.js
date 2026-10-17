@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Field, Small, Row, PickerButton, Choices, useLayout } from '../ui';
+import { Field, Small, Row, Btn, Sheet, PickerButton, Choices, useLayout } from '../ui';
 import { useTheme } from '../theme';
 import { useStore } from '../store';
 import { recordNarration, toggleFav, removeHistory } from '../narrationHistory';
@@ -179,6 +179,17 @@ export function PaymentFields({ draft, setDraft, lists, rememberedType = '' }) {
   const sc = findSubCategory(lists, draft.subCategory);
   const scVals = draft.subCategoryFields || {};
   const nd = draft.narrationDraft || {};
+  // The Sub Category's fields are in a popup (the form does not grow): opened when one is picked, by the button, or when a Completed task still lacks some.
+  const [subOpen, setSubOpen] = useState(false);
+  const subSnap = useRef({});
+  const openSub = () => { subSnap.current = draft.subCategoryFields || {}; setSubOpen(true); };
+  const subFilled = (sc?.fields || []).filter((f) => String(scVals[f.label] || '').trim()).length;
+  const autoOpened = useRef('');
+  useEffect(() => {
+    const need = sc && sc.fields.length > subFilled && /^completed$/i.test(String(draft.status || ''));
+    if (need && autoOpened.current !== `${draft.id}|${draft.subCategory}`) { autoOpened.current = `${draft.id}|${draft.subCategory}`; openSub(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per task and Sub Category.
+  }, [draft.status, draft.subCategory, sec.subCategory]);
   const setNd = (patch) => setDraft((d) => ({ ...d, narrationDraft: { ...(d.narrationDraft || {}), ...patch } }));
   // The narration type last used for this category starts picked (once per category, so clearing it sticks).
   const filledFor = useRef(null);
@@ -202,11 +213,20 @@ export function PaymentFields({ draft, setDraft, lists, rememberedType = '' }) {
       {sec.subCategory && (
         <Section title="SUB CATEGORY" hint="This category needs a Sub Category (and its fields) before it is completed.">
           <InlinePick label="SUB CATEGORY" value={draft.subCategory || ''} options={(lists.subCategories || []).map((x) => [x.name, x.name])}
-            onChange={(v) => set({ subCategory: v || null, subCategoryFields: v === draft.subCategory ? scVals : {} })} />
+            onChange={(v) => { set({ subCategory: v || null, subCategoryFields: v === draft.subCategory ? scVals : {} }); const next = findSubCategory(lists, v); if (v && v !== draft.subCategory && next && next.fields.length) { subSnap.current = {}; setSubOpen(true); } }} />
           {!(lists.subCategories || []).length && <Small style={{ marginBottom: 8 }}>No Sub Categories yet - they are set up on the web app (Config) and arrive with Realtime Sync.</Small>}
-          {(sc?.fields || []).map((f) => (
-            <RuleField key={f.label} field={f} value={scVals[f.label]} onChange={(v) => set({ subCategoryFields: { ...scVals, [f.label]: v } })} />
-          ))}
+          {!!sc && sc.fields.length > 0 && (
+            <Pressable onPress={openSub} accessibilityRole="button" accessibilityLabel="Sub category details" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: t.accent, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start' }}>
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(13.5) }}>Sub category details</Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: t.fs(11.5), backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 10, paddingHorizontal: 8 }}>{subFilled} of {sc.fields.length}</Text>
+            </Pressable>
+          )}
+          <Sheet visible={subOpen && !!sc} onClose={() => { set({ subCategoryFields: subSnap.current }); setSubOpen(false); }} title={sc ? `${sc.name} - details` : ''}>
+            {!!sc && sc.fields.map((f) => (
+              <RuleField key={f.label} field={f} value={scVals[f.label]} onChange={(v) => set({ subCategoryFields: { ...scVals, [f.label]: v } })} />
+            ))}
+            <Btn title="Done" onPress={() => setSubOpen(false)} />
+          </Sheet>
         </Section>
       )}
 
