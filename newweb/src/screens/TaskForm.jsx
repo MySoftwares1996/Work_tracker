@@ -110,6 +110,9 @@ export default function TaskForm({ initial, onClose }) {
       <form className="sheet wide" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
         <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2>
           <span className="tpl-head">
+            <span className="alert-icons" role="group" aria-label="Alert at the due time">
+              {[['', '🔔', 'Alert at the due time: default'], ['alarm', '⏰', 'Alert at the due time: Alarm (pop-up + sound)'], ['gentle', '🔕', 'Alert at the due time: Reminder (notification only)']].map(([v, ico, tip]) => <button type="button" key={v} className={`ai${t.alertMode === v ? ' on' : ''}`} title={tip} aria-label={tip} aria-pressed={t.alertMode === v} onClick={() => setT({ ...t, alertMode: v })}>{ico}</button>)}
+            </span>
             {tplName === null
               ? <button type="button" className="btn" onClick={() => setTplName(t.title.trim())} title="Keep this entry's usual fields to start new entries from">Save as template</button>
               : <span className="tpl-save"><input autoFocus value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="Template name" aria-label="Template name" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('tpl-ok')?.click(); } }} />
@@ -175,11 +178,6 @@ export default function TaskForm({ initial, onClose }) {
         {subBlock}
         <NarrationBox t={t} />
         <div className="fields">
-          <div className="field">Alert at the due time
-            <div className="seg" role="group" aria-label="Alert at the due time" title="Alarm = pop-up + sound, Reminder = notification only">
-              {[['', 'Default'], ['alarm', 'Alarm'], ['gentle', 'Reminder']].map(([v, l]) => <button type="button" key={v} className={t.alertMode === v ? 'on' : ''} onClick={() => setT({ ...t, alertMode: v })}>{l}</button>)}
-            </div>
-          </div>
           <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
         </div>
         <div className="field full">

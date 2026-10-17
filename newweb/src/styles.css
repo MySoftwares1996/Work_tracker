@@ -762,3 +762,9 @@ button.chip:hover { filter: brightness(0.95); }
 
 /* Task description and Notes start as one line and grow with the text. */
 textarea.auto, .sheet.wide .col textarea.auto, .sheet.wide .cols3 > .col:first-child textarea.auto, .sheet.wide .cols3 > .col:last-child textarea.auto { min-height: 0 !important; resize: none; overflow: hidden; line-height: 1.4; }
+
+/* Alert at the due time: three symbols in the form's header (default / alarm / reminder). */
+.alert-icons { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.alert-icons .ai { border: 0; background: none; padding: 7px 11px; font-size: 17px; line-height: 1; opacity: 0.55; }
+.alert-icons .ai.on { background: color-mix(in srgb, var(--violet) 16%, var(--surface)); opacity: 1; }
+.alert-icons .ai + .ai { border-left: 1px solid var(--line); }
