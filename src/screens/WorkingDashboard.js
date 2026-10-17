@@ -27,6 +27,8 @@ import { recordNarration } from '../narrationHistory';
 import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
+import { effectiveFormats } from '../reportFormats';
+import { applyFormats, applyMoves } from '../reportExtras';
 import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, DEFAULT_PAYMENT_INTRO, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
@@ -107,7 +109,7 @@ export default function WorkingDashboard() {
   const wd = data.workingDashboard;
   // The web app's Sub Categories, which categories carry one, and its Tally narration types.
   // The Imports Payments narration type is offered on web.app only.
-  const plists = useMemo(() => { const l = paymentLists(wd, wd.categories); return Platform.OS === 'web' ? withWebNarrationTypes(l) : l; }, [wd.subCategories, wd.subCategoryCategories, wd.narrationTypes, wd.categories]); // eslint-disable-line react-hooks/exhaustive-deps
+  const plists = useMemo(() => { const l = paymentLists(wd, wd.categories); return withWebNarrationTypes(l); }, [wd.subCategories, wd.subCategoryCategories, wd.narrationTypes, wd.categories]); // eslint-disable-line react-hooks/exhaustive-deps
   const entries = wd.entries || NO_LIST;
   const followToday = useMemo(() => followUpsDueToday(entries), [entries]);
   const byBank = useMemo(() => (Platform.OS === 'web' ? followUpsByBank(entries) : []), [entries]);
@@ -191,6 +193,7 @@ export default function WorkingDashboard() {
   const [reportText, setReportText] = useState('');
   const [reportKind, setReportKind] = useState('day');      // 'day' (the Daily Activity Report), 'week' or 'month' (a summary)
   const [reportModel, setReportModel] = useState(null);
+  const [reportMoves, setReportMoves] = useState({});   // { taskId: 'oth' | 'pay' | 'fol' | 'out' } for the picked day
   const [reportNote, setReportNote] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [samples, setSamples] = useState([]);
@@ -814,8 +817,11 @@ export default function WorkingDashboard() {
   /* ---------- AI Daily Report ---------- */
   const buildReport = (date = reportDate) => {
     const model = buildReportModel({ entries, fixedActivities: wd.fixedActivities, activityLog: wd.activityLog, date, paymentIntro: wd.paymentIntro, leaveDays: leaveList, holidays: holidayList, lists: plists,
-      // web.app only: every line is written from the entry's notes and Tally narration too (the owner's choice).
-      details: Platform.OS === 'web' });
+      // Every line is written from the entry's notes and Tally narration too - the same report as the website (the owner's choice).
+      details: true });
+    const formats = effectiveFormats(wd.reportFormats);
+    applyFormats(model, formats, { darPaymentIntro: wd.paymentIntro });
+    applyMoves(model, reportMoves, { lists: { darPaymentIntro: wd.paymentIntro }, payLists: plists, formats, date, details: true });
     setReportModel(model);
     setReportAlt(null);
     setReportText(reportModelToText(model));

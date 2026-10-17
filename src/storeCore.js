@@ -173,6 +173,7 @@ export const DEFAULT_DB = {
     undoHistory: [],         // the last 25 undoable changes (Config > Recent Changes)
     narrationHistory: [],    // narrations copied for Tally (src/narrationHistory.js), this device only
     templates: [],          // task templates (src/templates.js) - follow the account with the links (meta/tools)
+    reportFormats: [],      // report formats (src/reportFormats.js) - follow the account (meta/tools); [] = the sample formats
     reportAiNotesSummary: '',      // instructions for Rewrite with AI on the weekly / monthly summary
     reportAiNotes: '',      // instructions for Rewrite with AI (Daily Report)
     toolsStamps: {},        // when each synced tool (links, templates, AI notes, meeting mode) last changed here

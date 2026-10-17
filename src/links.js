@@ -1,3 +1,5 @@
+import { readReportFormats } from './reportFormats';
+
 /** A typed web address as a full link: https:// added when missing; '' when it is not an address. */
 export function normalizeLink(raw) {
   const v = String(raw || '').trim();
@@ -66,13 +68,14 @@ export function addLinks(links, incoming, idPrefix = 'lnk') {
  * the website at the same time keeps both: per item, the newer copy wins. An older document with only `ts` counts as one
  * stamp for every item.
  */
-export const TOOL_KEYS = ['links', 'templates', 'reportAiNotes', 'reportAiNotesSummary', 'holdUntil'];
+export const TOOL_KEYS = ['links', 'templates', 'reportAiNotes', 'reportAiNotesSummary', 'reportFormats', 'holdUntil'];
 
 /** The synced tool values of a Working Dashboard record. */
 export const toolsValue = (wd = {}) => ({
   links: Array.isArray(wd.links) ? wd.links : [],
   templates: Array.isArray(wd.templates) ? wd.templates : [],
   reportAiNotes: wd.reportAiNotes || '',
+  reportFormats: Array.isArray(wd.reportFormats) ? wd.reportFormats : [],
   reportAiNotesSummary: wd.reportAiNotesSummary || '',
   holdUntil: Number((wd.alerts || {}).holdUntil) || 0,
 });
@@ -101,6 +104,7 @@ export function toolsFromRemote(remote, localStamps = {}) {
     if (!at || at <= (Number(stamps[k]) || 0)) return;
     if (k === 'links') patch.links = Array.isArray(remote.links) ? remote.links.filter((x) => x && x.url).map(cleanLink) : [];
     else if (k === 'templates') patch.templates = Array.isArray(remote.templates) ? remote.templates.filter((x) => x && x.id && x.name) : [];
+    else if (k === 'reportFormats') patch.reportFormats = readReportFormats(remote);
     else if (k === 'holdUntil') patch.holdUntil = Number(remote.holdUntil) || 0;
     else patch[k] = typeof remote[k] === 'string' ? remote[k] : '';
     stamps[k] = at;

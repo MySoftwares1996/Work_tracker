@@ -30,7 +30,7 @@ export async function run({ ck, section }) {
   ck('folders are listed', linkFolders(sample).join() === 'Govt');
   const got = toolsFromRemote({ ts: 5, links: sample, reportAiNotes: 'x' }, { links: 3 });
   ck('a newer remote copy is taken (an old document with only ts counts for every item)', got.patch.links.length === 2 && got.patch.reportAiNotes === 'x');
-  ck('an older or equal remote copy is ignored', toolsFromRemote({ ts: 3, links: [] }, { links: 3, reportAiNotes: 3, templates: 3, reportAiNotesSummary: 3, holdUntil: 3 }) === null);
+  ck('an older or equal remote copy is ignored', toolsFromRemote({ ts: 3, links: [] }, { links: 3, reportAiNotes: 3, templates: 3, reportFormats: 3, reportAiNotesSummary: 3, holdUntil: 3 }) === null);
   const before = { links: [], templates: [], reportAiNotes: '', reportAiNotesSummary: '', holdUntil: 0 };
   const st = stampChanges(toolsValue({ links: [], alerts: {} }), toolsValue({ links: [{ id: '1', url: 'https://a.com' }], alerts: { holdUntil: 0 } }), { templates: 7 }, 100);
   ck('an edit stamps only the item that changed', st.links === 100 && st.templates === 7 && !('holdUntil' in st) && before.holdUntil === 0);

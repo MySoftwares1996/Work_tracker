@@ -3,8 +3,8 @@
  * site's tasks. Sections, in order: Other work completed, Payments (Tally narration lines), Followed up / in progress, Routine daily
  * activities, Other activities. Domestic and Urgent payments are left out, as there.
  */
-import { findFormat, renderTemplate, isPaymentCategory } from './reportFormats.js';
-import { buildReportModel, reportLineFor, withEntryNotes, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees, DEFAULT_PAYMENT_INTRO } from '../../src/workingDashboardReport.js';
+import { applyFormats, applyMoves, REPORT_GROUPS } from '../../src/reportExtras.js';
+import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees } from '../../src/workingDashboardReport.js';
 import { buildStylePrompt } from '../../src/reportStyle.js';
 import { paymentLists, withWebNarrationTypes } from '../../src/workingDashboardPayments.js';
 import { dayKey } from './data.js';
@@ -41,7 +41,7 @@ export function buildReport(tasks, lists, calendar, date, { headings = true, sub
     holidays: (calendar && calendar.holidays) || [], leaveDays: dateKeys(calendar && calendar.leaveDays),
   });
   applyFormats(model, formats, lists);
-  applyMoves(model, moves, { lists, formats, date, details: true });
+  applyMoves(model, moves, { lists, payLists: reportLists(lists), formats, date, details: true });
   if (subFields) {
     model.sections.forEach((sec) => {
       if (sec.key === 'pay') return;
@@ -54,98 +54,6 @@ export function buildReport(tasks, lists, calendar, date, { headings = true, sub
     });
   }
   return { model, text: reportModelToText(model, { headings }) };
-}
-
-/**
- * A task whose Sub Category has a format (Config > Report formats) is written from it, and goes under "Payments" with the other payment
- * lines. `model.missing` lists the lines that still have a [mark] with no value.
- */
-export function applyFormats(model, formats, lists = {}) {
-  model.missing = [];
-  if (!formats || !formats.length) return model;
-  const pay = model.sections.find((s) => s.key === 'pay');
-  const moved = [];
-  model.sections.forEach((sec) => {
-    if (sec.key === 'fix' || sec.key === 'gen') return;
-    sec.rows.forEach((row) => {
-      const f = row.entry && row.entry.subCategory ? findFormat(formats, row.entry.subCategory) : null;
-      if (!f) return;
-      const out = renderTemplate(f.template, row.entry);
-      row.line = withEntryNotes(out.text, row.entry);   // the task's remarks (Notes) follow the format line
-      row.fixed = false;
-      row.formatted = true;
-      if (out.missing.length) model.missing.push({ title: row.entry.title, marks: out.missing });
-      // Only a Payments category goes under "Payments"; other formatted tasks keep their section (a Demand Draft is other work).
-      if (sec.key !== 'pay' && isPaymentCategory(f.category || row.entry.category)) moved.push({ sec, row });
-    });
-  });
-  moved.forEach(({ sec, row }) => { sec.rows.splice(sec.rows.indexOf(row), 1); pay.rows.push(row); });
-  if (pay.rows.length && !(pay.intro && pay.intro.length)) pay.intro = (lists.darPaymentIntro && lists.darPaymentIntro.length ? lists.darPaymentIntro : DEFAULT_PAYMENT_INTRO).map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
-  model.data.payments = pay.rows.length;
-  model.data.others = model.sections.find((s) => s.key === 'oth').rows.length;
-  model.data.followed = model.sections.find((s) => s.key === 'fol').rows.length;
-  model.data.bullets = model.sections.reduce((n, s) => n + s.rows.length + (s.intro ? s.intro.length : 0), 0);
-  return model;
-}
-
-/** The groups a line can be in (the Report chips). */
-export const REPORT_GROUPS = [
-  { key: 'oth', label: 'Other work' },
-  { key: 'pay', label: 'Payments' },
-  { key: 'fol', label: 'Followed up' },
-  { key: 'out', label: 'Left out (Done, not DAR)' },
-];
-
-/**
- * The person's moves ({ taskId: 'oth' | 'pay' | 'fol' | 'out' }) for one day: each task is taken out of the group it was in (the
- * report's sections, the left-out tasks or the merged duplicates) and put into the chosen one; the counts follow.
- * Adds `model.groups` = { oth, pay, fol, out, dup }: [{ id, title, line, entry, moved }] for the chip popups.
- */
-export function applyMoves(model, moves = {}, { lists = {}, formats = [], date = '', details = true } = {}) {
-  const sec = (k) => model.sections.find((s) => s.key === k);
-  const dupes = model.dupeList || [];
-  const out = (model.data.excludedList || []).slice();
-  const dupLeft = [];
-  const placed = { oth: [], pay: [], fol: [] };
-  const put = (target, entry, line, row) => {
-    const f = target === 'pay' && formats && formats.length && entry.subCategory ? findFormat(formats, entry.subCategory) : null;
-    const text = f ? withEntryNotes(renderTemplate(f.template, entry).text, entry) : line || reportLineFor(entry, reportLists(lists), date, { details });
-    placed[target].push(row ? Object.assign(row, { line: text }) : { line: text, entry, moved: true });
-  };
-  ['oth', 'pay', 'fol'].forEach((k) => {
-    const s = sec(k);
-    s.rows = s.rows.filter((r) => {
-      const to = r.entry && moves[r.entry.id];
-      if (!to || to === k) return true;
-      if (to === 'out') out.push(r.entry); else put(to, r.entry, null);
-      return false;
-    });
-  });
-  dupes.forEach((d) => {
-    const to = d.entry && moves[d.entry.id];
-    if (!to || to === 'out') { if (to === 'out') out.push(d.entry); else dupLeft.push(d); return; }
-    put(to, d.entry, d.line);
-  });
-  const left = out.filter((e) => { const to = moves[e.id]; if (!to || to === 'out') return true; put(to, e, null); return false; });
-  ['oth', 'pay', 'fol'].forEach((k) => { sec(k).rows.push(...placed[k]); });
-  const pay = sec('pay');
-  if (pay.rows.length && !(pay.intro && pay.intro.length)) pay.intro = (lists.darPaymentIntro && lists.darPaymentIntro.length ? lists.darPaymentIntro : DEFAULT_PAYMENT_INTRO).map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
-  if (!pay.rows.length) pay.intro = [];
-  const titles = new Set(model.sections.flatMap((x) => x.rows.map((r) => r.entry && r.entry.title)));
-  model.missing = (model.missing || []).filter((m) => titles.has(m.title));
-  model.dupes = dupLeft.length;
-  model.dupeList = dupLeft;
-  Object.assign(model.data, {
-    others: sec('oth').rows.length, payments: pay.rows.length, followed: sec('fol').rows.length, excluded: left.length, excludedList: left,
-    bullets: model.sections.reduce((n, x) => n + x.rows.length + (x.intro ? x.intro.length : 0), 0),
-  });
-  const items = (rows) => rows.filter((r) => r.entry).map((r) => ({ id: r.entry.id, title: r.entry.title, line: r.line, entry: r.entry, moved: !!moves[r.entry.id] }));
-  model.groups = {
-    oth: items(sec('oth').rows), pay: items(pay.rows), fol: items(sec('fol').rows),
-    out: left.map((e) => ({ id: e.id, title: e.title, line: e.title, entry: e, moved: !!moves[e.id] })),
-    dup: dupLeft.filter((d) => d.entry).map((d) => ({ id: d.entry.id, title: d.entry.title, line: d.line, entry: d.entry, keptIn: d.keptIn, moved: false })),
-  };
-  return model;
 }
 
 /** The mail subjects of the report's tasks (the AI must not copy them in). */
@@ -163,7 +71,7 @@ export function mergeAi(model, aiText, { headings = true } = {}) {
   return { text: String(aiText).trim(), note: 'Gemini wrote the report.' };
 }
 
-export { reportCsvRows, reportHtml, dayKey };
+export { applyFormats, applyMoves, REPORT_GROUPS, reportCsvRows, reportHtml, dayKey };
 
 /** This month's payments by vendor, from the amounts written in each payment task's Key Points: { total, count, withAmount, rows: [{ vendor, total, count }] }. */
 export const vendorTotals = (tasks, lists, monthKey) => paymentsByVendor((tasks || []).map(toEntry), reportLists(lists), monthKey);
