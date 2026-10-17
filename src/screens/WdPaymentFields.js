@@ -5,9 +5,7 @@ import { Field, Small, Row, PickerButton, Choices, useLayout } from '../ui';
 import { useTheme } from '../theme';
 import { useStore } from '../store';
 import { recordNarration, toggleFav, removeHistory } from '../narrationHistory';
-import {
-  paymentSections, findSubCategory, PAYMENT_TYPES, PAYMENT_AGAINST, buildNarrationText, narrationStyle, narrationOffersPo, subCategoryText, narrationNeedsDoc, narrationMissing, normalizeKeyPoints,
-} from '../workingDashboardPayments';
+import { paymentSections, findSubCategory, PAYMENT_TYPES, PAYMENT_AGAINST, buildNarrationText, narrationStyle, narrationOffersPo, subCategoryText, narrationNeedsDoc, narrationMissing } from '../workingDashboardPayments';
 
 /**
  * A pick-one list that opens in place under its button (no second sheet over the entry form).
@@ -221,32 +219,3 @@ export function PaymentFields({ draft, setDraft, lists, rememberedType = '' }) {
   );
 }
 
-/** Key Points as the web app keeps them: a key and a value per row (e.g. Amount - ₹50,000). */
-export function KeyPointsEditor({ points, onChange }) {
-  const t = useTheme();
-  // Blank rows stay while editing (a row just added is blank); they are dropped when the entry is saved.
-  const rows = Array.isArray(points)
-    ? points.map((p) => (p && typeof p === 'object' ? { key: String(p.key ?? ''), value: String(p.value ?? '') } : { key: '', value: String(p ?? '') }))
-    : normalizeKeyPoints(points);
-  const setRow = (i, patch) => onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  return (
-    <View style={{ marginBottom: 14 }}>
-      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 6 }}>
-        <Small style={{ flex: 1 }}>KEY POINTS (feeds AI report)</Small>
-        <Pressable onPress={() => onChange([...rows, { key: '', value: '' }])} style={{ backgroundColor: t.surfaceAlt, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 7 }}>
-          <Text style={{ color: t.text, fontWeight: '800' }}>+ Add</Text>
-        </Pressable>
-      </Row>
-      {rows.map((kp, i) => (
-        // eslint-disable-next-line react/no-array-index-key
-        <Row key={i} gap={6} style={{ alignItems: 'flex-start' }}>
-          <View style={{ flex: 2 }}><Field style={{ marginBottom: 6 }} value={kp.key} onChangeText={(v) => setRow(i, { key: v })} placeholder="Key (e.g. Amount)" /></View>
-          <View style={{ flex: 3 }}><Field style={{ marginBottom: 6 }} value={kp.value} onChangeText={(v) => setRow(i, { value: v })} placeholder="Value (e.g. ₹50,000)" /></View>
-          <Pressable onPress={() => onChange(rows.filter((_, idx) => idx !== i))} hitSlop={8} accessibilityLabel="Remove key point" style={{ paddingTop: 12 }}>
-            <Text style={{ color: t.danger, fontSize: t.fs(16) }}>✕</Text>
-          </Pressable>
-        </Row>
-      ))}
-    </View>
-  );
-}

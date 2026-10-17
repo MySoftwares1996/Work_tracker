@@ -31,7 +31,7 @@ import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../report
 import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
-import { PaymentFields, KeyPointsEditor, NarrationForm } from './WdPaymentFields';
+import { PaymentFields, NarrationForm } from './WdPaymentFields';
 import WdAlertSettings from './WdAlertSettings';
 import WdReportFormats from './WdReportFormats';
 import { ListsEditor, SubCategories, ReminderCategories } from './WdLists';
@@ -306,7 +306,6 @@ export default function WorkingDashboard() {
       r.start();
     } catch { setListening(false); }
   };
-  const [attDraft, setAttDraft] = useState({ title: '', url: '' });      // an attachment link being typed in the entry form
   const [showAudit, setShowAudit] = useState(false);      // the task's history, opened in the entry form
   const [stepDraft, setStepDraft] = useState('');      // the checklist step being typed in the entry form
   const payMonthKey = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - payMonth); return toDateKey(d).slice(0, 7); })();
@@ -978,30 +977,6 @@ export default function WorkingDashboard() {
           </Row>
         </View>
       ),
-      attachments: (
-        <View style={{ marginBottom: 12 }}>
-          <Small style={{ marginBottom: 5 }}>ATTACHMENTS (links to the invoice, bank advice, Drive file...)</Small>
-          {(entrySheet.attachments || []).map((a) => (
-            <Row key={a.id} gap={8} style={{ alignItems: 'center', marginBottom: 6 }}>
-              <Pressable onPress={() => Linking.openURL(a.url)} accessibilityRole="link" style={{ flex: 1 }}>
-                <Text numberOfLines={1} style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(14) }}>📎 {a.title}</Text>
-                <Small numberOfLines={1}>{a.url}</Small>
-              </Pressable>
-              <Pressable onPress={() => setEntrySheet((d) => ({ ...d, attachments: (d.attachments || []).filter((x) => x.id !== a.id) }))} hitSlop={8} accessibilityLabel="Remove attachment"><Text style={{ color: t.textDim, fontSize: t.fs(16) }}>✕</Text></Pressable>
-            </Row>
-          ))}
-          <Row gap={8} style={{ alignItems: 'flex-end' }}>
-            <View style={{ flex: 1 }}><Field style={{ marginBottom: 0 }} value={attDraft.title} onChangeText={(v) => setAttDraft((d) => ({ ...d, title: v }))} placeholder="Name" /></View>
-            <View style={{ flex: 2 }}><Field style={{ marginBottom: 0 }} value={attDraft.url} onChangeText={(v) => setAttDraft((d) => ({ ...d, url: v }))} placeholder="https://..." autoCapitalize="none" /></View>
-            <Btn kind="soft" title="Add" onPress={() => {
-              const url = normalizeLink(attDraft.url);
-              if (!url) return Alert.alert('Enter a link', 'Paste the web address of the file, such as a Drive or SharePoint link.');
-              setEntrySheet((d) => ({ ...d, attachments: [...(d.attachments || []), { id: `att-${Date.now().toString(36)}`, title: attDraft.title.trim() || url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, ''), url }] }));
-              setAttDraft({ title: '', url: '' });
-            }} />
-          </Row>
-        </View>
-      ),
       history: !isNew && (entrySheet.audit || []).length ? (
         <View style={{ marginBottom: 12 }}>
           <Pressable onPress={() => setShowAudit((v) => !v)} hitSlop={6}>
@@ -1018,9 +993,6 @@ export default function WorkingDashboard() {
       ) : null,
       notes: (
             <Field label="NOTES" multiline value={entrySheet.notes} onChangeText={(v) => setEntrySheet({ ...entrySheet, notes: v })} placeholder="Additional notes or context..." />
-      ),
-      keyPoints: (
-            <KeyPointsEditor points={entrySheet.keyPoints} onChange={(kp) => setEntrySheet((d) => ({ ...d, keyPoints: kp }))} />
       ),
       dar: (
             <Pressable
@@ -1089,8 +1061,6 @@ export default function WorkingDashboard() {
           {acc('checklist', '☑️', 'Checklist', steps.length ? `${stepsDone} of ${steps.length}` : 'Add steps', f.checklist, steps.length > 0)}
           {acc('mail', '✉', 'Mail chain', String(entrySheet.reference || '').trim() || 'Add', f.mail, !!String(entrySheet.reference || '').trim())}
           {acc('notes', '📝', 'Notes & remarks', String(entrySheet.notes || '').trim() ? 'Added' : 'Add', f.notes, !!String(entrySheet.notes || '').trim())}
-          {acc('attach', '📎', 'Attachments', (entrySheet.attachments || []).length ? `${(entrySheet.attachments || []).length}` : 'Add', f.attachments, (entrySheet.attachments || []).length > 0)}
-          {acc('points', '🔑', 'Key points', (entrySheet.keyPoints || []).length ? `${(entrySheet.keyPoints || []).length}` : 'Add', f.keyPoints, (entrySheet.keyPoints || []).length > 0)}
           {acc('history', '🕘', 'History', '', f.history, false)}
           {f.dar}
           {!pinSave && entryButtons}
@@ -1121,9 +1091,7 @@ export default function WorkingDashboard() {
           {f.custom}
           {f.payment}
           {f.checklist}
-          {f.attachments}
           {f.notes}
-          {f.keyPoints}
           {f.history}
         </View>
         <View style={{ flex: 1 }}>
