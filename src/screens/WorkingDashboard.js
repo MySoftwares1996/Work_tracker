@@ -41,7 +41,7 @@ import { learnStyle, buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, e
 import { getAdvice } from '../sheets';
 import { listReportSamples, saveReportSample, deleteReportSample, rewriteReportWithAi } from '../workingDashboardReportCloud';
 import { shareReportPdf } from '../reportPdf';
-import { blankEntry, listsWithEntryValues, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, entriesToCsvRows, csvRowsToEntries, findDuplicateEntries, WD_CSV_COLUMNS, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
+import { blankEntry, listsWithEntryValues, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, entriesToCsvRows, csvRowsToEntries, findDuplicateEntries, WD_CSV_COLUMNS, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
 import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
 import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, HHMM, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneTile, PhoneRow, PhoneDoneRow } from './wdCards';
@@ -218,10 +218,8 @@ export default function WorkingDashboard() {
 
   /* ---------- derived ---------- */
   const stats = useMemo(() => dashboardStats(entries), [entries]);
-  const byCategory = useMemo(() => groupCounts(openEntries, (e) => e.category), [openEntries]);
-  const byStatus = useMemo(() => groupCounts(openEntries, (e) => e.status), [openEntries]);
-  const byPriority = useMemo(() => groupCounts(openEntries, (e) => e.priority), [openEntries]);
-  const byAssignee = useMemo(() => groupCounts(openEntries, (e) => e.pendingWith, 'Unassigned'), [openEntries]);
+  const thisMonthEntries = useMemo(() => openEntries.filter((e) => isDueThisMonth(e)), [openEntries]);
+  const nextMonthEntries = useMemo(() => openEntries.filter((e) => isDueNextMonth(e)), [openEntries]);
   // Whatever shape the web app stored (names, date formats) is read into one clean shape here.
   const holidayList = useMemo(() => normalizeHolidays(wd.holidays), [wd.holidays]);
   const leaveList = useMemo(() => normalizeLeaveDays(wd.leaveDays), [wd.leaveDays]);
@@ -1714,12 +1712,13 @@ export default function WorkingDashboard() {
             {phoneLayout ? (
               <>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 6, gap: 10 }}>
-                  <PhoneTile label="Pending as on today" value={stats.pendingAsOnToday} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
+                  <PhoneTile label="Pending as on today" value={stats.pendingAsOnToday} tone={t.purple || t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
                   <PhoneTile label="Overdue" value={stats.overdue} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
                   <PhoneTile label="Due today" value={stats.dueToday} tone={t.warn} dark onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
                   <PhoneTile label="Next 7 days" value={stats.next7Days} tone={t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
                   <PhoneTile label="This month" value={stats.thisMonth} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'This Month' }); }} />
                   <PhoneTile label="Pending" value={stats.pending} tone={t.ok} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
+                  <PhoneTile label="Next month" value={stats.nextMonth} tone={t.pink || t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next Month' }); }} />
                   <PhoneTile label="No due date" value={stats.noDueDate} tone={t.textDim} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
                 </ScrollView>
                 {!!attention.length && (
@@ -1744,6 +1743,7 @@ export default function WorkingDashboard() {
               <StatTile index={1} label="Due Today" value={stats.dueToday} sub="Still on the clock" color={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
               <StatTile index={2} label="Overdue" value={stats.overdue} sub="Past the due time" color={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
               <StatTile index={3} label="Next 7 Days" value={stats.next7Days} sub="Coming up" color={t.warn} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
+              <StatTile index={4} label="Next Month" value={stats.nextMonth} sub={`Due in ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleString([], { month: 'long' })}`} color={t.pink || t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next Month' }); }} />
               <StatTile index={4} label="This Month" value={stats.thisMonth} sub={`Due in ${new Date().toLocaleString([], { month: 'long' })}`} color={t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'This Month' }); }} />
               <StatTile index={5} label="No Due Date" value={stats.noDueDate} sub="Needs a deadline" color={t.textDim} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
               <StatTile index={6} label="Pending" value={stats.pending} sub="As of now" color={t.warn} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
@@ -1831,10 +1831,14 @@ export default function WorkingDashboard() {
                 </Card>
               </View>
             )}
-            <View style={colItem}><CountList title="By Category" total={stats.totalOpen} rows={byCategory} onPress={(v) => { setTab('register'); setFilter({ category: v }); }} /></View>
-            <View style={colItem}><CountList title="By Status" total={stats.totalOpen} rows={byStatus} onPress={(v) => { setTab('register'); setFilter({ status: v }); }} /></View>
-            <View style={colItem}><CountList title="By Priority" total={stats.totalOpen} rows={byPriority} onPress={(v) => { setTab('register'); setFilter({ priority: v }); }} /></View>
-            <View style={colItem}><CountList title="Pending Assignments" total={stats.totalOpen} rows={byAssignee} onPress={(v) => { setTab('register'); setFilter({ pendingWith: v }); }} /></View>
+            {[['This Month', thisMonthEntries, 'This month', ['category', 'status', 'priority', 'pendingWith']], ['Next Month', nextMonthEntries, 'Next month', ['category', 'priority']]].map(([due, list, name, fields]) => (
+              <View key={due}>
+                <Small style={{ fontWeight: '800', textTransform: 'uppercase', marginTop: 14 }}>{name} - {new Date(new Date().getFullYear(), new Date().getMonth() + (due === 'Next Month' ? 1 : 0), 1).toLocaleString([], { month: 'long' })} ({list.length} open)</Small>
+                {[['category', 'By Category', (e) => e.category], ['status', 'By Status', (e) => e.status], ['priority', 'By Priority', (e) => e.priority], ['pendingWith', 'Pending Assignments', (e) => e.pendingWith]].filter(([k]) => fields.includes(k)).map(([k, title, keyOf]) => (
+                  <View key={k} style={colItem}><CountList title={`${name} - ${title}`} total={list.length} rows={groupCounts(list, keyOf, k === 'pendingWith' ? 'Unassigned' : undefined)} onPress={(v) => { setTab('register'); setFilter({ [k]: v, dueWithin: due }); }} /></View>
+                ))}
+              </View>
+            ))}
 
             <View style={colItem}><Card style={{ marginTop: 14 }}>
               <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 }}>Next 7 Days - Holidays</Small>

@@ -309,9 +309,9 @@ export async function runExtra2({ ck, section }) {
     ck('chosen warning times are used', keys(timed, { dueLeadMin: [1440, 30] }).startsWith('due-30,due,') && keys({ ...timed, dueAt: new Date(2026, 9, 6, 14, 0).toISOString() }, { dueLeadMin: [1440] }).startsWith('due-1440,due,'));
     ck('full-screen off: the due alert is a plain one', !entryAlertPlan(timed, now, { fullScreen: false }).some((x) => x.alarm));
     const dateOnly = { id: 'd', title: 'File GST', dueAt: new Date(2026, 9, 6).toISOString() };
-    const dPlan = entryAlertPlan(dateOnly, now).filter((x) => !/^daily-[2-3]$/.test(x.key));
-    ck('a date-only due: the evening before, the morning of (alarm), the next morning (the daily reminder)', dPlan.map((x) => x.key).join() === 'due-eve,due-day,daily-1'
-      && dPlan[0].at.getHours() === 18 && dPlan[1].at.getHours() === 9 && dPlan[1].at.getMinutes() === 30 && dPlan[1].alarm);
+    const dPlan = entryAlertPlan(dateOnly, now);
+    ck('a date-only due alerts once: 7 PM on its date (alarm), no evening before, no next morning, no daily reminders', dPlan.map((x) => x.key).join() === 'due-day'
+      && dPlan[0].at.getHours() === 19 && dPlan[0].at.getMinutes() === 0 && dPlan[0].at.getDate() === 6 && dPlan[0].alarm);
     const dl = { id: 'l', title: 'Submit audit', deadlineAt: new Date(2026, 9, 7, 17, 0).toISOString() };
     ck('a deadline: 1 day, 2 hr and 30 min before, then an alarm at it', keys(dl) === 'dl-1440,dl-120,dl-30,dl' && entryAlertPlan(dl, now).at(-1).alarm);
     ck('deadline warnings can be turned off', keys(dl, { deadline: false }) === '');

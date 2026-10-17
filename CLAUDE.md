@@ -42,6 +42,7 @@ Several sessions have changed the alert code; check this list before changing it
   time open it too ("DUE IN ..."). With "Open over other apps" allowed its notification is a silent line (`QUIET_CHANNEL_ID` in
   `AlarmRingService.kt`). A second alarm and the "Missed" alert open full screen as well; the week summary is a `summary:` alarm.
   Attendance alerts (logged in, break, back, logged out) open the simple full screen without ringing (`EXTRA_QUIET`); the ongoing "At the office" line is Android's required notice and stays a notification.
+- A task due on a date with no time alerts once, at 7 PM on that date, and never again (`DATE_ONLY_ALERT` in `workingDashboard.js`; the website's `dueAlertAt` does the same): no evening-before, next-morning or daily reminders for it.
 - Each alert's text carries the task's priority, category, person and mail chain (`entryAlertPlan`).
 - Done vs DAR: ✓ / Done completes a task and keeps it out of the daily report; DAR completes it into the report.
   Same on cards, the Past Due screen and the alert buttons.

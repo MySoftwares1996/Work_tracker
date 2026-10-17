@@ -120,6 +120,11 @@ export function isDueThisMonth(e, now = new Date()) {
   const d = dueDate(e);
   return isOpen(e) && !!d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
+export function isDueNextMonth(e, now = new Date()) {
+  const d = dueDate(e);
+  const n = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return isOpen(e) && !!d && d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth();
+}
 export const hasNoDueDate = (e) => isOpen(e) && !e.dueAt;
 
 /**
@@ -157,6 +162,7 @@ export function dashboardStats(entries = [], now = new Date()) {
     overdue: overdue.length,
     next7Days: open.filter((e) => isDueInNext7Days(e, now)).length,
     thisMonth: open.filter((e) => isDueThisMonth(e, now)).length,
+    nextMonth: open.filter((e) => isDueNextMonth(e, now)).length,
     noDueDate: open.filter(hasNoDueDate).length,
     pending: open.filter((e) => e.status === 'Pending').length,
     totalOpen: open.length,
@@ -182,7 +188,7 @@ export const NO_ASSIGNEE_LABEL = 'Unassigned';
 // Overdue or due today - what the "Pending as on Today" tile counts. Not one of the segmented options.
 export const DUE_TILL_TODAY = 'Till Today';
 export const EMPTY_WD_FILTER = { query: '', category: ANY, priority: ANY, status: ANY, pendingWith: ANY, dueWithin: ANY, bank: '' };
-export const DUE_WITHIN_OPTIONS = [ANY, 'Overdue', 'Today', 'Next 7 Days', 'This Month', 'No Due Date'];
+export const DUE_WITHIN_OPTIONS = [ANY, 'Overdue', 'Today', 'Next 7 Days', 'This Month', 'Next Month', 'No Due Date'];
 
 export function isWdFilterActive(f = {}) {
   return !!String(f.query || '').trim()
@@ -198,7 +204,7 @@ export function lastNamedBank(e) {
 }
 
 const DUE_WITHIN_CHECK = {
-  Overdue: isOverdue, Today: isDueToday, 'Next 7 Days': isDueInNext7Days, 'This Month': isDueThisMonth, 'No Due Date': hasNoDueDate,
+  Overdue: isOverdue, Today: isDueToday, 'Next 7 Days': isDueInNext7Days, 'This Month': isDueThisMonth, 'Next Month': isDueNextMonth, 'No Due Date': hasNoDueDate,
   [DUE_TILL_TODAY]: (e, now) => isOverdue(e, now) || isDueToday(e, now),
 };
 
@@ -794,6 +800,7 @@ export function applyQuietHours(items0, entry, cfg) {
   }
   return out;
 }
+export const DATE_ONLY_ALERT = '19:00';      // the one alert of a task due on a date with no time
 const DEADLINE_LEAD_MIN = [24 * 60, 120, 30];
 // How many days ahead the once-a-day "still overdue" reminder is booked; the app books the next days as they come.
 export const DAILY_REMINDER_DAYS = 3;
@@ -876,9 +883,8 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
   const due = entry.dueAt ? new Date(entry.dueAt) : null;
   if (due && !Number.isNaN(due.getTime())) {
     if (isDateOnly(due)) {
-      add(atClock(dayShift(due, -1), cfg.evening, '18:00'), 'due-eve', 'Due tomorrow', name);
-      add(atClock(due, cfg.morning, '09:30'), 'due-day', 'Due today', name, ring);
-      add(atClock(dayShift(due, 1), cfg.morning, '09:30'), 'due-late', 'Overdue since yesterday', name);
+      // A date with no time alerts once, at 7 PM on that date, and never again (the website does the same).
+      add(atClock(due, DATE_ONLY_ALERT, DATE_ONLY_ALERT), 'due-day', 'Due today', name, ring);
     } else {
       for (const m of [...new Set((cfg.dueLeadMin || []).map(Number).filter((x) => x > 0))].sort((a, b) => b - a)) {
         add(new Date(due.getTime() - m * 60000), `due-${m}`, `Due in ${leadText(m)} · ${clock(due)}`, name);       // a warning: never an alarm
@@ -892,7 +898,7 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
     }
     // Still open on a later day: it rings again at the same time every day until it is done (a task due
     // yesterday at 15:00 rings today at 15:00, tomorrow at 15:00...). A date-only entry rings at the morning time.
-    if (cfg.followUps !== false) {
+    if (cfg.followUps !== false && !isDateOnly(due)) {
       const wasDue = due.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
       for (let k = 1; k <= DAILY_REMINDER_DAYS; k++) {
         const day = dayShift(due, k);
