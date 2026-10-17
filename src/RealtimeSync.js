@@ -12,6 +12,7 @@ import { setRealtimeStatus, useRealtimeStatus } from './realtimeStatus';
 import { forAccount } from './account';
 import { planFormatSetup, effectiveFormats } from './reportFormats';
 import { paymentLists } from './workingDashboardPayments';
+import { warnQuiet } from './quietCatch';
 
 const PUSH_DELAY_MS = 700;        // after the last change: one tap on Done reaches the web app in about a second
 const RETRY_MS = 15000;           // a push that failed (no signal) is tried again
@@ -104,12 +105,12 @@ export default function RealtimeSync() {
       if (now - lastInput > IDLE) return;                       // idle: no note, the phone's copy expires by itself
       if (!force && now - lastSent < 50000) return;
       lastSent = now;
-      pushPresence(signedUid, { webActiveAt: now, lastInputAt: lastInput }).catch(() => {});
+      pushPresence(signedUid, { webActiveAt: now, lastInputAt: lastInput }).catch(warnQuiet('pushPresence'));
     };
     const onInput = () => { const idleBefore = Date.now() - lastInput > 60000; lastInput = Date.now(); if (idleBefore) send(true); };
     const events = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'];
     events.forEach((ev) => globalThis.addEventListener(ev, onInput, { passive: true }));
-    const onHide = () => { pushPresence(signedUid, { webActiveAt: 0, lastInputAt: 0 }).catch(() => {}); };
+    const onHide = () => { pushPresence(signedUid, { webActiveAt: 0, lastInputAt: 0 }).catch(warnQuiet('pushPresence')); };
     globalThis.addEventListener('pagehide', onHide);
     send(true);
     const timer = setInterval(() => send(false), 60000);

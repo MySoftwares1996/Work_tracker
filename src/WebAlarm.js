@@ -11,6 +11,7 @@ import { scheduleEntryAlert, snoozeEntryAlert } from './workingDashboardNotify';
 import { handleWdAction } from './workingDashboardActions';
 import { SOURCES } from './optionSources';
 import { DateTimeField, PickerButton, Choices } from './ui';
+import { warnQuiet } from './quietCatch';
 
 /** The seven looks of the web.app alarm window, chosen in Config > Alerts > Alarm style (alerts.webAlarmStyle). */
 export const WEB_ALARM_STYLES = [
@@ -103,7 +104,7 @@ export default function WebAlarmHost({ onOpen }) {
     silence: (id, remark) => {
       const e = live(id); if (!e) return;
       edit(id, (x) => silenceEntryToday(withRemark(x, remark)));
-      snoozeEntryAlert(e, tone, silenceMinutes(new Date(), alerts.morning), wd.alerts).catch(() => {});
+      snoozeEntryAlert(e, tone, silenceMinutes(new Date(), alerts.morning), wd.alerts).catch(warnQuiet('snoozeEntryAlert'));
       answered(id);
     },
     skip: (id, remark) => {
@@ -111,21 +112,21 @@ export default function WebAlarmHost({ onOpen }) {
       const r = skipOccurrence(withRemark(e, remark), entries);
       if (!r) return;
       edit(id, () => r.skipped);
-      scheduleEntryAlert(r.skipped, tone, wd.alerts).catch(() => {});
+      scheduleEntryAlert(r.skipped, tone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
       answered(id);
     },
     snooze: (id, remark, mins) => {
       const e = live(id); if (!e) return;
       const n = Number(mins) || 15;
       edit(id, (x) => snoozeEntry(withRemark(x, remark), Date.now() + n * 60000));
-      snoozeEntryAlert(e, tone, n, wd.alerts).catch(() => {});
+      snoozeEntryAlert(e, tone, n, wd.alerts).catch(warnQuiet('snoozeEntryAlert'));
       answered(id);
     },
     move: (id, remark, iso) => {
       const e = live(id); if (!e || !iso) return;
       const next = moveEntry(withRemark(e, remark), iso);
       edit(id, () => next);
-      scheduleEntryAlert(next, tone, wd.alerts).catch(() => {});
+      scheduleEntryAlert(next, tone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
       if (new Date(iso) > new Date()) answered(id);
     },
     status: (id, status) => {

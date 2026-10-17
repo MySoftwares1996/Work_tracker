@@ -18,6 +18,7 @@ import { cancelEntryAlert, snoozeEntryAlert, scheduleEntryAlert, syncEntryAlerts
 import { stopAlarmRinging } from './tracker';
 import { pullSheetEntries, mergeSheetPull, isValidScriptUrl, fromWebDocOver } from './cloudSync';
 import { mergeRemoteEntries, applyRemovedIds } from './firebaseSyncCore';
+import { warnQuiet } from './quietCatch';
 
 const WD_SLICE = SLICES.find((s) => s.read({ workingDashboard: { entries: 'x' } }) === 'x');
 
@@ -45,7 +46,7 @@ async function changeEntries(change) {
     await writeStored([[WD_SLICE.key, JSON.stringify(next)]]);
     // With the app closed, send the change to the web app now - it used to wait for the app to be opened,
     // so the web app kept alarming for a task already done or snoozed on the phone.
-    import('./firebaseSync').then((m) => m.pushIfSignedIn && m.pushIfSignedIn(next, wd.accountUid)).catch(() => {});
+    import('./firebaseSync').then((m) => m.pushIfSignedIn && m.pushIfSignedIn(next, wd.accountUid)).catch(warnQuiet('pushIfSignedIn'));
   }
 }
 
@@ -66,7 +67,7 @@ export async function completeWdEntry(entryId, { dar = false } = {}) {
     return [...(rolled ? [rolled] : []), ...entries.map((x) => (String(x.id) === id ? completeEntry({ ...x, dar }) : x))];
   });
   await cancelEntryAlert(id).catch(() => {});
-  if (rolled) await scheduleEntryAlert(rolled, ringtone, wd.alerts).catch(() => {});
+  if (rolled) await scheduleEntryAlert(rolled, ringtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
   redrawWidgets();
 }
 
@@ -99,7 +100,7 @@ export async function setWdAlertMode(entryId, mode) {
   if (!e || !isOpen(e)) { await cancelEntryAlert(id).catch(() => {}); return; }
   const next = { ...e, alertMode: mode, ...editedNow() };
   await changeEntries((entries) => entries.map((x) => (String(x.id) === id ? { ...x, alertMode: mode, ...editedNow() } : x)));
-  await scheduleEntryAlert(next, wd.alarmRingtone || 'chime', wd.alerts).catch(() => {});
+  await scheduleEntryAlert(next, wd.alarmRingtone || 'chime', wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
 }
 
 /**

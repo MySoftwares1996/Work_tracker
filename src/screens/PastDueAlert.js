@@ -14,6 +14,7 @@ import { scheduleEntryAlert, cancelEntryAlert, snoozeEntryAlert, entryIdOfAlarm 
 import { stopAlarmRinging } from '../tracker';
 import { blankEntry, withStatus } from '../workingDashboard';
 import { addAudit } from '../audit';
+import { warnQuiet } from '../quietCatch';
 
 const SNOOZES = [15, 30, 45, 60, 120, 180, 240, 300];      // 15, 30, 45 min, 1, 2, 3, 4, 5 hr
 const snoozeShort = (m) => (m >= 60 ? `${m / 60}h` : `${m}m`);
@@ -161,14 +162,14 @@ export default function PastDueAlert() {
     const rolled = nextRecurringEntry(marked, wd.entries || [], new Date(), { holidays: normalizeHolidays(wd.holidays), leaveDays: normalizeLeaveDays(wd.leaveDays) });
     update((db) => ({ ...db, workingDashboard: { ...db.workingDashboard, entries: [...(rolled ? [rolled] : []), ...db.workingDashboard.entries.map((x) => (x.id === e.id ? { ...completeEntry(marked), audit: addAudit(e.audit, dar ? 'Marked done + DAR (alert)' : 'Marked done (alert)', 'phone') } : x))] } }));
     fx.cancelEntryAlert(e.id).catch(() => {});
-    if (rolled) fx.scheduleEntryAlert(rolled, ring, wd.alerts).catch(() => {});
+    if (rolled) fx.scheduleEntryAlert(rolled, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     hide(e.id);
   };
   const silence = (shown) => {
     const e = live(shown);
     // Quiet for the rest of today: its alerts are held back until tomorrow's morning time, then it rings as usual.
     // Saved on the entry in the web app's own field (lastAckDate), so the web app stops alarming too.
-    fx.snoozeEntryAlert(e, ring, silenceMinutes(new Date(), alerts.morning), wd.alerts).catch(() => {}).then(() => edit(e.id, (x) => silenceEntryToday(withRemark(x, remarks[e.id]))));
+    fx.snoozeEntryAlert(e, ring, silenceMinutes(new Date(), alerts.morning), wd.alerts).catch(warnQuiet('snoozeEntryAlert')).then(() => edit(e.id, (x) => silenceEntryToday(withRemark(x, remarks[e.id]))));
     hide(e.id);
   };
   const snooze = (shown, minutes) => {
@@ -176,7 +177,7 @@ export default function PastDueAlert() {
     const e = live(shown);
     // snoozeUntil is the web app's own field: the web app stops alarming until then too.
     edit(e.id, (x) => ({ ...snoozeEntry(withRemark(x, remarks[e.id]), Date.now() + n * 60000), audit: addAudit(x.audit, `Snoozed for ${n >= 60 ? `${n / 60} h` : `${n} min`} (alert)`, 'phone') }));
-    fx.snoozeEntryAlert(e, ring, n, wd.alerts).catch(() => {});
+    fx.snoozeEntryAlert(e, ring, n, wd.alerts).catch(warnQuiet('snoozeEntryAlert'));
     hide(e.id);
   };
   const skip = (shown) => {
@@ -185,14 +186,14 @@ export default function PastDueAlert() {
     if (!r) return;
     update((db) => ({ ...db, workingDashboard: { ...db.workingDashboard, entries: db.workingDashboard.entries.map((x) => (x.id === e.id ? { ...r.skipped, audit: addAudit(x.audit, 'Skipped today (alert)', 'phone') } : x)) } }));
     // Still open: silenced for today, its alerts carry on from tomorrow.
-    fx.scheduleEntryAlert(r.skipped, ring, wd.alerts).catch(() => {});
+    fx.scheduleEntryAlert(r.skipped, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     hide(e.id);
   };
   const move = (shown, iso) => {
     const e = live(shown);
     const next = { ...moveEntry(withRemark(e, remarks[e.id]), iso), audit: addAudit(e.audit, 'Moved to a new date (alert)', 'phone') };
     edit(e.id, () => next);
-    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(() => {});
+    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     fx.stopAlarmRinging(`wd:${e.id}:`).catch(() => {});
     if (new Date(iso) > new Date()) hide(e.id);
   };
@@ -202,7 +203,7 @@ export default function PastDueAlert() {
     const mode = alertModeOf(e, wd.alerts) === 'alarm' ? 'gentle' : 'alarm';
     const next = { ...e, alertMode: mode, ...editedNow() };
     edit(e.id, (x) => ({ ...x, alertMode: mode, ...editedNow() }));
-    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(() => {});
+    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     if (mode === 'gentle') fx.stopAlarmRinging(`wd:${e.id}:`).catch(() => {});
   };
   const postpone = (shown) => move(shown, postponeDue(live(shown), wd.holidays, wd.leaveDays));
@@ -324,7 +325,7 @@ export default function PastDueAlert() {
                     <Text style={{ color: G.dim, fontWeight: '700', fontSize: t.fs(12), letterSpacing: 0.5, marginTop: 16, marginBottom: 6 }}>NEXT REMINDER</Text>
                     <View style={{ backgroundColor: G.paper, borderRadius: 12, padding: 10 }}>
                       <DateTimeField clearable value={nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt} onChange={(v) => setNextRem((m) => ({ ...m, [e.id]: v || '' }))} />
-                      <Btn title="Set reminder" onPress={() => { const iso = nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt; const next = { ...live(entry), nextReminderAt: iso || null }; edit(e.id, () => next); fx.scheduleEntryAlert(next, ring, wd.alerts).catch(() => {}); }} />
+                      <Btn title="Set reminder" onPress={() => { const iso = nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt; const next = { ...live(entry), nextReminderAt: iso || null }; edit(e.id, () => next); fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert')); }} />
                     </View>
                   </>
                 )}

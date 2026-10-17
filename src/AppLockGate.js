@@ -75,6 +75,9 @@ export default function AppLockGate({ children }) {
     setPhase('open');
   };
 
+  // "Skip for now": no PIN. The lock can be turned on again from More > App lock.
+  const skipSetup = () => { update({ settings: { appLock: { enabled: false, biometric: false, setupDone: true } } }); setPhase('open'); };
+
   const cover = phase !== 'open';
 
   // While the lock covers the screens, Android's back button must not move them underneath.
@@ -90,7 +93,7 @@ export default function AppLockGate({ children }) {
       {cover && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: t.bg }]}>
           {phase === 'locked' && <LockScreen name={data.profile?.displayName} biometricOn={!!lock.biometric} onUnlock={() => setPhase('open')} />}
-          {phase === 'setup' && <LockSetup onDone={finishSetup} />}
+          {phase === 'setup' && <LockSetup onDone={finishSetup} onSkip={skipSetup} />}
         </View>
       )}
     </View>
@@ -235,7 +238,7 @@ function LockScreen({ name, biometricOn, onUnlock }) {
 }
 
 /** First launch: create a PIN, confirm it, then offer fingerprint / face unlock. */
-function LockSetup({ onDone }) {
+function LockSetup({ onDone, onSkip }) {
   const t = useTheme();
   const [step, setStep] = useState('create');      // create | confirm | biometric
   const [first, setFirst] = useState('');
@@ -256,7 +259,7 @@ function LockSetup({ onDone }) {
 
   const enableBiometric = async () => {
     if (await authenticateWithBiometric()) onDone({ pin: first, biometric: true });
-    else Alert.alert('Not turned on', 'Fingerprint / face was not confirmed. You can turn it on later in Settings → App lock.');
+    else Alert.alert('Not turned on', 'Fingerprint / face was not confirmed. You can turn it on later in More → App lock.');
   };
 
   if (step === 'biometric') {
@@ -295,6 +298,7 @@ function LockSetup({ onDone }) {
           onPress={() => { setFirst(pin); setPinText(''); setStep('confirm'); }}
         />
       )}
+      {step === 'create' && !!onSkip && <Btn style={{ marginTop: 8, alignSelf: 'stretch' }} kind="soft" title="Skip for now" onPress={onSkip} />}
     </SafeAreaView>
   );
 }

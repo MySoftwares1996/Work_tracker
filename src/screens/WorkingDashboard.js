@@ -11,6 +11,8 @@ import { useStore, uid } from '../store';
 import { shareCsv } from '../csv';
 
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
+import { clearPin } from '../appLock';
+import { warnQuiet } from '../quietCatch';
 import { seenWebFields } from '../cloudSync';
 import { useRealtimeStatus, setRealtimeStatus } from '../realtimeStatus';
 import { signInWithGoogle, signOutOfGoogle } from '../firebaseSync';
@@ -422,8 +424,8 @@ export default function WorkingDashboard() {
       const memory = row.narration?.typeName && row.category ? { narrationByCategory: { ...(w.narrationByCategory || {}), [row.category]: row.narration.typeName } } : {};
       return pushLog({ ...w, ...memory, entries: rolled ? [rolled, ...next] : next }, isNew ? 'Logged' : 'Edited', row.title);
     });
-    scheduleEntryAlert(row, wd.alarmRingtone, wd.alerts).catch(() => {});
-    if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(() => {});
+    scheduleEntryAlert(row, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     closeEntrySheet();
   };
 
@@ -449,7 +451,7 @@ export default function WorkingDashboard() {
       deletedIds: [...new Set([...(w.deletedIds || []), ...u.addedIds])],
     }, 'Undone', u.message));
     u.addedIds.forEach((id) => cancelEntryAlert(id).catch(() => {}));
-    u.before.forEach((e) => { if (isOpen(e)) scheduleEntryAlert(e, wd.alarmRingtone, wd.alerts).catch(() => {}); else cancelEntryAlert(e.id).catch(() => {}); });
+    u.before.forEach((e) => { if (isOpen(e)) scheduleEntryAlert(e, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert')); else cancelEntryAlert(e.id).catch(() => {}); });
   };
 
   const act = (shown, kind, opts = {}) => {
@@ -489,8 +491,8 @@ export default function WorkingDashboard() {
     updateWd((w) => pushLog({ ...w, entries: [...(rolled ? [rolled] : []), ...w.entries.map((x) => (x.id === entry.id ? (() => { const r = pick(x); return { ...r, audit: addAudit(x.audit, ACTION_AUDIT[kind] || label, Platform.OS === 'web' ? 'web' : 'phone') }; })() : x))] }, label, entry.title));
     offerUndo(`${label} “${entry.title}”`, [entry], rolled ? [rolled.id] : []);
     if (kind === 'complete' || kind === 'bin') cancelEntryAlert(entry.id).catch(() => {});
-    if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(() => {});
-    else if (kind === 'reopen') scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(() => {});
+    if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    else if (kind === 'reopen') scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
   };
 
   /** A card's 📞 (bank follow-ups, phone width): today's banker update and the next follow-up date. */
@@ -505,7 +507,7 @@ export default function WorkingDashboard() {
     const item = { remarks: f.remarks, next: f.next, bank: f.bank, banker: f.banker };
     const applied = addBankFollowUp(entry, item, new Date());
     updateWd((w) => pushLog({ ...w, entries: w.entries.map((x) => (x.id === entry.id ? addBankFollowUp(x, item, new Date()) : x)) }, 'Followed up', entry.title));
-    scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(() => {});
+    scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     setFollowSheet(null);
   };
 
@@ -515,7 +517,7 @@ export default function WorkingDashboard() {
     const entry = entriesRef.current.find((x) => x.id === shown.id) || shown;
     const next = { ...entry, alertMode: alertModeOf(entry, wd.alerts) === 'alarm' ? 'gentle' : 'alarm', ...editedNow() };
     updateWd((w) => ({ ...w, entries: w.entries.map((x) => (x.id === entry.id ? { ...x, alertMode: next.alertMode, ...editedNow() } : x)) }));
-    scheduleEntryAlert(next, wd.alarmRingtone, wd.alerts).catch(() => {});
+    scheduleEntryAlert(next, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
   };
 
   const toggleDar = (shown) => {
@@ -589,7 +591,7 @@ export default function WorkingDashboard() {
     const byId = new Map(res.moved.map((m) => [m.entry.id, m.entry]));
     const before = entriesRef.current.filter((x) => byId.has(x.id));
     updateWd((w) => ({ ...w, entries: (w.entries || []).map((x) => byId.get(x.id) || x) }));
-    res.moved.forEach((m) => scheduleEntryAlert(m.entry, wd.alarmRingtone, wd.alerts).catch(() => {}));
+    res.moved.forEach((m) => scheduleEntryAlert(m.entry, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert')));
     const m = res.moved[0];
     offerUndo(res.moved.length === 1 ? `“${m.entry.title}” (daily) skipped for ${fmtDate(m.off)} - next on ${fmtDate(m.next)}` : `${res.moved.length} daily tasks skipped for ${fmtDate(m.off)} - next on ${fmtDate(m.next)}`, before);
   }, [holidayList, leaveList]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -629,7 +631,7 @@ export default function WorkingDashboard() {
   };
   const ignoreEmail = (email) => {
     setEmails((list) => list.filter((e) => e.id !== email.id));
-    markEmailRead(wd.cloudSyncUrl, email.id).catch(() => {});
+    markEmailRead(wd.cloudSyncUrl, email.id).catch(warnQuiet('markEmailRead'));
   };
   const addTaskFromEmail = async (email) => {
     closeMail();
@@ -1934,7 +1936,15 @@ export default function WorkingDashboard() {
               <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
             </Group>
             <Group title="Settings">
-              <Item icon="⚙️" color={t.textDim} label="Config" onPress={() => setTab('config')} last />
+              <Item icon="⚙️" color={t.textDim} label="Config" onPress={() => setTab('config')} />
+              {Platform.OS !== 'web' && <Item icon="🔒" color={t.accent} label="App lock" value={data.settings?.appLock?.enabled ? 'On' : 'Off'} last onPress={() => {
+                if (data.settings?.appLock?.enabled) {
+                  Alert.alert('App lock', 'Turn the PIN lock off?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Turn off', style: 'destructive', onPress: async () => { try { await clearPin(); } catch (e) { /* secure storage refused: the lock still goes off */ } update({ settings: { appLock: { enabled: false, biometric: false, setupDone: true } } }); } },
+                  ]);
+                } else update({ settings: { appLock: { enabled: false, biometric: false, setupDone: false } } });   // the lock gate asks for a PIN again
+              }} />}
             </Group>
             {(() => {
               // The phone's own updates: whether this build can receive them, which version is running, and a button to look now (always here).
