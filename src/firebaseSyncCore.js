@@ -67,6 +67,83 @@ export function mergeRemoteEntries(localEntries = [], incomingDocs = [], tombsto
   return { entries: [...byId.values()], added, updated };
 }
 
+/* ---------- field-level push (what changed since this phone last synced the entry) ---------- */
+
+/** Where the per-account acknowledgement map and the per-entry field snapshot are kept. */
+export const ackKey = (uid) => `MPT_RT_ACK_${uid}`;
+export const snapKey = (uid) => `MPT_RT_SNAP_${uid}`;
+
+// A short stable fingerprint of one field value (djb2 over its JSON), so the snapshot stays small.
+function stable(v) {
+  if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
+  if (v && typeof v === 'object') return `{${Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => `${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
+  return JSON.stringify(v === undefined ? null : v) || 'null';
+}
+function fieldHash(v) {
+  const str = stable(v);
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(36) + str.length.toString(36);
+}
+
+// A missing field and an empty/false one are the same to the web app: neither counts as a change.
+const NULLISH_KEYS = new Set(['deleted', 'purged', 'dateDeleted', 'completedAt', 'completedDate', 'snoozeUntil', 'snoozeCount', 'lastAckDate', 'deadlineAckDate', 'nextReminderAt']);
+function normField(k, v) {
+  if (v === undefined || v === null) return NULLISH_KEYS.has(k) ? 0 : null;
+  if (NULLISH_KEYS.has(k) && (v === false || v === '' || v === 0)) return 0;
+  return v;
+}
+
+/** { field: fingerprint } of a task document (the web app's field names) - what the server holds for it. */
+export function docHashes(doc = {}) {
+  const out = {};
+  Object.keys(doc || {}).forEach((k) => { out[k] = fieldHash(normField(k, doc[k])); });
+  return out;
+}
+
+/**
+ * The fields of `fullDoc` to write: only those that differ from `prevHashes`, what this phone last sent or
+ * received for the entry. `id` and `updatedAt` always go, and `purged` never does once the entry is known (a
+ * phone that was offline must not undo a delete-forever, or a bin, made on the web app meanwhile). With no
+ * snapshot (a new entry, or one first seen before snapshots existed) everything is sent, as before.
+ */
+export function diffWebDoc(fullDoc = {}, prevHashes = null) {
+  if (!prevHashes || typeof prevHashes !== 'object') return fullDoc;
+  const out = {};
+  Object.keys(fullDoc).forEach((k) => {
+    if (k === 'id' || k === 'updatedAt') { out[k] = fullDoc[k]; return; }
+    if (k === 'purged') return;
+    if (prevHashes[k] !== fieldHash(normField(k, fullDoc[k]))) out[k] = fullDoc[k];
+  });
+  return out;
+}
+
+/** Runs read-modify-write jobs for one key one after another, each on the freshly loaded value (no lost updates). */
+export function createMutator(load, save) {
+  const chains = new Map();
+  return (key, fn) => {
+    const run = (chains.get(key) || Promise.resolve()).then(async () => {
+      const next = fn(await load(key));
+      if (next !== undefined) await save(key, next);
+      return next;
+    });
+    chains.set(key, run.catch(() => {}));
+    return run;
+  };
+}
+
+/** Rejects with `message` after `ms` unless `promise` settled first; the promise itself is left running (a queued offline write stays queued). */
+export function raceTimeout(promise, ms, message = 'offline - will retry') {
+  let timer;
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Tool items (links, templates...) whose stamp here is newer than the last one sent or received. */
+export function dirtyToolKeys(stamps = {}, sent = {}, keys = Object.keys(stamps || {})) {
+  return keys.filter((k) => (Number(stamps && stamps[k]) || 0) > (Number(sent && sent[k]) || 0));
+}
+
 /** A removed/deleted Firestore doc id list applied as local deletions. */
 export function applyRemovedIds(entries = [], removedIds = []) {
   if (!removedIds.length) return { entries, removed: 0 };

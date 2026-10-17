@@ -439,8 +439,9 @@ export function buildPeriodSummary({ entries = [], kind = 'week', date, lists = 
   const inRange = (k) => !!k && k >= from && k <= to;
   const live = entries.filter((e) => e && !e.binned && !e.purged && !isSkippedPaymentCategory(e.category));
   const completed = live.filter((e) => e.done && inRange(completedOn(e)));
-  // The same rule as the daily report's Payments section (Duty and Import payments are not in it).
-  const payments = completed.filter((e) => isPaymentEntry(e, lists)).length;
+  // The daily report's rule: Duty and Import payments are not counted as payments (they have their own wording and section).
+  const isPay = (e) => isPaymentEntry(e, lists) || (isPaymentCategory(e.category) && !isDutyPaymentEntry(e, lists) && !isImportPaymentCategory(e.category));
+  const payments = completed.filter(isPay).length;
   const cats = {};
   completed.forEach((e) => { const c = e.category || 'Uncategorised'; cats[c] = (cats[c] || 0) + 1; });
   const byCategory = Object.entries(cats).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -456,7 +457,7 @@ export function buildPeriodSummary({ entries = [], kind = 'week', date, lists = 
     `Completed: ${completed.length} (payments ${payments}, other work ${completed.length - payments})`,
   ];
   // The amounts written on the payments (Key Points), added up.
-  const paid = completed.filter((e) => isPaymentEntry(e, lists)).map(entryAmount);
+  const paid = completed.filter(isPay).map(entryAmount);
   const paymentTotal = paid.reduce((a, n) => a + n, 0);
   const withAmount = paid.filter((n) => n > 0).length;
   if (paymentTotal > 0) lines.push(`Payments total: ${fmtRupees(paymentTotal)}${withAmount < payments ? ` (${withAmount} of ${payments} payments had an amount)` : ''}`);

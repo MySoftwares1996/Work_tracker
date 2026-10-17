@@ -364,7 +364,7 @@ export default function WorkingDashboard() {
     // A bank follow-up written in the form (phone width): logged for today, due again on the next date.
     if (isBankFollowUpCategory(row.category) && String(followUpDraft?.remarks || '').trim()) {
       const was = lastWho(prev || row);
-      row = addBankFollowUp(row, { remarks: followUpDraft.remarks, bank: followUpDraft.bank ?? was.bank, banker: followUpDraft.banker ?? was.banker, next: row.done ? null : (followUpDraft.next || defaultNextFollowUp(prev || row, now, offDays)) }, now);
+      row = addBankFollowUp(row, { statuses: wd.statuses, remarks: followUpDraft.remarks, bank: followUpDraft.bank ?? was.bank, banker: followUpDraft.banker ?? was.banker, next: row.done ? null : (followUpDraft.next || defaultNextFollowUp(prev || row, now, offDays)) }, now);
     }
     // Audit trail: what this save changed, and from which device.
     row = { ...row, audit: addAudit(prev ? prev.audit : [], auditDiff(prev || null, row), Platform.OS === 'web' ? 'web' : 'phone', now.getTime()) };
@@ -519,7 +519,7 @@ export default function WorkingDashboard() {
     const entry = entriesRef.current.find((x) => x.id === f.id);
     if (!entry) { setFollowSheet(null); return; }
     if (!String(f.remarks || '').trim()) { Alert.alert("Enter the banker's remarks / update"); return; }
-    const item = { remarks: f.remarks, next: f.next, bank: f.bank, banker: f.banker };
+    const item = { remarks: f.remarks, next: f.next, bank: f.bank, banker: f.banker, statuses: wd.statuses };
     const applied = addBankFollowUp(entry, item, new Date());
     updateWd((w) => pushLog({ ...w, entries: w.entries.map((x) => (x.id === entry.id ? addBankFollowUp(x, item, new Date()) : x)) }, 'Followed up', entry.title));
     scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
