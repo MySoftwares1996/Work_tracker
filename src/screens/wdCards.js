@@ -3,14 +3,14 @@
  * split out of WorkingDashboard.js. Pure presentation: they get everything through props.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Alert, Pressable, Platform, Animated, Easing } from 'react-native';
+import { View, Text, Alert, Pressable, Platform, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Swipeable } from 'react-native-gesture-handler';
-import { useLayout, FadeInUp, AnimatedNumber, Card, Small, Btn, Row, prefersReducedMotion } from '../ui';
+import { useLayout, FadeInUp, AnimatedNumber, Card, Small, Row, prefersReducedMotion } from '../ui';
 import { useTheme, blend } from '../theme';
 import { checklistText } from '../checklist';
 import { recordNarration } from '../narrationHistory';
-import { isBankFollowUpCategory, followUpAgeText, isLongPending, LONG_PENDING_DAYS } from '../bankFollowUp';
+import { isBankFollowUpCategory, followUpAgeText } from '../bankFollowUp';
 import { recurrenceLabel, isOverdue, completedTime, isSkippedToday } from '../workingDashboard';
 
 // A bare "YYYY-MM-DD" (holidays, leave days) is that day locally; new Date() would read it as UTC midnight.
@@ -50,7 +50,7 @@ export function StatTile({ label, value, sub, color, onPress, index = 0 }) {
 }
 
 export const PRIORITY_COLOR = { High: 'danger', Medium: 'warn', Low: 'ok' };
-export const HHMM = /^([01]?\d|2[0-3]):[0-5]\d$/;
+
 export const isMidnight = (d) => d.getHours() === 0 && d.getMinutes() === 0;
 /** "3 Sept", or "21 Sept · 12:03 PM" when the entry has a real time. */
 export const fmtDue = (iso) => {
@@ -101,21 +101,6 @@ export function RoundBtn({ icon, label, onPress, color, solid, a11y }) {
       </Pressable>
     </Animated.View>
   );
-}
-
-/**
- * "Both" (phone-width screens): a card that leaves its list - completed, reopened, binned - slides away and fades
- * before the change is made, so you see it go. Returns [style, leave(fn)]. If the card is still there afterwards
- * (the change was refused, e.g. a Sub Category is needed first), it comes back.
- */
-export function useLeaveAnimation() {
-  const v = useRef(new Animated.Value(1)).current;
-  const leave = (fn) => {
-    if (prefersReducedMotion()) { fn(); return; }
-    Animated.timing(v, { toValue: 0, duration: 240, easing: Easing.in(Easing.cubic), useNativeDriver: Platform.OS !== 'web' }).start(() => { fn(); v.setValue(1); });
-  };
-  const style = { opacity: v, transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [48, 0] }) }, { scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] };
-  return [style, leave];
 }
 
 /*
@@ -257,148 +242,6 @@ export function EntryRow({ entry, mode = 'open', onPress, onToggleDar, onAct, ri
   return row;
 }
 
-/**
- * "Both" (the APK and the website on a phone): a Register card as the web app draws it - the task with its status
- * beside it, priority / category / person chips, the mail chain (a tap copies it and opens the task), the due date
- * (red with ⚠ once overdue) and the actions. Overdue cards are tinted.
- */
-export function OpenCard({ entry, onOpen, onToggleDar, onComplete, ring, onToggleAlert, narration, onFollowUp, onEscalate }) {
-  const t = useTheme();
-  const [leaveStyle, leave] = useLeaveAnimation();
-  const [ticked, setTicked] = useState(false);      // ✓ fills green for a moment as the card leaves
-  const due = entry.dueAt ? new Date(entry.dueAt) : null;
-  const overdue = isOverdue(entry);
-  const pc = t[PRIORITY_COLOR[entry.priority]] || t.textDim;
-  const sc = statusColor(t, entry.status);
-  const recur = entry.recurrence && entry.recurrence !== 'none' ? recurrenceLabel(entry) : null;
-  const chip = (text, color, key) => (
-    <View key={key} style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: (color || t.textDim) + '1A', borderWidth: color ? 1 : 0, borderColor: (color || t.textDim) + '40' }}>
-      <Text style={{ color: color || t.textDim, fontSize: t.fs(12.5), fontWeight: color ? '600' : '500' }} numberOfLines={1}>{text}</Text>
-    </View>
-  );
-  return (
-    <Animated.View style={leaveStyle}>
-    <Pressable onPress={onOpen} style={({ pressed, hovered }) => ({ marginBottom: 10, transform: [{ scale: pressed ? 0.985 : 1 }, { translateY: hovered && Platform.OS === 'web' ? -2 : 0 }], transitionProperty: 'transform', transitionDuration: '180ms' })}>
-      <View style={{ backgroundColor: overdue ? blend(t.danger, 0.06, t.surface) : t.surface, borderRadius: t.frosted ? 14 : 16, padding: 14, borderLeftWidth: t.frosted ? 0 : 4, borderLeftColor: pc, borderWidth: 0.5, borderColor: overdue ? t.danger + '55' : t.border, ...t.shadow }}>
-        <Row style={{ alignItems: 'flex-start', gap: 8 }}>
-          {t.frosted && <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: pc, marginTop: 6 }} />}
-          <Text style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(16), lineHeight: t.fs(21) }} numberOfLines={2}>{entry.title}</Text>
-          {!!entry.status && (sc ? (
-            <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: sc + '1F' }}>
-              <Text style={{ color: sc, fontWeight: '700', fontSize: t.fs(12) }} numberOfLines={1}>{entry.status}</Text>
-            </View>
-          ) : <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(12.5), maxWidth: '40%' }} numberOfLines={2}>{entry.status}</Text>)}
-        </Row>
-        <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-          {!!entry.priority && chip(entry.priority, null, 'p')}
-          {!!entry.category && chip(entry.category, t.accent, 'c')}
-          {!!recur && chip(`↻ ${recur}`, t.purple, 'r')}
-          {!!entry.pendingWith && chip(entry.pendingWith, null, 'w')}
-          {!!checklistText(entry) && chip(`☑ ${checklistText(entry)}`, null, 'ck')}
-          {!!(entry.attachments || []).length && chip(`📎 ${entry.attachments.length}`, null, 'att')}
-          {/* A bank follow-up runs for weeks: how long it has been open, and how many times it was followed up. */}
-          {isBankFollowUpCategory(entry.category) && chip(`📞 ${followUpAgeText(entry)}`, t.warn, 'age')}
-          {isBankFollowUpCategory(entry.category) && isLongPending(entry) && chip(`⚠ Long pending (${LONG_PENDING_DAYS}+ days)`, t.danger, 'long')}
-        </Row>
-        {/* Open 15+ days and not High: offered once - raise to High and put "Escalated to manager" in today's report. */}
-        {!!onEscalate && (
-          <View style={{ marginTop: 8, padding: 10, borderRadius: 12, backgroundColor: t.danger + '12', borderWidth: 1, borderColor: t.danger + '40' }}>
-            <Text style={{ color: t.text, fontSize: t.fs(13), fontWeight: '700', marginBottom: 8 }}>Open {LONG_PENDING_DAYS}+ days. Escalate to your manager? (raises it to High)</Text>
-            <Row gap={8}>
-              <Btn style={{ flex: 1 }} kind="soft" title="Not now" onPress={() => onEscalate(false)} />
-              <Btn style={{ flex: 2 }} kind="danger" title="Escalate · High" onPress={() => onEscalate(true)} />
-            </Row>
-          </View>
-        )}
-        {!!entry.reference && (
-          <Pressable onPress={async () => { await Clipboard.setStringAsync(entry.reference); onOpen(); }} hitSlop={6} accessibilityLabel="Copy the mail chain and open the task"
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: t.accent + '14', alignSelf: 'stretch' }}>
-            <Text style={{ color: t.accent, fontSize: t.fs(12) }}>⧉</Text>
-            <Text style={{ flex: 1, color: t.accent, fontSize: t.fs(13) }} numberOfLines={1}>{entry.reference}</Text>
-          </Pressable>
-        )}
-        {(!!narration || isSkippedToday(entry)) && (
-          <Row style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            {!!narration && (
-              <Pressable onPress={async () => { await Clipboard.setStringAsync(narration); recordNarration(narration); Alert.alert('Copied', 'Narration copied - paste it into Tally.'); }} hitSlop={6} accessibilityLabel="Copy narration"
-                style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: t.ok + '1A' }}>
-                <Text style={{ color: t.ok, fontSize: t.fs(12), fontWeight: '700' }}>⧉ Narration</Text>
-              </Pressable>
-            )}
-            {isSkippedToday(entry) && (
-              <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: t.warn + '1F' }}>
-                <Text style={{ color: t.warn, fontSize: t.fs(12), fontWeight: '700' }}>Skipped today</Text>
-              </View>
-            )}
-          </Row>
-        )}
-        <Row style={{ alignItems: 'center', gap: 8, marginTop: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <Text style={{ flex: 1, minWidth: 90, textAlign: 'right', color: overdue ? t.danger : due ? t.text : t.textDim, fontWeight: '800', fontSize: t.fs(14) }} numberOfLines={1}>
-            {due ? `${overdue ? '⚠ ' : '⏰ '}${fmtDue(entry.dueAt)}` : 'No due date'}
-          </Text>
-          {!!onToggleAlert && <RoundBtn icon={ring ? '🔔' : '🔕'} a11y={ring ? 'Rings as an alarm - tap for a plain reminder' : 'Plain reminder - tap to ring as an alarm'} color={ring ? t.warn : t.textDim} onPress={onToggleAlert} />}
-          {Platform.OS === 'web' && <RoundBtn icon="✎" a11y="Edit" onPress={onOpen} />}
-          {!!onFollowUp && <RoundBtn icon="📞" a11y="Bank follow-up: banker's update and the next follow-up date" color={t.accent} onPress={onFollowUp} />}
-          {WEB_DAR
-            ? <RoundBtn label="DAR" a11y="Complete, and add to the daily report" color={t.ok} onPress={() => { setTicked(true); leave(() => { setTicked(false); onComplete({ dar: true }); }); }} />
-            : <RoundBtn label="DAR" icon={entry.dar !== false ? '✓' : ''} a11y={entry.dar !== false ? 'In the daily report - tap for "Done" only' : 'Add to the daily report'} color={t.ok} solid={entry.dar !== false} onPress={onToggleDar} />}
-          <RoundBtn icon="✓" a11y={WEB_DAR ? 'Complete - not in the daily report' : 'Complete'} color={t.ok} solid={ticked && !WEB_DAR} onPress={() => { setTicked(true); leave(() => { setTicked(false); onComplete(WEB_DAR ? { dar: false } : undefined); }); }} />
-        </Row>
-      </View>
-    </Pressable>
-    </Animated.View>
-  );
-}
-
-/**
- * "Both" (the APK and the website on a phone): a Completed card as the web app draws it - the task, its priority,
- * category, repeat and person as chips, the mail chain (a tap copies it and opens the task), when it was completed,
- * and copy narration / reopen / bin.
- */
-export function DoneCard({ entry, onOpen, onReopen, onBin, narration }) {
-  const t = useTheme();
-  const [leaveStyle, leave] = useLeaveAnimation();
-  const doneMs = completedTime(entry);
-  const chip = (text, color, key) => (
-    <View key={key} style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: (color || t.textDim) + '1A', borderWidth: color ? 1 : 0, borderColor: (color || t.textDim) + '40' }}>
-      <Text style={{ color: color || t.textDim, fontSize: t.fs(12.5), fontWeight: color ? '600' : '500' }} numberOfLines={1}>{text}</Text>
-    </View>
-  );
-  return (
-    <Animated.View style={leaveStyle}>
-    <Pressable onPress={onOpen} style={({ pressed, hovered }) => ({ marginBottom: 10, transform: [{ scale: pressed ? 0.985 : 1 }, { translateY: hovered && Platform.OS === 'web' ? -2 : 0 }], transitionProperty: 'transform', transitionDuration: '180ms' })}>
-      <View style={{ backgroundColor: t.surface, borderRadius: t.frosted ? 14 : 16, padding: 14, borderLeftWidth: t.frosted ? 0 : 4, borderLeftColor: t.textDim + '66', borderWidth: 0.5, borderColor: t.border, ...t.shadow }}>
-        <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16), lineHeight: t.fs(21) }} numberOfLines={2}>{entry.title}</Text>
-        <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-          {!!entry.priority && chip(entry.priority, null, 'p')}
-          {!!entry.category && chip(entry.category, t.accent, 'c')}
-          {chip(recurrenceLabel(entry), t.purple, 'r')}
-          {chip(entry.dar !== false ? '📊 In daily report' : 'Not in daily report', entry.dar !== false ? t.ok : null, 'd')}
-          {!!entry.pendingWith && chip(entry.pendingWith, null, 'w')}
-        </Row>
-        {!!entry.reference && (
-          <Pressable onPress={async () => { await Clipboard.setStringAsync(entry.reference); onOpen(); }} hitSlop={6} accessibilityLabel="Copy the mail chain and open the task"
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: t.accent + '14', alignSelf: 'stretch' }}>
-            <Text style={{ color: t.accent, fontSize: t.fs(12) }}>⧉</Text>
-            <Text style={{ flex: 1, color: t.accent, fontSize: t.fs(13) }} numberOfLines={1}>{entry.reference}</Text>
-          </Pressable>
-        )}
-        <Row style={{ alignItems: 'center', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
-          <Text style={{ flex: 1, color: t.textDim, fontSize: t.fs(13.5), textAlign: 'right' }} numberOfLines={1}>
-            {doneMs ? `Completed ${new Date(doneMs).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'Completed'}
-          </Text>
-          {!!narration && (
-            <RoundBtn icon="⧉" a11y="Copy narration" onPress={async () => { await Clipboard.setStringAsync(narration); recordNarration(narration); Alert.alert('Copied', 'Narration copied - paste it into Tally.'); }} />
-          )}
-          <RoundBtn icon="↺" a11y="Reopen" color={t.accent} onPress={() => leave(onReopen)} />
-          <RoundBtn icon="🗑" a11y="Move to Bin" color={t.danger} onPress={() => leave(onBin)} />
-        </Row>
-      </View>
-    </Pressable>
-    </Animated.View>
-  );
-}
-
 /** iOS-style "Completed · Undo" bar above the tab bar; disappears after a few seconds. */
 export function UndoBar({ undo, onUndo, onHide, bottom, left = 16 }) {
   const t = useTheme();
@@ -475,8 +318,6 @@ export function CountList({ title, total, rows, activeLabel, onPress }) {
     </Card>
   );
 }
-
-
 
 /*
  * The phone's own pieces (the app-style Home and Tasks): a coloured tile for the Home carousel, and a compact task row that

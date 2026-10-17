@@ -1,6 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import * as DocumentPicker from 'expo-document-picker';
 
 /*
  * A cell starting with = + - @ is run as a formula by Excel and Google Sheets. Payee names come from bank
@@ -67,14 +66,3 @@ export async function shareCsv(rows, filename, columns) {
   return uri;
 }
 
-/** The picked file's raw text, or null if the picker was cancelled. */
-export async function pickCsvText() {
-  const res = await DocumentPicker.getDocumentAsync({ type: ['text/csv', 'text/comma-separated-values', '*/*'], copyToCacheDirectory: true });
-  if (res.canceled) return null;
-  return FileSystem.readAsStringAsync(res.assets[0].uri, { encoding: 'utf8' });
-}
-
-export async function pickCsv() {
-  const text = await pickCsvText();
-  return text == null ? null : fromCsv(text);
-}

@@ -590,12 +590,6 @@ export function holidayBlocks(holidays = []) {
   return blocks.sort((a, b) => a.start.localeCompare(b.start));
 }
 
-/* ---------- CSV ---------- */
-
-export const WD_CSV_COLUMNS = [
-  'Title', 'Category', 'Priority', 'Status', 'Pending With', 'Reference', 'Recurrence',
-  'Repeat every (min)', 'Due date', 'Due time', 'Deadline date', 'Deadline time', 'Notes', 'DAR', 'Done', 'Id',
-];
 
 const p2 = (n) => String(n).padStart(2, '0');
 const dateCell = (iso) => { if (!iso) return ''; const d = new Date(iso); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };

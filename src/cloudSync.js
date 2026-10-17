@@ -476,17 +476,6 @@ export async function pullSheetEntries(baseUrl, blank, opts) {
 
 const HOLIDAY_ACTIONS = ['getHolidays', 'getCalendar', 'pullHolidays', 'holidays'];
 
-/** Asks the script for the holiday list; { ok, holidays } or { ok:false } when it has none (the script may not offer it). */
-export async function pullSheetHolidays(baseUrl, opts) {
-  for (const action of HOLIDAY_ACTIONS) {
-    let data;
-    try { data = await cloudRequest(baseUrl, { action }, opts); } catch (err) { continue; }
-    if (!data || typeof data !== 'object') continue;
-    const list = Array.isArray(data) ? data : ['holidays', 'calendar', 'data', 'items', 'rows'].map((k) => data[k]).find((v) => Array.isArray(v) || (v && typeof v === 'object'));
-    if (list && (Array.isArray(list) ? list.length : Object.keys(list).length)) return { ok: true, action, holidays: list };
-  }
-  return { ok: false };
-}
 
 /** Adds holidays the phone does not have yet (same day + name); never removes or edits one. */
 export function mergeHolidays(local = [], incoming = []) {
