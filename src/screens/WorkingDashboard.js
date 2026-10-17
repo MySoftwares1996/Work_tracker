@@ -27,13 +27,14 @@ import { setNarrationSink, addHistory } from '../narrationHistory';
 import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
-import { effectiveFormats } from '../reportFormats';
+import { effectiveFormats, finalNarration } from '../reportFormats';
 import { applyFormats, applyMoves, REPORT_GROUPS } from '../reportExtras';
 import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, DEFAULT_PAYMENT_INTRO, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
 import { PaymentFields, KeyPointsEditor, NarrationForm } from './WdPaymentFields';
 import WdReportFormats from './WdReportFormats';
+import WdGeminiKey from './WdGeminiKey';
 import WdCalendar from './WdCalendar';
 import { BankFollowUpForm } from './WdBankFollowUp';
 import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, followUpWho, followUpsByBank, escalateFollowUp, declineEscalation } from '../bankFollowUp';
@@ -58,7 +59,7 @@ const REPORT_PRESETS = [
 ];
 
 // web.app only, and not on phone-width screens: a Narration tab after the Bin - the Tally narration builder, whatever an entry's status.
-const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', 'formats', 'reminders', ...(narration ? ['narration'] : []), 'links', 'report'];
+const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', 'formats', 'reminders', 'gemini', ...(narration ? ['narration'] : []), 'links', 'report'];
 // Bottom bar, same order as the web app (Report is reached from the Dashboard).
 const makeBarTabs = (narration) => [
   { key: 'dashboard', label: 'Dashboard' },
@@ -78,8 +79,8 @@ const PHONE_TABS = [
   { key: 'done', label: 'Done' },
   { key: 'more', label: 'More' },
 ];
-const MORE_PAGES = ['holidays', 'bin', 'config', 'links', 'formats', 'reminders'];      // pages opened from More: the header shows a back arrow to it
-const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', formats: 'Report formats', reminders: 'Next reminder', report: 'Daily Report' };
+const MORE_PAGES = ['holidays', 'bin', 'config', 'links', 'formats', 'reminders', 'gemini'];      // pages opened from More: the header shows a back arrow to it
+const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', formats: 'Report formats', reminders: 'Next reminder', gemini: 'Gemini (AI) key', report: 'Daily Report' };
 export default function WorkingDashboard() {
   const insets = useSafeAreaInsets();
   const { wide, tablet: tabletWidth, sideBar } = useLayout();
@@ -1049,6 +1050,21 @@ export default function WorkingDashboard() {
             {/* The web app's payment sections: Import details, Sub Category, Tally Narration - each only when it applies. */}
             {/* "Both" (phone-width screens): the narration type used last time for this category starts picked. */}
             <PaymentFields draft={entrySheet} setDraft={setEntrySheet} lists={plists} rememberedType={phoneLayout ? (wd.narrationByCategory || {})[entrySheet.category] || '' : ''} />
+            {(() => {
+              // "Final Narration": the narration of this task's report line, for a Payments category whose Sub Category has a report format.
+              const n = finalNarration(entrySheet, effectiveFormats(wd.reportFormats));
+              if (!n) return null;
+              return (
+                <View style={{ backgroundColor: t.surfaceAlt, borderRadius: t.radius - 4, padding: 12, marginBottom: 12 }}>
+                  <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(13) }}>Final Narration</Text>
+                    <Pressable onPress={async () => { await Clipboard.setStringAsync(n.text); Alert.alert('Copied', 'Narration copied.'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Copy the narration"><Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(13) }}>Copy</Text></Pressable>
+                  </Row>
+                  <Text selectable style={{ color: t.text, fontSize: t.fs(14), marginTop: 6 }}>{n.text}</Text>
+                  {n.missing.length > 0 && <Small style={{ marginTop: 4 }}>Still to fill: {n.missing.join(', ')}</Small>}
+                </View>
+              );
+            })()}
             {followUpHere && isBankFollowUpCategory(entrySheet.category) && entries.some((x) => x.id === entrySheet.id) && (
               <BankFollowUpForm quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={entrySheet} draft={{ ...lastWho(entrySheet), ...(entrySheet.followUpDraft || {}), next: entrySheet.followUpDraft?.next || defaultNextFollowUp(entrySheet, new Date(), offDays) }}
                 onChange={(patch) => setEntrySheet((d) => ({ ...d, followUpDraft: { ...(d.followUpDraft || {}), ...patch } }))} />
@@ -2294,6 +2310,7 @@ export default function WorkingDashboard() {
             </Group>
             <Group title="Settings">
               <Item icon="⚙️" color={t.textDim} label="Config & lists" onPress={() => setTab('config')} />
+              <Item icon="✨" color={t.accent} label="Gemini (AI) key" onPress={() => setTab('gemini')} />
               <Item icon="🔔" color={t.warn} label="Alerts, app lock & backups" onPress={() => navigation.navigate('Settings')} last />
             </Group>
             {(() => {
@@ -2326,6 +2343,8 @@ export default function WorkingDashboard() {
             </View>
           </View>
         )}
+
+        {tab === 'gemini' && <WdGeminiKey />}
 
         {tab === 'formats' && <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={(l) => updateWd((w) => ({ ...w, categories: l.categories, subCategories: l.subCategories, subCategoryCategories: l.subCategoryCategories, listsUpdatedAt: Date.now() }))} />}
 

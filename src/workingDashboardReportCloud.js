@@ -28,8 +28,8 @@ export async function deleteReportSample(baseUrl, id, opts) {
  */
 export async function rewriteReportWithAi(baseUrl, { date, draft, itemCount, prompt, examples }, opts) {
   if (!baseUrl) {
-    const { generateWithGemini } = await import('./aiBuiltin');
-    return generateWithGemini(prompt);
+    const { rewriteWithGemini } = await import('./aiBuiltin');
+    return (await rewriteWithGemini(prompt)).text;
   }
   // prompt/examples carry the style learned from your past reports; a script that reads them follows them closely.
   const data = await cloudRequest(baseUrl, { action: 'generateDailyReport', date, draft, itemCount, prompt, styleExamples: examples, instructions: prompt }, opts);

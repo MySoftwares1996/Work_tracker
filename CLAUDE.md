@@ -84,6 +84,10 @@ with a back arrow in the app bar), a compact app bar (logo, title, finder, alert
 (every card opens; the old "no form at phone width" rule is gone). The website is not shown inside the app any more (the owner had the "website inside the app" option removed). The previews the owner approved are the model; more screens
 (entry form, Report, Done) are being brought to the same look step by step, each shown to the owner first.
 
+Web-to-phone parity round: the phone's More page now has Links, Next reminder (categories that ask for a reminder; `nextReminderAt` on the task, an alert at that time), Report formats
+(`WdReportFormats.js`, formats in `src/reportFormats.js`, synced in `meta/tools`) and Gemini (AI) key (`WdGeminiKey.js`, `src/aiBuiltin.js`, kept on the phone). The Report's four boxes open their tasks with Move to
+(`src/reportExtras.js`, shared with `newweb/`); Home has Pending as on today / Next month tiles and this-month / next-month breakdown cards. Sub Category / narration / reminder lists are written back to `meta/lists`.
+
 ## Phone updates (over the air) - `docs/PHONE_UPDATES.md`
 
 A JavaScript-only change to the phone app can be published without a new APK: the "Publish phone update" workflow (manual, `.github/workflows/phone-update.yml`,
