@@ -10,7 +10,6 @@
  * your expense history and read your Gmail.
  */
 let authToken = '';
-export const setApiToken = (tok) => { authToken = tok || ''; };
 
 async function call(url, body, ms = 20000) {
   if (!url) throw new Error('No Apps Script URL set');
@@ -40,8 +39,6 @@ export const pushTasks = (url, profile, tasks) =>
 export const pullTasks = (url, profile) =>
   call(url, { action: 'pullTasks', profile });
 
-export const restoreProfile = (url, profile) =>
-  call(url, { action: 'restore', profile });
 
 export const pushBackup = (url, profile, payload) =>
   call(url, { action: 'pushBackup', profile, payload });
@@ -55,20 +52,10 @@ export const fetchMail = (url, max = 15) =>
 export const mailBody = (url, id) =>
   call(url, { action: 'mailBody', id });
 
-export const markMailRead = (url, id) =>
-  call(url, { action: 'markRead', id });
 
 export const ping = (url) => call(url, { action: 'ping' }, 10000);
 
 export const getAdvice = (url, prompt, payload) =>
   call(url, { action: 'getAdvice', prompt, data: payload }, 45000);
 
-/** Merge two task lists by id, newest updatedAt wins. */
-export function mergeById(local, remote) {
-  const map = new Map();
-  for (const row of [...local, ...remote]) {
-    const prev = map.get(row.id);
-    if (!prev || new Date(row.updatedAt || 0) > new Date(prev.updatedAt || 0)) map.set(row.id, row);
-  }
-  return [...map.values()];
-}
+

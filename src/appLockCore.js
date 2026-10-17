@@ -23,7 +23,6 @@ export const shouldRelock = (leftAt, now = Date.now(), graceMs = RELOCK_AFTER_MS
 
 export const PIN_MIN = 4;
 export const PIN_MAX = 6;
-export const isValidPin = (pin) => new RegExp(`^\\d{${PIN_MIN},${PIN_MAX}}$`).test(String(pin || ''));
 
 /** After 5 wrong PINs in a row, wait 30 s per further miss (up to 5 min). */
 export function lockoutMs(wrongInARow) {

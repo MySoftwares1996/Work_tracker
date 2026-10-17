@@ -3,8 +3,8 @@ import { View, Text, Pressable, TextInput, Alert, ScrollView } from 'react-nativ
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Screen, Card, Small, P, Btn, Row, Sheet, Choices, DateTimeField, PickerButton } from '../ui';
-import { useTheme, blend, ALARM_COLORS } from '../theme';
+import { Btn, Row, Sheet, Choices, DateTimeField, PickerButton } from '../ui';
+import { useTheme, ALARM_COLORS } from '../theme';
 import { useStore } from '../store';
 import { isSnoozed, isSilencedToday, RECURRENCES, RECURRENCE_LABELS, recurrenceLabel, completeEntry, nextRecurringEntry, editedNow, DEFAULT_ALERTS, snoozeEntry, silenceEntryToday, alertModeOf, normalizeHolidays, normalizeLeaveDays } from '../workingDashboard';
 import { paymentLists, subCategoryComplete } from '../workingDashboardPayments';
@@ -43,7 +43,6 @@ function Chip({ text }) {
     </View>
   );
 }
-
 
 /**
  * Past Due Alert: every open entry past its due time, with what the web app's alert offers on each - a remark,

@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Pressable, ScrollView, Linking, Platform, Animated, Easing, AppState } from 'react-native';
+import { View, Text, StyleSheet, Alert, Pressable, ScrollView, Linking, Platform, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AnimatedLogo from '../AnimatedLogo';
 import * as Clipboard from 'expo-clipboard';
-import { BottomTabs, Group, Item, useLayout, useAboveBottomBar, FadeInUp, AnimatedNumber, Screen, Card, H2, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, SwipeTabs, RingtonePicker, prefersReducedMotion } from '../ui';
+import { BottomTabs, Group, Item, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, H2, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, SwipeTabs, RingtonePicker } from '../ui';
 import WdAlertSettings from './WdAlertSettings';
 import { SOURCES } from '../optionSources';
 import { useTheme, blend, THEMES, FONT_LEVELS } from '../theme';
@@ -23,7 +23,7 @@ import { addAudit, auditDiff, ACTION_AUDIT } from '../audit';
 import { WHATS_NEW } from '../whatsNew';
 import { checklistText, checklistOpen, checklistOf, addStep, toggleStep, removeStep } from '../checklist';
 import { setNarrationSink, addHistory } from '../narrationHistory';
-import { recordNarration } from '../narrationHistory';
+
 import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
@@ -35,22 +35,15 @@ import { paymentLists, makeNarration, findSubCategory, subCategoryText, validate
 import { PaymentFields, KeyPointsEditor, NarrationForm } from './WdPaymentFields';
 import WdCalendar from './WdCalendar';
 import { BankFollowUpForm } from './WdBankFollowUp';
-import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, isLongPending, LONG_PENDING_DAYS, followUpWho, followUpsByBank, needsEscalationPrompt, escalateFollowUp, declineEscalation } from '../bankFollowUp';
+import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, followUpWho, followUpsByBank, escalateFollowUp, declineEscalation } from '../bankFollowUp';
 import { learnStyle, buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, examplesFor, checkFacts } from '../reportStyle';
 import { getAdvice } from '../sheets';
 import { listReportSamples, saveReportSample, deleteReportSample, rewriteReportWithAi } from '../workingDashboardReportCloud';
 import { shareReportPdf } from '../reportPdf';
-import {
-  blankEntry, listsWithEntryValues, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey,
-  quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isWdFilterActive, filterEntries, SORTS, sortEntries,
-  completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow,
-  completedTime, DONE_SORTS,
-  nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, entriesToCsvRows, csvRowsToEntries, findDuplicateEntries, WD_CSV_COLUMNS,
-  nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isSkippedToday, isOfficeClosed,
-} from '../workingDashboard';
+import { blankEntry, listsWithEntryValues, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, entriesToCsvRows, csvRowsToEntries, findDuplicateEntries, WD_CSV_COLUMNS, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
 import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
-import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, HHMM, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, OpenCard, DoneCard, UndoBar, ShowMore, CountList, PhoneTile, PhoneRow, PhoneDoneRow } from './wdCards';
+import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, HHMM, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneTile, PhoneRow, PhoneDoneRow } from './wdCards';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
 const NO_LIST = [];

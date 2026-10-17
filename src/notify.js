@@ -82,18 +82,6 @@ export async function scheduleAt(date, { title, body, data, group = 'attendance'
   });
 }
 
-export async function scheduleInMinutes(minutes, payload) {
-  return scheduleAt(new Date(Date.now() + minutes * 60000), payload);
-}
-
-/** Fire a notification immediately - used for geofence enter/exit alerts. */
-export async function notifyNow({ title, body, data, group = 'attendance', ringtone = 'default' }) {
-  const channelId = await ensureChannel(group, ringtone);
-  return Notifications.scheduleNotificationAsync({
-    content: { title, body, data, sound: ringtone === 'silent' ? null : 'default' },
-    trigger: Platform.OS === 'android' ? { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1, channelId } : null,
-  });
-}
 
 /**
  * Schedules the WHOLE "keep ringing until acknowledged" chain up front, as a
@@ -138,27 +126,11 @@ export async function cancelForTask(taskId) {
  */
 const CHECKOUT_TITLE = 'You can head out';
 let checkoutQueue = Promise.resolve();
-export function syncCheckoutReminder(at, { body = '', ringtone = 'default' } = {}) {
-  const run = checkoutQueue.then(async () => {
-    const all = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
-    // Older versions booked it untagged, under the same title.
-    const mine = all.filter((n) => n.content?.data?.kind === 'checkout' || n.content?.title === CHECKOUT_TITLE);
-    const d = mine[0]?.content?.data;
-    if (at && mine.length === 1 && Number(d?.at) === at && d?.ringtone === ringtone && mine[0].content?.body === body) return mine[0].identifier;
-    await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {})));
-    if (!at) return null;
-    return scheduleAt(at, { title: CHECKOUT_TITLE, body, group: 'attendance', ringtone, data: { kind: 'checkout', at, ringtone } });
-  });
-  checkoutQueue = run.catch(() => {});
-  return run;
-}
 
 export async function cancel(id) {
   if (id) await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
 }
-export async function cancelMany(ids = []) {
-  for (const id of ids) await cancel(id);
-}
+
 export async function cancelAll() {
   await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
 }
@@ -178,20 +150,6 @@ export async function dismissEntryNotifications(entryId, identifier) {
 }
 export const addReceivedListener = (fn) => Notifications.addNotificationReceivedListener(fn);
 
-/**
- * Hydration and Tasks & reminders were removed from the app, but an older
- * build may already have handed their reminder chains (and, for tasks, the
- * full-screen alarm) to the OS, which would keep firing with no screen left
- * to silence them - so cancel exactly those. `taskIds` covers full-screen
- * alarms whose notification chain is already gone.
- */
-export async function cancelRemovedToolAlerts(taskIds = []) {
-  const all = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
-  const stale = all.filter((n) => ['hydration', 'task'].includes(n.content?.data?.kind));
-  await Promise.all(stale.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {})));
-  const ids = new Set([...taskIds, ...stale.map((n) => n.content?.data?.taskId)].filter(Boolean));
-  for (const id of ids) await cancelFullScreenAlarm(id);
-}
 
 /* ------------------------------------------------------------------ */
 /* Background handling: runs even with the app removed from Recents.  */

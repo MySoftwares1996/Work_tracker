@@ -423,24 +423,6 @@ export const todayKey = (d = new Date()) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 export const monthKey = (d = new Date()) => todayKey(d).slice(0, 7);
-export const addMonths = (mk, n) => {
-  const [y, m] = mk.split('-').map(Number);
-  const d = new Date(y, m - 1 + n, 1);
-  return monthKey(d);
-};
-export const monthLabel = (mk) => {
-  const [y, m] = mk.split('-').map(Number);
-  return new Date(y, m - 1, 1).toLocaleString([], { month: 'long', year: 'numeric' });
-};
-/** 8537 -> "8.5k", 12400 -> "12k", 1250000 -> "1.3M": short enough to sit above a narrow bar. */
-export function compactNumber(n) {
-  const v = Math.round(Number(n) || 0);
-  const trim = (x) => x.replace(/\.0$/, '');
-  if (Math.abs(v) >= 1e6) return `${trim((v / 1e6).toFixed(1))}M`;
-  if (Math.abs(v) >= 1e4) return `${Math.round(v / 1e3)}k`;
-  if (Math.abs(v) >= 1e3) return `${trim((v / 1e3).toFixed(1))}k`;
-  return String(v);
-}
 
 /** "₹1,749", and "−₹1,749" for negatives rather than "₹-1,749". */
 export const inr = (n) => {

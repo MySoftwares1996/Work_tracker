@@ -274,29 +274,7 @@ export function H2({ children, style, numberOfLines }) {
   return <Text numberOfLines={numberOfLines} style={[{ fontSize: t.fs(17), fontWeight: '600', color: t.text, marginBottom: 8 }, style]}>{children}</Text>;
 }
 
-/**
- * Icon-badge + title, with an optional trailing action - the shared
- * building block every section header in the app should use instead of a
- * bare <H2>, so every screen's sections carry the same rhythm and the same
- * bit of colour instead of one screen looking plain text-only and the next
- * looking different.
- */
-export function SectionHeader({ icon, title, tone, right }) {
-  const t = useTheme();
-  return (
-    <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}>
-      <Row style={{ gap: 10, flex: 1 }}>
-        {!!icon && (
-          <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: (tone || t.accent) + '18', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 15 }}>{icon}</Text>
-          </View>
-        )}
-        <Text style={{ fontSize: t.fs(16), fontWeight: '700', color: t.text, flexShrink: 1 }} numberOfLines={1}>{title}</Text>
-      </Row>
-      {right}
-    </Row>
-  );
-}
+
 export function P({ children, dim, style, numberOfLines }) {
   const t = useTheme();
   return (
@@ -404,40 +382,6 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, m
   );
 }
 
-export function Chips({ label, options, value, onChange, multi, onLongPress }) {
-  const t = useTheme();
-  const selected = multi ? (value || []) : value;
-  const isOn = (o) => (multi ? selected.includes(o) : selected === o);
-  const toggle = (o) => {
-    if (!multi) return onChange(o);
-    onChange(selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o]);
-  };
-  return (
-    <View style={{ marginBottom: 12 }}>
-      {!!label && <Small style={{ marginBottom: 6 }}>{label}</Small>}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {(options || []).map((o) => (
-          <Pressable
-            key={String(o)}
-            onPress={() => toggle(o)}
-            onLongPress={onLongPress ? () => onLongPress(o) : undefined}
-            style={{
-              paddingHorizontal: 13,
-              paddingVertical: 7,
-              borderRadius: 999,
-              marginRight: 8,
-              backgroundColor: isOn(o) ? t.accent : t.surfaceAlt,
-              borderWidth: 1,
-              borderColor: isOn(o) ? t.accent : t.border,
-            }}
-          >
-            <Text numberOfLines={1} style={{ color: isOn(o) ? '#fff' : t.text, fontSize: t.fs(13), fontWeight: '500' }}>{String(o)}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
 
 /** Height of the on-screen keyboard, 0 when hidden. */
 function useKeyboardHeight() {
@@ -550,15 +494,6 @@ export function Row({ children, style, gap = 10 }) {
   return <View style={[{ flexDirection: 'row', alignItems: 'center', gap }, style]}>{children}</View>;
 }
 
-export function Stat({ label, value, tone }) {
-  const t = useTheme();
-  return (
-    <Card style={{ flex: 1, minWidth: 100 }}>
-      <Text style={{ fontSize: t.fs(20), fontWeight: '700', color: tone || t.text }}>{value}</Text>
-      <Small style={{ marginTop: 2 }}>{label}</Small>
-    </Card>
-  );
-}
 
 /* ---------- v2 additions ---------- */
 
@@ -644,25 +579,6 @@ export function DateTimeField({ label, value, onChange, mode = 'datetime', minim
   );
 }
 
-export function TimeField({ label, value, onChange }) {
-  const t = useTheme();
-  const [show, setShow] = React.useState(false);
-  const [h, m] = String(value || '09:00').split(':').map(Number);
-  const d = new Date(); d.setHours(h || 0, m || 0, 0, 0);
-  return (
-    <View style={{ marginBottom: 12, flex: 1 }}>
-      {!!label && <Small style={{ marginBottom: 5 }}>{label}</Small>}
-      <Pressable onPress={() => setShow(true)} style={{
-        backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
-        borderRadius: t.radius - 8, paddingHorizontal: 12, paddingVertical: 11,
-      }}>
-        <Text style={{ color: value ? t.text : t.textDim, fontSize: t.fs(15) }}>{value || 'Select Time'}</Text>
-      </Pressable>
-      <TimePickerModal visible={!!show} value={d} onCancel={() => setShow(false)}
-        onOk={(picked) => { setShow(false); onChange(`${String(picked.getHours()).padStart(2, '0')}:${String(picked.getMinutes()).padStart(2, '0')}`); }} />
-    </View>
-  );
-}
 
 export function Segmented({ options, value, onChange, style }) {
   const t = useTheme();
@@ -691,33 +607,7 @@ export function Segmented({ options, value, onChange, style }) {
   );
 }
 
-export function MonthNav({ monthKeyValue, onChange, label }) {
-  const t = useTheme();
-  return (
-    <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-      <Pressable onPress={() => onChange(-1)} hitSlop={14} style={{ padding: 6 }}>
-        <Text style={{ color: t.accent, fontSize: t.fs(20) }}>‹</Text>
-      </Pressable>
-      <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(16) }}>{label}</Text>
-      <Pressable onPress={() => onChange(1)} hitSlop={14} style={{ padding: 6 }}>
-        <Text style={{ color: t.accent, fontSize: t.fs(20) }}>›</Text>
-      </Pressable>
-    </Row>
-  );
-}
 
-export function Pill({ label, tone, onPress }) {
-  const t = useTheme();
-  const Wrap = onPress ? Pressable : View;
-  return (
-    <Wrap onPress={onPress} style={{
-      paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999,
-      backgroundColor: (tone || t.accent) + '22', borderWidth: 1, borderColor: (tone || t.accent) + '55',
-    }}>
-      <Text numberOfLines={1} style={{ color: tone || t.accent, fontSize: t.fs(10.5), fontWeight: '700' }}>{label}</Text>
-    </Wrap>
-  );
-}
 /* ---------- ringtone picker ---------- */
 
 import { RINGTONES, ringtoneLabel, previewRingtone, stopPreview } from './ringtones';
@@ -1037,34 +927,6 @@ export function PickerButton({ text, dim, onPress, style }) {
 
 /* ---------- large time tile ---------- */
 
-/** A big, tappable time for editors where the time is the whole point. */
-export function TimeTile({ caption, icon, value, onChange, tone }) {
-  const t = useTheme();
-  const [show, setShow] = React.useState(false);
-  const [h, m] = String(value || '09:00').split(':').map(Number);
-  const d = new Date(); d.setHours(h || 0, m || 0, 0, 0);
-  const shown = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const c = tone || t.accent;
-  return (
-    <View style={{ flex: 1 }}>
-      <Pressable
-        onPress={() => setShow(true)}
-        style={{
-          backgroundColor: c + '14', borderWidth: 1.5, borderColor: c + '55',
-          borderRadius: t.radius - 4, paddingVertical: 16, paddingHorizontal: 14, alignItems: 'center',
-        }}
-      >
-        <Text style={{ fontSize: t.fs(11), fontWeight: '800', color: c, letterSpacing: 1 }}>{icon} {caption}</Text>
-        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: t.fs(26), fontWeight: '800', color: t.text, marginTop: 6 }}>
-          {shown}
-        </Text>
-        <Text style={{ fontSize: t.fs(11), color: t.textDim, marginTop: 2 }}>tap to change</Text>
-      </Pressable>
-      <TimePickerModal visible={!!show} value={d} onCancel={() => setShow(false)}
-        onOk={(picked) => { setShow(false); onChange(`${String(picked.getHours()).padStart(2, '0')}:${String(picked.getMinutes()).padStart(2, '0')}`); }} />
-    </View>
-  );
-}
 
 /* ---------- swipeable tabs ---------- */
 

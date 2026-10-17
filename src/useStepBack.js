@@ -58,24 +58,4 @@ export function useTabHistory(initial, onRestore) {
   return [tab, setTab];
 }
 
-/** While `active` (a page inside a tool is open), Back runs `onBack` - close that page - instead of leaving. */
-export function useBackStep(active, onBack) {
-  const navigation = useNavigation();
-  const handler = useRef(onBack);
-  handler.current = onBack;
-  useEffect(() => {
-    if (!active) return undefined;
-    const unsub = navigation.addListener('beforeRemove', (e) => {
-      if (isLeaving()) return;
-      e.preventDefault();
-      handler.current?.();
-    });
-    // On the app's first screen Android's Back fires no 'beforeRemove' (see useTabHistory).
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!navigation.isFocused() || navigation.canGoBack()) return false;
-      handler.current?.();
-      return true;
-    });
-    return () => { unsub(); sub.remove(); };
-  }, [navigation, active]);
-}
+
