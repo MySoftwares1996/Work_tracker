@@ -1,4 +1,4 @@
-import { isBankFollowUpCategory, addBankFollowUp, followUpsOn, bankFollowUpReportLine, defaultNextFollowUp } from '../../src/bankFollowUp.js';
+import { isBankFollowUpCategory, addBankFollowUp, followUpsOn, bankFollowUpReportLine, defaultNextFollowUp, followUpPicks, applyFollowUpPick } from '../../src/bankFollowUp.js';
 import { blankEntry } from '../../src/workingDashboard.js';
 import { buildReportModel, reportModelToText } from '../../src/workingDashboardReport.js';
 import { toWebTask, fromWebDoc } from '../../src/cloudSync.js';
@@ -37,4 +37,18 @@ export async function run({ ck, section }) {
   ck('the next date starts tomorrow at the due time', new Date(defaultNextFollowUp(base, day1)).getDate() === 6 && new Date(defaultNextFollowUp(base, day1)).getHours() === 10);
   const back = fromWebDoc(JSON.parse(JSON.stringify(toWebTask(b))), blankEntry());
   ck('the follow-ups sync with the web app', back && Array.isArray(back.bankFollowUps) && back.bankFollowUps.length === 2 && back.bankFollowUps[1].remarks === 'Amendment issued; awaiting SWIFT copy');
+
+  // Follow up again in N days: quick picks that skip Sundays / holidays / leave days.
+  const sat = new Date(2026, 9, 17, 9, 0);   // Saturday 17 Oct 2026
+  const picks = followUpPicks(sat, (k) => new Date(`${k}T12:00:00`).getDay() === 0);
+  ck('four picks, labelled', picks.map((x) => x.label).join('|') === 'Tomorrow|In 2 days|In 3 days|Next week');
+  ck('Tomorrow (a Sunday) moves to Monday', picks[0].key === '2026-10-19', picks[0].key);
+  ck('In 2 days / 3 days / next week', picks[1].key === '2026-10-19' && picks[2].key === '2026-10-20' && picks[3].key === '2026-10-24', JSON.stringify(picks));
+  const withHol = followUpPicks(sat, (k) => new Date(`${k}T12:00:00`).getDay() === 0 || k === '2026-10-19');
+  ck('a holiday is skipped too', withHol[0].key === '2026-10-20' && withHol[1].key === '2026-10-20');
+  const kept = new Date(applyFollowUpPick(new Date(2026, 9, 18, 15, 30).toISOString(), '2026-10-20'));
+  ck('a pick keeps the existing time', kept.getDate() === 20 && kept.getHours() === 15 && kept.getMinutes() === 30);
+  ck('no time yet: 10:00', new Date(applyFollowUpPick(null, '2026-10-20')).getHours() === 10);
+  const noNext = addBankFollowUp(base, { remarks: 'Will revert' }, day1);
+  ck('no next date: due date unchanged (no nagging)', noNext.dueAt === base.dueAt && noNext.bankFollowUps[0].next === null);
 }

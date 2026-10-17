@@ -18,3 +18,5 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - Phone: readable text on the orange in dark Warm (theme onAccent); every fire-and-forget failure is now logged (quietCatch.js).
 - Phone: Gemini key moved to secure storage (old one migrates), 60 s limit on Gemini calls (phone + web), one id helper (src/ids.js).
 - Kotlin changes (alarm settings survive reboot, quiet channel, web-presence rules) need a full APK build; the JS fixes (Bin page, app lock, field-level sync, report fixes) go out with a phone update.
+- Bank follow-up: "Tomorrow / In 2 days / In 3 days / Next week" quick-pick chips beside the next follow-up date (phone sheet `WdBankFollowUp.js`, `followUpPicks` in `src/bankFollowUp.js`); skip Sundays, holidays, leave days; website (alert Reminder tab) already done.
+- Phone: an update bar at the top while the app checks / downloads an update - progress, elapsed clock, estimated time left (UpdateBar.js, updateProgress.js, PhoneUpdate.native.js); JS only, goes out with a phone update.

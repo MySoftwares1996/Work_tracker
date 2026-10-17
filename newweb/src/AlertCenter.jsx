@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
 import Logo from './Logo';
 import ClockPicker from './ClockPicker';
-import { SNOOZES, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel, DONE_STATUS } from './data';
+import { SNOOZES, followUpPicks, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel, DONE_STATUS } from './data';
 import { finalNarration } from './reportFormats';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
 
@@ -92,6 +92,7 @@ function AlertNarration({ t }) {
 }
 
 function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
+  const { calendar } = useStore();
   const t = a.task;
   const today = dayKey(new Date());
   const [remarks, setRemarks] = useState('');
@@ -218,6 +219,11 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
                     <button type="button" className="time-btn" onClick={() => setRClock(true)} aria-label="Pick the next reminder time on a clock"><span>{timeLabel(rTime) || 'Set time'}</span></button>
                     <button type="button" className="btn primary" onClick={setReminder} disabled={!rDate}>Save &amp; set next reminder</button>
                   </div>
+                  {isBankFollowUp(t.category) && (
+                    <div className="move-row" aria-label="Follow up again in">{followUpPicks(new Date(), calendar).map((pk) => (
+                      <button key={pk.label} type="button" className="btn" onClick={() => { setRDate(pk.key); setRError(''); }}>{pk.label}</button>
+                    ))}</div>
+                  )}
                   {rError && <p className="banner err" role="alert">{rError}</p>}
                 </div>
               )}

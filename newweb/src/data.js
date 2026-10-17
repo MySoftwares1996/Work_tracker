@@ -1,6 +1,7 @@
 import { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, findSubCategory, subCategoryMissing, addSubCategory, parseSubCategoryLines, addSubCategories, withCarrying, validateSubCategory, applySubCategoryEdit, removeSubCategory, addOption, removeOption } from '../../src/listsCore.js';
 export { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, findSubCategory, subCategoryMissing, addSubCategory, parseSubCategoryLines, addSubCategories, withCarrying, validateSubCategory, applySubCategoryEdit, removeSubCategory, addOption, removeOption } from '../../src/listsCore.js';
 import { noteWork, isUnstartedStatus } from '../../src/workingDashboardPayments.js';
+import { followUpPicks as followUpPicksCore } from '../../src/bankFollowUp.js';
 /**
  * The task data, in the shape the phone app and the old website already share (users/<uid>/tasks, the "web app's task
  * document"): description, dueDate + dueTime, mailChain, status "Completed", deleted... Nothing here touches Firebase, so
@@ -565,3 +566,6 @@ export function subBreakdown(tasks, category, now = new Date()) {
 
 /** A day that is not a working day: a holiday or leave day of the calendar ({ holidays, leaveDays }). Sundays are left to the caller. */
 export const isOffDay = (key, calendar = {}) => [...(calendar.holidays || []), ...(calendar.leaveDays || [])].some((x) => String(x && x.date).slice(0, 10) === key);
+
+/** Quick picks for the next follow-up date (Tomorrow / In 2 days / In 3 days / Next week), skipping Sundays, holidays and leave days: [{ label, key }]. */
+export const followUpPicks = (now = new Date(), calendar = {}) => followUpPicksCore(now, (k) => new Date(`${k}T12:00:00`).getDay() === 0 || isOffDay(k, calendar));

@@ -26,6 +26,7 @@ import { checklistText, checklistOpen, checklistOf, addStep, toggleStep, removeS
 import { setNarrationSink, addHistory } from '../narrationHistory';
 
 import { templateFrom, applyTemplate, saveTemplate } from '../templates';
+import { buildBackupExport, backupExportName, backupExportText } from '../backupExport';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
 import { monthEndOptions } from '../monthEnd';
@@ -906,7 +907,7 @@ export default function WorkingDashboard() {
               );
             })()}
             {followUpHere && isBankFollowUpCategory(entrySheet.category) && entries.some((x) => x.id === entrySheet.id) && (
-              <BankFollowUpForm quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={entrySheet} draft={{ ...lastWho(entrySheet), ...(entrySheet.followUpDraft || {}), next: entrySheet.followUpDraft?.next || defaultNextFollowUp(entrySheet, new Date(), offDays) }}
+              <BankFollowUpForm holidays={holidayList} leaveDays={leaveList} quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={entrySheet} draft={{ ...lastWho(entrySheet), ...(entrySheet.followUpDraft || {}), next: entrySheet.followUpDraft?.next || defaultNextFollowUp(entrySheet, new Date(), offDays) }}
                 onChange={(patch) => setEntrySheet((d) => ({ ...d, followUpDraft: { ...(d.followUpDraft || {}), ...patch } }))} />
             )}
             </>
@@ -1629,6 +1630,12 @@ export default function WorkingDashboard() {
               </Text>
               {doneNarrowed && <Pressable onPress={clearDone} hitSlop={8}><Small style={{ color: t.accent, fontWeight: '700' }}>Clear</Small></Pressable>}
             </Row>
+            {phoneLayout && (() => {
+              // Completed this week: tasks completed since this Monday (local time).
+              const mon = new Date(); mon.setHours(0, 0, 0, 0); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+              const n = allDone.filter((e) => (completedTime(e) || 0) >= mon.getTime()).length;
+              return <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16), marginBottom: 10 }}>Completed this week: {n}</Text>;
+            })()}
             {(Platform.OS !== 'web' || wide) && <Segmented options={[{ key: 'cards', label: '▦ Cards' }, { key: 'table', label: '☰ Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
             <Small style={{ marginBottom: 5 }}>Shown first</Small>
             <Segmented options={[{ key: '1', label: 'Today' }, { key: '3', label: '3 days' }, { key: '5', label: '5 days' }, { key: '10', label: '10 days' }]} value={String(doneDays)}
@@ -1966,6 +1973,20 @@ export default function WorkingDashboard() {
             </Group>
             <Group title="Settings">
               <Item icon="⚙️" color={t.textDim} label="Config" onPress={() => setTab('config')} />
+              <Item icon="💾" color={t.ok} label="Export a backup" value="All tasks (JSON)" last={Platform.OS === 'web'} onPress={async () => {
+                try {
+                  const name = backupExportName();
+                  const text = backupExportText(buildBackupExport({ entries: wd.entries, lists: wd, links: wd.links, templates: wd.templates, reportFormats: wd.reportFormats, holidays: wd.holidays, leaveDays: wd.leaveDays, source: Platform.OS === 'web' ? 'web' : 'phone' }));
+                  if (Platform.OS === 'web') { downloadText(name, text, 'application/json'); return; }
+                  // The file is written to the app's cache and handed to the share sheet (Drive, mail, Files); expo-file-system and expo-sharing are already in the build.
+                  const FileSystem = await import('expo-file-system/legacy');
+                  const Sharing = await import('expo-sharing');
+                  const uri = `${FileSystem.cacheDirectory}${name}`;
+                  await FileSystem.writeAsStringAsync(uri, text);
+                  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Export a backup' });
+                  else Alert.alert('Backup saved', `Saved as ${name}, but this phone cannot share files.`);
+                } catch (e) { Alert.alert('Backup failed', String(e?.message || e)); }
+              }} />
               {Platform.OS !== 'web' && <Item icon="🔒" color={t.accent} label="App lock" value={data.settings?.appLock?.enabled ? 'On' : 'Off'} last onPress={() => {
                 if (data.settings?.appLock?.enabled) {
                   Alert.alert('App lock', 'Turn the PIN lock off?', [
@@ -2295,7 +2316,7 @@ export default function WorkingDashboard() {
           return fe ? (
             <View>
               <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), marginBottom: 10 }}>{fe.title}</Text>
-              <BankFollowUpForm quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={fe} draft={followSheet} onChange={(patch) => setFollowSheet((s) => ({ ...s, ...patch }))} />
+              <BankFollowUpForm holidays={holidayList} leaveDays={leaveList} quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={fe} draft={followSheet} onChange={(patch) => setFollowSheet((s) => ({ ...s, ...patch }))} />
               <Btn title="Save follow-up" onPress={saveFollowUp} />
             </View>
           ) : null;
