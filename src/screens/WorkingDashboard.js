@@ -176,6 +176,7 @@ export default function WorkingDashboard() {
   const [reportText, setReportText] = useState('');
   const [reportKind, setReportKind] = useState('day');      // 'day' (the Daily Activity Report), 'week' or 'month' (a summary)
   const [reportModel, setReportModel] = useState(null);
+  const [stepsOpen, setStepsOpen] = useState(false);       // the form's Checklist popup
   const [monthEndOpen, setMonthEndOpen] = useState(false);   // the form's Month end -1 ... -5 drop-down
   const [subPop, setSubPop] = useState(null);       // Home: a category's Sub Categories ({ category, due, list })
   const [groupOpen, setGroupOpen] = useState('');   // the Report box whose tasks are shown (oth / pay / fol / out)
@@ -1076,7 +1077,21 @@ export default function WorkingDashboard() {
             </>
           ))}
           {f.payment}
-          {acc('checklist', '☑️', 'Checklist', steps.length ? `${stepsDone} of ${steps.length}` : 'Add steps', f.checklist, steps.length > 0)}
+          {/* The checklist opens in a popup, so the form stays one fixed screen. */}
+          {!!f.checklist && (
+            <View style={{ marginBottom: 10 }}>
+              <Pressable onPress={() => setStepsOpen(true)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14, ...t.shadow }}>
+                <Text style={{ fontSize: t.fs(16) }}>☑️</Text>
+                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14.5) }}>Checklist</Text>
+                <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', color: t.textDim, fontSize: t.fs(12.5), fontWeight: '600' }}>{steps.length ? `${stepsDone} of ${steps.length}` : 'Add steps'}</Text>
+                <Text style={{ color: t.textDim, fontSize: t.fs(16) }}>›</Text>
+              </Pressable>
+              <Sheet visible={stepsOpen} onClose={() => setStepsOpen(false)} title="Checklist">
+                {f.checklist}
+                <Btn title="Done" onPress={() => setStepsOpen(false)} />
+              </Sheet>
+            </View>
+          )}
           {acc('mail', '✉', 'Mail chain', String(entrySheet.reference || '').trim() || 'Add', f.mail, !!String(entrySheet.reference || '').trim())}
           {acc('notes', '📝', 'Notes & remarks', String(entrySheet.notes || '').trim() ? 'Added' : 'Add', f.notes, !!String(entrySheet.notes || '').trim())}
           {acc('history', '🕘', 'History', '', f.history, false)}

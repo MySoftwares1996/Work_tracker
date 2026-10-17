@@ -708,8 +708,8 @@ button.chip:hover { filter: brightness(0.95); }
 .cfg-avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 18px; color: var(--on-accent); background: var(--accent-grad); flex: none; }
 .cfg-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .cfg-who .muted { overflow: hidden; text-overflow: ellipsis; }
-.cfg-menu { display: grid; gap: 8px; max-width: 760px; }
-.cfg-row { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 14px 16px; border: 0; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; font: inherit; color: inherit; }
+.cfg-menu { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.cfg-row { display: flex; align-items: center; gap: 14px; flex: 0 1 auto; min-width: 270px; max-width: 460px; text-align: left; padding: 14px 16px; border: 0; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); cursor: pointer; font: inherit; color: inherit; }
 .cfg-row:hover { transform: translateY(-1px); }
 .cfg-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: var(--bg); flex: none; }
 .cfg-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
@@ -784,3 +784,5 @@ textarea.auto, .sheet.wide .col textarea.auto, .sheet.wide .cols3 > .col:first-c
 .strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 @media (max-width: 1100px) { .strip { grid-template-columns: minmax(0, 1fr); } }
 .sheet.wide { overflow-x: hidden; }
+
+.check-btn { align-self: flex-start; }

@@ -95,6 +95,7 @@ export default function TaskForm({ initial, onClose }) {
   // The Sub Category's fields open in a popup (the form does not grow): when one is picked, by the button, or when Completed is refused for missing fields.
   const [subOpen, setSubOpen] = useState(false);
   const [remOpen, setRemOpen] = useState(false);
+  const [stepsOpen, setStepsOpen] = useState(false);
   const subSnap = useRef({});
   const openSub = () => { subSnap.current = t.subCategoryFields || {}; setSubOpen(true); };
   const closeSub = (cancel) => { if (cancel) setT((d) => ({ ...d, subCategoryFields: subSnap.current })); setSubOpen(false); setSubError(''); };
@@ -206,8 +207,9 @@ export default function TaskForm({ initial, onClose }) {
         </div>
         </div><div className="col">
         <label className="field full">Notes<AutoText value={t.notes} onChange={set('notes')} /></label>
-        <div className="side-panel">
-        <div className="field full">Checklist{t.checklist.length > 0 && <span className="muted"> ({t.checklist.filter((c) => c.done).length}/{t.checklist.length} done)</span>}
+        <button type="button" className="btn check-btn" onClick={() => setStepsOpen(true)}>☑ Checklist{t.checklist.length > 0 ? ` (${t.checklist.filter((c) => c.done).length}/${t.checklist.length} done)` : ''}</button>
+        {stepsOpen && (
+          <Popup title="Checklist" sub="Steps to tick before the task is done" onClose={() => setStepsOpen(false)}>
           {t.checklist.map((c) => (
             <div key={c.id} className="row">
               <label className="check-row"><input type="checkbox" checked={c.done} onChange={() => setT({ ...t, checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)) })} /><span className={c.done ? 'struck' : ''}>{c.text}</span></label>
@@ -215,8 +217,8 @@ export default function TaskForm({ initial, onClose }) {
             </div>
           ))}
           <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
-        </div>
-        </div>
+          </Popup>
+        )}
         </div></div>
         {subError && <div className="banner err" role="alert">{subError}</div>}
         <div className="sheet-foot">
