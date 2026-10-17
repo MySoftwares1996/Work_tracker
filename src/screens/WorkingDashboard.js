@@ -4,14 +4,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AnimatedLogo from '../AnimatedLogo';
 import * as Clipboard from 'expo-clipboard';
-import { BottomTabs, Group, Item, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
+import { BottomTabs, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
 import { SOURCES } from '../optionSources';
 import { useTheme, blend, THEMES } from '../theme';
 import { useStore, uid } from '../store';
 import { shareCsv } from '../csv';
 
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
-import { clearPin } from '../appLock';
 import { newId } from '../ids';
 import { warnQuiet } from '../quietCatch';
 import { seenWebFields } from '../cloudSync';
@@ -26,13 +25,12 @@ import { checklistText, checklistOpen, checklistOf, addStep, toggleStep, removeS
 import { setNarrationSink, addHistory } from '../narrationHistory';
 
 import { templateFrom, applyTemplate, saveTemplate } from '../templates';
-import { buildBackupExport, backupExportName, backupExportText } from '../backupExport';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
 import { monthEndOptions } from '../monthEnd';
 import { effectiveFormats, finalNarration } from '../reportFormats';
 import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../reportExtras';
-import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
+import { stampChanges, toolsValue, downloadText } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
 import { PaymentFields, NarrationForm } from './WdPaymentFields';
@@ -41,17 +39,21 @@ import WdReportFormats from './WdReportFormats';
 import { ListsEditor, SubCategories, ReminderCategories } from './WdLists';
 import WdGeminiKey from './WdGeminiKey';
 import WdCalendar from './WdCalendar';
+import WdBinTab from './WdBinTab';
+import WdLinksTab from './WdLinksTab';
+import WdMoreTab from './WdMoreTab';
+import WdHolidaysTab from './WdHolidaysTab';
+import WdHolidaySheet from './WdHolidaySheet';
 import { BankFollowUpForm } from './WdBankFollowUp';
 import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, followUpWho, followUpsByBank } from '../bankFollowUp';
 import { learnStyle, buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, examplesFor, checkFacts } from '../reportStyle';
 import { getAdvice } from '../sheets';
 import { listReportSamples, rewriteReportWithAi } from '../workingDashboardReportCloud';
 import { shareReportPdf } from '../reportPdf';
-import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
+import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, holidaysWithinDays, normalizeHolidays, normalizeLeaveDays, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
-import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
 import WdWeeklyReview from './WdWeeklyReview';
-import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow } from './wdCards';
+import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow } from './wdCards';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
 const NO_LIST = [];
@@ -1733,84 +1735,9 @@ export default function WorkingDashboard() {
           </View>
         )}
 
-        {tab === 'bin' && (
-          <View>
-            {!binnedEntries.length && <Card><Small>The Bin is empty. A task you bin from its form stays here until you restore it.</Small></Card>}
-            {binnedEntries.map((entry) => (
-              <View key={entry.id} style={{ marginBottom: 10, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, padding: 14, gap: 10, ...t.shadow }}>
-                <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
-                <Small>{[entry.priority, entry.category, entry.dueAt ? `Due ${fmtDate(entry.dueAt)}` : ''].filter(Boolean).join(' · ')}</Small>
-                <Btn title="Restore" onPress={() => act(entry, 'restore')} />
-              </View>
-            ))}
-          </View>
-        )}
+        {tab === 'bin' && <WdBinTab binnedEntries={binnedEntries} act={act} />}
 
-        {tab === 'links' && (
-          <View>
-            <Card>
-              <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(13), marginBottom: 2 }}>USEFUL LINKS</Text>
-              <Small style={{ marginBottom: 10 }}>Keep the links you use. A click opens the link in a new tab of your default browser.</Small>
-              <Row gap={10} style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <View style={{ flex: 1, minWidth: 180 }}><Field label="NAME" value={linkDraft.title} onChangeText={(v) => setLinkDraft((d) => ({ ...d, title: v }))} placeholder="e.g. ICEGATE" /></View>
-                <View style={{ flex: 1, minWidth: 140 }}><Field label="FOLDER (optional)" value={linkDraft.folder} onChangeText={(v) => setLinkDraft((d) => ({ ...d, folder: v }))} placeholder="e.g. Bank portals" /></View>
-                <View style={{ flex: 2, minWidth: 240 }}><Field label="LINK" value={linkDraft.url} onChangeText={(v) => setLinkDraft((d) => ({ ...d, url: v }))} placeholder="https://..." autoCapitalize="none" /></View>
-                <Btn style={{ marginBottom: 12 }} title={linkDraft.id ? 'Save' : 'Add link'} onPress={() => {
-                  const url = normalizeLink(linkDraft.url);
-                  if (!url) return Alert.alert('Enter a link', 'Type a web address such as https://example.com');
-                  const title = linkDraft.title.trim() || url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, '');
-                  const folder = linkDraft.folder.trim();
-                  setTools((w) => {
-                    const list = Array.isArray(w.links) ? w.links : [];
-                    const row = { title, url, ...(folder ? { folder } : {}) };
-                    return { ...w, links: linkDraft.id ? list.map((x) => (x.id === linkDraft.id ? { id: x.id, ...row } : x)) : [...list, { id: newId('lnk-'), ...row }] };
-                  });
-                  setLinkDraft({ id: '', title: '', url: '', folder: '' });
-                }} />
-                {!!linkDraft.id && <Btn style={{ marginBottom: 12 }} kind="soft" title="Cancel" onPress={() => setLinkDraft({ id: '', title: '', url: '', folder: '' })} />}
-              </Row>
-            </Card>
-            <Row gap={8} style={{ marginTop: 10, flexWrap: 'wrap' }}>
-              <Btn kind="soft" title="⬇ Import bookmarks" style={Platform.OS === 'web' ? undefined : { display: 'none' }} onPress={async () => {
-                const text = await pickTextFile();
-                if (!text) return;
-                const found = parseBookmarks(text);
-                if (!found.length) return Alert.alert('No links found', 'Pick a bookmarks file exported from your browser (HTML) or from this tab.');
-                const res = addLinks(wd.links, found);
-                setTools((w) => ({ ...w, links: addLinks(w.links, found).links }));
-                Alert.alert('Imported', `${res.added} new link${res.added === 1 ? '' : 's'} added (${found.length - res.added} already here).`);
-              }} />
-              {Platform.OS === 'web' && !!(wd.links || []).length && <Btn kind="soft" title="⬆ Export" onPress={() => downloadText('working-dashboard-links.html', bookmarksHtml(wd.links))} />}
-              {!!linkFolder && <Btn kind="soft" title={`Open all in ${linkFolder}`} onPress={() => (wd.links || []).filter((x) => x.folder === linkFolder).forEach((x) => Linking.openURL(x.url))} />}
-            </Row>
-            {linkFolders(wd.links).length > 0 && (
-              <Row gap={6} style={{ marginTop: 10, flexWrap: 'wrap' }}>
-                {['', ...linkFolders(wd.links)].map((f) => (
-                  <Pressable key={f || 'all'} onPress={() => setLinkFolder(f)} style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: linkFolder === f ? t.accent : t.surfaceAlt }}>
-                    <Text style={{ color: linkFolder === f ? t.onAccent : t.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{f || 'All'}</Text>
-                  </Pressable>
-                ))}
-              </Row>
-            )}
-            {(wd.links || []).length > 6 && <Field style={{ marginTop: 10 }} value={linkFind} onChangeText={setLinkFind} placeholder="🔍 Search links..." />}
-            <CardGrid>
-              {(wd.links || []).filter((x) => (!linkFolder || x.folder === linkFolder) && (!linkFind.trim() || `${x.title} ${x.url} ${x.folder || ''}`.toLowerCase().includes(linkFind.trim().toLowerCase()))).map((x) => (
-                <Card key={x.id}>
-                  <Pressable onPress={() => Linking.openURL(x.url)} accessibilityRole="link" accessibilityLabel={`Open ${x.title}`}>
-                    <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(15) }} numberOfLines={1}>{x.title}</Text>
-                    <Small numberOfLines={1}>{x.folder ? `${x.folder} · ` : ''}{x.url}</Small>
-                  </Pressable>
-                  <Row gap={8} style={{ marginTop: 8 }}>
-                    <Btn kind="soft" title="Open" onPress={() => Linking.openURL(x.url)} />
-                    <Btn kind="soft" title="Edit" onPress={() => setLinkDraft({ id: x.id, title: x.title, url: x.url, folder: x.folder || '' })} />
-                    <Btn kind="soft" title="Delete" onPress={() => setTools((w) => ({ ...w, links: (w.links || []).filter((y) => y.id !== x.id) }))} />
-                  </Row>
-                </Card>
-              ))}
-            </CardGrid>
-            {!(wd.links || []).length && <Small style={{ marginTop: 10 }}>No links yet - add the first one above.</Small>}
-          </View>
-        )}
+        {tab === 'links' && <WdLinksTab wd={wd} setTools={setTools} linkDraft={linkDraft} setLinkDraft={setLinkDraft} linkFolder={linkFolder} setLinkFolder={setLinkFolder} linkFind={linkFind} setLinkFind={setLinkFind} />}
 
         {tab === 'report' && (
           <View>
@@ -1951,158 +1878,9 @@ export default function WorkingDashboard() {
           </View>
         )}
 
-        {tab === 'more' && (
-          <View>
-            <Card style={{ marginBottom: 14 }}>
-              <Row gap={12} style={{ alignItems: 'center' }}>
-                <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: t.onAccent, fontWeight: '800', fontSize: t.fs(19) }}>{String(googleUser?.displayName || googleUser?.email || 'W').trim().charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{googleUser?.displayName || (googleUser ? 'Signed in' : 'This device only')}</Text>
-                  <Small numberOfLines={1}>{googleUser?.email || 'Sign in with Google under Config to sync'}</Small>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surfaceAlt, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : t.textDim }} />
-                  <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline' : googleUser && realtimeError ? 'sync error' : googleUser ? 'in sync' : 'local'}</Text>
-                </View>
-              </Row>
-            </Card>
-            <Group title="Manage">
-              <Item icon="📅" color={t.accent} label="Holidays & leave" onPress={() => setTab('holidays')} />
-              <Item icon="🔗" color={t.accent2} label="Links" onPress={() => setTab('links')} />
-              <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
-            </Group>
-            <Group title="Settings">
-              <Item icon="⚙️" color={t.textDim} label="Config" onPress={() => setTab('config')} />
-              <Item icon="💾" color={t.ok} label="Export a backup" value="All tasks (JSON)" last={Platform.OS === 'web'} onPress={async () => {
-                try {
-                  const name = backupExportName();
-                  const text = backupExportText(buildBackupExport({ entries: wd.entries, lists: wd, links: wd.links, templates: wd.templates, reportFormats: wd.reportFormats, holidays: wd.holidays, leaveDays: wd.leaveDays, source: Platform.OS === 'web' ? 'web' : 'phone' }));
-                  if (Platform.OS === 'web') { downloadText(name, text, 'application/json'); return; }
-                  // The file is written to the app's cache and handed to the share sheet (Drive, mail, Files); expo-file-system and expo-sharing are already in the build.
-                  const FileSystem = await import('expo-file-system/legacy');
-                  const Sharing = await import('expo-sharing');
-                  const uri = `${FileSystem.cacheDirectory}${name}`;
-                  await FileSystem.writeAsStringAsync(uri, text);
-                  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Export a backup' });
-                  else Alert.alert('Backup saved', `Saved as ${name}, but this phone cannot share files.`);
-                } catch (e) { Alert.alert('Backup failed', String(e?.message || e)); }
-              }} />
-              {Platform.OS !== 'web' && <Item icon="🔒" color={t.accent} label="App lock" value={data.settings?.appLock?.enabled ? 'On' : 'Off'} last onPress={() => {
-                if (data.settings?.appLock?.enabled) {
-                  Alert.alert('App lock', 'Turn the PIN lock off?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Turn off', style: 'destructive', onPress: async () => { try { await clearPin(); } catch (e) { /* secure storage refused: the lock still goes off */ } update({ settings: { appLock: { enabled: false, biometric: false, setupDone: true } } }); } },
-                  ]);
-                } else update({ settings: { appLock: { enabled: true, biometric: false, setupDone: true } } });   // the lock gate asks for a PIN
-              }} />}
-            </Group>
-            {(() => {
-              // The phone's own updates: whether this build can receive them, which version is running, and a button to look now (always here).
-              const u = updateStatus();
-              return (
-                <Group title="App updates" footer={!u ? 'Updates are for the installed phone app.' : u.enabled ? 'A new version is downloaded when the app opens; tap Restart in the bar that appears.' : 'This build was made without the update settings, so it cannot receive updates - a new APK build is needed.'}>
-                  {!!u && <Item icon="🔄" color={u.enabled ? t.ok : t.danger} label="Updates" value={u.enabled ? `On${u.channel ? ` · ${u.channel}` : ''}` : 'Off'} />}
-                  {!!u && <Item icon="📦" color={t.textDim} label="Running" value={`${u.running}${u.when ? ` · ${u.when}` : ''}`} />}
-                  <Item icon="🔎" color={t.accent} label="Check for an update now" onPress={async () => Alert.alert('App updates', await checkForPhoneUpdate())} last />
-                </Group>
-              );
-            })()}
-          </View>
-        )}
+        {tab === 'more' && <WdMoreTab googleUser={googleUser} waiting={waiting} realtimeError={realtimeError} binnedEntries={binnedEntries} setTab={setTab} wd={wd} data={data} update={update} />}
 
-        {tab === 'holidays' && (() => {
-          // "Both" (the APK and the website on a phone): the web app's Holidays tab in one column - search, a holiday
-          // calendar filter and "Alerts-on only", the continuous holidays, then a card per holiday (upcoming first).
-          const PALETTE = [t.accent, t.ok, t.warn, t.purple, t.accent2, t.pink, t.indigo, t.danger].filter(Boolean);     // one colour per holiday calendar
-          const calendars = ['USD Holiday', 'Indian Bank Holiday', ...holidayList.map((h) => h.tag).filter(Boolean)].filter((x, i, a) => a.indexOf(x) === i);
-          const colourOf = (tag) => PALETTE[Math.max(0, calendars.indexOf(tag)) % PALETTE.length];
-          const todayK = toDateKey(new Date());
-          const q = holQuery.trim().toLowerCase();
-          const list = holidayList
-            .filter((h) => (!q || h.title.toLowerCase().includes(q) || h.date.includes(q))
-              && (holCalendar === 'All' || h.tag === holCalendar)
-              && (!holAlertsOnly || h.alert !== false))
-            .sort((a, b) => {
-              const au = (a.endDate || a.date) >= todayK; const bu = (b.endDate || b.date) >= todayK;
-              if (au !== bu) return au ? -1 : 1;
-              return au ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
-            });
-          const blocks = holidayBlocks(holidayList);
-          const dayText = (k) => new Date(`${k}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-          const shortDay = (k) => new Date(`${k}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-          const weekend = (k) => [0, 6].includes(new Date(`${k}T12:00:00`).getDay());
-          const pill = (text, color) => (
-            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: t.surfaceAlt }}>
-              <Text style={{ color: color || t.textDim, fontSize: t.fs(12), fontWeight: color ? '700' : '500' }}>{text}</Text>
-            </View>
-          );
-          return (
-            <View>
-              {/* The month at a glance: holidays, leave and the tasks due each day. */}
-              <View style={{ marginBottom: 12 }}><WdCalendar entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={(e) => openEditEntry(e)} /></View>
-              <Row gap={8} style={{ marginBottom: 8 }}>
-                <View style={{ flex: 1 }}><Field style={{ marginBottom: 0 }} value={holQuery} onChangeText={setHolQuery} placeholder="🔍 Search holidays..." /></View>
-                <Pressable onPress={openNewHoliday} accessibilityLabel="Add holiday" style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent }}>
-                  <Text style={{ color: t.onAccent, fontSize: t.fs(22), fontWeight: '600' }}>+</Text>
-                </Pressable>
-              </Row>
-              <Row gap={8} style={{ marginBottom: 12, alignItems: 'center' }}>
-                <View style={{ flex: 1 }}><PickerButton text={holCalendar === 'All' ? 'All Holiday Calendars' : holCalendar} onPress={() => setHolCalendarOpen((v) => !v)} /></View>
-                <Pressable onPress={() => setHolAlertsOnly((v) => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: holAlertsOnly }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: holAlertsOnly ? t.accent : 'transparent', borderWidth: holAlertsOnly ? 0 : 2, borderColor: t.border }}>
-                    {holAlertsOnly && <Text style={{ color: t.onAccent, fontWeight: '900', fontSize: t.fs(11) }}>✓</Text>}
-                  </View>
-                  <Text style={{ color: t.text, fontSize: t.fs(13) }}>Alerts-on only</Text>
-                </Pressable>
-              </Row>
-              {holCalendarOpen && (
-                <View style={{ marginBottom: 12 }}>
-                  <Choices options={[['All', 'All Holiday Calendars'], ...calendars.map((c) => [c, c])]} value={holCalendar} onChange={(v) => { setHolCalendar(v); setHolCalendarOpen(false); }} />
-                </View>
-              )}
-              {blocks.map((b) => (
-                <View key={b.start} style={{ marginBottom: 8, padding: 12, borderRadius: 14, backgroundColor: t.ok + '1F', borderWidth: 1, borderColor: t.ok + '55', opacity: b.end < todayK ? 0.6 : 1 }}>
-                  <Text style={{ color: t.ok, fontSize: t.fs(13.5) }}>
-                    <Text style={{ fontWeight: '800' }}>{b.days}-day continuous holiday</Text>
-                    {` · ${shortDay(b.start)} – ${shortDay(b.end)}${b.names.length ? ` · ${b.names.join(' + ')}` : ''}`}
-                  </Text>
-                </View>
-              ))}
-              {!list.length && <P dim style={{ textAlign: 'center', marginVertical: 24 }}>{holidayList.length ? 'No holidays match.' : 'No holidays found - add one with the + button.'}</P>}
-              {/* web.app: the holiday cards side by side (two a row); a phone-width screen keeps one a row. */}
-              <CardGrid>{list.map((h) => {
-                const past = (h.endDate || h.date) < todayK;
-                const colour = colourOf(h.tag);
-                const next = nextWorkingDay(h.endDate || h.date, holidayList, leaveList);
-                return (
-                  <View key={h.id} style={{ marginTop: 10, padding: 14, borderRadius: 16, backgroundColor: t.surface, borderWidth: 0.5, borderColor: t.border, ...t.shadow, opacity: past ? 0.6 : 1 }}>
-                    <Row style={{ alignItems: 'flex-start', gap: 8 }}>
-                      <Text style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(16) }} numberOfLines={2}>
-                        {h.alert === false ? '🔕' : '🔔'}{isOfficeClosed(h) ? ' 🏢' : ''} {h.title}
-                      </Text>
-                      {!!h.tag && (
-                        <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: colour + '22', borderWidth: 1, borderColor: colour + '55', maxWidth: '45%' }}>
-                          <Text style={{ color: colour, fontWeight: '700', fontSize: t.fs(11.5) }} numberOfLines={2}>{h.tag}</Text>
-                        </View>
-                      )}
-                    </Row>
-                    <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                      {pill(h.endDate ? `${dayText(h.date)} – ${dayText(h.endDate)}` : dayText(h.date), weekend(h.date) ? t.danger : null)}
-                      {pill(`Next working: ${dayText(next)}`)}
-                    </Row>
-                    <Row style={{ justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
-                      <RoundBtn icon="✎" a11y="Edit holiday" onPress={() => setHolidaySheet(h)} />
-                      <RoundBtn icon="🗑" a11y="Delete holiday" color={t.danger} onPress={() => Alert.alert('Delete this holiday?', h.title, [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => removeHoliday(h.id) }])} />
-                    </Row>
-                  </View>
-                );
-              })}</CardGrid>
-              {!!holidayList.length && <Small style={{ textAlign: 'center', marginTop: 12 }}>{holidayList.length} holidays{leaveList.length ? ` · ${leaveList.length} leave days` : ''}</Small>}
-            </View>
-          );
-        })()}
+        {tab === 'holidays' && <WdHolidaysTab entries={entries} holidayList={holidayList} leaveList={leaveList} openEditEntry={openEditEntry} openNewHoliday={openNewHoliday} setHolidaySheet={setHolidaySheet} removeHoliday={removeHoliday} holQuery={holQuery} setHolQuery={setHolQuery} holCalendar={holCalendar} setHolCalendar={setHolCalendar} holCalendarOpen={holCalendarOpen} setHolCalendarOpen={setHolCalendarOpen} holAlertsOnly={holAlertsOnly} setHolAlertsOnly={setHolAlertsOnly} />}
 
         {tab === 'config' && (() => {
 
@@ -2326,30 +2104,7 @@ export default function WorkingDashboard() {
       </Sheet>
 
       {/* --- Holiday editor --- */}
-      <Sheet visible={!!holidaySheet} onClose={() => setHolidaySheet(null)} title="Holiday">
-        {!!holidaySheet && (
-          <View>
-            <Field label="Name" value={holidaySheet.title} onChangeText={(v) => setHolidaySheet({ ...holidaySheet, title: v })} placeholder="e.g. Gandhi Jayanti" />
-            <Row gap={10}>
-              <View style={{ flex: 1 }}><DateTimeField label="Date" mode="date" value={holidaySheet.date ? new Date(`${holidayDateKey(holidaySheet.date)}T12:00:00`).toISOString() : null} onChange={(v) => setHolidaySheet({ ...holidaySheet, date: holidayDateKey(new Date(v)) })} /></View>
-              <View style={{ flex: 1 }}><DateTimeField label="End date (optional)" mode="date" value={holidaySheet.endDate ? new Date(`${holidayDateKey(holidaySheet.endDate)}T12:00:00`).toISOString() : null} onChange={(v) => setHolidaySheet({ ...holidaySheet, endDate: holidayDateKey(new Date(v)) })} /></View>
-            </Row>
-            <Field label="Holiday calendar (optional)" value={holidaySheet.tag} onChangeText={(v) => setHolidaySheet({ ...holidaySheet, tag: v })} placeholder="e.g. Indian Bank Holiday, USD Holiday" />
-            {/* The web app's "Office closed" tick: a closed day moves Daily tasks on and is offered "Postpone"; a market-only (USD) holiday is a working day. */}
-            <Pressable onPress={() => setHolidaySheet({ ...holidaySheet, officeClosed: !isOfficeClosed(holidaySheet) })} accessibilityRole="checkbox" accessibilityState={{ checked: isOfficeClosed(holidaySheet) }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <View style={{ width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: isOfficeClosed(holidaySheet) ? t.accent : 'transparent', borderWidth: isOfficeClosed(holidaySheet) ? 0 : 2, borderColor: t.accent }}>
-                {isOfficeClosed(holidaySheet) && <Text style={{ color: t.onAccent, fontWeight: '900' }}>✓</Text>}
-              </View>
-              <Text style={{ flex: 1, color: t.text, fontSize: t.fs(14) }}><Text style={{ fontWeight: '800' }}>Office closed</Text> - untick for a market-only holiday (a working day here)</Text>
-            </Pressable>
-            <Btn title="Save" onPress={saveHoliday} />
-            {holidayList.some((x) => x.id === holidaySheet.id) && (
-              <Btn style={{ marginTop: 8 }} kind="danger" title="Delete" onPress={() => { removeHoliday(holidaySheet.id); setHolidaySheet(null); }} />
-            )}
-          </View>
-        )}
-      </Sheet>
+      <WdHolidaySheet holidaySheet={holidaySheet} setHolidaySheet={setHolidaySheet} holidayList={holidayList} saveHoliday={saveHoliday} removeHoliday={removeHoliday} />
 
       <CommandPalette visible={paletteOpen} onClose={() => setPaletteOpen(false)} tabs={BAR_TABS} entries={entries}
         onGoTab={goTab} onOpenEntry={(e) => openEditEntry(e)} onQuickAdd={(text) => quickAdd(text)} />

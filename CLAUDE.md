@@ -70,6 +70,8 @@ mic) · Recent Changes (`undoHistory`) · `?` shortcuts · Daily auto backup (`s
 (`src/audit.js`). Links, templates, AI instructions and meeting mode sync through `users/<uid>/meta/tools`; checklists,
 attachments and the audit trail ride on the task itself (`cloudSync.js`).
 
+Split-out tabs of `WorkingDashboard.js` (props only, state stays in the screen): `src/screens/WdBinTab.js`, `WdLinksTab.js`, `WdMoreTab.js`, `WdHolidaysTab.js`, `WdHolidaySheet.js`.
+
 ## APK builds - the owner's rules
 
 - Never start, re-run or trigger an APK build (the "Build Android APK" workflow, which also runs on every push to `main`) without the owner saying so in that message.
