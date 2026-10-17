@@ -34,6 +34,7 @@ import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportMod
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
 import { PaymentFields, KeyPointsEditor, NarrationForm } from './WdPaymentFields';
 import WdReportFormats from './WdReportFormats';
+import { ListsEditor, SubCategories, ReminderCategories } from './WdLists';
 import WdGeminiKey from './WdGeminiKey';
 import WdCalendar from './WdCalendar';
 import { BankFollowUpForm } from './WdBankFollowUp';
@@ -59,7 +60,7 @@ const REPORT_PRESETS = [
 ];
 
 // web.app only, and not on phone-width screens: a Narration tab after the Bin - the Tally narration builder, whatever an entry's status.
-const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', 'formats', 'reminders', 'gemini', ...(narration ? ['narration'] : []), 'links', 'report'];
+const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', ...(narration ? ['narration'] : []), 'links', 'report'];
 // Bottom bar, same order as the web app (Report is reached from the Dashboard).
 const makeBarTabs = (narration) => [
   { key: 'dashboard', label: 'Dashboard' },
@@ -79,8 +80,8 @@ const PHONE_TABS = [
   { key: 'done', label: 'Done' },
   { key: 'more', label: 'More' },
 ];
-const MORE_PAGES = ['holidays', 'bin', 'config', 'links', 'formats', 'reminders', 'gemini'];      // pages opened from More: the header shows a back arrow to it
-const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', formats: 'Report formats', reminders: 'Next reminder', gemini: 'Gemini (AI) key', report: 'Daily Report' };
+const MORE_PAGES = ['holidays', 'bin', 'config', 'links'];      // pages opened from More: the header shows a back arrow to it
+const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', report: 'Daily Report' };
 export default function WorkingDashboard() {
   const insets = useSafeAreaInsets();
   const { wide, tablet: tabletWidth, sideBar } = useLayout();
@@ -169,7 +170,6 @@ export default function WorkingDashboard() {
   const [doneCatOpen, setDoneCatOpen] = useState(false);       // the phone Completed tab's category list
   const [actDraft, setActDraft] = useState('');
   const [logDraft, setLogDraft] = useState({ title: '', details: '' });
-  const [newListDraft, setNewListDraft] = useState({}); // throwaway selection per Lists picker - one shared value showed a Category as the Priority and Status too
   const [testingAlarm, setTestingAlarm] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
 
@@ -293,6 +293,9 @@ export default function WorkingDashboard() {
   const updateWd = (fn) => update((db) => ({ ...db, workingDashboard: fn(db.workingDashboard) }));
   // Links and the AI instructions follow the account: stamped so the newer copy wins on every device.
   const setTools = (fn) => updateWd((w) => { const next = fn(w); const now = Date.now(); return { ...next, toolsStamps: stampChanges(toolsValue(w), toolsValue(next), w.toolsStamps, now), toolsUpdatedAt: now }; });
+
+  // The Category / Priority / Status / Pending with lists and the Sub Category / reminder lists: stamped, so they are sent to the account.
+  const saveLists = (patch) => updateWd((w) => ({ ...w, ...patch, listsUpdatedAt: Date.now() }));
 
   const pushLog = (w, title, details = '', auto = true) => ({
     ...w,
@@ -1340,15 +1343,6 @@ export default function WorkingDashboard() {
    * open on the Config page itself on a phone-width screen ("Both": the APK and the website on a phone).
    */
   const configBodies = {
-    lists: (
-      <>
-      <P dim>Manage the options offered for Category, Priority, Status and Pending With. Search a new name and tap it to add; open an existing one to remove it.</P>
-      <OptionPicker label="Category" source={SOURCES.wdCategory} value={newListDraft.category} onChange={(v) => setNewListDraft((d) => ({ ...d, category: v }))} />
-      <OptionPicker label="Priority" source={SOURCES.wdPriority} value={newListDraft.priority} onChange={(v) => setNewListDraft((d) => ({ ...d, priority: v }))} />
-      <OptionPicker label="Status" source={SOURCES.wdStatus} value={newListDraft.status} onChange={(v) => setNewListDraft((d) => ({ ...d, status: v }))} />
-      <OptionPicker label="Pending with" source={SOURCES.wdAssignee} value={newListDraft.pendingWith} onChange={(v) => setNewListDraft((d) => ({ ...d, pendingWith: v }))} />
-      </>
-    ),
     fixed: (
       <>
       <P dim>Standing tasks you do every working day. Described once, included in every daily report automatically. Uncheck to pause one without losing it.</P>
@@ -1525,16 +1519,6 @@ export default function WorkingDashboard() {
     paymentRules: (
       <>
       <P dim>Set up on the web app (Config) and received with Realtime Sync. The entry form asks for a Sub Category when one of these categories is completed, and builds the Tally narration from these types.</P>
-      <Small style={{ marginTop: 10, marginBottom: 6, fontWeight: '700' }}>CATEGORIES WITH A SUB CATEGORY</Small>
-      <P>{plists.subCategoryCategories.length ? plists.subCategoryCategories.join(', ') : 'None'}</P>
-      <Small style={{ marginTop: 12, marginBottom: 6, fontWeight: '700' }}>SUB CATEGORIES</Small>
-      {!plists.subCategories.length && <P dim>None yet.</P>}
-      {plists.subCategories.map((sc) => (
-        <Card key={sc.id || sc.name} style={{ marginBottom: 8 }}>
-          <Text style={{ color: t.text, fontWeight: '700' }}>{sc.name}</Text>
-          <Small>{sc.fields.map((f) => f.label).join(', ') || 'No extra fields'}</Small>
-        </Card>
-      ))}
       <Small style={{ marginTop: 12, marginBottom: 6, fontWeight: '700' }}>NARRATION TYPES</Small>
       {plists.narrationTypes.map((nr) => (
         <Card key={nr.id || nr.name} style={{ marginBottom: 8 }}>
@@ -1557,7 +1541,7 @@ export default function WorkingDashboard() {
       <Field label="Every (min)" keyboardType="numeric" value={String(wd.reminders[kind].everyMin)} onChangeText={(v) => saveReminder(kind, { everyMin: Number(v) || 60 })} />
     </>
   );
-  const CONFIG_SHEETS = [['lists', 'Lists'], ['fixed', 'Fixed Daily Activities'], ['leave', 'Leave Days'], ['log', 'Activity Log'], ['alarm', 'Alerts & Alarm Sound'], ['slots', 'Time Slots'], ['backup', 'Data Backup'], ['realtime', 'Realtime Sync'], ['cloudSync', 'Cloud Sync'], ['reportSamples', 'Report Style Samples'], ['paymentIntro', 'Payment Intro Lines'], ['paymentRules', 'Sub Categories & Narration Types']];
+  const CONFIG_SHEETS = [['fixed', 'Fixed Daily Activities'], ['leave', 'Leave Days'], ['log', 'Activity Log'], ['alarm', 'Alerts & Alarm Sound'], ['slots', 'Time Slots'], ['backup', 'Data Backup'], ['realtime', 'Realtime Sync'], ['cloudSync', 'Cloud Sync'], ['reportSamples', 'Report Style Samples'], ['paymentIntro', 'Payment Intro Lines'], ['paymentRules', 'Sub Categories & Narration Types']];
 
   return (
     <View style={[{ flex: 1, paddingLeft: sideBar }, t.bgGradient ? { backgroundImage: t.bgGradient } : null]}>
@@ -2304,13 +2288,10 @@ export default function WorkingDashboard() {
             <Group title="Manage">
               <Item icon="📅" color={t.accent} label="Holidays & leave" onPress={() => setTab('holidays')} />
               <Item icon="🔗" color={t.accent2} label="Links" onPress={() => setTab('links')} />
-              <Item icon="⏰" color={t.warn} label="Next reminder" onPress={() => setTab('reminders')} />
-              <Item icon="🧾" color={t.ok} label="Report formats" onPress={() => setTab('formats')} />
               <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
             </Group>
             <Group title="Settings">
               <Item icon="⚙️" color={t.textDim} label="Config & lists" onPress={() => setTab('config')} />
-              <Item icon="✨" color={t.accent} label="Gemini (AI) key" onPress={() => setTab('gemini')} />
               <Item icon="🔔" color={t.warn} label="Alerts, app lock & backups" onPress={() => navigation.navigate('Settings')} last />
             </Group>
             {(() => {
@@ -2327,26 +2308,6 @@ export default function WorkingDashboard() {
             })()}
           </View>
         )}
-
-        {tab === 'reminders' && (
-          <View>
-            <Small style={{ marginBottom: 10 }}>Choose the categories that ask for a next reminder date and time in the entry form. The other categories do not show it. The phone rings an alert at that time.</Small>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {(wd.categories || []).map((c) => {
-                const on = Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(c);
-                return (
-                  <Pressable key={c} onPress={() => updateWd((w) => { const cur = Array.isArray(w.reminderCategories) ? w.reminderCategories : []; return { ...w, reminderCategories: on ? cur.filter((x) => x !== c) : [...cur, c], listsUpdatedAt: Date.now() }; })} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
-                    <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{c}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
-        {tab === 'gemini' && <WdGeminiKey />}
-
-        {tab === 'formats' && <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={(l) => updateWd((w) => ({ ...w, categories: l.categories, subCategories: l.subCategories, subCategoryCategories: l.subCategoryCategories, listsUpdatedAt: Date.now() }))} />}
 
         {tab === 'holidays' && (() => {
           // "Both" (the APK and the website on a phone): the web app's Holidays tab in one column - search, a holiday
@@ -2503,6 +2464,11 @@ export default function WorkingDashboard() {
                 <Segmented options={Object.keys(FONT_LEVELS).map((lvl) => ({ key: String(lvl), label: fontNames[Number(lvl) - 1] || String(lvl) }))} value={String(data.settings?.fontLevel || 2)} onChange={(k) => update({ settings: { fontLevel: Number(k) } })} />
               </>
             ) },
+            { key: 'lists', icon: '📝', title: 'Entry form options', body: <ListsEditor wd={wd} save={saveLists} /> },
+            { key: 'subs', icon: '🗂️', title: 'Sub categories', body: <SubCategories wd={wd} lists={plists} save={saveLists} /> },
+            { key: 'reminder', icon: '⏰', title: 'Next reminder', body: <ReminderCategories wd={wd} save={saveLists} /> },
+            { key: 'formats', icon: '🧾', title: 'Report formats', body: <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={saveLists} /> },
+            { key: 'gemini', icon: '✨', title: 'Gemini (AI) key', body: <WdGeminiKey /> },
             { key: 'security', icon: '🔒', title: 'Security & PIN Lock', body: <AppLockSettings title="" footer="A PIN locks this app on this device. It lives only here and is never included in a backup." /> },
             { key: 'realtime', icon: '🔄', title: 'Realtime Sync', body: configBodies.realtime },
             { key: 'cloudSync', icon: '☁️', title: 'Cloud Sync', body: configBodies.cloudSync },
@@ -2517,9 +2483,7 @@ export default function WorkingDashboard() {
                   <Btn style={{ flex: 1 }} kind="soft" title="✉️ Fetch Mail" onPress={openMail} />
                   <Btn style={{ flex: 1 }} kind="soft" title={testingAlarm ? 'Playing...' : '🔔 Test Alarm'} disabled={testingAlarm} onPress={testAlarm} />
                 </Row>
-                <Text style={{ color: t.text, fontWeight: '700', marginBottom: 4 }}>Lists</Text>
-                {configBodies.lists}
-                <Text style={{ color: t.text, fontWeight: '700', marginTop: 12, marginBottom: 4 }}>Sub Categories & Narration Types</Text>
+                <Text style={{ color: t.text, fontWeight: '700', marginTop: 12, marginBottom: 4 }}>Narration Types</Text>
                 {configBodies.paymentRules}
               </>
             ) },
@@ -2534,8 +2498,9 @@ export default function WorkingDashboard() {
           // left and the chosen section on the right; a phone shows the menu, then the section with a way back.
           const groups = [
             ['General', [['appearance', 'Theme and colours'], ['text', 'Size of the text'], ['security', 'PIN lock for this device']]],
+            ['Entry form', [['lists', 'Categories, priorities, statuses, pending with'], ['subs', 'Sub categories and their fields'], ['reminder', 'Which categories ask for a next reminder']]],
             ['Daily work', [['history', 'Undo changes made earlier'], ['quickadd', 'Dates, language and the bank word'], ['log', 'Things done outside tasks'], ['fixed', 'Routine lines for every report'], ['slots', 'How long a time slot is held'], ['leave', 'Days you are away'], ['tools', 'Lists, Sub Categories, Narration, Fetch Mail']]],
-            ['Reports', [['report', 'Standard lines before payments'], ['reportSamples', 'Past reports that teach the AI your style']]],
+            ['Reports', [['formats', 'The sentence each sub category writes'], ['gemini', 'Your own key, used only when the free route is busy'], ['report', 'Standard lines before payments'], ['reportSamples', 'Past reports that teach the AI your style']]],
             ['Alerts', [['alarm', 'Sound for alarms'], ['walk', 'Nudge to walk'], ['water', 'Nudge to drink water']]],
             ['Data & sync', [['realtime', 'Share with the web app and other devices'], ['cloudSync', 'Google Sheet / Apps Script'], ['backup', 'Save and restore your data'], ['system', 'Permissions, battery, widgets']]],
           ];
