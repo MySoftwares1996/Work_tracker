@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ClockPicker from '../ClockPicker';
 import { copyText } from '../clipboard';
 import { useStore } from '../store';
@@ -25,6 +25,13 @@ function NarrationBox({ t }) {
       {n.missing.length > 0 && <small className="muted">Still to fill: {n.missing.join(', ')}</small>}
     </div>
   );
+}
+
+/** A text box that starts as one line and grows as lines are added (Task description, Notes). */
+function AutoText({ value, ...rest }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }, [value]);
+  return <textarea ref={ref} className="auto" rows={1} value={value} {...rest} />;
 }
 
 export default function TaskForm({ initial, onClose }) {
@@ -143,7 +150,7 @@ export default function TaskForm({ initial, onClose }) {
         </div>
         <div className="cols3">
         <div className="col">
-        <label className="field full">Task description<textarea rows={3} value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
+        <label className="field full">Task description<AutoText value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
         {manager}
         {t.category && (
           <label className="field check ask-reminder"><input type="checkbox" checked={categoryAsksReminder(lists, t.category)} onChange={() => saveLists(toggleReminderCategory(lists, t.category))} /> Ask for a next reminder date &amp; time under {t.category}</label>
@@ -180,7 +187,7 @@ export default function TaskForm({ initial, onClose }) {
           <input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" aria-label="Mail chain" />
         </div>
         </div><div className="col">
-        <label className="field full">Notes<textarea rows={4} value={t.notes} onChange={set('notes')} /></label>
+        <label className="field full">Notes<AutoText value={t.notes} onChange={set('notes')} /></label>
         <div className="side-panel">
         <div className="field full">Checklist{t.checklist.length > 0 && <span className="muted"> ({t.checklist.filter((c) => c.done).length}/{t.checklist.length} done)</span>}
           {t.checklist.map((c) => (

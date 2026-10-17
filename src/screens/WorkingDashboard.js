@@ -824,7 +824,7 @@ export default function WorkingDashboard() {
         </Pressable>
       ) : null,
       title: (
-            <Field label="TASK DESCRIPTION" value={entrySheet.title} onChangeText={(v) => setEntrySheet({ ...entrySheet, title: v })} placeholder="e.g. Follow up on LC opening" />
+            <Field label="TASK DESCRIPTION" multiline compact value={entrySheet.title} onChangeText={(v) => setEntrySheet({ ...entrySheet, title: v })} placeholder="e.g. Follow up on LC opening" />
       ),
       category: (
               <View style={{ flex: 1 }}><OptionPicker editChip label="CATEGORY" source={SOURCES.wdCategory} value={entrySheet.category} onChange={(v) => setEntrySheet({ ...entrySheet, category: v })} placeholder="Select category" /></View>
@@ -998,7 +998,7 @@ export default function WorkingDashboard() {
         </View>
       ) : null,
       notes: (
-            <Field label="NOTES" multiline value={entrySheet.notes} onChangeText={(v) => setEntrySheet({ ...entrySheet, notes: v })} placeholder="Additional notes or context..." />
+            <Field label="NOTES" multiline compact value={entrySheet.notes} onChangeText={(v) => setEntrySheet({ ...entrySheet, notes: v })} placeholder="Additional notes or context..." />
       ),
       dar: (
             <Pressable

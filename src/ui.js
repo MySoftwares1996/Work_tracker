@@ -337,7 +337,7 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
  * forwarded to the TextInput. They used to be dropped silently, so the backup
  * passphrase field showed the passphrase in plain text.
  */
-export function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, style, onFocus, onBlur, ...inputProps }) {
+export function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, compact, style, onFocus, onBlur, ...inputProps }) {
   const t = useTheme();
   /*
    * Number fields keep their own text while focused. Callers store
@@ -362,6 +362,7 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, m
         placeholderTextColor={t.textDim}
         keyboardType={keyboardType}
         multiline={multiline}
+        numberOfLines={compact ? 1 : undefined}
         {...inputProps}
         style={{
           backgroundColor: t.surfaceAlt,
@@ -372,8 +373,9 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, m
           paddingVertical: Platform.OS === 'ios' ? 12 : 9,
           color: t.text,
           fontSize: t.fs(15),
-          minHeight: multiline ? 80 : undefined,
-          textAlignVertical: multiline ? 'top' : 'center',
+          // `compact`: one line to start with, growing as lines are added (Task description, Notes).
+          minHeight: multiline ? (compact ? 44 : 80) : undefined,
+          textAlignVertical: multiline && !compact ? 'top' : 'center',
           // The macOS focus ring on the website: a soft halo in the accent colour.
           ...(Platform.OS === 'web' && focused ? { boxShadow: `0 0 0 3px ${t.accent}40` } : null),
         }}
