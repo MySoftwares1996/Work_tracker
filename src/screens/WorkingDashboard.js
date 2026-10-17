@@ -827,16 +827,16 @@ export default function WorkingDashboard() {
             <Field label="TASK DESCRIPTION" multiline compact value={entrySheet.title} onChangeText={(v) => setEntrySheet({ ...entrySheet, title: v })} placeholder="e.g. Follow up on LC opening" />
       ),
       category: (
-              <View style={{ flex: 1 }}><OptionPicker editChip label="CATEGORY" source={SOURCES.wdCategory} value={entrySheet.category} onChange={(v) => setEntrySheet({ ...entrySheet, category: v })} placeholder="Select category" /></View>
+              <View style={{ flex: 1 }}><OptionPicker editChip={!phoneLayout} dense={phoneLayout} label="CATEGORY" source={SOURCES.wdCategory} value={entrySheet.category} onChange={(v) => setEntrySheet({ ...entrySheet, category: v })} placeholder={phoneLayout ? '-' : 'Select category'} /></View>
       ),
       priority: (
-              <View style={{ flex: 1 }}><OptionPicker editChip label="PRIORITY" source={SOURCES.wdPriority} value={entrySheet.priority} onChange={(v) => setEntrySheet({ ...entrySheet, priority: v })} /></View>
+              <View style={{ flex: 1 }}><OptionPicker editChip={!phoneLayout} dense={phoneLayout} label="PRIORITY" source={SOURCES.wdPriority} value={entrySheet.priority} onChange={(v) => setEntrySheet({ ...entrySheet, priority: v })} /></View>
       ),
       status: (
-              <View style={{ flex: 1 }}><OptionPicker editChip label="STATUS" source={SOURCES.wdStatus} value={entrySheet.status} onChange={(v) => setEntrySheet({ ...entrySheet, status: v })} /></View>
+              <View style={{ flex: 1 }}><OptionPicker editChip={!phoneLayout} dense={phoneLayout} label="STATUS" source={SOURCES.wdStatus} value={entrySheet.status} onChange={(v) => setEntrySheet({ ...entrySheet, status: v })} /></View>
       ),
       pendingWith: (
-              <View style={{ flex: 1 }}><OptionPicker editChip label="PENDING WITH" source={SOURCES.wdAssignee} value={entrySheet.pendingWith} onChange={(v) => setEntrySheet({ ...entrySheet, pendingWith: v })} placeholder="Select person" /></View>
+              <View style={{ flex: 1 }}><OptionPicker editChip={!phoneLayout} dense={phoneLayout} label={phoneLayout ? 'PENDING' : 'PENDING WITH'} source={SOURCES.wdAssignee} value={entrySheet.pendingWith} onChange={(v) => setEntrySheet({ ...entrySheet, pendingWith: v })} placeholder={phoneLayout ? '-' : 'Select person'} /></View>
       ),
       mail: (
               <View style={{ flex: 1 }}>
@@ -906,7 +906,27 @@ export default function WorkingDashboard() {
       ),
       due: (
             <>
-            <DateTimeField labelColor={t.accent} label="DUE DATE & TIME" clearable value={entrySheet.dueAt} onChange={(v) => setEntrySheet({ ...entrySheet, dueAt: v })} />
+            {phoneLayout ? (
+              // Phone: Due date, Month end, Due time and Repeats on ONE line.
+              (() => {
+                const opts = monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 5);
+                const cur = entrySheet.dueAt ? opts.find((m) => m.key === toDateKey(new Date(entrySheet.dueAt))) : null;
+                return (
+                  <Row gap={6} style={{ alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1 }}><DateTimeField dense mode="date" labelColor={t.accent} label="DUE DATE" clearable value={entrySheet.dueAt} onChange={(v) => setEntrySheet({ ...entrySheet, dueAt: v })} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Small numberOfLines={1} style={{ marginBottom: 5 }}>MONTH END</Small>
+                      <PickerButton dense text={cur ? `-${cur.n}` : 'Month end'} dim={!cur} onPress={() => setMonthEndOpen(true)} />
+                    </View>
+                    <View style={{ flex: 1 }}><DateTimeField dense mode="time" label="DUE TIME" value={entrySheet.dueAt} onChange={(v) => v && setEntrySheet({ ...entrySheet, dueAt: v })} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Small numberOfLines={1} style={{ marginBottom: 5 }}>REPEATS</Small>
+                      <PickerButton dense text={recurrenceLabel(entrySheet)} onPress={() => setRecurrenceOpen(true)} />
+                    </View>
+                  </Row>
+                );
+              })()
+            ) : <DateTimeField labelColor={t.accent} label="DUE DATE & TIME" clearable value={entrySheet.dueAt} onChange={(v) => setEntrySheet({ ...entrySheet, dueAt: v })} />}
             {/* "Both" (phone-width screens): one tap for the usual due times instead of the two pickers. */}
             {phoneLayout && (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -4, marginBottom: 12 }}>
@@ -919,12 +939,6 @@ export default function WorkingDashboard() {
                     </Pressable>
                   );
                 })}
-                {(() => {
-                  // A drop-down of the month's last working days: "Month end -1" is the last one. A date alone: it alerts once, at 7 PM that day.
-                  const opts = monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 5);
-                  const cur = entrySheet.dueAt ? opts.find((m) => m.key === toDateKey(new Date(entrySheet.dueAt))) : null;
-                  return <PickerButton text={`${cur ? cur.label : 'Month end ...'}  ▾`} onPress={() => setMonthEndOpen(true)} style={{ alignSelf: 'flex-start' }} />;
-                })()}
               </View>
             )}
             </>
@@ -1050,8 +1064,7 @@ export default function WorkingDashboard() {
           {f.templates}
           {f.title}
           {f.saveTemplate}
-          <Row gap={10}>{f.category}{f.priority}</Row>
-          <Row gap={10}>{f.status}{f.pendingWith}</Row>
+          <Row gap={6} style={{ alignItems: 'flex-start' }}>{f.category}{f.priority}{f.status}{f.pendingWith}</Row>
           {section('When', (
             <>
               {f.due}
@@ -1059,7 +1072,6 @@ export default function WorkingDashboard() {
               {f.alert}
               {f.deadline}
               {f.reminder}
-              <Row>{f.recurrence}</Row>
               {f.custom}
             </>
           ))}

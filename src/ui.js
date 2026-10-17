@@ -503,7 +503,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import TimePickerModal from './TimePickerModal';
 
 /** `clearable` adds a ✕ that empties the field (onChange(null)) - an optional date could be set but never removed. */
-export function DateTimeField({ label, value, onChange, mode = 'datetime', minimumDate, maximumDate, placeholder, labelColor, clearable }) {
+export function DateTimeField({ label, value, onChange, mode = 'datetime', minimumDate, maximumDate, placeholder, labelColor, clearable, dense }) {
   const t = useTheme();
   const [show, setShow] = React.useState(null); // 'date' | 'time' | null
   
@@ -530,15 +530,15 @@ export function DateTimeField({ label, value, onChange, mode = 'datetime', minim
 
   return (
     <View style={{ marginBottom: 12 }}>
-      {!!label && <Small style={[{ marginBottom: 5 }, labelColor ? { color: labelColor, fontWeight: '800' } : null]}>{label}</Small>}
-      <Row>
+      {!!label && <Small numberOfLines={dense ? 1 : undefined} style={[{ marginBottom: 5 }, labelColor ? { color: labelColor, fontWeight: '800' } : null]}>{label}</Small>}
+      <Row gap={dense ? 4 : 10}>
         {mode !== 'time' && (
         <Pressable onPress={() => setShow('date')} style={{
           flex: 1, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
-          borderRadius: t.radius - 8, paddingHorizontal: 12, paddingVertical: 11,
+          borderRadius: t.radius - 8, paddingHorizontal: dense ? 8 : 12, paddingVertical: dense ? 13 : 11,
         }}>
-          <Text style={{ color: value ? t.text : t.textDim, fontSize: t.fs(15) }}>
-            {value ? d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : (placeholder || 'Select Date')}
+          <Text numberOfLines={1} style={{ color: value ? t.text : t.textDim, fontSize: t.fs(dense ? 13 : 15) }}>
+            {value ? d.toLocaleDateString([], dense ? { day: '2-digit', month: 'short' } : { day: '2-digit', month: 'short', year: 'numeric' }) : (placeholder || (dense ? 'Date' : 'Select Date'))}
           </Text>
         </Pressable>
         )}
@@ -547,10 +547,10 @@ export function DateTimeField({ label, value, onChange, mode = 'datetime', minim
             // mode 'time': a time only (the time button takes the whole row).
             ...(mode === 'time' ? { flex: 1 } : { width: 110 }), backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
             // web.app: the time select is round (a pill); the phone keeps the rounded square.
-            borderRadius: Platform.OS === 'web' ? 999 : t.radius - 8, paddingHorizontal: Platform.OS === 'web' ? 16 : 12, paddingVertical: 11, alignItems: Platform.OS === 'web' ? 'center' : undefined,
+            borderRadius: Platform.OS === 'web' ? 999 : t.radius - 8, paddingHorizontal: dense ? 8 : Platform.OS === 'web' ? 16 : 12, paddingVertical: dense ? 13 : 11, alignItems: Platform.OS === 'web' ? 'center' : undefined,
           }}>
-            <Text style={{ color: value ? t.text : t.textDim, fontSize: t.fs(15) }}>
-              {value ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Select Time'}
+            <Text numberOfLines={1} style={{ color: value ? t.text : t.textDim, fontSize: t.fs(dense ? 13 : 15) }}>
+              {value ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (dense ? 'Time' : 'Select Time')}
             </Text>
           </Pressable>
         )}
@@ -721,7 +721,7 @@ const ACCOUNT_KINDS = ['bank', 'credit card', 'cash', 'wallet'];
  */
 export function OptionPicker({
   label, value, onChange, source, multi = false, allowAny = false,
-  placeholder = 'Select', anyLabel = 'Any', compact = false, editChip = false,
+  placeholder = 'Select', anyLabel = 'Any', compact = false, editChip = false, dense = false,
 }) {
   const t = useTheme();
   const { data, update } = useStoreForPicker();
@@ -827,7 +827,7 @@ export function OptionPicker({
     <View style={{ marginBottom: compact ? 0 : 12 }}>
       {!!label && (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-          <Small>{label}</Small>
+          <Small numberOfLines={dense ? 1 : undefined} style={dense ? { flex: 1 } : undefined}>{label}</Small>
           {editChip && !source?.fixed && (
             <Pressable onPress={() => openPicker(true)} hitSlop={6} style={{ backgroundColor: t.accent + '22', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 }}>
               <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(12) }}>Edit</Text>
@@ -835,7 +835,7 @@ export function OptionPicker({
           )}
         </View>
       )}
-      <PickerButton text={shown || (allowAny ? anyLabel : placeholder)} dim={!shown} onPress={() => openPicker(false)} />
+      <PickerButton dense={dense} text={shown || (allowAny ? anyLabel : placeholder)} dim={!shown} onPress={() => openPicker(false)} />
 
       <Sheet visible={open} onClose={close} title={label ? label.charAt(0) + label.slice(1).toLowerCase() : source?.title || 'Select'}>
         <View>
@@ -908,21 +908,22 @@ export function OptionPicker({
 }
 
 /** iOS pop-up button: the current value, then the up/down chevron. Used by every drop-down. */
-export function PickerButton({ text, dim, onPress, style }) {
+export function PickerButton({ text, dim, onPress, style, dense }) {
   const t = useTheme();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       style={({ pressed }) => [{
-        backgroundColor: t.surfaceAlt, borderRadius: 10, paddingHorizontal: 12, minHeight: 44,
+        backgroundColor: t.surfaceAlt, borderRadius: 10, paddingHorizontal: dense ? 8 : 12, minHeight: 44,
         flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.7 : 1,
+        ...(dense ? { borderWidth: 1, borderColor: t.border, minHeight: 46 } : null),
       }, style]}
     >
-      <Text numberOfLines={1} style={{ color: dim ? t.textDim : t.text, fontSize: t.fs(15.5), flex: 1 }}>{text}</Text>
-      <Svg width={12} height={18} viewBox="0 0 12 18" style={{ marginLeft: 8 }}>
+      <Text numberOfLines={1} style={{ color: dim ? t.textDim : t.text, fontSize: t.fs(dense ? 13 : 15.5), flex: 1 }}>{text}</Text>
+      {!dense && <Svg width={12} height={18} viewBox="0 0 12 18" style={{ marginLeft: 8 }}>
         <Path d="M2.5 6.5 6 3l3.5 3.5M2.5 11.5 6 15l3.5-3.5" stroke={t.accent} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </Svg>
+      </Svg>}
     </Pressable>
   );
 }
