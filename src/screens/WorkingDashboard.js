@@ -28,7 +28,7 @@ import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
 import { effectiveFormats, finalNarration } from '../reportFormats';
-import { applyFormats, applyMoves, REPORT_GROUPS } from '../reportExtras';
+import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../reportExtras';
 import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, DEFAULT_PAYMENT_INTRO, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
@@ -819,17 +819,22 @@ export default function WorkingDashboard() {
     const formats = effectiveFormats(wd.reportFormats);
     applyFormats(model, formats, { darPaymentIntro: wd.paymentIntro });
     applyMoves(model, (wd.reportMoves || {})[date] || {}, { lists: { darPaymentIntro: wd.paymentIntro }, payLists: plists, formats, date, details: true });
+    if (reportOpts.subFields) addSubFields(model);
     setReportModel(model);
     setReportAlt(null);
-    setReportText(reportModelToText(model));
+    // The pending list ("Pending:" - open tasks due by this day, by priority) is added when switched on, as on the website.
+    const pend = reportOpts.pending ? entries.filter((e) => isOpen(e) && e.dueAt && toDateKey(new Date(e.dueAt)) <= date).sort((a, b) => ({ High: 0, Medium: 1, Low: 2 }[a.priority] ?? 3) - ({ High: 0, Medium: 1, Low: 2 }[b.priority] ?? 3)) : [];
+    setReportText(reportModelToText(model, { headings: reportOpts.headings }) + (pend.length ? `\n\nPending:\n${pend.map((e) => `* ${e.title}${e.priority ? ` [${e.priority}]` : ''}`).join('\n')}` : ''));
     setReportNote('');
     setReportKind('day');
     return model;
   };
+  const reportOpts = { headings: true, subFields: true, pending: false, ...(wd.reportOpts || {}) };      // the Report's three switches (the website's), this device only
+  const setReportOpt = (k) => updateWd((w) => ({ ...w, reportOpts: { ...reportOpts, [k]: !reportOpts[k] } }));
   const dayMoves = (wd.reportMoves || {})[reportDate] || {};
   const moveTask = (id, group) => updateWd((w) => ({ ...w, reportMoves: { ...(w.reportMoves || {}), [reportDate]: { ...((w.reportMoves || {})[reportDate] || {}), [id]: group } } }));
   const undoMoves = () => updateWd((w) => { const all = { ...(w.reportMoves || {}) }; delete all[reportDate]; return { ...w, reportMoves: all }; });
-  useEffect(() => { if (tab === 'report' && reportKind === 'day' && reportModel) buildReport(); }, [wd.reportMoves]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === 'report' && reportKind === 'day' && reportModel) buildReport(); }, [wd.reportMoves, wd.reportOpts]); // eslint-disable-line react-hooks/exhaustive-deps
   // A week's or month's totals up to the picked date (workingDashboardReport.buildPeriodSummary).
   const buildSummary = (kind) => {
     const sum = buildPeriodSummary({ entries, kind, date: reportDate, lists: plists });
@@ -2173,6 +2178,15 @@ export default function WorkingDashboard() {
                     </Pressable>
                   ))}
                 </ScrollView>
+              </View>
+            )}
+            {reportKind === 'day' && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                {[['headings', 'Section headings'], ['subFields', 'Sub category fields'], ['pending', 'Pending list']].map(([k, label]) => (
+                  <Pressable key={k} onPress={() => setReportOpt(k)} accessibilityRole="switch" accessibilityState={{ checked: !!reportOpts[k] }} style={{ borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: reportOpts[k] ? t.accent : t.surface, ...t.shadow }}>
+                    <Text style={{ color: reportOpts[k] ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(12) }}>{reportOpts[k] ? '✓ ' : ''}{label}</Text>
+                  </Pressable>
+                ))}
               </View>
             )}
             {!!reportModel && reportKind === 'day' && (

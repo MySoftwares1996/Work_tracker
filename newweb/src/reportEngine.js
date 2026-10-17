@@ -3,7 +3,7 @@
  * site's tasks. Sections, in order: Other work completed, Payments (Tally narration lines), Followed up / in progress, Routine daily
  * activities, Other activities. Domestic and Urgent payments are left out, as there.
  */
-import { applyFormats, applyMoves, REPORT_GROUPS } from '../../src/reportExtras.js';
+import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../../src/reportExtras.js';
 import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees } from '../../src/workingDashboardReport.js';
 import { buildStylePrompt } from '../../src/reportStyle.js';
 import { paymentLists, withWebNarrationTypes } from '../../src/workingDashboardPayments.js';
@@ -42,17 +42,7 @@ export function buildReport(tasks, lists, calendar, date, { headings = true, sub
   });
   applyFormats(model, formats, lists);
   applyMoves(model, moves, { lists, payLists: reportLists(lists), formats, date, details: true });
-  if (subFields) {
-    model.sections.forEach((sec) => {
-      if (sec.key === 'pay') return;
-      sec.rows.forEach((r) => {
-        if (r.fixed || !r.entry) return;
-        const fields = Object.entries(r.entry.subCategoryFields || {}).filter(([, v]) => String(v || '').trim())
-          .map(([k, v]) => `${String(k).replace(/[\s:]+$/, '')}: ${String(v).trim().replace(/\s+/g, ' ')}`);
-        if (fields.length && !fields.every((f) => r.line.includes(f))) r.line = `${r.line.replace(/[.\s]+$/, '')}. ${fields.join('; ')}.`;
-      });
-    });
-  }
+  if (subFields) addSubFields(model);
   return { model, text: reportModelToText(model, { headings }) };
 }
 

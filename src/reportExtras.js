@@ -96,3 +96,17 @@ export function applyMoves(model, moves = {}, { lists = {}, payLists = {}, forma
   return model;
 }
 
+
+/** Adds each task's Sub Category fields ("Banker's Reply's: ...") to its line (payment and fixed-wording lines stay word for word). */
+export function addSubFields(model) {
+  model.sections.forEach((sec) => {
+    if (sec.key === 'pay') return;
+    sec.rows.forEach((r) => {
+      if (r.fixed || !r.entry) return;
+      const fields = Object.entries(r.entry.subCategoryFields || {}).filter(([, v]) => String(v || '').trim())
+        .map(([k, v]) => `${String(k).replace(/[\s:]+$/, '')}: ${String(v).trim().replace(/\s+/g, ' ')}`);
+      if (fields.length && !fields.every((f) => r.line.includes(f))) r.line = `${r.line.replace(/[.\s]+$/, '')}. ${fields.join('; ')}.`;
+    });
+  });
+  return model;
+}

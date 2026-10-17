@@ -173,6 +173,7 @@ export const DEFAULT_DB = {
     undoHistory: [],         // the last 25 undoable changes (Config > Recent Changes)
     narrationHistory: [],    // narrations copied for Tally (src/narrationHistory.js), this device only
     templates: [],          // task templates (src/templates.js) - follow the account with the links (meta/tools)
+    reportOpts: {},         // the Report's switches: headings, Sub Category fields, pending list (defaults: on, on, off), this device only
     reportMoves: {},        // the Report's moved tasks per day ({ 'YYYY-MM-DD': { taskId: group } }), this device only
     formatSetupAt: 0,       // when the categories and sub categories the report formats need were first added automatically (once per account)
     reportFormats: [],      // report formats (src/reportFormats.js) - follow the account (meta/tools); [] = the sample formats
