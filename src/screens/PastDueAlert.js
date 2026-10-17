@@ -84,7 +84,7 @@ export default function PastDueAlert() {
   // Back to the Working Dashboard already underneath (it is the first screen), not a second copy on top of it:
   // replace() stacked one, so Back from it went through the dashboard twice. popTo() adds one only if none is there.
   const toDashboard = (params) => { redirected.current = true; nav.popTo('WorkingDashboard', params); };
-  useEffect(() => () => { if (!redirected.current) fx.stopAlarmRinging('wd:').catch(() => {}); }, []);
+  useEffect(() => () => { if (!redirected.current) fx.stopAlarmRinging('wd:').catch(warnQuiet('PastDueAlert')); }, []);
 
   const ringing = useMemo(
     () => (focusAlarm ? new Set(ringingEntries(wd.entries || [], focusAlarm, new Date(), alerts).map((e) => String(e.id))) : null),
@@ -161,7 +161,7 @@ export default function PastDueAlert() {
     }
     const rolled = nextRecurringEntry(marked, wd.entries || [], new Date(), { holidays: normalizeHolidays(wd.holidays), leaveDays: normalizeLeaveDays(wd.leaveDays) });
     update((db) => ({ ...db, workingDashboard: { ...db.workingDashboard, entries: [...(rolled ? [rolled] : []), ...db.workingDashboard.entries.map((x) => (x.id === e.id ? { ...completeEntry(marked), audit: addAudit(e.audit, dar ? 'Marked done + DAR (alert)' : 'Marked done (alert)', 'phone') } : x))] } }));
-    fx.cancelEntryAlert(e.id).catch(() => {});
+    fx.cancelEntryAlert(e.id).catch(warnQuiet('PastDueAlert'));
     if (rolled) fx.scheduleEntryAlert(rolled, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     hide(e.id);
   };
@@ -194,7 +194,7 @@ export default function PastDueAlert() {
     const next = { ...moveEntry(withRemark(e, remarks[e.id]), iso), audit: addAudit(e.audit, 'Moved to a new date (alert)', 'phone') };
     edit(e.id, () => next);
     fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
-    fx.stopAlarmRinging(`wd:${e.id}:`).catch(() => {});
+    fx.stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('PastDueAlert'));
     if (new Date(iso) > new Date()) hide(e.id);
   };
   // 🔔 Alarm / 🔕 Reminder for this task, as on its card: a Reminder stops ringing and is not nagged again.
@@ -204,7 +204,7 @@ export default function PastDueAlert() {
     const next = { ...e, alertMode: mode, ...editedNow() };
     edit(e.id, (x) => ({ ...x, alertMode: mode, ...editedNow() }));
     fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
-    if (mode === 'gentle') fx.stopAlarmRinging(`wd:${e.id}:`).catch(() => {});
+    if (mode === 'gentle') fx.stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('PastDueAlert'));
   };
   const postpone = (shown) => move(shown, postponeDue(live(shown), wd.holidays, wd.leaveDays));
   const postponeAll = () => closedList.forEach(({ e }) => postpone(e));

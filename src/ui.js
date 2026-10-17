@@ -8,6 +8,7 @@ import TabIcon from './tabIcons';
 import { SIDE_BAR_WIDTH, CONTENT_MAX_WIDTH, layoutFor } from './layout';
 import { useTheme, opaque, withAlpha } from './theme';
 import Svg, { Path } from 'react-native-svg';
+import { warnQuiet } from './quietCatch';
 
 /**
  * @param headerless  true only for screens with the navigation header hidden.
@@ -291,7 +292,7 @@ export function Small({ children, style, numberOfLines }) {
 export function Btn({ title, onPress, kind = 'primary', style, disabled, icon }) {
   const t = useTheme();
   const map = {
-    primary: { bg: t.accent, fg: '#fff' },
+    primary: { bg: t.accent, fg: t.onAccent || '#fff' },
     ghost: { bg: 'transparent', fg: t.accent, border: t.accent },
     soft: { bg: t.surfaceAlt, fg: t.text, border: t.border },
     danger: { bg: t.danger, fg: '#fff' },
@@ -982,7 +983,7 @@ export function SwipeTabs({ tabs, value, onChange, children, style, swipe = true
 /* ---------- motion helpers ---------- */
 
 let reduceMotionCache = false;
-AccessibilityInfo.isReduceMotionEnabled?.().then((v) => { reduceMotionCache = !!v; }).catch(() => {});
+AccessibilityInfo.isReduceMotionEnabled?.().then((v) => { reduceMotionCache = !!v; }).catch(warnQuiet('ui'));
 
 /** Fades its children in while rising into place; `delay` staggers a list. Skipped when the phone asks for reduced motion. */
 /** The phone's "reduce motion" setting, as last read: animations are skipped when it is on. */

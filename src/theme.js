@@ -174,7 +174,7 @@ Object.assign(THEMES, {
   sunset: palette('sunset', 'Sunset Orange', { bg: '#F7F3EF', accent: '#F2631B', accent2: '#2B5FC4', danger: '#D33A3A', warn: '#9B6208' }),
   lilac: palette('lilac', 'Lilac Mist', { bg: '#F4F2FA', accent: '#7B5CF5', accent2: '#3A64D6', danger: '#D23B5A', warn: '#A1660B' }),
   // The phone's "Warm" look (chosen by the owner from the style studio): cream backdrop, orange accent, 18px corners, tinted shadows.
-  warm: palette('warm', 'Warm (auto dark mode)', { bg: '#FFF7EF', surface: '#FFFFFF', surfaceAlt: '#FFEEDD', border: '#F3E2D0', text: '#2B1A0E', textDim: '#9A7B64', accent: '#EA580C', accent2: '#2B5FC4', danger: '#DC2626', warn: '#B45309', ok: '#16A34A', darkTwin: { bg: '#17100A', surface: '#241911', surfaceAlt: '#302216', border: '#3D2B1C', text: '#FDF2E7', textDim: '#BDA089', accent: '#FB923C' } }),
+  warm: palette('warm', 'Warm (auto dark mode)', { bg: '#FFF7EF', surface: '#FFFFFF', surfaceAlt: '#FFEEDD', border: '#F3E2D0', text: '#2B1A0E', textDim: '#9A7B64', accent: '#EA580C', accent2: '#2B5FC4', danger: '#DC2626', warn: '#B45309', ok: '#16A34A', darkTwin: { bg: '#17100A', surface: '#241911', surfaceAlt: '#302216', border: '#3D2B1C', text: '#FDF2E7', textDim: '#BDA089', accent: '#FB923C', onAccent: '#2B1A0E' } }),
   night: palette('night', 'Midnight Black', { dark: true, bg: '#000000', surface: '#17181B', surfaceAlt: '#232428', accent: '#34D9A0', accent2: '#8FB5FF', danger: '#FF8A80', warn: '#FFCC66', ok: '#34D9A0' }),
 });
 
@@ -262,6 +262,8 @@ export function ThemeProvider({ children }) {
       frosted: !!skin,
       // The website's desktop backdrop: a soft wallpaper-like tint, so the frosted side bar has something to blur.
       bgGradient: skin && Platform.OS === 'web' ? (t.dark ? 'linear-gradient(135deg,#0B0F1E 0%,#150F24 55%,#1E1218 100%)' : 'linear-gradient(135deg,#E6ECFB 0%,#F2ECF9 55%,#FCF0EA 100%)') : null,
+      // Text on an accent-coloured button: white, except where the accent is too light for it (Warm in dark mode).
+      onAccent: t.onAccent || '#FFFFFF',
       hairline: t.dark ? 'rgba(255,255,255,0.18)' : 'rgba(60,60,67,0.29)',
       sideEdge: t.dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.14)',
       mac: Platform.OS === 'web',

@@ -400,7 +400,7 @@ export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp, card }) {
           </Row>
         </Pressable>
         <Row gap={8}>
-          {btn('Done', t.accent, '#fff', onDone)}
+          {btn('Done', t.accent, t.onAccent, onDone)}
           {onDar && btn('DAR', blend(t.accent, 0.14, t.surface), t.accent, onDar)}
         </Row>
       </View>

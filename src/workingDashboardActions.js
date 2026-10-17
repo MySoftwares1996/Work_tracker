@@ -66,21 +66,21 @@ export async function completeWdEntry(entryId, { dar = false } = {}) {
     rolled = nextRecurringEntry(e, entries, new Date(), { holidays: normalizeHolidays(wd.holidays), leaveDays: normalizeLeaveDays(wd.leaveDays) });
     return [...(rolled ? [rolled] : []), ...entries.map((x) => (String(x.id) === id ? completeEntry({ ...x, dar }) : x))];
   });
-  await cancelEntryAlert(id).catch(() => {});
+  await cancelEntryAlert(id).catch(warnQuiet('workingDashboardActions'));
   if (rolled) await scheduleEntryAlert(rolled, ringtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
   redrawWidgets();
 }
 
 /** Home-screen widgets show the entries too. Loaded on demand: widgets.js imports this file. */
 function redrawWidgets() {
-  import('./widgets').then((m) => m.refreshWidgets()).catch(() => {});
+  import('./widgets').then((m) => m.refreshWidgets()).catch(warnQuiet('workingDashboardActions'));
 }
 
 /** Snooze on an alert: quiet now, one alarm again in `minutes` (15 unless a length was picked on the alarm). */
 export async function snoozeWdEntry(entryId, minutes = WD_SNOOZE_MIN) {
   const wd = await readWd();
   const e = (wd.entries || []).find((x) => String(x.id) === String(entryId));
-  if (!e || !isOpen(e)) { await cancelEntryAlert(String(entryId)).catch(() => {}); return; }
+  if (!e || !isOpen(e)) { await cancelEntryAlert(String(entryId)).catch(warnQuiet('workingDashboardActions')); return; }
   // Kept on the entry too (the web app's snoozeUntil), so the web app is quiet for the same time.
   const until = Date.now() + minutes * 60000;
   await changeEntries((entries) => entries.map((x) => (String(x.id) === String(entryId) ? snoozeEntry(x, until) : x)));
@@ -97,7 +97,7 @@ export async function setWdAlertMode(entryId, mode) {
   await stopAlarmRinging(`wd:${id}:`).catch(() => false);
   const wd = await readWd();
   const e = (wd.entries || []).find((x) => String(x.id) === id);
-  if (!e || !isOpen(e)) { await cancelEntryAlert(id).catch(() => {}); return; }
+  if (!e || !isOpen(e)) { await cancelEntryAlert(id).catch(warnQuiet('workingDashboardActions')); return; }
   const next = { ...e, alertMode: mode, ...editedNow() };
   await changeEntries((entries) => entries.map((x) => (String(x.id) === id ? { ...x, alertMode: mode, ...editedNow() } : x)));
   await scheduleEntryAlert(next, wd.alarmRingtone || 'chime', wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
@@ -184,7 +184,7 @@ export async function refreshWdAlerts({ pull = true, force = false, wd: given = 
   if (!given) redrawWidgets();          // background run: overdue / due-today counts move with the clock
   if (!force && sig === (await AsyncStorage.getItem(SIG_KEY).catch(() => null))) return 0;
   const n = await syncEntryAlerts(entries, wd.alarmRingtone || 'chime', wd.alerts);
-  await AsyncStorage.setItem(SIG_KEY, sig).catch(() => {});
+  await AsyncStorage.setItem(SIG_KEY, sig).catch(warnQuiet('workingDashboardActions'));
   return n;
 }
 

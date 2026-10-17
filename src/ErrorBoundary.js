@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
 import { KEY, SLICES, assemble, readStored, writeStored, storedKeysOf } from './storeCore';
 import { buildBackup } from './backup';
+import { warnQuiet } from './quietCatch';
 // Not used by this app; kept so "Erase everything" also clears it on a phone where it was ever written.
 const TODO_KEY = 'MPT_TODOS_V1';
 
@@ -126,7 +127,7 @@ export default class ErrorBoundary extends React.Component {
     try {
       // The to-do list too: it is stored apart, and "erase everything" used to leave it (and its alarms) behind.
       await AsyncStorage.multiRemove(await storedKeysOf([KEY, ...SLICES.map((s) => s.key), TODO_KEY]));
-      await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
+      await Notifications.cancelAllScheduledNotificationsAsync().catch(warnQuiet('ErrorBoundary'));
       this.reset();
     } catch (e) {
       console.warn('Wipe failed', e?.message);
@@ -223,7 +224,7 @@ export default class ErrorBoundary extends React.Component {
 export function LoadFailed({ message, onRetry }) {
   const [busy, setBusy] = useState(false);
   // App.js hides the splash only once the store is ready, which never happens here.
-  useEffect(() => { SplashScreen.hideAsync().catch(() => {}); }, []);
+  useEffect(() => { SplashScreen.hideAsync().catch(warnQuiet('ErrorBoundary')); }, []);
   return (
     <View style={{ flex: 1, backgroundColor: '#0B1220', justifyContent: 'center', padding: 24 }}>
       <Text style={{ fontSize: 40, marginBottom: 12 }}>🔒</Text>

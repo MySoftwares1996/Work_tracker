@@ -15,3 +15,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 
 - Phone: App lock can be skipped at first launch and turned on / off from More > App lock (`AppLockGate.js`).
 - New web: a small Copy beside Final Narration and Mail chain in the entry form. Web only, nothing to port.
+- Phone: readable text on the orange in dark Warm (theme onAccent); every fire-and-forget failure is now logged (quietCatch.js).

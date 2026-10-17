@@ -6,6 +6,7 @@
  * unaffected and keep importing from '../store'.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { warnQuiet } from './quietCatch';
 
 export const KEY = 'MPT_DB_V1';
 
@@ -362,7 +363,7 @@ let writeQueue = Promise.resolve();
 export function writeStored(pairs) {
   // One write at a time: a save's sweep must never see - and remove - another save's new pieces.
   const run = writeQueue.then(() => writeStoredNow(pairs));
-  writeQueue = run.catch(() => {});
+  writeQueue = run.catch(warnQuiet('storeCore'));
   return run;
 }
 
@@ -382,7 +383,7 @@ async function writeStoredNow(pairs) {
   if (!swept.length) return;
   const all = AsyncStorage.getAllKeys ? await AsyncStorage.getAllKeys().catch(() => []) : [];
   const stale = all.filter((k) => swept.some((key) => isChunkOf(key)(k)) && !keep.has(k));
-  if (stale.length) await AsyncStorage.multiRemove(stale).catch(() => {});
+  if (stale.length) await AsyncStorage.multiRemove(stale).catch(warnQuiet('storeCore'));
   swept.forEach((k) => (heads.some(([h, v]) => h === k && readManifest(v)) ? pieced.add(k) : pieced.delete(k)));
 }
 
@@ -403,7 +404,7 @@ export async function loadAll() {
   // Rewriting the core (migrated) is what drops a removed tool's data from it.
   if (core && REMOVED_SECTIONS.some((k) => k in core)) migrated = true;
   if (REMOVED_KEYS.some((k) => map[k] != null)) {
-    await AsyncStorage.multiRemove(REMOVED_KEYS).catch(() => {});
+    await AsyncStorage.multiRemove(REMOVED_KEYS).catch(warnQuiet('storeCore'));
   }
   for (const s of SLICES) {
     const parsed = map[s.key] ? safeParse(map[s.key], s.key, corrupt) : null;

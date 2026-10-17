@@ -450,8 +450,8 @@ export default function WorkingDashboard() {
       // A rolled-on repeat that is taken back must also go from the cloud.
       deletedIds: [...new Set([...(w.deletedIds || []), ...u.addedIds])],
     }, 'Undone', u.message));
-    u.addedIds.forEach((id) => cancelEntryAlert(id).catch(() => {}));
-    u.before.forEach((e) => { if (isOpen(e)) scheduleEntryAlert(e, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert')); else cancelEntryAlert(e.id).catch(() => {}); });
+    u.addedIds.forEach((id) => cancelEntryAlert(id).catch(warnQuiet('WorkingDashboard')));
+    u.before.forEach((e) => { if (isOpen(e)) scheduleEntryAlert(e, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert')); else cancelEntryAlert(e.id).catch(warnQuiet('WorkingDashboard')); });
   };
 
   const act = (shown, kind, opts = {}) => {
@@ -490,7 +490,7 @@ export default function WorkingDashboard() {
     const rolled = kind === 'complete' ? nextRecurringEntry(entry, entriesRef.current, new Date(), { holidays: holidayList, leaveDays: leaveList }) : null;
     updateWd((w) => pushLog({ ...w, entries: [...(rolled ? [rolled] : []), ...w.entries.map((x) => (x.id === entry.id ? (() => { const r = pick(x); return { ...r, audit: addAudit(x.audit, ACTION_AUDIT[kind] || label, Platform.OS === 'web' ? 'web' : 'phone') }; })() : x))] }, label, entry.title));
     offerUndo(`${label} “${entry.title}”`, [entry], rolled ? [rolled.id] : []);
-    if (kind === 'complete' || kind === 'bin') cancelEntryAlert(entry.id).catch(() => {});
+    if (kind === 'complete' || kind === 'bin') cancelEntryAlert(entry.id).catch(warnQuiet('WorkingDashboard'));
     if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     else if (kind === 'reopen') scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
   };
@@ -648,7 +648,7 @@ export default function WorkingDashboard() {
     }
   };
   const visibleEmails = useMemo(() => filterEmails(emails, mailQuery), [emails, mailQuery]);
-  const openEmailInGmail = (email) => Linking.openURL(`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(email.id)}`).catch(() => {});
+  const openEmailInGmail = (email) => Linking.openURL(`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(email.id)}`).catch(warnQuiet('WorkingDashboard'));
 
   /* ---------- AI Daily Report ---------- */
   const buildReport = (date = reportDate) => {
@@ -1191,7 +1191,7 @@ export default function WorkingDashboard() {
           {/* Who is signed in, top right on every screen; tapping it opens More (account, sign in / out). */}
           <Pressable onPress={() => setTab('more')} accessibilityRole="button" accessibilityLabel={`Signed in as ${userLabel}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 120, height: 40, paddingLeft: 4, paddingRight: 10, borderRadius: 20, backgroundColor: t.surface, ...t.shadow }}>
             <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(14) }}>{userLabel.charAt(0).toUpperCase()}</Text>
+              <Text style={{ color: t.onAccent, fontWeight: '800', fontSize: t.fs(14) }}>{userLabel.charAt(0).toUpperCase()}</Text>
             </View>
             <Text numberOfLines={1} style={{ flexShrink: 1, color: t.text, fontWeight: '700', fontSize: t.fs(13) }}>{userLabel}</Text>
           </Pressable>
@@ -1507,7 +1507,7 @@ export default function WorkingDashboard() {
                   const on = quickView === k;
                   return (
                     <Pressable key={k || 'all'} onPress={() => setQuickView(k)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.accent : t.surface, borderWidth: 1, borderColor: on ? t.accent : t.border }}>
-                      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
+                      <Text style={{ color: on ? t.onAccent : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
                     </Pressable>
                   );
                 })}
@@ -1725,7 +1725,7 @@ export default function WorkingDashboard() {
                   setTools((w) => {
                     const list = Array.isArray(w.links) ? w.links : [];
                     const row = { title, url, ...(folder ? { folder } : {}) };
-                    return { ...w, links: linkDraft.id ? list.map((x) => (x.id === linkDraft.id ? { id: x.id, ...row } : x)) : [...list, { id: `lnk-${Date.now().toString(36)}`, ...row }] };
+                    return { ...w, links: linkDraft.id ? list.map((x) => (x.id === linkDraft.id ? { id: x.id, ...row } : x)) : [...list, { id: `lnk-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, ...row }] };
                   });
                   setLinkDraft({ id: '', title: '', url: '', folder: '' });
                 }} />
@@ -1788,7 +1788,7 @@ export default function WorkingDashboard() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, marginBottom: 12 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
                   {[['Today', () => { const k = toDateKey(new Date()); setReportDate(k); buildReport(k); }, reportKind === 'day' && reportDate === toDateKey(new Date())], ['This week', () => buildSummary('week'), reportKind === 'week'], ['This month', () => buildSummary('month'), reportKind === 'month']].map(([label, fn, on]) => (
                     <Pressable key={label} onPress={fn} accessibilityRole="button" accessibilityState={{ selected: !!on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
-                      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
+                      <Text style={{ color: on ? t.onAccent : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
                     </Pressable>
                   ))}
                 </ScrollView>
@@ -2385,7 +2385,7 @@ export default function WorkingDashboard() {
         accessibilityLabel="New entry"
         style={{ position: 'absolute', right: wide ? 32 : 18, bottom: fabBottom, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, elevation: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
       >
-        <Text style={{ color: '#fff', fontSize: 30, lineHeight: 34, fontWeight: '300' }}>+</Text>
+        <Text style={{ color: t.onAccent, fontSize: 30, lineHeight: 34, fontWeight: '300' }}>+</Text>
       </Pressable>
     )}
     <UndoBar undo={undo} onUndo={runUndo} onHide={() => setUndo(null)} bottom={wide ? 24 : Math.max(insets.bottom, 8) + 84} left={sideBar + 16} />

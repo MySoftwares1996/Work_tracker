@@ -5,6 +5,7 @@ import { normaliseOptions } from './optionSources';
 import { repairWebShapedEntries } from './cloudSync';
 import { blankEntry } from './workingDashboard';
 import { LoadFailed } from './ErrorBoundary';
+import { warnQuiet } from './quietCatch';
 
 // Pure logic lives in storeCore.js; re-exported so every existing
 // `import { ... } from '../store'` keeps working unchanged.
@@ -46,7 +47,7 @@ export function StoreProvider({ children }) {
       const damaged = Object.entries(corrupt || {});
       if (damaged.length) {
         const stamp = Date.now();
-        await writeStored(damaged.map(([k, raw]) => [`MPT_CORRUPT_${k}_${stamp}`, raw])).catch(() => {});
+        await writeStored(damaged.map(([k, raw]) => [`MPT_CORRUPT_${k}_${stamp}`, raw])).catch(warnQuiet('store'));
       }
       // Repairs older data onto the single-list model; a no-op once done.
       const base = assemble(core, slices);

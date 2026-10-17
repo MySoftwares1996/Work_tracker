@@ -3,6 +3,7 @@ import { View, Text, Pressable, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
 import { useTheme } from './theme';
+import { warnQuiet } from './quietCatch';
 
 /**
  * Only in a build made with the update settings (docs/PHONE_UPDATES.md). When the app opens or comes back to the front it looks for a
@@ -37,7 +38,7 @@ export default function PhoneUpdate() {
   return (
     <View accessibilityRole="alert" style={{ position: 'absolute', left: 12, right: 12, bottom: Math.max(insets.bottom, 8) + 84, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, backgroundColor: t.accent, ...t.shadow }}>
       <Text style={{ flex: 1, color: '#fff', fontWeight: '700' }}>A new version of the app is ready.</Text>
-      <Pressable onPress={() => { Updates.reloadAsync().catch(() => {}); }} accessibilityRole="button" style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#fff' }}>
+      <Pressable onPress={() => { Updates.reloadAsync().catch(warnQuiet('PhoneUpdate.native')); }} accessibilityRole="button" style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#fff' }}>
         <Text style={{ color: t.accent, fontWeight: '800' }}>Restart</Text>
       </Pressable>
     </View>

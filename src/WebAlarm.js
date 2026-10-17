@@ -81,7 +81,7 @@ export default function WebAlarmHost({ onOpen }) {
   useEffect(() => {
     if (!playing) { stopPreview(); return undefined; }
     const tn = toneRef.current === 'silent' ? 'silent' : (!toneRef.current || toneRef.current === 'default' ? 'alarm' : toneRef.current);
-    previewRingtone(tn, { loop: true }).catch(() => {});
+    previewRingtone(tn, { loop: true }).catch(warnQuiet('WebAlarm'));
     return () => { stopPreview(); };
   }, [playing]);
 
@@ -100,7 +100,7 @@ export default function WebAlarmHost({ onOpen }) {
   const answered = (id) => setRings((list) => list.filter((r) => String(r.entryId) !== String(id)));
 
   const realAct = {
-    done: (id, remark, dar) => { if (String(remark || '').trim()) edit(id, (x) => withRemark(x, remark)); answered(id); handleWdAction(dar ? 'DAR' : 'DONE', id).catch(() => {}); },
+    done: (id, remark, dar) => { if (String(remark || '').trim()) edit(id, (x) => withRemark(x, remark)); answered(id); handleWdAction(dar ? 'DAR' : 'DONE', id).catch(warnQuiet('WebAlarm')); },
     silence: (id, remark) => {
       const e = live(id); if (!e) return;
       edit(id, (x) => silenceEntryToday(withRemark(x, remark)));
@@ -146,7 +146,7 @@ export default function WebAlarmHost({ onOpen }) {
   const items = rings.map((r) => ({ ring: r, entry: live(r.entryId) })).filter((x) => x.entry);
   if (!items.length) return null;
   const cur = items[Math.min(pick, items.length - 1)];
-  const playSound = () => { const tn = toneRef.current; previewRingtone(!tn || tn === 'default' ? 'alarm' : tn, { loop: true }).catch(() => {}); };
+  const playSound = () => { const tn = toneRef.current; previewRingtone(!tn || tn === 'default' ? 'alarm' : tn, { loop: true }).catch(warnQuiet('WebAlarm')); };
   const D = ALARM_COLORS.dark; const B = ALARM_COLORS.banner;
   const dark = { ...t, surface: D.surface, surfaceAlt: D.surfaceAlt, text: D.text, textDim: D.textDim, border: D.border };
   const pager = items.length > 1 && (

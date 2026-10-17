@@ -11,6 +11,7 @@ import {
   isFullScreenIntentAllowed, requestFullScreenIntentPermission, setAlarmStyle, setAlarmDelivery, setAlarmBanner, canDrawOverlays, requestOverlayPermission, scheduleFullScreenAlarm,
 } from '../tracker';
 import { WEB_ALARM_STYLES, previewWebAlarm } from '../WebAlarm';
+import { warnQuiet } from '../quietCatch';
 
 // The phone's full-screen alarm looks (modules/native-tools AlarmStyles.kt), in the same order.
 const PHONE_ALARM_STYLES = [
@@ -47,7 +48,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
   const t = useTheme();
   const nav = useNavigation();
   const [log, setLog] = useState([]);
-  useEffect(() => { readAlertLog().then(setLog).catch(() => {}); }, []);
+  useEffect(() => { readAlertLog().then(setLog).catch(warnQuiet('WdAlertSettings')); }, []);
   const a = { ...DEFAULT_ALERTS, ...(alerts || {}) };
   const set = (patch) => onChange({ ...a, ...patch });
   const leads = new Set((a.dueLeadMin || []).map(Number));
@@ -56,7 +57,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
   const [testNote, setTestNote] = useState('');
   const testStyle = async () => {
     if (Platform.OS === 'web') { previewWebAlarm(); return; }
-    await setAlarmStyle(Number(a.phoneAlarmStyle) || 1).catch(() => {});
+    await setAlarmStyle(Number(a.phoneAlarmStyle) || 1).catch(warnQuiet('WdAlertSettings'));
     const ok = await scheduleFullScreenAlarm(`preview:${Date.now()}`, new Date(Date.now() + 5000), 'High priority due now', 'Sample task - style preview\nAny button closes it.').catch(() => false);
     setTestNote(ok ? 'Rings in 5 seconds - lock the screen to see it full screen.' : 'Could not book the test alarm: check "Alarms & reminders" below.');
   };
@@ -121,8 +122,8 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
       {/* Phone only: where an alarm appears - full screen (the default, on the lock screen too) or the notification centre. */}
       {Platform.OS !== 'web' && trackerAvailable() && (
         <Card style={{ marginBottom: 12 }}>
-          {toggle('Show alarms in the notification centre instead', 'Off (the default): an alarm opens full screen straight away - on the lock screen and while you use the phone. On: it appears only as a notification, with its buttons.', !!a.alarmAsNotification, (v) => { set({ alarmAsNotification: v }); setAlarmDelivery(v).catch(() => {}); })}
-          {toggle('Also show a banner notification', 'On (the safe default): the alarm also pops up a notification, so you still see it if your phone refuses the full screen. Off: only a small silent line in the notification shade - the alert is the full screen alone (needs "Open over other apps").', a.alarmBanner !== false, (v) => { set({ alarmBanner: v }); setAlarmBanner(v).catch(() => {}); })}
+          {toggle('Show alarms in the notification centre instead', 'Off (the default): an alarm opens full screen straight away - on the lock screen and while you use the phone. On: it appears only as a notification, with its buttons.', !!a.alarmAsNotification, (v) => { set({ alarmAsNotification: v }); setAlarmDelivery(v).catch(warnQuiet('WdAlertSettings')); })}
+          {toggle('Also show a banner notification', 'On (the safe default): the alarm also pops up a notification, so you still see it if your phone refuses the full screen. Off: only a small silent line in the notification shade - the alert is the full screen alone (needs "Open over other apps").', a.alarmBanner !== false, (v) => { set({ alarmBanner: v }); setAlarmBanner(v).catch(warnQuiet('WdAlertSettings')); })}
         </Card>
       )}
 
@@ -140,7 +141,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
             const on = (Number(a[key]) || 1) === n;
             return chip(`${n} · ${label}`, on, () => {
               set({ [key]: n });
-              if (key === 'phoneAlarmStyle') setAlarmStyle(n).catch(() => {});      // the next alarm already looks so
+              if (key === 'phoneAlarmStyle') setAlarmStyle(n).catch(warnQuiet('WdAlertSettings'));      // the next alarm already looks so
             });
           })}
         </View>

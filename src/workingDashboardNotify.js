@@ -18,6 +18,7 @@ import { makeSerial } from './serialQueue';
 import { logAlert } from './alertLog';
 import { reminderTimesAhead, entryAlertPlan, alertModeOf, isQuietTime, weeklySummaryTimes, isWarningKey, DEFAULT_ALERTS } from './workingDashboard';
 import { scheduleFullScreenAlarm, cancelFullScreenAlarm, listFullScreenAlarms, stopAlarmRinging, setAlarmSound, setAlarmStyle, setAlarmDelivery, setAlarmBanner, trackerAvailable } from './tracker';
+import { warnQuiet } from './quietCatch';
 
 export const WD_CATEGORY = 'PT_WD_ALERT';
 export const WD_DONE = 'WD_DONE';
@@ -43,7 +44,7 @@ export const entryIdOfAlarm = (alarmId) => {
 async function cancelByKind(kind, entryId) {
   const all = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
   const mine = all.filter((n) => n.content?.data?.kind === kind && (entryId == null || n.content?.data?.entryId === entryId));
-  await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {})));
+  await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(warnQuiet('workingDashboardNotify'))));
 }
 
 async function cancelAlarms(entryId) {
@@ -84,10 +85,10 @@ const notifyFor = (entry, item, ringtone, alerts) => ({
  */
 async function book(jobs, ringtone, alerts) {
   const native = trackerAvailable();
-  if (native) await setAlarmSound(ringtone).catch(() => {});      // the ringing alarm plays the ringtone chosen in Config
-  if (native) await setAlarmStyle((alerts && alerts.phoneAlarmStyle) || 1).catch(() => {});      // ...and looks as chosen there
-  if (native) await setAlarmBanner(!(alerts && alerts.alarmBanner === false)).catch(() => {});      // the banner notification stays unless switched off
-  if (native) await setAlarmDelivery(!!(alerts && alerts.alarmAsNotification)).catch(() => {});      // full screen unless set to the notification centre
+  if (native) await setAlarmSound(ringtone).catch(warnQuiet('workingDashboardNotify'));      // the ringing alarm plays the ringtone chosen in Config
+  if (native) await setAlarmStyle((alerts && alerts.phoneAlarmStyle) || 1).catch(warnQuiet('workingDashboardNotify'));      // ...and looks as chosen there
+  if (native) await setAlarmBanner(!(alerts && alerts.alarmBanner === false)).catch(warnQuiet('workingDashboardNotify'));      // the banner notification stays unless switched off
+  if (native) await setAlarmDelivery(!!(alerts && alerts.alarmAsNotification)).catch(warnQuiet('workingDashboardNotify'));      // full screen unless set to the notification centre
   for (const { e, item } of jobs) {
     // The full-screen alarm rings by itself and carries its own Done / Snooze; a notification at the
     // same moment would only ring twice. Without the native module (or past the cap) it is the notification.

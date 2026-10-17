@@ -5,6 +5,7 @@ import { ensureChannel, ensureSelectedChannels } from './ringtones';
 import { scheduleFullScreenAlarm, cancelFullScreenAlarm } from './tracker';
 import { WD_CATEGORY, WD_GENTLE_CATEGORY, WD_DONE, WD_DAR, WD_SNOOZE, WD_SNOOZE_MIN, WD_REMIND, WD_RING } from './workingDashboardNotify';
 import { handleWdAction } from './workingDashboardActions';
+import { warnQuiet } from './quietCatch';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -28,7 +29,7 @@ async function ensureCategories() {
     { identifier: 'DONE', buttonTitle: 'Done', options: { opensAppToForeground: false } },
     { identifier: 'SNOOZE', buttonTitle: 'Snooze 20m', options: { opensAppToForeground: false } },
     { identifier: 'ACK', buttonTitle: 'Ack', options: { opensAppToForeground: false } },
-  ]).catch(() => {});
+  ]).catch(warnQuiet('notify'));
   // Working Dashboard alerts: act on the entry straight from the notification (Android shows the first three buttons), app closed or not. The buttons are
   // symbols (✓ Done, 💤 Snooze, 🔕 Reminder only, 🔔 Ring as alarm) so they sit on one line in the notification centre.
   await Notifications.setNotificationCategoryAsync(WD_CATEGORY, [
@@ -36,14 +37,14 @@ async function ensureCategories() {
     { identifier: WD_DAR, buttonTitle: '✓ DAR', options: { opensAppToForeground: false } },
     { identifier: WD_SNOOZE, buttonTitle: `💤 ${WD_SNOOZE_MIN}m`, options: { opensAppToForeground: false } },
     { identifier: WD_REMIND, buttonTitle: '🔕', options: { opensAppToForeground: false } },
-  ]).catch(() => {});
+  ]).catch(warnQuiet('notify'));
   // A Reminder task's alerts: the same, with a button to make it ring as an alarm instead.
   await Notifications.setNotificationCategoryAsync(WD_GENTLE_CATEGORY, [
     { identifier: WD_DONE, buttonTitle: '✓', options: { opensAppToForeground: false } },
     { identifier: WD_DAR, buttonTitle: '✓ DAR', options: { opensAppToForeground: false } },
     { identifier: WD_SNOOZE, buttonTitle: `💤 ${WD_SNOOZE_MIN}m`, options: { opensAppToForeground: false } },
     { identifier: WD_RING, buttonTitle: '🔔', options: { opensAppToForeground: false } },
-  ]).catch(() => {});
+  ]).catch(warnQuiet('notify'));
 }
 
 /**
@@ -113,7 +114,7 @@ export async function cancelForTask(taskId) {
   if (!taskId) return;
   const all = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
   const mine = all.filter((n) => n.content?.data?.taskId === taskId);
-  await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {})));
+  await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(warnQuiet('notify'))));
   await cancelFullScreenAlarm(taskId);
 }
 
@@ -128,7 +129,7 @@ const CHECKOUT_TITLE = 'You can head out';
 let checkoutQueue = Promise.resolve();
 
 export async function cancel(id) {
-  if (id) await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+  if (id) await Notifications.cancelScheduledNotificationAsync(id).catch(warnQuiet('notify'));
 }
 
 
@@ -140,11 +141,11 @@ export const addResponseListener = (fn) => Notifications.addNotificationResponse
  * so a tapped ✓ / 💤 used to look as if nothing had happened.
  */
 export async function dismissEntryNotifications(entryId, identifier) {
-  if (identifier) await Notifications.dismissNotificationAsync(identifier).catch(() => {});
+  if (identifier) await Notifications.dismissNotificationAsync(identifier).catch(warnQuiet('notify'));
   if (entryId === undefined || entryId === null) return;
   const shown = await Notifications.getPresentedNotificationsAsync().catch(() => []);
   const mine = shown.filter((n) => n.request?.content?.data?.kind === 'wd-entry' && String(n.request.content.data.entryId) === String(entryId));
-  await Promise.all(mine.map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {})));
+  await Promise.all(mine.map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(warnQuiet('notify'))));
 }
 export const addReceivedListener = (fn) => Notifications.addNotificationReceivedListener(fn);
 
@@ -173,7 +174,7 @@ if (!TaskManager.isTaskDefined(BACKGROUND_NOTIFICATION_TASK)) {
       const pushed = data.data || data.notification?.request?.content?.data || data;
       if (pushed && (pushed.kind === 'wd-tasks-changed' || String(pushed.dataString || '').includes('wd-tasks-changed'))) {
         const { refreshWdAlerts } = await import('./workingDashboardActions');
-        await refreshWdAlerts().catch(() => {});
+        await refreshWdAlerts().catch(warnQuiet('notify'));
         return;
       }
       const actionIdentifier = data.actionIdentifier;

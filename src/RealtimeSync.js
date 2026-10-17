@@ -85,9 +85,9 @@ export default function RealtimeSync() {
   const sendPresence = () => {
     const until = phoneRuleRef.current ? webActiveUntil(presenceRef.current, Date.now()) : 0;
     setRealtimeStatus({ webInUseUntil: until, webSeenAt: Number(presenceRef.current?.webActiveAt) || 0 });
-    setWebActiveUntil(until).catch(() => {});
+    setWebActiveUntil(until).catch(warnQuiet('RealtimeSync'));
   };
-  useEffect(() => { sendPresence(); setWebPresenceCheck(phoneWhenWebIdle).catch(() => {}); }, [phoneWhenWebIdle]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { sendPresence(); setWebPresenceCheck(phoneWhenWebIdle).catch(warnQuiet('RealtimeSync')); }, [phoneWhenWebIdle]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const i = setInterval(sendPresence, 60000); return () => clearInterval(i); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /*
@@ -155,7 +155,7 @@ export default function RealtimeSync() {
         // Done, binned, snoozed or silenced on the web app: an alarm ringing on the phone for it stops now
         // (its booked alerts are re-planned when the entries change).
         const now = new Date();
-        incoming.forEach((e) => { if (e.done || e.binned || isSnoozed(e, now) || isSilencedToday(e, now)) stopAlarmRinging(`wd:${e.id}:`).catch(() => {}); });
+        incoming.forEach((e) => { if (e.done || e.binned || isSnoozed(e, now) || isSilencedToday(e, now)) stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('RealtimeSync')); });
         const kept = applyRemovedIds(w.entries || [], (patch.remote.removedIds || []).map(String)).entries;
         next = { ...next, entries: mergeRemoteEntries(kept, incoming, w.deletedIds || []).entries };
       }
@@ -203,7 +203,7 @@ export default function RealtimeSync() {
         const Notifications = await import('expo-notifications');
         const tok = await Notifications.getDevicePushTokenAsync();
         if (tok && tok.data) await saveDeviceToken(uid, String(tok.data));
-        sub = Notifications.addPushTokenListener((t) => { if (t && t.data) saveDeviceToken(uid, String(t.data)).catch(() => {}); });
+        sub = Notifications.addPushTokenListener((t) => { if (t && t.data) saveDeviceToken(uid, String(t.data)).catch(warnQuiet('RealtimeSync')); });
       } catch { /* no Google services / offline: the 15-minute refresh still works */ }
     })();
     return () => { if (sub && sub.remove) sub.remove(); };
