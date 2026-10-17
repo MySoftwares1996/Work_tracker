@@ -16,9 +16,9 @@ import { completeWdEntry } from './workingDashboardActions';
  */
 
 // Widgets are drawn by the launcher, so they take fixed colours from the
-// app's own themes: Pearl in light mode, Midnight Hero in dark mode.
+// app's own themes: the Warm look in light mode and its dark twin (Hero's ok / danger) in dark mode.
 const fromTheme = (th) => ({ bg: th.surface, text: th.text, dim: th.textDim, accent: th.accent, ok: th.ok, danger: th.danger, track: th.border });
-const PALETTE = { light: fromTheme(THEMES.pearl), dark: fromTheme(THEMES.hero) };
+const PALETTE = { light: fromTheme(THEMES.warm), dark: fromTheme({ ...THEMES.hero, ...THEMES.warm.darkTwin }) };
 
 const open = (path) => ({ clickAction: 'OPEN_URI', clickActionData: { uri: `workingdashboard://${path}` } });
 
