@@ -96,6 +96,8 @@ export default function TaskForm({ initial, onClose }) {
   const [subOpen, setSubOpen] = useState(false);
   const [remOpen, setRemOpen] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
+  const [tplOpen, setTplOpen] = useState(false);
   const subSnap = useRef({});
   const openSub = () => { subSnap.current = t.subCategoryFields || {}; setSubOpen(true); };
   const closeSub = (cancel) => { if (cancel) setT((d) => ({ ...d, subCategoryFields: subSnap.current })); setSubOpen(false); setSubError(''); };
@@ -129,6 +131,7 @@ export default function TaskForm({ initial, onClose }) {
       <form className="sheet wide" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
         <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2>
           <span className="tpl-head">
+            {isNew && templates.length > 0 && <button type="button" className="btn" onClick={() => setTplOpen(true)}>📋 Templates ▾</button>}
             <span className="alert-icons" role="group" aria-label="Alert at the due time">
               {[['', '🔔', 'Alert at the due time: default'], ['alarm', '⏰', 'Alert at the due time: Alarm (pop-up + sound)'], ['gentle', '🔕', 'Alert at the due time: Reminder (notification only)']].map(([v, ico, tip]) => <button type="button" key={v} className={`ai${t.alertMode === v ? ' on' : ''}`} title={tip} aria-label={tip} aria-pressed={t.alertMode === v} onClick={() => setT({ ...t, alertMode: v })}>{ico}</button>)}
             </span>
@@ -139,22 +142,28 @@ export default function TaskForm({ initial, onClose }) {
                 <button type="button" className="btn ghost" onClick={() => setTplName(null)}>Cancel</button></span>}
             <button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button>
           </span></div>
-        {isNew && templates.length > 0 && (
-          <div className="tpl-row"><span className="muted">Start from a template:</span>
-            {templates.map((tp) => (
-              <span key={tp.id} className="chip tpl-chip"><button type="button" onClick={() => setT((cur) => applyTemplate(cur, tp))} title="Fill the form from this template">{tp.name}</button><button type="button" className="tpl-x" aria-label={`Delete template ${tp.name}`} onClick={() => saveTemplates(templates.filter((x) => x.id !== tp.id))}>✕</button></span>
+        {tplOpen && (
+          <Popup title="Start from a template" sub="Fills the form from a saved template" onClose={() => setTplOpen(false)}>
+            <div className="tpl-row">
+              {templates.map((tp) => (
+              <span key={tp.id} className="chip tpl-chip"><button type="button" onClick={() => { setT((cur) => applyTemplate(cur, tp)); setTplOpen(false); }} title="Fill the form from this template">{tp.name}</button><button type="button" className="tpl-x" aria-label={`Delete template ${tp.name}`} onClick={() => saveTemplates(templates.filter((x) => x.id !== tp.id))}>✕</button></span>
             ))}
-          </div>
+            </div>
+          </Popup>
         )}
-        <div className="strip">
-        <div className="fields one-line">
+        <div className="cols3">
+        <div className="col fcard">
+          <h3 className="fcard-title">What</h3>
+          <label className="field full">Task description<AutoText value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
           {pick('categories', 'Category', 'category', true)}
-          {pick('priorities', 'Priority', 'priority')}
-          {pick('statuses', 'Status', 'status')}
-          {pick('pendingWith', 'Pending with', 'pendingWith', true)}
+          {subBlock}
+          <NarrationBox t={t} />
+          {manager}
         </div>
-        <div className="fields one-line">
+        <div className="col fcard">
+          <h3 className="fcard-title">When</h3>
           <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+          <div className="two-f">
           <label className="field">Month end
             <select value={monthEnd.some((m) => m.key === date) && !time ? date : ''} onChange={(e) => { if (e.target.value) { setDate(e.target.value); setTime(''); } }} aria-label="Month end: the last working days of the month" title="The last working days of the month (not Sundays, holidays or leave days). A date alone alerts once, at 7 PM that day.">
               <option value="">Month end ...</option>{monthEnd.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
@@ -166,17 +175,14 @@ export default function TaskForm({ initial, onClose }) {
               <span>{timeLabel(time) || (date ? 'Set time' : 'Pick a date first')}</span>
             </button>
           </div>
+          </div>
           <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
           {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
-        </div>
-        </div>
-        <div className="cols3">
-        <div className="col">
-        <label className="field full">Task description<AutoText value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
-        {manager}
+        {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
         {t.category && (
           <button type="button" className="btn rem-btn" onClick={() => setRemOpen(true)} title="Next reminder date and time">⏰ {remDate ? `Next reminder: ${remDate}${remTime ? ' ' + timeLabel(remTime) : ''}` : 'Next reminder'}</button>
         )}
+
         {remOpen && (
           <Popup title="Next reminder" sub="9:00 AM if no time" onClose={() => setRemOpen(false)}>
             {t.category && (
@@ -194,20 +200,17 @@ export default function TaskForm({ initial, onClose }) {
             </div>
           </Popup>
         )}
-        {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
-        </div><div className="col">
-        {subBlock}
-        <NarrationBox t={t} />
-        <div className="fields">
-          <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
         </div>
-        <div className="field full">
-          <span className="field-head">Mail chain<button type="button" className="mini" disabled={!t.reference.trim()} onClick={async () => { notify((await copyText(t.reference)) ? 'Mail chain copied' : 'Could not copy the mail chain'); }} title="Copy the mail chain">Copy</button></span>
-          <input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" aria-label="Mail chain" />
-        </div>
-        </div><div className="col">
-        <label className="field full">Notes<AutoText value={t.notes} onChange={set('notes')} /></label>
+        <div className="col fcard">
+          <h3 className="fcard-title">Who &amp; notes</h3>
+          <div className="two-f">{pick('priorities', 'Priority', 'priority')}{pick('statuses', 'Status', 'status')}</div>
+          {pick('pendingWith', 'Pending with', 'pendingWith', true)}
+          <label className="field full">Notes<AutoText value={t.notes} onChange={set('notes')} /></label>
+          <div className="btn-row">
         <button type="button" className="btn check-btn" onClick={() => setStepsOpen(true)}>☑ Checklist{t.checklist.length > 0 ? ` (${t.checklist.filter((c) => c.done).length}/${t.checklist.length} done)` : ''}</button>
+            <button type="button" className="btn" onClick={() => setMailOpen(true)}>✉ Mail chain{t.reference.trim() ? ' ✓' : ''}</button>
+          </div>
+          <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
         {stepsOpen && (
           <Popup title="Checklist" sub="Steps to tick before the task is done" onClose={() => setStepsOpen(false)}>
           {t.checklist.map((c) => (
@@ -219,7 +222,16 @@ export default function TaskForm({ initial, onClose }) {
           <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
           </Popup>
         )}
-        </div></div>
+          {mailOpen && (
+            <Popup title="Mail chain" sub="The mail subject this task came from" onClose={() => setMailOpen(false)}>
+              <div className="field full">
+                <span className="field-head">Mail chain<button type="button" className="mini" disabled={!t.reference.trim()} onClick={async () => { notify((await copyText(t.reference)) ? 'Mail chain copied' : 'Could not copy the mail chain'); }}>Copy</button></span>
+                <input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" aria-label="Mail chain" autoFocus />
+              </div>
+            </Popup>
+          )}
+        </div>
+        </div>
         {subError && <div className="banner err" role="alert">{subError}</div>}
         <div className="sheet-foot">
           {!isNew && !t.binned && <button type="button" className="btn danger" onClick={() => { actions.bin(t); onClose(); }}>Move to bin</button>}
