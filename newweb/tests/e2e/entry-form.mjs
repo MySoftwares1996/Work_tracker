@@ -56,6 +56,9 @@ page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load
 try {
   await page.goto(url);
   await page.getByRole('button', { name: 'New entry' }).first().waitFor({ timeout: 15000 });
+  // The demo has tasks due now, so "Task due now" alerts may cover the page: dismiss them first.
+  await page.waitForTimeout(1500);
+  for (let i = 0; i < 10 && await page.getByRole('alertdialog').count(); i += 1) { await page.getByRole('button', { name: 'Dismiss this alert' }).first().click(); await page.waitForTimeout(300); }
   await page.getByRole('button', { name: 'New entry' }).first().click();
   const form = page.getByRole('dialog', { name: 'New entry' });
   await form.waitFor();
@@ -98,12 +101,13 @@ try {
   await form.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForTimeout(500);
   ok('Save closes the form', !(await form.isVisible()));
-  await page.getByText('Register', { exact: true }).first().click().catch(() => {});
+  await page.getByRole('navigation', { name: 'Sections' }).getByRole('button', { name: /^Register/ }).click();
+  await page.getByLabel('Search', { exact: true }).fill(DESC);
   await page.waitForTimeout(500);
   ok('the new task appears', (await page.getByText(DESC).count()) > 0);
   ok('no page or console errors', errors.length === 0, errors.join(' | '));
 } catch (e) {
-  ok('the walk-through ran to the end', false, e.message.split('\n').slice(0, 4).join(' '));
+  ok('the walk-through ran to the end', false, e.message.split('\n').slice(0, 12).join(' '));
 }
 await browser.close();
 server.close();
