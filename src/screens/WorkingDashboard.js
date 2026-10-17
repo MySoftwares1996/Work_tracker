@@ -1716,6 +1716,7 @@ export default function WorkingDashboard() {
             {phoneLayout ? (
               <>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 6, gap: 10 }}>
+                  <PhoneTile label="Pending as on today" value={stats.pendingAsOnToday} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
                   <PhoneTile label="Overdue" value={stats.overdue} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
                   <PhoneTile label="Due today" value={stats.dueToday} tone={t.warn} dark onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
                   <PhoneTile label="Next 7 days" value={stats.next7Days} tone={t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
