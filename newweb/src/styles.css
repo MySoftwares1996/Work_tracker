@@ -796,3 +796,7 @@ textarea.auto, .sheet.wide .col textarea.auto, .sheet.wide .cols3 > .col:first-c
 @media (max-width: 900px) { .two-f { grid-template-columns: minmax(0, 1fr); } }
 
 .narr-btn { align-self: flex-start; }
+
+/* A button with a small Copy beside it, so the text can be copied without opening its popup. */
+.btn-copy { display: inline-flex; align-items: center; gap: 6px; }
+.btn-copy .mini:disabled { opacity: .4; }

@@ -21,7 +21,10 @@ function NarrationBox({ t }) {
   const copy = async () => { notify((await copyText(n.text)) ? 'Narration copied' : 'Could not copy the narration'); };
   return (
     <>
-      <button type="button" className="btn narr-btn" onClick={() => setOpen(true)}>📝 Final Narration{n.missing.length > 0 ? ` · ${n.missing.length} to fill` : ''}</button>
+      <span className="btn-copy narr-btn">
+        <button type="button" className="btn" onClick={() => setOpen(true)}>📝 Final Narration{n.missing.length > 0 ? ` · ${n.missing.length} to fill` : ''}</button>
+        <button type="button" className="mini" onClick={copy} aria-label="Copy the final narration">Copy</button>
+      </span>
       {open && (
         <Popup title="Final Narration" sub="The narration of this task's report line" onClose={() => setOpen(false)}
           foot={<><button type="button" className="btn" onClick={copy}>Copy</button><button type="button" className="btn primary" onClick={() => setOpen(false)}>Done</button></>}>
@@ -213,7 +216,10 @@ export default function TaskForm({ initial, onClose }) {
           <label className="field full">Notes<AutoText value={t.notes} onChange={set('notes')} /></label>
           <div className="btn-row">
         <button type="button" className="btn check-btn" onClick={() => setStepsOpen(true)}>☑ Checklist{t.checklist.length > 0 ? ` (${t.checklist.filter((c) => c.done).length}/${t.checklist.length} done)` : ''}</button>
-            <button type="button" className="btn" onClick={() => setMailOpen(true)}>✉ Mail chain{t.reference.trim() ? ' ✓' : ''}</button>
+            <span className="btn-copy">
+              <button type="button" className="btn" onClick={() => setMailOpen(true)}>✉ Mail chain{t.reference.trim() ? ' ✓' : ''}</button>
+              <button type="button" className="mini" disabled={!t.reference.trim()} aria-label="Copy the mail chain" onClick={async () => { notify((await copyText(t.reference)) ? 'Mail chain copied' : 'Could not copy the mail chain'); }}>Copy</button>
+            </span>
           </div>
           <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
         {stepsOpen && (
