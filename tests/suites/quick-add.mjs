@@ -10,7 +10,6 @@ export async function run(h) {
   await runCsv(h);
   await runVendorTotals(h);
   await runMeeting(h);
-  await runAutoBackupTests(h);
   await runAudit(h);
   await runBackupContent(h);
   await runQuickAddSettings(h);
@@ -128,14 +127,6 @@ export async function runMeeting({ ck, section }) {
   ck('nudges are quiet during it', isQuietTime(new Date(2026, 9, 9, 11, 0), { holdUntil: hold }) === true && isQuietTime(new Date(2026, 9, 9, 13, 0), { holdUntil: hold }) === false);
 }
 
-import { backupsToPrune, backupName } from '../../src/autoBackup.js';
-export async function runAutoBackupTests({ ck, section }) {
-  section('Daily automatic backup');
-  const names = ['auto-2026-10-01.json', 'auto-2026-10-09.json', 'auto-2026-10-05.json', 'notes.txt', 'auto-2026-09-30.json', 'auto-2026-10-08.json', 'auto-2026-10-07.json', 'auto-2026-10-06.json', 'auto-2026-10-04.json'];
-  const prune = backupsToPrune(names, 7);
-  ck('only the newest 7 stay; other files are never touched', prune.length === 1 && prune[0] === 'auto-2026-09-30.json', prune.join());
-  ck('the file is named by the local date', backupName(new Date(2026, 9, 9, 23, 59)) === 'auto-2026-10-09.json');
-}
 
 import { addAudit, auditDiff } from '../../src/audit.js';
 export async function runAudit({ ck, section }) {

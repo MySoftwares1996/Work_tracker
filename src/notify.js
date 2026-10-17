@@ -131,9 +131,7 @@ export async function cancel(id) {
   if (id) await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
 }
 
-export async function cancelAll() {
-  await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
-}
+
 export const addResponseListener = (fn) => Notifications.addNotificationResponseReceivedListener(fn);
 
 /**

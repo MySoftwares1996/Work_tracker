@@ -27,9 +27,7 @@ import PhoneUpdate from './src/PhoneUpdate';
 import { useRealtimeStatus, setRealtimeStatus } from './src/realtimeStatus';
 import { watchAuthState } from './src/firebaseSync';
 import { needsWelcome } from './src/account';
-import { runAutoBackup } from './src/autoBackup';
 
-import Settings from './src/screens/Settings';
 import PastDueAlert from './src/screens/PastDueAlert';
 import WorkingDashboard from './src/screens/WorkingDashboard';
 import Welcome from './src/screens/Welcome';
@@ -71,16 +69,6 @@ function BackButton({ canGoBack, tintColor }) {
   );
 }
 
-/** ⚙ in the Working Dashboard's header: the app's own settings (app lock, theme, text size, alerts, backups). */
-function SettingsButton({ tintColor }) {
-  const t = useTheme();
-  return (
-    <Pressable onPress={() => navRef.isReady() && navRef.navigate('Settings')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Settings" style={{ paddingLeft: 8, paddingRight: Platform.OS === 'web' ? 16 : 0 }}>
-      <Text style={{ color: tintColor || t.accent, fontSize: t.fs(22) }}>⚙</Text>
-    </Pressable>
-  );
-}
-
 function Root() {
   const { data, ready, update } = useStore();
   const t = useTheme();
@@ -92,16 +80,6 @@ function Root() {
   const [authWaitOver, setAuthWaitOver] = React.useState(false);
   useEffect(() => { const id = setTimeout(() => setAuthWaitOver(true), 3000); return () => clearTimeout(id); }, []);
   const waitingForAuth = !realtime.authKnown && !authWaitOver && !data.workingDashboard?.accountUid && !data.workingDashboard?.localOnly;
-
-  // A backup of the Working Dashboard once a day, kept on the phone (the last 7): Settings > Automatic backups restores one.
-  const dataRef = React.useRef(data);
-  dataRef.current = data;
-  useEffect(() => {
-    if (!ready || Platform.OS === 'web') return undefined;
-    const t0 = setTimeout(() => { runAutoBackup(dataRef.current).catch(() => {}); }, 8000);
-    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') runAutoBackup(dataRef.current).catch(() => {}); });
-    return () => { clearTimeout(t0); sub.remove(); };
-  }, [ready]);
 
   // Channels depend on the chosen ringtones, so wait until the store is loaded.
   useEffect(() => { if (ready) initNotifications(data.settings).catch(() => {}); }, [ready, data.settings?.ringtones]);
@@ -338,7 +316,7 @@ function Root() {
         ref={navRef}
         theme={navTheme}
         // Widget taps open the app: workingdashboard://work.
-        linking={{ prefixes: ['workingdashboard://'], config: { screens: { WorkingDashboard: 'work', Settings: 'settings' } } }}
+        linking={{ prefixes: ['workingdashboard://'], config: { screens: { WorkingDashboard: 'work' } } }}
         onReady={() => {
           hideSplashOnce();
           const id = pending.current;
@@ -348,8 +326,7 @@ function Root() {
       >
         <StatusBar style={t.dark ? 'light' : 'dark'} />
         <Stack.Navigator screenOptions={screenOptions} initialRouteName="WorkingDashboard">
-          <Stack.Screen name="WorkingDashboard" component={WorkingDashboard} options={{ title: 'Working Dashboard', headerShown: false, headerRight: (props) => <SettingsButton {...props} /> }} />
-          <Stack.Screen name="Settings" component={Settings} options={{ title: 'Settings' }} />
+          <Stack.Screen name="WorkingDashboard" component={WorkingDashboard} options={{ title: 'Working Dashboard', headerShown: false }} />
           <Stack.Screen name="PastDueAlert" component={PastDueAlert} options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         </Stack.Navigator>
       </NavigationContainer>

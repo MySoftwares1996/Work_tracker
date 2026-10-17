@@ -18,31 +18,9 @@ export function buildBackup(db, sections = BACKUP_SECTIONS) {
   return payload;
 }
 
-export async function exportBackup(db, sections) {
-  const payload = buildBackup(db, sections);
-  const d = new Date();
-  const p2 = (n) => String(n).padStart(2, '0');
-  // Local date: toISOString() is UTC and names yesterday before 5:30 am in India.
-  const name = `working-dashboard-backup-${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}.json`;
-  const dir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
-  const uri = dir + name;
-  await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload), { encoding: 'utf8' });
-  const shared = await Sharing.isAvailableAsync();
-  if (shared) await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Save Working Dashboard backup' });
-  return { uri, shared };
-}
-
 export function normaliseBackupFile(parsed) {
   if (!parsed?.data) throw new Error('Not a Working Dashboard or Personal Tracker backup file');
   return parsed;
-}
-
-export async function pickBackup() {
-  const res = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
-  if (res.canceled) return null;
-  const uri = res.assets[0].uri;
-  const text = await FileSystem.readAsStringAsync(uri, { encoding: 'utf8' });
-  return normaliseBackupFile(JSON.parse(text));
 }
 
 /** The Working Dashboard has no attachment files to write back: the backup is used as it is. */

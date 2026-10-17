@@ -1206,12 +1206,6 @@ export default function WorkingDashboard() {
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : wd.cloudSyncUrl ? t.warn : t.textDim }} />
           <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline · edits waiting' : googleUser && realtimeError ? 'sync error' : googleUser ? 'live' : wd.lastSheetPullAt ? `synced ${new Date(wd.lastSheetPullAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : wd.cloudSyncUrl ? 'sheet' : 'local'}</Text>
         </Pressable>
-        {/* web.app only: the page has no top bar (it wasted a strip of the screen), so Settings sits here. */}
-        {Platform.OS === 'web' && (
-          <Pressable onPress={() => navigation.navigate('Settings')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Settings" style={{ marginLeft: 12 }}>
-            <Text style={{ color: t.accent, fontSize: t.fs(22) }}>⚙</Text>
-          </Pressable>
-        )}
       </Row>
       </>
       )}
@@ -1912,17 +1906,15 @@ export default function WorkingDashboard() {
               <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
             </Group>
             <Group title="Settings">
-              <Item icon="⚙️" color={t.textDim} label="Config & lists" onPress={() => setTab('config')} />
-              <Item icon="🔔" color={t.warn} label="Alerts, app lock & backups" onPress={() => navigation.navigate('Settings')} last />
+              <Item icon="⚙️" color={t.textDim} label="Config" onPress={() => setTab('config')} last />
             </Group>
             {(() => {
-              // The phone's own updates: whether this build can receive them, which version is running, and a button to look now.
+              // The phone's own updates: whether this build can receive them, which version is running, and a button to look now (always here).
               const u = updateStatus();
-              if (!u) return null;
               return (
-                <Group title="App updates" footer={u.enabled ? 'A new version is downloaded when the app opens; tap Restart in the bar that appears.' : 'This build was made without the update settings, so it cannot receive updates - a new APK build is needed.'}>
-                  <Item icon="🔄" color={u.enabled ? t.ok : t.danger} label="Updates" value={u.enabled ? `On${u.channel ? ` · ${u.channel}` : ''}` : 'Off'} />
-                  <Item icon="📦" color={t.textDim} label="Running" value={`${u.running}${u.when ? ` · ${u.when}` : ''}`} />
+                <Group title="App updates" footer={!u ? 'Updates are for the installed phone app.' : u.enabled ? 'A new version is downloaded when the app opens; tap Restart in the bar that appears.' : 'This build was made without the update settings, so it cannot receive updates - a new APK build is needed.'}>
+                  {!!u && <Item icon="🔄" color={u.enabled ? t.ok : t.danger} label="Updates" value={u.enabled ? `On${u.channel ? ` · ${u.channel}` : ''}` : 'Off'} />}
+                  {!!u && <Item icon="📦" color={t.textDim} label="Running" value={`${u.running}${u.when ? ` · ${u.when}` : ''}`} />}
                   <Item icon="🔎" color={t.accent} label="Check for an update now" onPress={async () => Alert.alert('App updates', await checkForPhoneUpdate())} last />
                 </Group>
               );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform } from 'react-native';
-import { FlexWidget, TextWidget, requestWidgetUpdate, requestPinWidget } from 'react-native-android-widget';
+import { FlexWidget, TextWidget, requestWidgetUpdate } from 'react-native-android-widget';
 import { loadAll, assemble } from './storeCore';
 import { THEMES } from './theme';
 import { WIDGET_NAMES, widgetsHidden, workSummaryWidgetData, workTodayWidgetData, workNextWidgetData } from './widgetData';
@@ -148,8 +148,3 @@ export async function refreshWidgets() {
   }
 }
 
-/** Asks the launcher to place a widget; false if it cannot. */
-export async function pinWidget(widgetName) {
-  if (Platform.OS !== 'android') return false;
-  try { return await requestPinWidget({ widgetName }); } catch { return false; }
-}
