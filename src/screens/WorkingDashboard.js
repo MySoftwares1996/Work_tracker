@@ -202,6 +202,7 @@ export default function WorkingDashboard() {
     globalThis.addEventListener('online', on);
     return () => { globalThis.removeEventListener('offline', off); globalThis.removeEventListener('online', on); };
   }, []);
+  const userLabel = String(googleUser?.displayName || googleUser?.email || 'Local').trim().split(/[\s@]/)[0] || 'Local';
   const waiting = !!googleUser && (browserOffline || !!pushError);
   const wdRef = useRef(wd);
   wdRef.current = wd;
@@ -1174,12 +1175,19 @@ export default function WorkingDashboard() {
           ) : (
             <View style={{ width: 34, height: 34 }}><AnimatedLogo size={34} /></View>
           )}
-          <Text numberOfLines={1} style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(21), letterSpacing: -0.4 }}>{tab === 'dashboard' ? 'Working Dashboard' : { register: 'Tasks', done: 'Completed' }[tab] || TAB_TITLES[tab]}</Text>
+          <Text numberOfLines={1} style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(21), letterSpacing: -0.4 }}>{tab === 'dashboard' ? 'Dashboard' : { register: 'Tasks', done: 'Completed' }[tab] || TAB_TITLES[tab]}</Text>
           <Pressable onPress={() => setPaletteOpen(true)} accessibilityRole="button" accessibilityLabel="Search" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, ...t.shadow }}>
             <Text style={{ color: t.text, fontSize: t.fs(18) }}>⌕</Text>
           </Pressable>
           <Pressable onPress={() => setMeetingOpen(true)} accessibilityRole="button" accessibilityLabel={meetingOn ? 'Meeting mode is on' : 'Meeting mode'} style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: meetingOn ? t.warn + '33' : t.surface, ...t.shadow }}>
             <Text style={{ fontSize: t.fs(16) }}>{meetingOn ? '🔕' : '🔔'}</Text>
+          </Pressable>
+          {/* Who is signed in, top right on every screen; tapping it opens More (account, sign in / out). */}
+          <Pressable onPress={() => setTab('more')} accessibilityRole="button" accessibilityLabel={`Signed in as ${userLabel}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 120, height: 40, paddingLeft: 4, paddingRight: 10, borderRadius: 20, backgroundColor: t.surface, ...t.shadow }}>
+            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(14) }}>{userLabel.charAt(0).toUpperCase()}</Text>
+            </View>
+            <Text numberOfLines={1} style={{ flexShrink: 1, color: t.text, fontWeight: '700', fontSize: t.fs(13) }}>{userLabel}</Text>
           </Pressable>
         </Row>
       )}
@@ -2041,7 +2049,7 @@ export default function WorkingDashboard() {
                 <Small style={{ marginBottom: 6 }}>INTERFACE STYLE</Small>
                 <Segmented options={[{ key: 'modern', label: Platform.OS === 'web' ? 'macOS style' : 'Modern' }, { key: 'classic', label: 'Classic' }]} value={data.settings?.uiMode === 'classic' ? 'classic' : 'modern'} onChange={(k) => update({ settings: { uiMode: k } })} style={{ marginBottom: 14 }} />
                 <Small style={{ marginBottom: 6 }}>COLOURS</Small>
-                <Choices options={Object.values(THEMES).map((th) => [th.key, th.label])} value={data.settings?.theme || 'pearl'} onChange={(k) => update({ settings: { theme: k } })} />
+                <Choices options={Object.values(THEMES).map((th) => [th.key, th.label])} value={(data.settings?.theme === 'pearl' && !data.settings?.themePicked) || !data.settings?.theme ? 'warm' : data.settings.theme} onChange={(k) => update({ settings: { theme: k, themePicked: true } })} />
               </>
             ) },
             { key: 'alerts', icon: '🔔', title: 'Alerts', body: (

@@ -173,6 +173,8 @@ Object.assign(THEMES, {
   ocean: palette('ocean', 'Ocean Blue', { bg: '#EFF3FA', accent: '#1F6BFF', accent2: '#5B8CFF', danger: '#D63A4A', warn: '#A86A0A' }),
   sunset: palette('sunset', 'Sunset Orange', { bg: '#F7F3EF', accent: '#F2631B', accent2: '#2B5FC4', danger: '#D33A3A', warn: '#9B6208' }),
   lilac: palette('lilac', 'Lilac Mist', { bg: '#F4F2FA', accent: '#7B5CF5', accent2: '#3A64D6', danger: '#D23B5A', warn: '#A1660B' }),
+  // The phone's "Warm" look (chosen by the owner from the style studio): cream backdrop, orange accent, 18px corners, tinted shadows.
+  warm: palette('warm', 'Warm (auto dark mode)', { bg: '#FFF7EF', surface: '#FFFFFF', surfaceAlt: '#FFEEDD', border: '#F3E2D0', text: '#2B1A0E', textDim: '#9A7B64', accent: '#EA580C', accent2: '#2B5FC4', danger: '#DC2626', warn: '#B45309', ok: '#16A34A', darkTwin: { bg: '#17100A', surface: '#241911', surfaceAlt: '#302216', border: '#3D2B1C', text: '#FDF2E7', textDim: '#BDA089', accent: '#FB923C' } }),
   night: palette('night', 'Midnight Black', { dark: true, bg: '#000000', surface: '#17181B', surfaceAlt: '#232428', accent: '#34D9A0', accent2: '#8FB5FF', danger: '#FF8A80', warn: '#FFCC66', ok: '#34D9A0' }),
 });
 
@@ -229,7 +231,9 @@ const ThemeCtx = createContext(null);
 
 export function ThemeProvider({ children }) {
   const { data } = useStore();
-  const themeKey = data?.settings?.theme || 'pearl';
+  // Pearl that nobody picked (the old default) shows as Warm; picking a theme in Config marks it chosen.
+  const picked = data?.settings?.theme;
+  const themeKey = !picked || (picked === 'pearl' && !data?.settings?.themePicked) ? 'warm' : picked;
   const fontLevel = data?.settings?.fontLevel || 2;
   const classic = data?.settings?.uiMode === 'classic';
 
@@ -239,9 +243,14 @@ export function ThemeProvider({ children }) {
     const scale = FONT_LEVELS[fontLevel] || 1;
     let skin = null;
     if (t.skinned) {
-      if (scheme === 'dark' && (t.key === 'pearl' || t.key === 'violet')) t = { ...PEARL_NIGHT, ...(t.darkTwin || null), key: t.key };
+      if (scheme === 'dark' && (t.key === 'pearl' || t.key === 'violet' || t.key === 'warm')) t = { ...PEARL_NIGHT, ...(t.darkTwin || null), key: t.key };
       skin = classic ? null : Platform.OS === 'web' ? SKIN.web : SKIN.phone;
       if (skin) t = { ...t, radius: skin.radius, shadow: skin.shadow[t.dark ? 'dark' : 'light'], ...(skin.tint ? { bg: skin.tint[t.dark ? 'dark' : 'light'] } : null) };
+      // Warm keeps its own cream backdrop and has rounder corners and an orange-tinted shadow on the phone.
+      if (skin && t.key === 'warm' && Platform.OS !== 'web') {
+        const shadow = { shadowColor: t.dark ? '#000000' : '#EA580C', shadowOpacity: t.dark ? 0.4 : 0.1, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 };
+        t = { ...t, bg: scheme === 'dark' ? '#17100A' : '#FFF7EF', radius: 18, shadow };
+      }
     }
     return {
       ...t,

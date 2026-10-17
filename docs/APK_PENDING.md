@@ -62,3 +62,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 
 - APK: the website-inside-the-app option (WebApp, the built-in browser page, the Settings > Screens switch) and its bridge were removed; the app has only its own phone screens. The next full build also drops the `react-native-webview` module; a phone update (JavaScript only) already works with builds that still contain it.
 - APK: the update bar now follows the update state (an update downloaded at launch also shows it), and More > App updates shows whether updates are on, the channel, which version runs, and a 'Check for an update now' button (`PhoneUpdate.native.js`, `updateStatus.native.js`). JavaScript only.
+- Phone: new default look "Warm" (style E from the studio) + signed-in user name chip top right of the app bar (theme.js, WorkingDashboard.js app bar).

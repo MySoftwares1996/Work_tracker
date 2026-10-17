@@ -40,7 +40,7 @@ export const DEFAULT_DB = {
     emergencyName: '', emergencyPhone: '', allergies: '', conditions: '',
   },
   settings: {
-    theme: 'pearl',
+    theme: 'warm',
     uiMode: 'modern',      // 'modern' = macOS look on the website / iOS look on the phone; 'classic' = the earlier plain look
     fontLevel: 2,
     office: { lat: null, lng: null, radius: DEFAULTS.geofenceRadiusM, label: 'Office' },

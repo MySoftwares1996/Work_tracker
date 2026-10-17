@@ -94,6 +94,8 @@ The due date quick picks also offer "Month end -1 ... -5" (a drop-down): the las
 
 The owner chose the "UI Studio" designs: Dashboard = Option 1 (Classic Enhanced: 11 pastel tiles, this / next month breakdown cards, Needs attention / Due today rows with Done and DAR buttons) and Register = plain card grid ("A": three across on the website; the phone has All / Overdue / Today chips). The phone has no Quick add bar (the owner asked).
 
+Phone look: the owner chose style E from the style studio - the "Warm" theme (`warm` in `src/theme.js`: cream backdrop, orange accent, 18px corners, orange-tinted shadows; the default for the phone, replaces an unpicked Pearl) - and wants the signed-in user's name chip top right of the app bar on every phone screen (`userLabel` in `WorkingDashboard.js`).
+
 ## Phone updates (over the air) - `docs/PHONE_UPDATES.md`
 
 A JavaScript-only change to the phone app can be published without a new APK: the "Publish phone update" workflow (manual, `.github/workflows/phone-update.yml`,
