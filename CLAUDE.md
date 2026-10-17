@@ -92,7 +92,7 @@ Web-to-phone parity round: the phone's More page now has Links, Next reminder (c
 
 The due date quick picks also offer "Month end -1 ... -5" (a drop-down): the last working days of the month (not Sundays, holidays or leave days), a date alone so it alerts once at 7 PM (`src/monthEnd.js`, shared; phone form and `newweb` form).
 
-The owner chose the "UI Studio" designs: Dashboard = Option 1 (Classic Enhanced: 11 pastel tiles, this / next month breakdown cards, Needs attention / Due today rows with Done and DAR buttons) and Register = Option 3 (Kanban & Split: Overdue & Critical / Dispatch Approval Queue / Vendor & Other Payments - `src/boardColumns.js`, shared; a three-column board on the website, filter chips on the phone). The phone has no Quick add bar (the owner asked).
+The owner chose the "UI Studio" designs: Dashboard = Option 1 (Classic Enhanced: 11 pastel tiles, this / next month breakdown cards, Needs attention / Due today rows with Done and DAR buttons) and Register = plain card grid ("A": three across on the website; the phone has All / Overdue / Today chips). The phone has no Quick add bar (the owner asked).
 
 ## Phone updates (over the air) - `docs/PHONE_UPDATES.md`
 

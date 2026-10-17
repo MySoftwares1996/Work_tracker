@@ -8,7 +8,6 @@ import { copyText } from './clipboard';
 
 import { useStore } from './store';
 
-import { boardKey } from '../../src/boardColumns.js';
 import { breakdown, subBreakdown, templateFrom, saveTemplate, DUE_FILTERS, isReminderDue, reminderLabel, subCategoryMissing, RECURRENCES, SORTS, blankTask, dueLabel, filterTasks, isDueSoon, isDueNextMonth, isDueThisMonth, isDueToday, isOpen, isOverdue, sortTasks, stats } from './data';
 
 // The Report, Config and the entry form load when first opened (and are fetched quietly once the page is idle), so the page starts smaller.
@@ -334,7 +333,7 @@ function Register({ onEdit, preset }) {
   const [f, setF] = useState(() => ({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...(preset || {}) }));
   useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
   const [by, setBy] = useState('due');
-  const [view, setView] = useState('cards');   // 'cards' = the three-column board (Overdue & critical / dispatch queue / vendor & other)
+  const [view, setView] = useState('cards');
   const open = tasks.filter(isOpen);
   const sorted = sortTasks(filterTasks(open, f), by);
   const { shown, more, showMore } = usePaged(sorted, JSON.stringify(f) + by);
@@ -350,7 +349,7 @@ function Register({ onEdit, preset }) {
       )} />
       <p className="muted">{sorted.length} of {open.length} open entries</p>
       {!sorted.length && <Empty text="Nothing matches." />}
-      {view === 'cards' ? <Board rows={shown} onEdit={onEdit} /> : <Table rows={shown} onEdit={onEdit} />}
+      {view === 'cards' ? <div className="grid">{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div> : <Table rows={shown} onEdit={onEdit} />}
       <MoreButton more={more} onClick={showMore} />
     </>
   );
@@ -369,26 +368,6 @@ function Filters({ f, setF, lists, extra, onClear }) {
       {f.status !== undefined && <select value={f.status || ''} onChange={set('status')} aria-label="Status"><option value="">Any status</option>{lists.statuses.map((x) => <option key={x}>{x}</option>)}</select>}
       {onClear && <button type="button" className="btn ghost clear-filters" onClick={onClear} disabled={!active} title="Clear all filters" aria-label="Clear all filters">✕</button>}
       {extra}
-    </div>
-  );
-}
-
-/** The Register as three columns: what is overdue, the dispatch approval queue, and everything else. */
-const boardColumn = (t) => boardKey(t.title, t.category, isOverdue(t));
-function Board({ rows, onEdit }) {
-  const cols = [['late', '🔴 Overdue & Critical', '#e11d48'], ['dispatch', '⚡ Dispatch Approval Queue', '#d97706'], ['other', '💳 Vendor & Other Payments', '#2563eb']];
-  return (
-    <div className="board">
-      {cols.map(([k, title, color]) => {
-        const list = rows.filter((t) => boardColumn(t) === k);
-        return (
-          <section key={k} className="board-col" style={{ '--col': color }}>
-            <h2><span>{title}</span><b>{list.length}</b></h2>
-            <div className="grid">{list.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div>
-            {!list.length && <p className="muted">Nothing here.</p>}
-          </section>
-        );
-      })}
     </div>
   );
 }

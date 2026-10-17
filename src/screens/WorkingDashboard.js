@@ -26,7 +26,6 @@ import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
 import { monthEndOptions } from '../monthEnd';
-import { BOARD_COLUMNS, boardKey } from '../boardColumns';
 import { effectiveFormats, finalNarration } from '../reportFormats';
 import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../reportExtras';
 import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
@@ -241,10 +240,11 @@ export default function WorkingDashboard() {
   }, [webBatch, filteredOpen.length, doneEntries.length]);
   const shownCount = Platform.OS === 'web' ? webBatch : tabletWidth ? gridCount(visibleCount) : visibleCount;      // the Bin's grid card layout, where the web shows a grid
   const doneTodayCount = useMemo(() => entries.filter((e) => e.done && !e.binned && completedTime(e) && toDateKey(new Date(completedTime(e))) === toDateKey(new Date())).length, [entries]);
-  // Option 3 on the phone: the Register's three groups as chips (Overdue & Critical / Dispatch queue / Vendor & other).
-  const [boardFilter, setBoardFilter] = useState('');
-  const boardCounts = useMemo(() => { const c = { late: 0, dispatch: 0, other: 0 }; filteredOpen.forEach((e) => { c[boardKey(e.title, e.category, isOverdue(e))] += 1; }); return c; }, [filteredOpen]);
-  const boardRows = boardFilter && phoneLayout ? filteredOpen.filter((e) => boardKey(e.title, e.category, isOverdue(e)) === boardFilter) : filteredOpen;
+  // The phone's Register chips (Option A): All / Overdue / Today.
+  const [quickView, setQuickView] = useState('');
+  const todayKey = toDateKey(new Date());
+  const quickCounts = useMemo(() => ({ late: filteredOpen.filter((e) => isOverdue(e)).length, today: filteredOpen.filter((e) => e.dueAt && toDateKey(new Date(e.dueAt)) === todayKey).length }), [filteredOpen, todayKey]);
+  const boardRows = quickView && phoneLayout ? filteredOpen.filter((e) => (quickView === 'late' ? isOverdue(e) : e.dueAt && toDateKey(new Date(e.dueAt)) === todayKey)) : filteredOpen;
   const visibleRegister = boardRows.slice(0, shownCount);
   // The Completed tab (web.app and the APK) opens on the last five days (today and the four before); the older ones are under "Show more".
   const [showOlderDone, setShowOlderDone] = useState(false);
@@ -1458,10 +1458,10 @@ export default function WorkingDashboard() {
             </Row>
             {phoneLayout && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, marginBottom: 12 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-                {[['', 'All', filteredOpen.length, t.accent], ...BOARD_COLUMNS.map((c) => [c.key, `${c.icon} ${c.label.split(' ')[0]}`, boardCounts[c.key], c.key === 'late' ? t.danger : c.key === 'dispatch' ? t.warn : t.accent])].map(([k, label, n, color]) => {
-                  const on = boardFilter === k;
+                {[['', 'All', filteredOpen.length, t.accent], ['late', 'Overdue', quickCounts.late, t.danger], ['today', 'Today', quickCounts.today, t.warn]].map(([k, label, n, color]) => {
+                  const on = quickView === k;
                   return (
-                    <Pressable key={k || 'all'} onPress={() => setBoardFilter(k)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? color : t.surface, ...t.shadow }}>
+                    <Pressable key={k || 'all'} onPress={() => setQuickView(k)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? color : t.surface, ...t.shadow }}>
                       <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label} {n}</Text>
                     </Pressable>
                   );
