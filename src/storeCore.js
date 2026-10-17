@@ -327,6 +327,36 @@ const readManifest = (raw) => {
   try { const m = JSON.parse(raw); return Number(m.__chunks) > 0 && m.gen ? m : null; } catch { return null; }
 };
 
+/** A short fingerprint of a damaged value, to tell "the same damaged copy as last launch" from a new one. */
+export function rawSig(raw) {
+  const str = String(raw ?? '');
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return `${str.length}:${h.toString(36)}`;
+}
+
+/**
+ * Which recovery copies (MPT_CORRUPT_<key>_<time>) to write for the damaged values found at launch. A value that
+ * stays damaged is copied once, not at every launch; at most `max` copies per key are kept (`drop` lists the older
+ * ones to remove). `seen` is { key: { sig, copies } } as saved last time; the new one is returned.
+ */
+export function corruptCopyPlan(damaged = [], seen = {}, stamp = Date.now(), max = 3) {
+  const writes = [];
+  const drop = [];
+  const next = { ...(seen || {}) };
+  damaged.forEach(([k, raw]) => {
+    const cur = (seen && seen[k]) || { sig: '', copies: [] };
+    const sig = rawSig(raw);
+    if (cur.sig === sig) return;
+    const name = `MPT_CORRUPT_${k}_${stamp}`;
+    writes.push([name, raw]);
+    const copies = [...(cur.copies || []), name];
+    while (copies.length > max) drop.push(copies.shift());
+    next[k] = { sig, copies };
+  });
+  return { writes, drop, seen: next };
+}
+
 /** Pairs for one value: as it is when short, else the pieces and then the manifest (written last). */
 export function chunkPairs(key, json, gen = Date.now().toString(36)) {
   if (typeof json !== 'string' || json.length <= CHUNK_CHARS) return [[key, json]];

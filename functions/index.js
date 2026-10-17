@@ -41,5 +41,7 @@ exports.tasksChanged = onDocumentWritten('users/{uid}/tasks/{taskId}', async (ev
     const code = r.error && r.error.code;
     if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') dead.push(tokens[i]);
   });
-  if (dead.length) await ref.set({ tokens: tokens.filter((t) => !dead.includes(t)) }, { merge: true });
+  // Removed on the server side (arrayRemove), not by writing back the list read above: a phone that registered its token
+  // since then would have been dropped by that stale copy.
+  if (dead.length) await ref.set({ tokens: admin.firestore.FieldValue.arrayRemove(...dead) }, { merge: true });
 });

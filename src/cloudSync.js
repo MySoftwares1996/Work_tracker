@@ -45,22 +45,35 @@ export function parseCloudResponse(text) {
 
 const DEFAULT_TIMEOUT_MS = 30000;
 
-function withTimeout(promise, ms) {
+const TOO_SLOW = 'Google took too long to answer — try again in a moment.';
+
+/**
+ * One request, its body included, in `timeoutMs`: past that the request is aborted (where fetch supports it) and the
+ * call fails. The body read used to sit outside the timeout, so a script that sent headers and then stalled hung the sync.
+ */
+async function fetchText(url, init, { fetchImpl, timeoutMs }) {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   let timer;
-  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Google took too long to answer — try again in a moment.')), ms); });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  const guard = new Promise((_, reject) => {
+    timer = setTimeout(() => { try { if (ctrl) ctrl.abort(); } catch { /* nothing to abort */ } reject(new Error(TOO_SLOW)); }, timeoutMs);
+  });
+  const work = (async () => {
+    const res = await fetchImpl(url, ctrl ? { ...init, signal: ctrl.signal } : init);
+    return res.text();
+  })();
+  work.catch(() => {});             // a failure that comes after the timeout is not an unhandled rejection
+  try { return await Promise.race([work, guard]); } finally { clearTimeout(timer); }
 }
 
 /** POST { action, ... } to the deployed Apps Script, returns the parsed JSON body. */
 export async function cloudRequest(baseUrl, payload, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const url = String(baseUrl || '').trim();
   if (!url) throw new Error('Cloud Sync URL is not configured (Config > Cloud Sync).');
-  const res = await withTimeout(fetchImpl(url, {
+  const text = await fetchText(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload),
-  }), timeoutMs);
-  const text = await res.text();
+  }, { fetchImpl, timeoutMs });
   return parseCloudResponse(text);
 }
 
@@ -68,8 +81,7 @@ export async function cloudRequest(baseUrl, payload, { fetchImpl = fetch, timeou
 export async function cloudGet(baseUrl, params, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const url = buildGetUrl(baseUrl, params);
   if (!url) throw new Error('Cloud Sync URL is not configured (Config > Cloud Sync).');
-  const res = await withTimeout(fetchImpl(url, { method: 'GET' }), timeoutMs);
-  const text = await res.text();
+  const text = await fetchText(url, { method: 'GET' }, { fetchImpl, timeoutMs });
   return parseCloudResponse(text);
 }
 
@@ -93,6 +105,7 @@ export async function testConnection(baseUrl, opts) {
 
 // The web app's script has gone by several names for "give me every task";
 // try them in turn and use the first that answers with a list.
+const PULL_TOTAL_MS = 60000;
 const PULL_ACTIONS = ['getTasks', 'pullTasks', 'getAllTasks', 'fetchTasks', 'loadTasks'];
 
 const taskListOf = (data) => {
@@ -458,9 +471,14 @@ const countBy = (list, keys) => {
 export async function pullSheetEntries(baseUrl, blank, opts) {
   let lastMessage = '';
   let empty = null;
+  // Up to five names are tried, but the whole pull gets one budget (not 30 s each): each try gets what is left of it.
+  const budget = Number(opts && opts.totalMs) || PULL_TOTAL_MS;
+  const started = Date.now();
   for (const action of PULL_ACTIONS) {
+    const left = budget - (Date.now() - started);
+    if (left <= 0) { lastMessage = lastMessage || TOO_SLOW; break; }
     let data;
-    try { data = await cloudRequest(baseUrl, { action }, opts); } catch (err) { lastMessage = err.message; continue; }
+    try { data = await cloudRequest(baseUrl, { action }, { ...(opts || {}), timeoutMs: Math.min(Number(opts && opts.timeoutMs) || DEFAULT_TIMEOUT_MS, left) }); } catch (err) { lastMessage = err.message; continue; }
     const list = taskListOf(data);
     if (list) {
       const found = { ok: true, action, columns: Object.keys(list[0] || {}), sample: list.slice(0, 2), statuses: countBy(list, ['Status', 'status', 'taskStatus']), tasks: list.map((r) => normalizeSheetTask(r, blank)).filter(Boolean) };

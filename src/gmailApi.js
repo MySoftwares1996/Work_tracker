@@ -9,16 +9,38 @@ export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const MAX_MAILS = 25;
 
-async function call(path, token, { method = 'GET', body, fetchImpl = fetch } = {}) {
-  const res = await fetchImpl(`${API}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
+const CALL_TIMEOUT_MS = 20000;      // one Gmail request (the answer included) gets this long
+const MAX_PARALLEL = 5;             // at most this many requests at once
+
+async function call(path, token, { method = 'GET', body, fetchImpl = fetch, timeoutMs = CALL_TIMEOUT_MS } = {}) {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  let timer;
+  const guard = new Promise((_, reject) => {
+    timer = setTimeout(() => { try { if (ctrl) ctrl.abort(); } catch { /* nothing to abort */ } reject(new Error('Gmail took too long to answer - try again in a moment.')); }, timeoutMs);
   });
-  if (res.status === 401) throw new Error('Gmail access has expired. Tap Fetch Mail again to allow it.');
-  if (res.status === 403) throw new Error('Gmail access was refused. Your Google account may not be on this app\'s list of test users - ask the owner to add it.');
-  if (!res.ok) throw new Error(`Gmail answered ${res.status}.`);
-  return res.status === 204 ? null : res.json();
+  const work = (async () => {
+    const res = await fetchImpl(`${API}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      ...(ctrl ? { signal: ctrl.signal } : null),
+    });
+    if (res.status === 401) throw new Error('Gmail access has expired. Tap Fetch Mail again to allow it.');
+    if (res.status === 403) throw new Error('Gmail access was refused. Your Google account may not be on this app\'s list of test users - ask the owner to add it.');
+    if (!res.ok) throw new Error(`Gmail answered ${res.status}.`);
+    return res.status === 204 ? null : res.json();
+  })();
+  work.catch(() => {});             // after a timeout its late failure is not an unhandled rejection
+  try { return await Promise.race([work, guard]); } finally { clearTimeout(timer); }
+}
+
+/** Runs `fn` over `items` with at most `limit` in flight; results in the items' order. */
+export async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => { while (next < items.length) { const i = next++; out[i] = await fn(items[i], i); } };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return out;
 }
 
 const header = (msg, name) => {
@@ -27,12 +49,12 @@ const header = (msg, name) => {
 };
 
 /** Unread mail in the inbox, newest first (at most 25). */
-export async function listUnread(token, { fetchImpl } = {}) {
-  const list = await call(`/messages?maxResults=${MAX_MAILS}&q=${encodeURIComponent('is:unread in:inbox')}`, token, { fetchImpl });
+export async function listUnread(token, { fetchImpl, timeoutMs } = {}) {
+  const list = await call(`/messages?maxResults=${MAX_MAILS}&q=${encodeURIComponent('is:unread in:inbox')}`, token, { fetchImpl, timeoutMs });
   const ids = (list?.messages || []).map((m) => m.id);
-  const metas = await Promise.all(ids.map((id) => call(
-    `/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, token, { fetchImpl },
-  ).catch(() => null)));
+  const metas = await mapLimit(ids, MAX_PARALLEL, (id) => call(
+    `/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, token, { fetchImpl, timeoutMs },
+  ).catch(() => null));
   return metas.filter(Boolean).map((m) => ({
     id: m.id,
     subject: header(m, 'Subject') || '(No subject)',
@@ -43,13 +65,13 @@ export async function listUnread(token, { fetchImpl } = {}) {
 }
 
 /** Removes the UNREAD label: the mail no longer comes back on the next fetch. */
-export async function markRead(token, id, { fetchImpl } = {}) {
-  await call(`/messages/${encodeURIComponent(id)}/modify`, token, { method: 'POST', body: { removeLabelIds: ['UNREAD'] }, fetchImpl });
+export async function markRead(token, id, { fetchImpl, timeoutMs } = {}) {
+  await call(`/messages/${encodeURIComponent(id)}/modify`, token, { method: 'POST', body: { removeLabelIds: ['UNREAD'] }, fetchImpl, timeoutMs });
 }
 
 /** The mail's text: its plain-text part, else its HTML part without the tags, else Gmail's snippet. */
-export async function messageText(token, id, { fetchImpl } = {}) {
-  const m = await call(`/messages/${encodeURIComponent(id)}?format=full`, token, { fetchImpl });
+export async function messageText(token, id, { fetchImpl, timeoutMs } = {}) {
+  const m = await call(`/messages/${encodeURIComponent(id)}?format=full`, token, { fetchImpl, timeoutMs });
   return bodyText(m?.payload) || decodeEntities(m?.snippet || '');
 }
 
@@ -79,11 +101,17 @@ export function htmlToText(html) {
     .trim();
 }
 
+/** String.fromCodePoint that never throws: an out-of-range or surrogate value gives `fallback` instead. */
+function safeCodePoint(cp, fallback = '\ufffd') {
+  if (!Number.isInteger(cp) || cp < 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return fallback;
+  try { return String.fromCodePoint(cp); } catch { return fallback; }
+}
+
 export function decodeEntities(s) {
   return String(s || '')
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+    .replace(/&#(\d+);/g, (whole, n) => safeCodePoint(Number(n), whole));
 }
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -108,7 +136,7 @@ export function decodeBase64Url(data) {
     else if (b >= 0xe0) { cp = ((b & 15) << 12) | ((bytes[i + 1] & 63) << 6) | (bytes[i + 2] & 63); len = 3; }
     else if (b >= 0xc0) { cp = ((b & 31) << 6) | (bytes[i + 1] & 63); len = 2; }
     else { cp = 0xfffd; len = 1; }
-    out += String.fromCodePoint(Number.isFinite(cp) ? cp : 0xfffd);
+    out += safeCodePoint(cp);
     i += len;
   }
   return out;

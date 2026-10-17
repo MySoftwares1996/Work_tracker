@@ -17,3 +17,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - New web: a small Copy beside Final Narration and Mail chain in the entry form. Web only, nothing to port.
 - Phone: readable text on the orange in dark Warm (theme onAccent); every fire-and-forget failure is now logged (quietCatch.js).
 - Phone: Gemini key moved to secure storage (old one migrates), 60 s limit on Gemini calls (phone + web), one id helper (src/ids.js).
+- Kotlin changes (alarm settings survive reboot, quiet channel, web-presence rules) need a full APK build; the JS fixes (Bin page, app lock, field-level sync, report fixes) go out with a phone update.

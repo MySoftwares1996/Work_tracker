@@ -88,6 +88,7 @@ export async function runExtra({ ck, section }) {
   await push('u-chunk', { entries: many, lists: [['A']], listsUpdatedAt: 5 });
   ck('a second push with nothing changed writes nothing', __batches().length === 0);
   await runExtra2({ ck, section });
+  await runExtra3({ ck, section });
 }
 
 export async function runExtra2({ ck, section }) {
@@ -191,4 +192,123 @@ export async function runExtra2({ ck, section }) {
     JSON.stringify(listsOnReceive(remoteL, localL, 300, 200)[0]) === '["Payments","MIS","Audit"]');
   ck('the echo of this device\'s own push changes nothing', JSON.stringify(listsOnReceive(localL, localL, 200, 200)) === JSON.stringify(localL));
   ck('a copy with no time is joined, as before', listsOnReceive(remoteL, localL, 0, 200)[0].length === 4);
+}
+
+/* Sync / data hardening round: field-level push, serialised bookkeeping, timeouts, account switch, damaged copies. */
+export async function runExtra3({ ck, section }) {
+  const core = await import('../../src/firebaseSyncCore.js');
+  const { docHashes, diffWebDoc, createMutator, raceTimeout, dirtyToolKeys } = core;
+  const { push, __setMetaFormats } = await import('../../src/firebaseSync.js');
+  const { toWebTask } = await import('../../src/cloudSync.js');
+  const { __batches, __resetBatches } = await import('../stubs/firebase.mjs');
+  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  section('Field-level push: only what changed since the last sync is written');
+  const doc0 = { id: 'x1', description: 'Pay vendor', dueDate: '2026-10-05', status: 'Pending', deleted: false, purged: false, dateDeleted: null, updatedAt: 100, keyPoints: [{ key: 'a', value: 'b' }] };
+  ck('an entry with no snapshot sends everything', diffWebDoc(doc0, null) === doc0);
+  const snap0 = docHashes(doc0);
+  const only = diffWebDoc({ ...doc0, description: 'Pay vendor (Oct)', updatedAt: 200 }, snap0);
+  ck('only the changed field, plus id and updatedAt', Object.keys(only).sort().join() === 'description,id,updatedAt' && only.updatedAt === 200);
+  ck('purged is never sent for a known entry', !('purged' in diffWebDoc({ ...doc0, purged: false, description: 'x' }, snap0)));
+  ck('a bin made here is sent', diffWebDoc({ ...doc0, deleted: true, dateDeleted: 'now' }, snap0).deleted === true);
+  ck('an unchanged "deleted" is not sent (a web-side bin is not undone)', !('deleted' in diffWebDoc({ ...doc0, description: 'y' }, docHashes({ ...doc0, deleted: undefined, purged: undefined }))));
+  ck('key order inside a field does not count as a change', !('keyPoints' in diffWebDoc({ ...doc0, keyPoints: [{ value: 'b', key: 'a' }], description: 'z' }, snap0)));
+
+  section('Field-level push: a stale phone does not put old values back on the web app');
+  __setMetaFormats({ lists: 'json' }, [[], [], [], []]);
+  const e1 = { id: 'fp1', title: 'Pay vendor', dueAt: new Date(2026, 9, 5, 10, 0).toISOString(), status: 'Pending', createdAt: new Date(2026, 9, 1).toISOString(), updatedAt: new Date(2026, 9, 1, 9).toISOString() };
+  __resetBatches();
+  await push('u-fp', { entries: [e1] });
+  let w = __batches().flat().find((o) => o.path.endsWith('/tasks/fp1'));
+  ck('a new entry is written whole', w && w.data.description === 'Pay vendor' && w.data.dueDate === '2026-10-05' && w.data.purged === false);
+  __resetBatches();
+  const e2 = { ...e1, title: 'Pay vendor (Oct)', updatedAt: new Date(2026, 9, 2, 9).toISOString(), localEditAt: Date.now() };
+  await push('u-fp', { entries: [e2] });
+  w = __batches().flat().find((o) => o.path.endsWith('/tasks/fp1'));
+  ck('an edit sends only the changed field and the stamp - not the due date, status, deleted or purged',
+    w && w.data.description === 'Pay vendor (Oct)' && w.data.updatedAt && !('dueDate' in w.data) && !('status' in w.data) && !('purged' in w.data) && !('deleted' in w.data), JSON.stringify(w && w.data));
+  __resetBatches();
+  const e3 = { ...e2, dueAt: new Date(2026, 9, 9, 10, 0).toISOString(), updatedAt: new Date(2026, 9, 3, 9).toISOString() };
+  await push('u-fp', { entries: [e3] });
+  w = __batches().flat().find((o) => o.path.endsWith('/tasks/fp1'));
+  ck('a due date changed here is sent', w && w.data.dueDate === '2026-10-09' && !('description' in w.data));
+
+  section('Serialised bookkeeping: concurrent read-modify-write jobs do not erase each other');
+  let store = {};
+  const mutate = createMutator(async () => ({ ...store }), async (_k, v) => { await wait(2); store = v; });
+  await Promise.all([mutate('k', (a) => ({ ...a, one: 1 })), mutate('k', (a) => ({ ...a, two: 2 })), mutate('k', (a) => ({ ...a, __lists: 7 }))]);
+  ck('every writer\'s change is kept', store.one === 1 && store.two === 2 && store.__lists === 7, JSON.stringify(store));
+  const failing = createMutator(async () => ({}), async () => {});
+  await failing('k', () => { throw new Error('boom'); }).catch(() => {});
+  ck('a failed job does not block the next', (await failing('k', () => ({ ok: 1 }))).ok === 1);
+
+  section('Writes that never settle offline report "offline - will retry"');
+  let err = null;
+  await raceTimeout(new Promise(() => {}), 20).catch((e) => { err = e; });
+  ck('a hung commit is reported after the timeout', err && /offline - will retry/.test(err.message));
+  ck('a prompt one passes through', (await raceTimeout(Promise.resolve(5), 50)) === 5);
+
+  section('Tools: per-item stamps decide what is sent');
+  ck('only items newer here than last sent go', dirtyToolKeys({ links: 5, templates: 3, holdUntil: 0 }, { links: 5, templates: 1 }).join() === 'templates');
+  ck('a newer local item stays pending even when a different one arrived later', dirtyToolKeys({ links: 9, templates: 3 }, { templates: 3 }).join() === 'links');
+
+  section('Switching accounts keeps the old account\'s unsent work');
+  const acct = await import('../../src/account.js');
+  const mem = {};
+  const storage = { getItem: async (k) => mem[k] ?? null, setItem: async (k, v) => { mem[k] = v; }, removeItem: async (k) => { delete mem[k]; } };
+  const wdA = { accountUid: 'A', accountEmail: 'a@x.com', entries: [{ id: 'a1', title: 'sent', updatedAt: new Date(2026, 9, 1).toISOString() }, { id: 'a2', title: 'unsent', localEditAt: 5, updatedAt: new Date(2026, 9, 2).toISOString() }], deletedIds: ['gone'] };
+  mem['MPT_RT_ACK_A'] = JSON.stringify({ a1: new Date(2026, 9, 1).getTime() });
+  ck('nothing unsent: nothing kept', acct.unsyncedSnapshot({ accountUid: 'A', entries: [wdA.entries[0]] }, { a1: new Date(2026, 9, 1).getTime() }) === null);
+  ck('the unsent entry and deletion are picked out', (() => { const sn = acct.unsyncedSnapshot(wdA, JSON.parse(mem['MPT_RT_ACK_A'])); return sn && sn.entries.length === 1 && sn.entries[0].id === 'a2' && sn.deletedIds[0] === 'gone'; })());
+  ck('they are saved under MPT_UNSYNCED_A before the wipe', (await acct.saveUnsyncedBackup(wdA, { storage, flush: false })) === true && !!mem['MPT_UNSYNCED_A']);
+  const wiped = acct.forAccount(wdA, 'B', 'b@x.com');
+  ck('the wipe still happens for B', wiped.entries.length === 0 && wiped.accountUid === 'B');
+  const back = await acct.takeUnsyncedBackup('A', { storage });
+  ck('A gets the work back when A signs in again', back && back.entries[0].id === 'a2' && !mem['MPT_UNSYNCED_A']);
+  const restored = acct.mergeUnsynced(acct.forAccount(wiped, 'A', 'a@x.com'), back);
+  ck('...merged into the account, deletion queued again', restored.entries.some((x) => x.id === 'a2') && restored.deletedIds.includes('gone'));
+  ck('no backup: the data is untouched', acct.mergeUnsynced(wiped, null) === wiped);
+
+  section('Damaged stored values are copied once, and a migration never overwrites them');
+  const sc = await import('../../src/storeCore.js');
+  const first = sc.corruptCopyPlan([['MPT_X', '{bad']], {}, 1);
+  ck('the first launch writes a copy', first.writes.length === 1 && first.writes[0][0] === 'MPT_CORRUPT_MPT_X_1');
+  ck('the next launch, same damage: no new copy', sc.corruptCopyPlan([['MPT_X', '{bad']], first.seen, 2).writes.length === 0);
+  let seen = first.seen; let dropped = [];
+  for (let i = 2; i <= 6; i++) { const p = sc.corruptCopyPlan([['MPT_X', '{bad' + i]], seen, i); seen = p.seen; dropped = dropped.concat(p.drop); }
+  ck('at most 3 copies kept, the oldest dropped', seen.MPT_X.copies.length === 3 && dropped.length === 3 && dropped[0] === 'MPT_CORRUPT_MPT_X_1');
+
+  section('Gmail: bad entities / bytes do not throw; requests time out and run 5 at a time');
+  const gm = await import('../../src/gmailApi.js');
+  let threw = false; let txt = '';
+  try { txt = gm.decodeEntities('a &#99999999999; b &#55357; c &#65; d'); } catch { threw = true; }
+  ck('an out-of-range entity is left alone, the rest decodes', !threw && txt.includes('&#99999999999;') && txt.endsWith('A d'), txt);
+  threw = false;
+  try { gm.decodeBase64Url('8P__vw'); gm.decodeBase64Url('_____'); } catch { threw = true; }
+  ck('invalid UTF-8 / base64 does not throw', !threw);
+  let live = 0; let peak = 0;
+  const fetchImpl = async (url) => {
+    live++; peak = Math.max(peak, live); await wait(5); live--;
+    if (url.includes('/messages?')) return { ok: true, status: 200, json: async () => ({ messages: Array.from({ length: 20 }, (_, i) => ({ id: `m${i}` })) }) };
+    return { ok: true, status: 200, json: async () => ({ id: url, payload: { headers: [] }, snippet: '' }) };
+  };
+  const listed = await gm.listUnread('tok', { fetchImpl });
+  ck('20 mails are read, never more than 5 requests at once', listed.length === 20 && peak <= 5, `peak ${peak}`);
+  let slowErr = null;
+  await gm.listUnread('tok', { fetchImpl: () => new Promise(() => {}), timeoutMs: 30 }).catch((e) => { slowErr = e; });
+  ck('a request that never answers fails with a clear message', slowErr && /too long/.test(slowErr.message));
+
+  section('Cloud Sync: the body read is inside the timeout; the pull has one budget');
+  const cs = await import('../../src/cloudSync.js');
+  let bodyErr = null;
+  await cs.cloudRequest('https://script.google.com/macros/s/x/exec', { action: 'ping' }, { fetchImpl: async () => ({ text: () => new Promise(() => {}) }), timeoutMs: 30 }).catch((e) => { bodyErr = e; });
+  ck('a stalled body fails after the timeout', bodyErr && /too long/.test(bodyErr.message));
+  let aborted = false;
+  await cs.cloudGet('https://script.google.com/macros/s/x/exec', { a: 1 }, { fetchImpl: (u, init) => new Promise((_, rej) => { init.signal.addEventListener('abort', () => { aborted = true; rej(new Error('aborted')); }); }), timeoutMs: 20 }).catch(() => {});
+  ck('the request is aborted, not left running', aborted);
+  let calls = 0;
+  const t0 = Date.now();
+  const pulled = await cs.pullSheetEntries('https://script.google.com/macros/s/x/exec', {}, { fetchImpl: () => { calls++; return new Promise(() => {}); }, timeoutMs: 60, totalMs: 150 });
+  ck('five hanging actions are not waited out one by one', !pulled.ok && Date.now() - t0 < 600 && calls < 5, `${calls} calls, ${Date.now() - t0} ms`);
 }
