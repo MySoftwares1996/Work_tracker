@@ -217,7 +217,7 @@ export function LiveStore({ children }) {
   }, [user, flash]);
 
   const value = useMemo(() => ({
-    demo: false, user, tasks, lists, calendar, links, templates, reportFormats: allFormats, reportFormatsCustom: formats.length > 0,
+    demo: false, user, tasks, lists, calendar, links, templates, reportFormats: allFormats, savedFormats: formats, reportFormatsCustom: formats.length > 0,
     saveReportFormats: (next) => {
       if (!user) return;
       const now = Date.now();
@@ -293,7 +293,7 @@ export function DemoStore({ children }) {
   const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, savedFormats: formats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: true, actions,
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
   }), [visible, lists, calendar, links, templates, formats, actions]);

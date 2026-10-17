@@ -800,3 +800,20 @@ textarea.auto, .sheet.wide .col textarea.auto, .sheet.wide .cols3 > .col:first-c
 /* A button with a small Copy beside it, so the text can be copied without opening its popup. */
 .btn-copy { display: inline-flex; align-items: center; gap: 6px; }
 .btn-copy .mini:disabled { opacity: .4; }
+
+/* ---- Dashboard: This week review ---- */
+.wr { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 18px; margin: 16px 0; }
+.wr-head { margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.wr-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.wr-stats > div { display: flex; flex-direction: column; gap: 2px; }
+.wr-stats b { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+.wr-stats b.ok { color: var(--teal); }
+.wr-stats b.bad { color: var(--coral); }
+.wr-stats span { font-size: 13px; color: var(--muted); }
+.wr-slip { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.wr-slip h3 { margin: 0 0 4px; font-size: 14px; font-weight: 800; }
+.wr-item { display: flex; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 4px; border-radius: 10px; color: var(--ink); }
+.wr-item:hover { background: color-mix(in srgb, var(--violet) 8%, transparent); }
+.wr-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-why { color: var(--coral); font-size: 13px; white-space: nowrap; }
+@media (max-width: 520px) { .wr-item { flex-direction: column; gap: 0; } .wr-stats b { font-size: 22px; } }

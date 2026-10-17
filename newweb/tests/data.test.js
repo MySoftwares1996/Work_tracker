@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
+import { webBackup } from '../src/exportBackup.js';
+import { formatsAfterEdit, removedFormat } from '../src/reportFormats.js';
 import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS, effectiveFormats } from '../src/reportFormats.js';
-import { breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
+import { DEFAULT_LISTS, breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -666,4 +668,47 @@ test('a backup row due exactly 00:00 keeps its time when the source says it had 
   assert.equal(rowToDoc({ id: 'm3', title: 'a', dueAt: at }).doc.dueTime, '');
   assert.equal(rowToDoc({ id: 'm4', title: 'a', dueAt: '2026-10-15' }).doc.dueTime, '');
   assert.equal(rowToDoc({ id: 'm5', title: 'a', dueAt: new Date(2026, 9, 15, 9, 30).toISOString() }).doc.dueTime, '09:30');
+});
+
+test('an exported backup imports back: every task incl. done and binned, with the lists', () => {
+  const done = task({ id: 'd1', title: 'Paid', done: true, completedAt: new Date(2026, 9, 14, 11, 0), category: 'GST' });
+  const open = task({ id: 'o1', title: 'Send SOA', due: new Date(2026, 9, 20, 9, 30), hasTime: true, priority: 'High', notes: 'n', reference: 'RE: x' });
+  const bin = task({ id: 'b1', title: 'Old', binned: true, binnedAt: new Date(2026, 9, 1) });
+  const gone = task({ id: 'p1', title: 'Purged', purged: true });
+  const file = JSON.parse(JSON.stringify(webBackup({ tasks: [done, open, bin, gone], lists: { ...DEFAULT_LISTS, categories: ['GST', 'TDS'] }, calendar: { holidays: [{ date: '2026-10-20', name: 'Diwali' }], leaveDays: [] }, savedFormats: [removedFormat('ESI')] }, NOW)));
+  assert.equal(file.version, 1);
+  assert.deepEqual(file.data.workingDashboard.entries.map((e) => e.id).sort(), ['b1', 'd1', 'o1']);
+  const plan = planImport(file, { ids: new Set(), lists: { ...DEFAULT_LISTS, categories: [] } }, NOW);
+  assert.equal(plan.tasks.length, 3);
+  const by = Object.fromEntries(plan.tasks.map((x) => [x.id, x.doc]));
+  assert.equal(by.o1.description, 'Send SOA');
+  assert.equal(by.o1.dueDate, '2026-10-20');
+  assert.equal(by.o1.dueTime, '09:30');
+  assert.equal(by.o1.mailChain, 'RE: x');
+  assert.equal(by.o1.priority, 'High');
+  assert.equal(by.d1.completedDate, '2026-10-14');
+  assert.equal(by.d1.deleted, false);
+  assert.equal(by.b1.deleted, true);
+  assert.ok(plan.lists.categories.includes('TDS'));
+  assert.equal(plan.calendar.holidays.length, 1);
+  // importing again over the same account skips what is there
+  assert.equal(planImport(file, { ids: new Set(['o1', 'd1', 'b1']) }, NOW).tasks.length, 0);
+});
+
+test('removing a sample report format writes the phone\'s marker and keeps the other markers', () => {
+  const sample = SAMPLE_FORMATS.find((f) => f.subCategory === 'ESI');
+  const other = removedFormat('PO Advance Payment', 'Payments');
+  const after = formatsAfterEdit([other], { id: sample.id, subCategory: sample.subCategory, category: sample.category }, '');
+  assert.equal(after.length, 2);
+  assert.ok(after.some((f) => f.removed && f.subCategory === 'ESI' && f.template === ''));
+  assert.ok(after.includes(other));
+  const eff = effectiveFormats(after);
+  assert.ok(!eff.some((f) => f.subCategory === 'ESI'));
+  assert.ok(!eff.some((f) => /^PO Advance/.test(f.subCategory)));
+  assert.equal(eff.length, SAMPLE_FORMATS.length - 2);
+  // saving a format afterwards replaces the marker, and a second removal does not pile up markers
+  const saved = formatsAfterEdit(after, { subCategory: 'ESI', category: sample.category }, 'ESI paid {Amount}');
+  assert.ok(!saved.some((f) => f.removed && f.subCategory === 'ESI'));
+  assert.equal(effectiveFormats(saved).find((f) => f.subCategory === 'ESI').template, 'ESI paid {Amount}');
+  assert.equal(formatsAfterEdit(after, { subCategory: 'esi' }, '').filter((f) => f.removed).length, 2);
 });

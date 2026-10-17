@@ -50,6 +50,7 @@ import { shareReportPdf } from '../reportPdf';
 import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
 import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
+import WdWeeklyReview from './WdWeeklyReview';
 import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow } from './wdCards';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
@@ -1370,6 +1371,7 @@ export default function WorkingDashboard() {
                   )}
                 </View>
                 <Pressable onPress={() => setMoreCounts((v) => !v)} hitSlop={8} accessibilityRole="button" style={{ alignSelf: 'flex-start', marginTop: 8 }}><Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(12.5) }}>{moreCounts ? 'Fewer counts ▴' : 'More counts ▾'}</Text></Pressable>
+                <WdWeeklyReview entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={openEditEntry} />
                 {!!attention.length && (
                   <View style={{ marginTop: 14 }}>
                     <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>

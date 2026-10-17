@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { planImport } from '../importBackup';
+import { exportBackupFile } from '../exportBackup';
 import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from '../alerts';
 import { THEMES, applyTheme, savedTheme } from '../themes';
 import { useStore } from '../store';
-import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../reportFormats';
+import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
 import { categoryAsksReminder, toggleReminderCategory } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
 
@@ -30,6 +31,7 @@ export default function Config() {
     ) },
     { key: 'formats', icon: '🧾', title: 'Report formats', hint: 'The sentence each sub category writes in the report', body: () => <ReportFormats /> },
     { key: 'gemini', icon: '✨', title: 'Gemini (AI) key', hint: 'Your own key, used only when the free route is busy', body: () => <GeminiKey /> },
+    { key: 'export', icon: '💾', title: 'Export a backup', hint: 'Save all tasks as one JSON file', body: () => <ExportBackup /> },
     { key: 'import', icon: '📥', title: 'Import from an older version', hint: 'Bring in a backup file', body: () => <ImportBackup /> },
   ];
   const open = topics.find((x) => x.key === topic);
@@ -60,6 +62,21 @@ export default function Config() {
         ))}
       </nav>
     </>
+  );
+}
+
+/** Config > Export a backup: every task (done and binned too) with the lists, links, templates and report formats, as one JSON file the Import below reads back. */
+function ExportBackup() {
+  const { tasks, lists, calendar, links, templates, savedFormats } = useStore();
+  const [msg, setMsg] = useState('');
+  const run = () => { const n = exportBackupFile({ tasks, lists, calendar, links, templates, savedFormats }); setMsg(`Saved ${n} task${n === 1 ? '' : 's'} to your downloads.`); };
+  return (
+    <section className="card plain">
+      <h2 className="h2">Export a backup</h2>
+      <p className="muted">Downloads every task (open, done and in the Bin) with your categories, sub categories, links, templates and report formats as one file. Keep it somewhere safe; Import (below) reads it back.</p>
+      <div><button type="button" className="btn primary" onClick={run}>Export a backup</button></div>
+      {msg && <p className="banner ok" role="status">{msg}</p>}
+    </section>
   );
 }
 
@@ -108,7 +125,7 @@ function ImportBackup() {
 
 /** Config > Report formats: the line the Daily report writes for a task, per Sub Category, with {Field name} marks filled from the task. */
 function ReportFormats() {
-  const { lists, saveLists, tasks, reportFormats, reportFormatsCustom, saveReportFormats } = useStore();
+  const { lists, saveLists, tasks, reportFormats, savedFormats, reportFormatsCustom, saveReportFormats } = useStore();
   const [open, setOpen] = useState('');
   const [draft, setDraft] = useState('');
   const subs = lists.subCategories || [];
@@ -116,15 +133,11 @@ function ReportFormats() {
     ...subs.map((sc) => ({ key: `s-${sc.id || sc.name}`, sc, name: sc.name, category: sc.category || '', format: findFormat(reportFormats, sc.name) })),
     ...reportFormats.filter((f) => !subs.some((sc) => findFormat([f], sc.name))).map((f) => ({ key: `f-${f.id}`, sc: null, name: f.subCategory, category: f.category, format: f })),
   ];
-  const everyFormat = () => (reportFormatsCustom ? reportFormats : SAMPLE_FORMATS);
   const setup = planFormatSetup(lists, reportFormats);
   const missingCount = setup.categories.length + setup.subCategories.length;
   const startEdit = (row) => { setOpen(open === row.key ? '' : row.key); setDraft(row.format ? row.format.template : ''); };
-  const save = (row, template) => {
-    const list = everyFormat().filter((f) => !(row.format && f.id === row.format.id));
-    const text = template.trim();
-    saveReportFormats(text ? [...list, { id: row.format ? row.format.id : `rf-${Date.now().toString(36)}`, category: row.category || (row.format && row.format.category) || '', subCategory: row.format ? row.format.subCategory : row.name, template: text }] : list);
-  };
+  // Saving or removing writes into the raw saved list (removal markers kept), not the effective list, so a removed sample stays removed.
+  const save = (row, template) => saveReportFormats(formatsAfterEdit(savedFormats, { id: row.format ? row.format.id : '', subCategory: row.format ? row.format.subCategory : row.name, category: row.category || (row.format && row.format.category) || '' }, template));
   const addFields = (row, marks) => saveLists({ ...lists, subCategories: subs.map((sc) => (sc === row.sc ? { ...sc, fields: [...sc.fields, ...marks.map((label) => ({ label }))] } : sc)) });
   const sample = (row) => { const mine = tasks.filter((t) => t.subCategory && row.sc && t.subCategory === row.sc.name && Object.keys(t.subCategoryFields || {}).length); return mine.length ? mine[0] : { subCategoryFields: {} }; };
   return (

@@ -5,6 +5,7 @@ import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
 
 import { copyText } from './clipboard';
+import { weeklyReview, slipReason } from '../../src/weeklyReview.js';
 
 import { useStore } from './store';
 
@@ -156,6 +157,7 @@ function Dashboard({ onEdit, onNew, go }) {
         <Tile tone="teal" label="Done today" value={s.doneToday} sub="Completed" onClick={() => go('done')} />
       </section>
       <Breakdowns tasks={tasks} go={go} />
+      <WeeklyReview tasks={tasks} now={now} onEdit={onEdit} />
       <div className="two">
         <section>
           <h2 className="h2 red">Needs attention <span className="muted">({lateAll.length} overdue)</span></h2>
@@ -169,6 +171,34 @@ function Dashboard({ onEdit, onNew, go }) {
         </section>
       </div>
     </div>
+  );
+}
+
+/** "This week": done since Monday, due in the next 7 days, overdue, and the tasks that are slipping (snoozed 3+ times or 7+ days overdue). Hidden when there is nothing to show. */
+function WeeklyReview({ tasks, now, onEdit }) {
+  const { calendar } = useStore();
+  const r = useMemo(() => weeklyReview(tasks, now, { holidays: calendar.holidays, leaveDays: calendar.leaveDays }), [tasks, now, calendar]);
+  if (r.empty) return null;
+  return (
+    <section className="wr" aria-label="This week">
+      <h2 className="wr-head">This week</h2>
+      <div className="wr-stats">
+        <div><b className="ok">{r.doneThisWeek}</b><span>Done since Monday</span></div>
+        <div><b>{r.dueSoon.count}</b><span>Due in the next 7 days</span></div>
+        <div><b className={r.overdue ? 'bad' : ''}>{r.overdue}</b><span>Overdue</span></div>
+      </div>
+      {!!r.slipping.length && (
+        <div className="wr-slip">
+          <h3>Slipping <span className="muted">({r.slipping.length})</span></h3>
+          {r.slipping.slice(0, 3).map((s) => (
+            <button key={s.entry.id} className="wr-item" onClick={() => onEdit(s.entry)} aria-label={`Edit ${s.entry.title}`}>
+              <span className="wr-title">{s.entry.title || '(no description)'}</span>
+              <span className="wr-why">{slipReason(s)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -75,6 +75,7 @@ export function fromDoc(id, d = {}) {
     attachments: (Array.isArray(d.attachments) ? d.attachments : []).filter((a) => a && /^https?:\/\//i.test(String(a.url || ''))).map((a) => ({ id: String(a.id || newId()), title: String(a.title || a.url), url: String(a.url) })),
     nextReminder: asDate(d.nextReminderAt),
     snoozeUntil: Number(d.snoozeUntil) || 0,
+    snoozeCount: Number(d.snoozeCount) || 0, // read only (the phone counts snoozes; the Weekly review uses it)
     lastAckDate: d.lastAckDate ? String(d.lastAckDate) : '',
     skippedDates: Array.isArray(d.skippedDates) ? d.skippedDates.map(String) : [],
     subCategory: d.subCategory ? String(d.subCategory) : '',
