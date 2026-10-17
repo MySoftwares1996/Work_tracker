@@ -560,3 +560,6 @@ export function breakdown(tasks, field, now = new Date()) {
 export function subBreakdown(tasks, category, now = new Date()) {
   return breakdown((tasks || []).filter((t) => t.category === category), 'subCategory', now).map((r) => ({ ...r, label: r.name || 'No sub category' }));
 }
+
+/** A day that is not a working day: a holiday or leave day of the calendar ({ holidays, leaveDays }). Sundays are left to the caller. */
+export const isOffDay = (key, calendar = {}) => [...(calendar.holidays || []), ...(calendar.leaveDays || [])].some((x) => String(x && x.date).slice(0, 10) === key);

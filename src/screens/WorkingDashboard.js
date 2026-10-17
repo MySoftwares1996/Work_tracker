@@ -25,6 +25,7 @@ import { setNarrationSink, addHistory } from '../narrationHistory';
 import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
+import { monthEndOptions } from '../monthEnd';
 import { effectiveFormats, finalNarration } from '../reportFormats';
 import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../reportExtras';
 import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
@@ -42,7 +43,7 @@ import { learnStyle, buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, e
 import { getAdvice } from '../sheets';
 import { listReportSamples, rewriteReportWithAi } from '../workingDashboardReportCloud';
 import { shareReportPdf } from '../reportPdf';
-import { blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
+import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
 import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
 import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneTile, PhoneRow, PhoneDoneRow } from './wdCards';
@@ -909,6 +910,16 @@ export default function WorkingDashboard() {
                     <Pressable key={label} onPress={() => setEntrySheet({ ...entrySheet, dueAt: iso })} accessibilityRole="button" accessibilityLabel={`Due ${label}`}
                       style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: on ? t.accent : t.accent + '14', borderWidth: 1, borderColor: t.accent + '40' }}>
                       <Text style={{ color: on ? '#fff' : t.accent, fontSize: t.fs(12.5), fontWeight: '700' }}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+                {monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 4).map((m) => {
+                  const iso = new Date(`${m.key}T00:00:00`).toISOString();      // a date alone: it alerts once, at 7 PM that day
+                  const on = entrySheet.dueAt && toDateKey(new Date(entrySheet.dueAt)) === m.key;
+                  return (
+                    <Pressable key={m.key} onPress={() => setEntrySheet({ ...entrySheet, dueAt: iso })} accessibilityRole="button" accessibilityLabel={`Due ${m.label}`}
+                      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: on ? t.accent : t.accent + '14', borderWidth: 1, borderColor: t.accent + '40' }}>
+                      <Text style={{ color: on ? '#fff' : t.accent, fontSize: t.fs(12.5), fontWeight: '700' }}>{m.label}</Text>
                     </Pressable>
                   );
                 })}

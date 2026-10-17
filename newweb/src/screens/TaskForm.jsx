@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ClockPicker from '../ClockPicker';
 import { copyText } from '../clipboard';
 import { useStore } from '../store';
 import { finalNarration } from '../reportFormats';
-import { templateFrom, applyTemplate, saveTemplate, categoryAsksReminder, reminderFrom, toggleReminderCategory, categoryCarriesSubCategory, subCategoriesFor, findSubCategory, subCategoryMissing, RECURRENCES, dayKey, pad, newId, timeLabel } from '../data';
+import { monthEndOptions } from '../../../src/monthEnd.js';
+import { isOffDay, templateFrom, applyTemplate, saveTemplate, categoryAsksReminder, reminderFrom, toggleReminderCategory, categoryCarriesSubCategory, subCategoriesFor, findSubCategory, subCategoryMissing, RECURRENCES, dayKey, pad, newId, timeLabel } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
 
 const toInputDate = (d) => (d ? dayKey(d) : '');
@@ -38,7 +39,8 @@ export default function TaskForm({ initial, onClose }) {
   const [remDate, setRemDate] = useState(initial.nextReminder ? dayKey(initial.nextReminder) : '');
   const [remTime, setRemTime] = useState(initial.nextReminder ? `${pad(initial.nextReminder.getHours())}:${pad(initial.nextReminder.getMinutes())}` : '');
   const [remClock, setRemClock] = useState(false);
-  const { saveLists, templates, saveTemplates, notify } = useStore();
+  const { saveLists, templates, saveTemplates, notify, calendar } = useStore();
+  const monthEnd = useMemo(() => monthEndOptions(new Date(), (k) => isOffDay(k, calendar), 4), [calendar]);
   const [tplName, setTplName] = useState(null);      // null = closed; a string = naming the template being saved
   const [att, setAtt] = useState({ title: '', url: '' });
   const [kp, setKp] = useState({ key: '', value: '' });
@@ -153,7 +155,10 @@ export default function TaskForm({ initial, onClose }) {
           </div>
         )}
         <div className="fields">
-          <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+          <div className="field">
+            <label>Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+            <span className="chips">{monthEnd.map((m) => <button type="button" key={m.key} className={`chip toggle${date === m.key && !time ? ' on' : ''}`} onClick={() => { setDate(m.key); setTime(''); }} title="The last working days of the month (not Sundays, holidays or leave days). A date alone alerts once, at 7 PM that day.">{m.label}</button>)}</span>
+          </div>
           <div className="field">Due time
             <button type="button" className="time-btn" onClick={() => setClockOpen(true)} disabled={!date} aria-label="Pick the due time on a clock">
               <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>

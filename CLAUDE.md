@@ -90,6 +90,8 @@ Web-to-phone parity round: the phone's More page now has Links, Next reminder (c
 (`WdReportFormats.js`, formats in `src/reportFormats.js`, synced in `meta/tools`) and Gemini (AI) key (`WdGeminiKey.js`, `src/aiBuiltin.js`, kept on the phone). The Report's four boxes open their tasks with Move to
 (`src/reportExtras.js`, shared with `newweb/`); Home has Pending as on today / Next month tiles and this-month / next-month breakdown cards. Sub Category / narration / reminder lists are written back to `meta/lists`.
 
+The due date quick picks also offer "Month end -1 / -2 / -3 / -4": the last working days of the month (not Sundays, holidays or leave days), a date alone so it alerts once at 7 PM (`src/monthEnd.js`, shared; phone form and `newweb` form).
+
 ## Phone updates (over the air) - `docs/PHONE_UPDATES.md`
 
 A JavaScript-only change to the phone app can be published without a new APK: the "Publish phone update" workflow (manual, `.github/workflows/phone-update.yml`,
