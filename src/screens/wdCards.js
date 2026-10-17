@@ -337,8 +337,19 @@ export function PhoneTile({ label, value, tone, dark, onPress }) {
   );
 }
 
+/** Option 1's compact pastel tile: a short label over a big number, tinted by its colour. */
+export function PhoneKpi({ label, value, tone, onPress }) {
+  const t = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={({ pressed }) => ({ width: '31.5%', minHeight: 70, borderRadius: 16, padding: 10, backgroundColor: blend(tone, 0.14, t.surface), borderWidth: 1, borderColor: blend(tone, 0.2, t.surface), justifyContent: 'space-between', opacity: pressed ? 0.85 : 1 })}>
+      <Text style={{ color: tone, fontWeight: '700', fontSize: t.fs(11), lineHeight: t.fs(13) }} numberOfLines={2}>{label}</Text>
+      <Text style={{ color: tone, fontWeight: '800', fontSize: t.fs(24), letterSpacing: -0.5 }}>{value}</Text>
+    </Pressable>
+  );
+}
+
 /** A task as one rounded row: a priority dot, the title, chips, and when it is due. With onDone / onDar it slides open to ✓ Done and ✓ DAR. */
-export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
+export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp, card }) {
   const t = useTheme();
   const swipe = useRef(null);
   const due = entry.dueAt ? new Date(entry.dueAt) : null;
@@ -368,6 +379,23 @@ export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
       </View>
     </Pressable>
   );
+  // card: the buttons sit under the task (Option 1 / 3), not behind a swipe.
+  if (card && onDone) {
+    const btn = (label, bg, ink, fn) => (
+      <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 12, alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
+        <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(13) }}>✓ {label}</Text>
+      </Pressable>
+    );
+    return (
+      <View style={{ marginBottom: 10, borderRadius: 18, borderLeftWidth: 4, borderLeftColor: overdue ? t.danger : t.warn, backgroundColor: t.surface, ...t.shadow }}>
+        {body}
+        <Row gap={8} style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+          {btn('Done', t.ok, '#fff', onDone)}
+          {onDar && btn('DAR', blend(t.ok, 0.16, t.surface), t.ok, onDar)}
+        </Row>
+      </View>
+    );
+  }
   if (!onDone) return <View style={{ marginBottom: 10 }}>{body}</View>;
   const action = (label, color, fn) => (
     <Pressable onPress={() => { if (swipe.current) swipe.current.close(); fn(); }} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete'} style={{ width: 70, alignItems: 'center', justifyContent: 'center', backgroundColor: color }}>

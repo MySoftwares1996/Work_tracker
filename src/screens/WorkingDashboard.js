@@ -26,6 +26,7 @@ import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
 import { monthEndOptions } from '../monthEnd';
+import { BOARD_COLUMNS, boardKey } from '../boardColumns';
 import { effectiveFormats, finalNarration } from '../reportFormats';
 import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../reportExtras';
 import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
@@ -46,7 +47,7 @@ import { shareReportPdf } from '../reportPdf';
 import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
 import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
-import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneTile, PhoneRow, PhoneDoneRow } from './wdCards';
+import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow } from './wdCards';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
 const NO_LIST = [];
@@ -239,7 +240,12 @@ export default function WorkingDashboard() {
     return () => clearTimeout(id);
   }, [webBatch, filteredOpen.length, doneEntries.length]);
   const shownCount = Platform.OS === 'web' ? webBatch : tabletWidth ? gridCount(visibleCount) : visibleCount;      // the Bin's grid card layout, where the web shows a grid
-  const visibleRegister = filteredOpen.slice(0, shownCount);
+  const doneTodayCount = useMemo(() => entries.filter((e) => e.done && !e.binned && completedTime(e) && toDateKey(new Date(completedTime(e))) === toDateKey(new Date())).length, [entries]);
+  // Option 3 on the phone: the Register's three groups as chips (Overdue & Critical / Dispatch queue / Vendor & other).
+  const [boardFilter, setBoardFilter] = useState('');
+  const boardCounts = useMemo(() => { const c = { late: 0, dispatch: 0, other: 0 }; filteredOpen.forEach((e) => { c[boardKey(e.title, e.category, isOverdue(e))] += 1; }); return c; }, [filteredOpen]);
+  const boardRows = boardFilter && phoneLayout ? filteredOpen.filter((e) => boardKey(e.title, e.category, isOverdue(e)) === boardFilter) : filteredOpen;
+  const visibleRegister = boardRows.slice(0, shownCount);
   // The Completed tab (web.app and the APK) opens on the last five days (today and the four before); the older ones are under "Show more".
   const [showOlderDone, setShowOlderDone] = useState(false);
   const [darNote, setDarNote] = useState(null);      // web.app: { entry, text } - the notes asked for when DAR is pressed
@@ -1276,7 +1282,7 @@ export default function WorkingDashboard() {
               </>
             )}
             {/* Quick add: type a sentence - "Pay ICICI invoice tomorrow 5pm high" - and the form opens filled in. */}
-            {formOn && <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
+            {formOn && !phoneLayout && <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
               <Row gap={8} style={{ alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
                   <Field style={{ marginBottom: 0 }} value={quickText} onChangeText={setQuickText} placeholder={phoneLayout ? 'Quick add a task…' : '➕ Quick add: "Pay vendor tomorrow 5pm high"'} onSubmitEditing={() => quickAdd()} returnKeyType="done" />
@@ -1289,29 +1295,32 @@ export default function WorkingDashboard() {
             </Card>}
             {phoneLayout ? (
               <>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 6, gap: 10 }}>
-                  <PhoneTile label="Pending as on today" value={stats.pendingAsOnToday} tone={t.purple || t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
-                  <PhoneTile label="Overdue" value={stats.overdue} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
-                  <PhoneTile label="Due today" value={stats.dueToday} tone={t.warn} dark onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
-                  <PhoneTile label="Next 7 days" value={stats.next7Days} tone={t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
-                  <PhoneTile label="This month" value={stats.thisMonth} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'This Month' }); }} />
-                  <PhoneTile label="Pending" value={stats.pending} tone={t.ok} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
-                  <PhoneTile label="Next month" value={stats.nextMonth} tone={t.pink || t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next Month' }); }} />
-                  <PhoneTile label="No due date" value={stats.noDueDate} tone={t.textDim} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
-                </ScrollView>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  <PhoneKpi label="Pending as on Today" value={stats.pendingAsOnToday} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
+                  <PhoneKpi label="Due Today" value={stats.dueToday} tone={t.warn} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
+                  <PhoneKpi label="Overdue" value={stats.overdue} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
+                  <PhoneKpi label="Next 7 Days" value={stats.next7Days} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
+                  <PhoneKpi label="This Month" value={stats.thisMonth} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'This Month' }); }} />
+                  <PhoneKpi label="Next Month" value={stats.nextMonth} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next Month' }); }} />
+                  <PhoneKpi label="No Due Date" value={stats.noDueDate} tone={t.ok} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
+                  <PhoneKpi label="Pending" value={stats.pending} tone={t.warn} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
+                  <PhoneKpi label="High priority" value={openEntries.filter((e) => e.priority === 'High').length} tone={t.danger} onPress={() => { setTab('register'); setFilter({ priority: 'High' }); }} />
+                  <PhoneKpi label="Open tasks" value={openEntries.length} tone={t.accent} onPress={() => { setTab('register'); setFilter({}); }} />
+                  <PhoneKpi label="Done today" value={doneTodayCount} tone={t.ok} onPress={() => goTab('done')} />
+                </View>
                 {!!attention.length && (
                   <View style={{ marginTop: 14 }}>
                     <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
                       <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(17) }}>Needs attention</Text>
                       <Pressable onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} hitSlop={8}><Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(13.5) }}>See all ›</Text></Pressable>
                     </Row>
-                    {attention.map((e) => <PhoneRow key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} />)}
+                    {attention.map((e) => <PhoneRow card key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} />)}
                   </View>
                 )}
                 {!!comingUp.length && (
                   <View style={{ marginTop: 8 }}>
                     <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(17), marginBottom: 8 }}>Coming up</Text>
-                    {comingUp.map((e) => <PhoneRow key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} />)}
+                    {comingUp.map((e) => <PhoneRow card key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} />)}
                   </View>
                 )}
               </>
@@ -1449,10 +1458,10 @@ export default function WorkingDashboard() {
             </Row>
             {phoneLayout && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, marginBottom: 12 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-                {[['All', ANY, openEntries.length], ['Overdue', 'Overdue', stats.overdue], ['Today', 'Today', stats.dueToday], ['Next 7 days', 'Next 7 Days', stats.next7Days], ['This month', 'This Month', stats.thisMonth]].map(([label, v, n]) => {
-                  const on = filters.dueWithin === v;
+                {[['', 'All', filteredOpen.length, t.accent], ...BOARD_COLUMNS.map((c) => [c.key, `${c.icon} ${c.label.split(' ')[0]}`, boardCounts[c.key], c.key === 'late' ? t.danger : c.key === 'dispatch' ? t.warn : t.accent])].map(([k, label, n, color]) => {
+                  const on = boardFilter === k;
                   return (
-                    <Pressable key={label} onPress={() => setFilter({ dueWithin: v })} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
+                    <Pressable key={k || 'all'} onPress={() => setBoardFilter(k)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? color : t.surface, ...t.shadow }}>
                       <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label} {n}</Text>
                     </Pressable>
                   );
@@ -1498,7 +1507,7 @@ export default function WorkingDashboard() {
             {!filteredOpen.length && <P dim>Nothing matches.</P>}
             {phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}
             {phoneLayout && !tableView && visibleRegister.map((entry) => (
-              <PhoneRow key={entry.id} entry={entry} onPress={() => openEditEntry(entry)} onDone={() => act(entry, 'complete', { dar: false })} onDar={() => act(entry, 'complete', { dar: true })}
+              <PhoneRow card key={entry.id} entry={entry} onPress={() => openEditEntry(entry)} onDone={() => act(entry, 'complete', { dar: false })} onDar={() => act(entry, 'complete', { dar: true })}
                 onFollowUp={isBankFollowUpCategory(entry.category) ? () => openFollowUp(entry) : undefined} />
             ))}
             {!phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}

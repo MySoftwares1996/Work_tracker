@@ -8,6 +8,7 @@ import { copyText } from './clipboard';
 
 import { useStore } from './store';
 
+import { boardKey } from '../../src/boardColumns.js';
 import { breakdown, subBreakdown, templateFrom, saveTemplate, DUE_FILTERS, isReminderDue, reminderLabel, subCategoryMissing, RECURRENCES, SORTS, blankTask, dueLabel, filterTasks, isDueSoon, isDueNextMonth, isDueThisMonth, isDueToday, isOpen, isOverdue, sortTasks, stats } from './data';
 
 // The Report, Config and the entry form load when first opened (and are fetched quietly once the page is idle), so the page starts smaller.
@@ -373,8 +374,7 @@ function Filters({ f, setF, lists, extra, onClear }) {
 }
 
 /** The Register as three columns: what is overdue, the dispatch approval queue, and everything else. */
-const DISPATCH = /pure\s*power|dispatch/i;
-export const boardColumn = (t) => (isOverdue(t) ? 'late' : DISPATCH.test(`${t.title} ${t.category}`) ? 'dispatch' : 'other');
+const boardColumn = (t) => boardKey(t.title, t.category, isOverdue(t));
 function Board({ rows, onEdit }) {
   const cols = [['late', '🔴 Overdue & Critical', '#e11d48'], ['dispatch', '⚡ Dispatch Approval Queue', '#d97706'], ['other', '💳 Vendor & Other Payments', '#2563eb']];
   return (
