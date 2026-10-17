@@ -111,8 +111,10 @@ function Dashboard({ onEdit, onNew, go }) {
   const [quick, setQuick] = useState('');
   const s = useMemo(() => stats(tasks), [tasks]);
   const open = tasks.filter(isOpen);
-  const focus = sortTasks(open.filter((t) => isOverdue(t) || isDueToday(t) || isReminderDue(t)), 'due').slice(0, 8);
-  const soon = sortTasks(open.filter((t) => isDueSoon(t)), 'due').slice(0, 5);
+  const lateAll = sortTasks(open.filter((t) => isOverdue(t)), 'due');
+  const todayAll = sortTasks(open.filter((t) => isDueToday(t) || (isReminderDue(t) && !isOverdue(t))), 'due');
+  const late = lateAll.slice(0, 8);
+  const today = todayAll.slice(0, 8);
   const addQuick = (e) => {
     e.preventDefault();
     const title = quick.trim();
@@ -146,14 +148,14 @@ function Dashboard({ onEdit, onNew, go }) {
       <Breakdowns tasks={tasks} go={go} />
       <div className="two">
         <section>
-          <h2 className="h2">Needs attention</h2>
-          {!focus.length && <Empty text="Nothing overdue or due today. Nice." />}
-          <div className="list">{focus.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div>
+          <h2 className="h2 red">Needs attention <span className="muted">({lateAll.length} overdue)</span></h2>
+          {!late.length && <Empty text="Nothing overdue. Nice." />}
+          <div className="list">{late.map((t) => <CompactRow key={t.id} t={t} onEdit={onEdit} />)}</div>
         </section>
         <section>
-          <h2 className="h2">Coming up</h2>
-          {!soon.length && <Empty text="No tasks due in the next 7 days." />}
-          <div className="list">{soon.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} compact />)}</div>
+          <h2 className="h2 amb">Due today <span className="muted">({todayAll.length})</span></h2>
+          {!today.length && <Empty text="Nothing due today." />}
+          <div className="list">{today.map((t) => <CompactRow key={t.id} t={t} onEdit={onEdit} />)}</div>
         </section>
       </div>
     </div>
@@ -265,6 +267,23 @@ function useCompleter(onEdit) {
   };
 }
 
+/** A task as one compact line with Done and DAR (the Dashboard's Needs attention / Due today). */
+function CompactRow({ t, onEdit }) {
+  const complete = useCompleter(onEdit);
+  return (
+    <div className={`crow${isOverdue(t) ? ' late' : ''}`}>
+      <button className="crow-main" onClick={() => onEdit(t)} aria-label={`Edit ${t.title}`}>
+        <span className="crow-title">{t.title || '(no description)'}</span>
+        <span className="crow-sub">{[t.category, dueLabel(t)].filter(Boolean).join(' • ')}</span>
+      </button>
+      <span className="crow-btns">
+        <button className="btn ok" onClick={() => complete(t, false)} title="Done - kept out of the daily report">✓ Done</button>
+        <button className="btn ok soft" onClick={() => complete(t, true)} title="Done and included in the daily report">✓ DAR</button>
+      </span>
+    </div>
+  );
+}
+
 function TaskCard({ t, onEdit, compact }) {
   const { actions, notify, templates, saveTemplates } = useStore();
   const complete = useCompleter(onEdit);
@@ -314,7 +333,7 @@ function Register({ onEdit, preset }) {
   const [f, setF] = useState(() => ({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...(preset || {}) }));
   useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
   const [by, setBy] = useState('due');
-  const [view, setView] = useState('cards');
+  const [view, setView] = useState('cards');   // 'cards' = the three-column board (Overdue & critical / dispatch queue / vendor & other)
   const open = tasks.filter(isOpen);
   const sorted = sortTasks(filterTasks(open, f), by);
   const { shown, more, showMore } = usePaged(sorted, JSON.stringify(f) + by);
@@ -330,7 +349,7 @@ function Register({ onEdit, preset }) {
       )} />
       <p className="muted">{sorted.length} of {open.length} open entries</p>
       {!sorted.length && <Empty text="Nothing matches." />}
-      {view === 'cards' ? <div className="grid">{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div> : <Table rows={shown} onEdit={onEdit} />}
+      {view === 'cards' ? <Board rows={shown} onEdit={onEdit} /> : <Table rows={shown} onEdit={onEdit} />}
       <MoreButton more={more} onClick={showMore} />
     </>
   );
@@ -349,6 +368,27 @@ function Filters({ f, setF, lists, extra, onClear }) {
       {f.status !== undefined && <select value={f.status || ''} onChange={set('status')} aria-label="Status"><option value="">Any status</option>{lists.statuses.map((x) => <option key={x}>{x}</option>)}</select>}
       {onClear && <button type="button" className="btn ghost clear-filters" onClick={onClear} disabled={!active} title="Clear all filters" aria-label="Clear all filters">✕</button>}
       {extra}
+    </div>
+  );
+}
+
+/** The Register as three columns: what is overdue, the dispatch approval queue, and everything else. */
+const DISPATCH = /pure\s*power|dispatch/i;
+export const boardColumn = (t) => (isOverdue(t) ? 'late' : DISPATCH.test(`${t.title} ${t.category}`) ? 'dispatch' : 'other');
+function Board({ rows, onEdit }) {
+  const cols = [['late', '🔴 Overdue & Critical', '#e11d48'], ['dispatch', '⚡ Dispatch Approval Queue', '#d97706'], ['other', '💳 Vendor & Other Payments', '#2563eb']];
+  return (
+    <div className="board">
+      {cols.map(([k, title, color]) => {
+        const list = rows.filter((t) => boardColumn(t) === k);
+        return (
+          <section key={k} className="board-col" style={{ '--col': color }}>
+            <h2><span>{title}</span><b>{list.length}</b></h2>
+            <div className="grid">{list.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div>
+            {!list.length && <p className="muted">Nothing here.</p>}
+          </section>
+        );
+      })}
     </div>
   );
 }

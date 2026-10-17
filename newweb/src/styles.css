@@ -722,3 +722,40 @@ button.chip:hover { filter: brightness(0.95); }
 .cfg-page > .card > .h2:first-child { display: none; }
 
 .more-row { display: flex; justify-content: center; padding: 8px 0 24px; }
+
+/* ---- Option 1 (Classic Enhanced): pastel compact tiles on the Dashboard ---- */
+.dash .tile { --t: #1d4ed8; background: color-mix(in srgb, var(--t) 13%, var(--surface)); color: var(--t); box-shadow: none; border: 1px solid color-mix(in srgb, var(--t) 16%, transparent); }
+.dash .tile::after { display: none; }
+.dash .tile.coral, .dash .tile.pink { --t: #be123c; }
+.dash .tile.amber { --t: #b45309; }
+.dash .tile.teal { --t: #047857; }
+.dash .tile.blue, .dash .tile.violet { --t: #1d4ed8; }
+.dash .tile-value { font-weight: 800; }
+@media (prefers-color-scheme: dark) {
+  .dash .tile.coral, .dash .tile.pink { --t: #fda4af; } .dash .tile.amber { --t: #fcd34d; } .dash .tile.teal { --t: #6ee7b7; } .dash .tile.blue, .dash .tile.violet { --t: #93c5fd; }
+}
+:root[data-theme="night"] .dash .tile.coral, :root[data-theme="night"] .dash .tile.pink { --t: #fda4af; }
+:root[data-theme="night"] .dash .tile.amber { --t: #fcd34d; }
+:root[data-theme="night"] .dash .tile.teal { --t: #6ee7b7; }
+:root[data-theme="night"] .dash .tile.blue, :root[data-theme="night"] .dash .tile.violet { --t: #93c5fd; }
+.dash .break-card { border-left: 4px solid var(--violet); }
+.dash .h2 .muted { font-weight: 600; font-size: 12px; }
+.dash .h2.red { color: #e11d48; } .dash .h2.amb { color: #d97706; }
+
+/* compact task rows (Needs attention / Due today) */
+.crow { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 12px; padding: 8px 12px; }
+.crow.late { border-left-color: #f43f5e; }
+.crow .crow-main { border: 0; background: none; text-align: left; min-width: 0; flex: 1; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.crow .crow-title { font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crow .crow-sub { font-size: 11.5px; color: var(--muted); }
+.crow .btn { padding: 4px 10px; font-size: 12px; border-radius: 10px; }
+.crow .crow-btns { display: flex; gap: 6px; flex: none; }
+
+/* ---- Option 3 (Kanban & Split): the Register as three columns ---- */
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .board { grid-template-columns: minmax(0, 1fr); } }
+.board-col { border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 10px; border: 1px solid color-mix(in srgb, var(--col) 24%, transparent); background: color-mix(in srgb, var(--col) 6%, transparent); }
+.board-col h2 { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 800; color: var(--col); margin: 0; }
+.board-col h2 b { background: var(--col); color: #fff; border-radius: 999px; padding: 1px 10px; font-size: 12px; }
+.board-col .grid { display: flex; flex-direction: column; gap: 10px; }
+.board-col .grid > article.card { min-height: 0; height: auto; }
