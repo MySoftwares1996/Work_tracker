@@ -1,7 +1,7 @@
 import { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, findSubCategory, subCategoryMissing, addSubCategory, parseSubCategoryLines, addSubCategories, withCarrying, validateSubCategory, applySubCategoryEdit, removeSubCategory, addOption, removeOption } from '../../src/listsCore.js';
 export { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, findSubCategory, subCategoryMissing, addSubCategory, parseSubCategoryLines, addSubCategories, withCarrying, validateSubCategory, applySubCategoryEdit, removeSubCategory, addOption, removeOption } from '../../src/listsCore.js';
 import { noteWork, isUnstartedStatus } from '../../src/workingDashboardPayments.js';
-import { followUpPicks as followUpPicksCore } from '../../src/bankFollowUp.js';
+import { followUpPicks as followUpPicksCore } from '../../src/followUpPicks.js';
 /**
  * The task data, in the shape the phone app and the old website already share (users/<uid>/tasks, the "web app's task
  * document"): description, dueDate + dueTime, mailChain, status "Completed", deleted... Nothing here touches Firebase, so
