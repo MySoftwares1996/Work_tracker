@@ -908,6 +908,10 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
     }
   }
 
+  // The next reminder the person set (the website's "Next reminder date & time"): one alert at that moment.
+  const nr = entry.nextReminderAt ? new Date(entry.nextReminderAt) : null;
+  if (nr && !Number.isNaN(nr.getTime())) add(nr, 'reminder', `Reminder: ${name}`, 'Your next reminder for this task.', ring);
+
   const dl = cfg.deadline && entry.deadlineAt ? new Date(entry.deadlineAt) : null;
   if (dl && !Number.isNaN(dl.getTime())) {
     if (isDateOnly(dl)) {

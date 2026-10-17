@@ -13,7 +13,7 @@ import { DEFAULT_DB } from './storeCore';
  */
 export const ACCOUNT_KEYS = [
   'entries', 'categories', 'priorities', 'statuses', 'assignees', 'holidays', 'leaveDays', 'fixedActivities',
-  'activityLog', 'cloudSyncUrl', 'paymentIntro', 'subCategories', 'subCategoryCategories', 'narrationTypes',
+  'activityLog', 'cloudSyncUrl', 'paymentIntro', 'subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories',
   'listsUpdatedAt', 'calendarUpdatedAt', 'deletedIds', 'purgedIds', 'lastSheetPullAt', 'reportSamplesLocal',
   'links', 'reportAiNotes', 'reportAiNotesSummary', 'templates', 'reportFormats', 'narrationHistory', 'undoHistory', 'toolsStamps', 'toolsUpdatedAt',
 ];

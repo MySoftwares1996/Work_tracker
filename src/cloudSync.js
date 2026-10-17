@@ -216,7 +216,7 @@ const asObject = (v) => {
  * Daily task was skipped, and the repeating series it belongs to.
  */
 const WEB_OBJECT_FIELDS = [['subcategoryfields', 'subCategoryFields'], ['paymentdetails', 'paymentDetails'], ['narration', 'narration'], ['worklog', 'workLog'], ['skippeddates', 'skippedDates'], ['bankfollowups', 'bankFollowUps'], ['escalation', 'escalation'], ['checklist', 'checklist'], ['attachments', 'attachments'], ['audit', 'audit']];
-const WEB_TEXT_FIELDS = [['subcategory', 'subCategory'], ['seriesid', 'seriesId'], ['emailid', 'emailId']];
+const WEB_TEXT_FIELDS = [['subcategory', 'subCategory'], ['seriesid', 'seriesId'], ['emailid', 'emailId'], ['nextreminderat', 'nextReminderAt']];
 
 /** Field names seen on the web app's task documents - shown when DAR marks cannot be found. */
 export const seenWebFields = new Set();
@@ -390,6 +390,7 @@ export function toWebTask(e) {
   };
   // The payment fields go only once the entry has them, so a phone that never saw them cannot clear the web app's.
   ['subCategory', 'subCategoryFields', 'paymentDetails', 'narration', 'workLog', 'skippedDates', 'bankFollowUps', 'escalation', 'checklist', 'attachments', 'audit', 'seriesId', 'emailId'].forEach((k) => { if (k in e && e[k] !== undefined) doc[k] = e[k]; });
+  if ('nextReminderAt' in e) doc.nextReminderAt = e.nextReminderAt || null;      // the website's "Next reminder"
   if (e.recurrence === 'custom') doc.recurrenceEveryMin = Number(e.recurrenceEveryMin) || null;
   if (e.alertMode === 'alarm' || e.alertMode === 'gentle') doc.alertMode = e.alertMode;
   // Snooze / silence set on the phone reach the web app, which then stops alarming too. Sent only once the

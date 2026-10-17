@@ -312,6 +312,9 @@ export async function runExtra2({ ck, section }) {
     const dPlan = entryAlertPlan(dateOnly, now);
     ck('a date-only due alerts once: 7 PM on its date (alarm), no evening before, no next morning, no daily reminders', dPlan.map((x) => x.key).join() === 'due-day'
       && dPlan[0].at.getHours() === 19 && dPlan[0].at.getMinutes() === 0 && dPlan[0].at.getDate() === 6 && dPlan[0].alarm);
+    const rem = { id: 'r', title: 'Chase bank', nextReminderAt: new Date(2026, 9, 6, 15, 30).toISOString() };
+    const rPlan = entryAlertPlan(rem, now);
+    ck('a next reminder alerts once, at its time', rPlan.length === 1 && rPlan[0].key === 'reminder' && rPlan[0].at.getHours() === 15 && rPlan[0].at.getMinutes() === 30);
     const dl = { id: 'l', title: 'Submit audit', deadlineAt: new Date(2026, 9, 7, 17, 0).toISOString() };
     ck('a deadline: 1 day, 2 hr and 30 min before, then an alarm at it', keys(dl) === 'dl-1440,dl-120,dl-30,dl' && entryAlertPlan(dl, now).at(-1).alarm);
     ck('deadline warnings can be turned off', keys(dl, { deadline: false }) === '');

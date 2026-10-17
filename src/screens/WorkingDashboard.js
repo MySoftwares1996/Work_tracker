@@ -58,7 +58,7 @@ const REPORT_PRESETS = [
 ];
 
 // web.app only, and not on phone-width screens: a Narration tab after the Bin - the Tally narration builder, whatever an entry's status.
-const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', 'formats', ...(narration ? ['narration'] : []), 'links', 'report'];
+const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', 'formats', 'reminders', ...(narration ? ['narration'] : []), 'links', 'report'];
 // Bottom bar, same order as the web app (Report is reached from the Dashboard).
 const makeBarTabs = (narration) => [
   { key: 'dashboard', label: 'Dashboard' },
@@ -78,8 +78,8 @@ const PHONE_TABS = [
   { key: 'done', label: 'Done' },
   { key: 'more', label: 'More' },
 ];
-const MORE_PAGES = ['holidays', 'bin', 'config', 'links', 'formats'];      // pages opened from More: the header shows a back arrow to it
-const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', formats: 'Report formats', report: 'Daily Report' };
+const MORE_PAGES = ['holidays', 'bin', 'config', 'links', 'formats', 'reminders'];      // pages opened from More: the header shows a back arrow to it
+const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', formats: 'Report formats', reminders: 'Next reminder', report: 'Daily Report' };
 export default function WorkingDashboard() {
   const insets = useSafeAreaInsets();
   const { wide, tablet: tabletWidth, sideBar } = useLayout();
@@ -1117,6 +1117,9 @@ export default function WorkingDashboard() {
       deadline: (
             <DateTimeField label="DEADLINE (optional)" clearable value={entrySheet.deadlineAt} onChange={(v) => setEntrySheet({ ...entrySheet, deadlineAt: v })} />
       ),
+      reminder: (Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(entrySheet.category)) ? (
+            <DateTimeField label="NEXT REMINDER (date and time)" clearable value={entrySheet.nextReminderAt} onChange={(v) => setEntrySheet({ ...entrySheet, nextReminderAt: v })} />
+      ) : null,
       alert: (
             <>
             {/* This task's own alert: a ringing alarm for urgent work, a plain notification for the rest. */}
@@ -1247,6 +1250,7 @@ export default function WorkingDashboard() {
               {f.slot}
               {f.alert}
               {f.deadline}
+              {f.reminder}
               <Row>{f.recurrence}</Row>
               {f.custom}
             </>
@@ -1282,6 +1286,7 @@ export default function WorkingDashboard() {
           {f.saveTemplate}
           {gridRow(cell(1, f.category, 'c'), cell(1, f.priority, 'p'), cell(1, f.status, 's'))}
           {gridRow(cell(1, f.pendingWith, 'w'), cell(1, block(<>{f.due}{f.slot}</>), 'd'), cell(1, block(f.deadline), 'l'))}
+          {!!f.reminder && gridRow(cell(1, f.reminder, 'n'))}
           {gridRow(cell(1, f.recurrence, 'r'), cell(2, f.mail, 'm'))}
           {f.custom}
           {f.payment}
@@ -2283,6 +2288,7 @@ export default function WorkingDashboard() {
             <Group title="Manage">
               <Item icon="📅" color={t.accent} label="Holidays & leave" onPress={() => setTab('holidays')} />
               <Item icon="🔗" color={t.accent2} label="Links" onPress={() => setTab('links')} />
+              <Item icon="⏰" color={t.warn} label="Next reminder" onPress={() => setTab('reminders')} />
               <Item icon="🧾" color={t.ok} label="Report formats" onPress={() => setTab('formats')} />
               <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
             </Group>
@@ -2302,6 +2308,22 @@ export default function WorkingDashboard() {
                 </Group>
               );
             })()}
+          </View>
+        )}
+
+        {tab === 'reminders' && (
+          <View>
+            <Small style={{ marginBottom: 10 }}>Choose the categories that ask for a next reminder date and time in the entry form. The other categories do not show it. The phone rings an alert at that time.</Small>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(wd.categories || []).map((c) => {
+                const on = Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(c);
+                return (
+                  <Pressable key={c} onPress={() => updateWd((w) => { const cur = Array.isArray(w.reminderCategories) ? w.reminderCategories : []; return { ...w, reminderCategories: on ? cur.filter((x) => x !== c) : [...cur, c], listsUpdatedAt: Date.now() }; })} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
+                    <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{c}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         )}
 

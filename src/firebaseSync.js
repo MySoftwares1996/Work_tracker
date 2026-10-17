@@ -252,7 +252,7 @@ export async function pushIfSignedIn(entries = [], accountUid = null) {
   return true;
 }
 
-export async function push(uid, { entries = [], lists, listsUpdatedAt = 0, deletedIds = [] }) {
+export async function push(uid, { entries = [], lists, extraLists, listsUpdatedAt = 0, deletedIds = [] }) {
   const ack = await loadAck(uid);
   const dirty = dirtyEntries(entries, ack);
   // Lists are written only once the web app's lists document has been read this session (its format
@@ -260,7 +260,7 @@ export async function push(uid, { entries = [], lists, listsUpdatedAt = 0, delet
   // written back: its holiday records have their own shape, and a phone copy written over them could
   // lose or duplicate holidays there.
   const listsValue = lists !== undefined && remoteMeta.lists && (remoteMeta.listsMissing || isMetaDirty(listsUpdatedAt, ack.__lists))
-    ? encodeLists(mergeListsForPush(lists, []), metaFormats.lists) : undefined;
+    ? encodeLists(mergeListsForPush(lists, []), metaFormats.lists, extraLists) : undefined;
   const listsDirty = listsValue !== undefined;
   if (!dirty.length && !deletedIds.length && !listsDirty) return { deleted: [] };
 

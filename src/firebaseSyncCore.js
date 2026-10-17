@@ -124,7 +124,7 @@ function encodeMeta(parts, format, names) {
 // The web app's lists document names the fourth list pendingWith; the phone calls it assignees.
 const WEB_LIST_NAMES = ['categories', 'priorities', 'statuses', 'pendingWith'];
 // The web app's payment lists, carried in the same document: read by the phone, never written back.
-export const PAYMENT_LIST_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'darPaymentIntro'];
+export const PAYMENT_LIST_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories', 'darPaymentIntro'];
 
 /**
  * meta/lists `lists` field -> { lists: [categories, priorities, statuses, assignees] | null, format, extra }.
@@ -149,7 +149,14 @@ export function decodeLists(v) {
   return { lists: LIST_NAMES.map((_, i) => (Array.isArray(value[i]) ? value[i] : undefined)), format, extra };
 }
 /** Written in the web app's names, merged into its document, so its payment lists are left as they are. */
-export const encodeLists = (lists, format) => encodeMeta(lists, format, WEB_LIST_NAMES);
+export const encodeLists = (lists, format, extra) => {
+  const out = encodeMeta(lists, format, WEB_LIST_NAMES);
+  if (!extra || !Object.keys(extra).length) return out;
+  // The web app's payment lists ride in the same document (only the named formats can carry them).
+  if (format === 'named') return { ...out, ...extra };
+  if (format === 'json-named') return JSON.stringify({ ...JSON.parse(out), ...extra });
+  return out;
+};
 
 /**
  * The lists to write: the web app's own (as last received) with the phone's

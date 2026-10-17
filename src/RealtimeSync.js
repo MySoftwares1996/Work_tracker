@@ -141,7 +141,9 @@ export default function RealtimeSync() {
       // The web app's payment lists (Sub Categories, Tally narration types, the report's payment lines): the web
       // app is where they are edited, so its copy replaces the phone's.
       const pl = patch.paymentLists || {};
-      ['subCategories', 'subCategoryCategories', 'narrationTypes'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
+      // (unless this phone changed them after the arriving copy was written - then its own copy is sent next)
+      const phoneNewer = Number(w.listsUpdatedAt) > Number(patch.listsUpdatedAt || 0);
+      if (!phoneNewer) ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
       if (Array.isArray(pl.darPaymentIntro) && pl.darPaymentIntro.some((x) => String(x || '').trim())) next = { ...next, paymentIntro: pl.darPaymentIntro.map((x) => String(x || '')) };
       if (cal) next = { ...next, holidays: mergeHolidays(cal.holidays, normalizeHolidays(w.holidays)).holidays, leaveDays: normalizeLeaveDays([...cal.leaveDays, ...normalizeLeaveDays(w.leaveDays)]) };
       return next;
@@ -208,6 +210,8 @@ export default function RealtimeSync() {
     return pushRealtime(u.uid, {
       entries: w.entries || [],
       lists: [w.categories, w.priorities, w.statuses, w.assignees],
+      // The payment lists the phone edits (Report formats > Add to my lists, Next reminder): only those it has, so it never clears the web app's.
+      extraLists: Object.fromEntries(['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].filter((k) => Array.isArray(w[k])).map((k) => [k, w[k]])),
       listsUpdatedAt: w.listsUpdatedAt || 0,
       deletedIds: w.deletedIds || [],
     }).then((res) => {
@@ -224,7 +228,7 @@ export default function RealtimeSync() {
     if (!ready || !uid) return undefined;
     const timer = setTimeout(() => pushRef.current(), PUSH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [ready, uid, wd.entries, wd.categories, wd.priorities, wd.statuses, wd.assignees, wd.listsUpdatedAt, wd.deletedIds]);
+  }, [ready, uid, wd.entries, wd.categories, wd.priorities, wd.statuses, wd.assignees, wd.subCategories, wd.subCategoryCategories, wd.reminderCategories, wd.listsUpdatedAt, wd.deletedIds]);
 
   // Leaving the app (or coming back) is also a moment to send anything not yet sent.
   useEffect(() => {
