@@ -291,25 +291,36 @@ export async function push(uid, { entries = [], lists, extraLists, listsUpdatedA
   const listsValue = lists !== undefined && remoteMeta.lists && (remoteMeta.listsMissing || isMetaDirty(listsUpdatedAt, ack.__lists))
     ? encodeLists(mergeListsForPush(lists, []), metaFormats.lists, extraLists) : undefined;
   const listsDirty = listsValue !== undefined;
-  if (!dirty.length && !deletedIds.length && !listsDirty) return { deleted: [] };
+  if (!dirty.length && !deletedIds.length && !listsDirty) return { deleted: [], wrote: false };
 
   const db = getFirestore(getApp());
+  const snap = dirty.length ? await loadSnap(uid) : {};
+  let wrote = false;
   // Firestore refuses a batch of more than 500 writes, so a first sign-in with a big register
   // (every entry dirty) failed on every push and never synced. Written in chunks instead, each
   // acked as soon as it lands so a failure part-way only re-sends what did not make it.
-  let next = { ...ack };
   for (const part of chunksOf(dirty, BATCH_LIMIT)) {
     const batch = writeBatch(db);
-    // In the web app's own field names, merged so its fields the phone does not know are kept.
-    part.forEach((e) => batch.set(doc(db, 'users', uid, 'tasks', String(e.id)), JSON.parse(JSON.stringify(toWebTask(e))), { merge: true }));
-    await batch.commit();
-    next = ackAfterPush(next, part);
-    await saveAck(uid, next);
+    const sentDocs = [];
+    // In the web app's own field names, merged so its fields the phone does not know are kept. Only the fields that
+    // changed here since this phone last sent or received the entry are written (diffWebDoc): a phone that was offline
+    // must not put its old due date, status or bin state back over an edit made on the web app meanwhile.
+    part.forEach((e) => {
+      const full = JSON.parse(JSON.stringify(toWebTask(e)));
+      sentDocs.push(full);
+      batch.set(doc(db, 'users', uid, 'tasks', String(e.id)), diffWebDoc(full, snap[String(e.id)]), { merge: true });
+    });
+    await commit(batch);
+    wrote = true;
+    await mutateAck(uid, (a) => ackAfterPush(a, part));
+    await rememberDocs(uid, sentDocs.map((d) => ({ ...d, id: d.id })));
   }
   for (const part of chunksOf(deletedIds, BATCH_LIMIT)) {
     const batch = writeBatch(db);
     part.forEach((id) => batch.delete(doc(db, 'users', uid, 'tasks', String(id))));
-    await batch.commit();
+    await commit(batch);
+    wrote = true;
+    await rememberDocs(uid, [], part);
   }
   if (listsDirty) {
     const batch = writeBatch(db);
@@ -319,10 +330,10 @@ export async function push(uid, { entries = [], lists, extraLists, listsUpdatedA
       const user = getAuth(getApp()).currentUser;
       batch.set(doc(db, 'users', uid, 'meta', 'profile'), { email: user?.email || '', name: user?.displayName || '', createdAt: Date.now(), app: 'Working Dashboard' }, { merge: true });
     }
-    await batch.commit();
+    await commit(batch);
+    wrote = true;
     remoteMeta.listsMissing = false;
-    next.__lists = listsUpdatedAt;
-    await saveAck(uid, next);
+    await mutateAck(uid, (a) => ({ ...a, __lists: listsUpdatedAt }));
   }
-  return { deleted: deletedIds };       // the caller can now forget these tombstones
+  return { deleted: deletedIds, wrote };       // the caller can now forget these tombstones
 }
