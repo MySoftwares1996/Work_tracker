@@ -170,6 +170,7 @@ export default function WorkingDashboard() {
   const [mailBusy, setMailBusy] = useState(false);
   const [mailQuery, setMailQuery] = useState('');
   const [emails, setEmails] = useState([]);
+  const [moreCounts, setMoreCounts] = useState(false);
   const [reportDate, setReportDate] = useState(toDateKey(new Date()));
   const [shareOpen, setShareOpen] = useState(false);     // phone Report: the Email / PDF / Excel sheet
   const [aiOpen, setAiOpen] = useState(false);       // phone Report: the AI instructions row, folded until opened
@@ -1162,6 +1163,8 @@ export default function WorkingDashboard() {
    * open on the Config page itself on a phone-width screen ("Both": the APK and the website on a phone).
    */
 
+  const phoneSubtitle = tab === 'dashboard' ? new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }) : tab === 'register' ? `${openEntries.length} open` : tab === 'done' ? `${allDone.length} done` : '';
+
   return (
     <View style={[{ flex: 1, paddingLeft: sideBar }, t.bgGradient ? { backgroundImage: t.bgGradient } : null]}>
     <Screen headerless bottomBar>
@@ -1172,10 +1175,11 @@ export default function WorkingDashboard() {
             <Pressable onPress={() => setTab('more')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back to More" style={{ paddingRight: 4 }}>
               <Text style={{ color: t.accent, fontSize: t.fs(30), lineHeight: t.fs(32), fontWeight: '300' }}>‹</Text>
             </Pressable>
-          ) : (
-            <View style={{ width: 34, height: 34 }}><AnimatedLogo size={34} /></View>
-          )}
-          <Text numberOfLines={1} style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(21), letterSpacing: -0.4 }}>{tab === 'dashboard' ? 'Dashboard' : { register: 'Tasks', done: 'Completed' }[tab] || TAB_TITLES[tab]}</Text>
+          ) : null}
+          <View style={{ flex: 1 }}>
+            <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(25), letterSpacing: -0.5 }}>{tab === 'dashboard' ? 'Home' : { register: 'Tasks', done: 'Completed' }[tab] || TAB_TITLES[tab]}</Text>
+            {!!phoneSubtitle && <Text numberOfLines={1} style={{ color: t.textDim, fontSize: t.fs(12), marginTop: 1 }}>{phoneSubtitle}</Text>}
+          </View>
           <Pressable onPress={() => setPaletteOpen(true)} accessibilityRole="button" accessibilityLabel="Search" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, ...t.shadow }}>
             <Text style={{ color: t.text, fontSize: t.fs(18) }}>⌕</Text>
           </Pressable>
@@ -1233,7 +1237,7 @@ export default function WorkingDashboard() {
       </>
       )}
 
-      {wd.whatsNewSeen !== WHATS_NEW.id && tab === 'dashboard' && (
+      {wd.whatsNewSeen !== WHATS_NEW.id && tab === 'dashboard' && !phoneLayout && (
         <Card style={{ marginBottom: 12, borderWidth: 1, borderColor: t.accent + '55' }}>
           <Row style={{ alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(15) }}>🎉 {WHATS_NEW.title}</Text>
@@ -1278,14 +1282,7 @@ export default function WorkingDashboard() {
         {tab === 'dashboard' && (
           <View>
             {/* web.app only: the greeting, the summary and the past-due alert on ONE line (the header above is the other). */}
-            {phoneLayout ? (
-              <View style={{ marginBottom: 12 }}>
-                <Small style={{ fontWeight: '600' }}>{new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}</Small>
-                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(27), letterSpacing: -0.6 }}>
-                  {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening'}
-                </Text>
-              </View>
-            ) : Platform.OS === 'web' ? (
+            {phoneLayout ? null : Platform.OS === 'web' ? (
               <Row style={{ alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: tabletWidth ? 'nowrap' : 'wrap' }}>
                 <Text numberOfLines={tabletWidth ? 1 : undefined} style={{ flex: tabletWidth ? 1 : undefined, width: tabletWidth ? undefined : '100%', color: t.textDim, fontSize: t.fs(15) }}>
                   <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(18) }}>
@@ -1338,17 +1335,22 @@ export default function WorkingDashboard() {
               <>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   <PhoneKpi label="Pending as on Today" value={stats.pendingAsOnToday} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
-                  <PhoneKpi label="Due Today" value={stats.dueToday} tone={t.warn} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
                   <PhoneKpi label="Overdue" value={stats.overdue} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
-                  <PhoneKpi label="Next 7 Days" value={stats.next7Days} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
                   <PhoneKpi label="This Month" value={stats.thisMonth} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'This Month' }); }} />
+                  {moreCounts && (
+                    <>
+                  <PhoneKpi label="Due Today" value={stats.dueToday} tone={t.warn} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
+                  <PhoneKpi label="Next 7 Days" value={stats.next7Days} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
                   <PhoneKpi label="Next Month" value={stats.nextMonth} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next Month' }); }} />
                   <PhoneKpi label="No Due Date" value={stats.noDueDate} tone={t.ok} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
                   <PhoneKpi label="Pending" value={stats.pending} tone={t.warn} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
                   <PhoneKpi label="High priority" value={openEntries.filter((e) => e.priority === 'High').length} tone={t.danger} onPress={() => { setTab('register'); setFilter({ priority: 'High' }); }} />
                   <PhoneKpi label="Open tasks" value={openEntries.length} tone={t.accent} onPress={() => { setTab('register'); setFilter({}); }} />
                   <PhoneKpi label="Done today" value={doneTodayCount} tone={t.ok} onPress={() => goTab('done')} />
+                    </>
+                  )}
                 </View>
+                <Pressable onPress={() => setMoreCounts((v) => !v)} hitSlop={8} accessibilityRole="button" style={{ alignSelf: 'flex-start', marginTop: 8 }}><Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(12.5) }}>{moreCounts ? 'Fewer counts ▴' : 'More counts ▾'}</Text></Pressable>
                 {!!attention.length && (
                   <View style={{ marginTop: 14 }}>
                     <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
@@ -1502,8 +1504,8 @@ export default function WorkingDashboard() {
                 {[['', 'All', filteredOpen.length, t.accent], ['late', 'Overdue', quickCounts.late, t.danger], ['today', 'Today', quickCounts.today, t.warn]].map(([k, label, n, color]) => {
                   const on = quickView === k;
                   return (
-                    <Pressable key={k || 'all'} onPress={() => setQuickView(k)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? color : t.surface, ...t.shadow }}>
-                      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label} {n}</Text>
+                    <Pressable key={k || 'all'} onPress={() => setQuickView(k)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.accent : t.surface, borderWidth: 1, borderColor: on ? t.accent : t.border }}>
+                      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
                     </Pressable>
                   );
                 })}
@@ -1539,11 +1541,11 @@ export default function WorkingDashboard() {
             )}
 
             <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(15) }}>{filteredOpen.length} of {openEntries.length} entries shown{filters.bank ? `  ·  🏦 ${filters.bank === '-' ? 'Bank not named' : filters.bank}` : ''}</Text>
+              {(!phoneLayout || isWdFilterActive(filters)) && <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(15) }}>{filteredOpen.length} of {openEntries.length} entries shown{filters.bank ? `  ·  🏦 ${filters.bank === '-' ? 'Bank not named' : filters.bank}` : ''}</Text>}
               {isWdFilterActive(filters) && <Pressable onPress={() => setFilter(EMPTY_WD_FILTER)}><Small style={{ color: t.accent, fontWeight: '700' }}>Reset</Small></Pressable>}
             </Row>
-            {(Platform.OS !== 'web' || wide) && <Segmented options={[{ key: 'cards', label: '▦ Cards' }, { key: 'table', label: '☰ Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
-            <Segmented options={SORTS} value={sortBy} onChange={setSortBy} style={{ marginBottom: 10 }} />
+            {(Platform.OS !== 'web' || wide) && (!phoneLayout || showFilters) && <Segmented options={[{ key: 'cards', label: '▦ Cards' }, { key: 'table', label: '☰ Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
+            {(!phoneLayout || showFilters) && <Segmented options={SORTS} value={sortBy} onChange={setSortBy} style={{ marginBottom: 10 }} />}
             {!phoneLayout && <Small style={{ marginBottom: 12, textAlign: 'center' }}>{formOn ? 'Tap a card to edit · ' : ''}✓ completes it{WEB_DAR ? ' · DAR completes it into the daily report' : ''}{Platform.OS === 'web' && !phoneLayout ? ' · Keys: N new entry, / search, ⌘K finder, ? all shortcuts' : ''}</Small>}
             {!filteredOpen.length && <P dim>Nothing matches.</P>}
             {phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}

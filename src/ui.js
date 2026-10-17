@@ -71,13 +71,13 @@ function PhoneBar({ tabs, value, onChange, badges }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), paddingHorizontal: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline || t.border }, frost(t)]}>
+    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 10), paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: t.border }, frost(t)]}>
       {tabs.map((x) => {
         const on = value === x.key;
         const badge = badges[x.key];
         return (
           <Pressable key={x.key} onPress={() => onChange(x.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${x.label}${badge ? `, ${badge}` : ''}`} style={{ flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 2 }}>
-            <View style={{ width: 54, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.accent + '24' : 'transparent' }}>
+            <View style={{ width: 54, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }}>
               <TabIcon name={x.icon || x.key} color={on ? t.accent : t.textDim} active={on} size={23} />
               {!!badge && (
                 <View style={{ position: 'absolute', top: -4, right: 0, minWidth: 17, height: 17, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: x.key === 'done' ? t.ok : t.danger }}>

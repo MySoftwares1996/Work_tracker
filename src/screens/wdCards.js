@@ -337,13 +337,14 @@ export function PhoneTile({ label, value, tone, dark, onPress }) {
   );
 }
 
-/** Option 1's compact pastel tile: a short label over a big number, tinted by its colour. */
+/** The Warm look's count tile: a plain bordered card, a small muted label over a big number (red for the alarming ones). */
 export function PhoneKpi({ label, value, tone, onPress }) {
   const t = useTheme();
+  const alarm = tone === t.danger;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={({ pressed }) => ({ width: '31.5%', minHeight: 70, borderRadius: 16, padding: 10, backgroundColor: blend(tone, 0.14, t.surface), borderWidth: 1, borderColor: blend(tone, 0.2, t.surface), justifyContent: 'space-between', opacity: pressed ? 0.85 : 1 })}>
-      <Text style={{ color: tone, fontWeight: '700', fontSize: t.fs(11), lineHeight: t.fs(13) }} numberOfLines={2}>{label}</Text>
-      <Text style={{ color: tone, fontWeight: '800', fontSize: t.fs(24), letterSpacing: -0.5 }}>{value}</Text>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={({ pressed }) => ({ width: '31.5%', minHeight: 72, borderRadius: t.radius, padding: 12, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, justifyContent: 'space-between', opacity: pressed ? 0.85 : 1, ...t.shadow })}>
+      <Text style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(11), lineHeight: t.fs(13) }} numberOfLines={2}>{label}</Text>
+      <Text style={{ color: alarm && value ? t.danger : t.text, fontWeight: '800', fontSize: t.fs(24), letterSpacing: -0.5 }}>{value}</Text>
     </Pressable>
   );
 }
@@ -379,19 +380,28 @@ export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp, card }) {
       </View>
     </Pressable>
   );
-  // card: the buttons sit under the task (Option 1 / 3), not behind a swipe.
+  // card (the Warm look): title, one line of facts, and Done / DAR under it - a flat bordered card, no chips.
   if (card && onDone) {
     const btn = (label, bg, ink, fn) => (
-      <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 12, alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
-        <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(13) }}>✓ {label}</Text>
+      <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 11, borderRadius: Math.max(t.radius - 4, 8), alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
+        <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(14) }}>{label}</Text>
       </Pressable>
     );
+    const dueText = due ? (overdue ? `Overdue${late ? ` ${late} d` : ''}` : `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })}${isMidnight(due) ? '' : ` ${due.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}`) : 'No date';
+    const facts = [entry.priority, entry.category, entry.pendingWith, entry.recurrence && entry.recurrence !== 'none' ? `↻ ${recurrenceLabel(entry)}` : '', checklistText(entry) ? `☑ ${checklistText(entry)}` : ''].filter(Boolean).join(' · ');
     return (
-      <View style={{ marginBottom: 10, borderRadius: 18, borderLeftWidth: 4, borderLeftColor: overdue ? t.danger : t.warn, backgroundColor: t.surface, ...t.shadow }}>
-        {body}
-        <Row gap={8} style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
-          {btn('Done', t.ok, '#fff', onDone)}
-          {onDar && btn('DAR', blend(t.ok, 0.16, t.surface), t.ok, onDar)}
+      <View style={{ marginBottom: 10, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, padding: 14, gap: 10, ...t.shadow }}>
+        <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 6 }}>
+          <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
+          <Row style={{ alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: pc }} />
+            <Text style={{ flex: 1, color: t.textDim, fontSize: t.fs(12) }} numberOfLines={2}>{facts ? `${facts} · ` : ''}<Text style={overdue ? { color: t.danger, fontWeight: '700' } : null}>{dueText}</Text></Text>
+            {!!onFollowUp && <Pressable onPress={onFollowUp} hitSlop={8} accessibilityRole="button" accessibilityLabel="Bank follow-up"><Text style={{ fontSize: t.fs(18) }}>📞</Text></Pressable>}
+          </Row>
+        </Pressable>
+        <Row gap={8}>
+          {btn('Done', t.accent, '#fff', onDone)}
+          {onDar && btn('DAR', blend(t.accent, 0.14, t.surface), t.accent, onDar)}
         </Row>
       </View>
     );
@@ -417,28 +427,19 @@ export function PhoneDoneRow({ entry, onPress, onReopen }) {
   const t = useTheme();
   const ms = completedTime(entry);
   const time = ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-  const chips = [
-    { text: `✓ ${time || 'done'}`, color: t.ok },
-    { text: entry.dar ? 'In report' : 'Done only', color: entry.dar ? t.accent : t.textDim },
-    entry.category && { text: entry.category, color: t.textDim },
-  ].filter(Boolean);
+  const facts = [`✓ ${time || 'done'}`, entry.dar ? 'In report' : 'Done only', entry.category].filter(Boolean).join(' · ');
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={({ pressed }) => ({ backgroundColor: t.surface, borderRadius: 18, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 12, opacity: pressed ? 0.92 : 1, ...t.shadow })}>
-      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.ok, marginTop: 6 }} />
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15.5), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
-        <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-          {chips.map((c, i) => (
-            <View key={i} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: c.color + '22' }}>
-              <Text style={{ color: c.color, fontWeight: '700', fontSize: t.fs(11.5) }} numberOfLines={1}>{c.text}</Text>
-            </View>
-          ))}
+    <View style={{ marginBottom: 10, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, padding: 14, gap: 10, ...t.shadow }}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 6 }}>
+        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
+        <Row style={{ alignItems: 'center', gap: 6 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.ok }} />
+          <Text style={{ flex: 1, color: t.textDim, fontSize: t.fs(12) }} numberOfLines={2}>{facts}</Text>
         </Row>
-      </View>
-      <Pressable onPress={onReopen} hitSlop={8} accessibilityRole="button" accessibilityLabel="Reopen" style={{ alignItems: 'center' }}>
-        <Text style={{ color: t.accent, fontSize: t.fs(20) }}>↩</Text>
-        <Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(11) }}>Reopen</Text>
       </Pressable>
-    </Pressable>
+      <Pressable onPress={onReopen} accessibilityRole="button" accessibilityLabel="Reopen" style={({ pressed }) => ({ paddingVertical: 11, borderRadius: Math.max(t.radius - 4, 8), alignItems: 'center', backgroundColor: blend(t.accent, 0.14, t.surface), opacity: pressed ? 0.85 : 1 })}>
+        <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(14) }}>Reopen</Text>
+      </Pressable>
+    </View>
   );
 }
