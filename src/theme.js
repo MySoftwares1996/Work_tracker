@@ -162,6 +162,21 @@ const PEARL_NIGHT = {
 };
 
 /**
+ * The website's six colour themes (newweb/src/themes.js) in the phone's Pearl shape: same corners, shadows and backdrop tint,
+ * their own backdrop, accent and the colours the tiles use (danger / warn / accent / accent2 = the tile colours).
+ */
+const palette = (key, label, c) => ({ ...(c.dark ? PEARL_NIGHT : THEMES.pearl), key, label, skinned: true, ...c });
+THEMES.pearl.skinned = true;
+Object.assign(THEMES, {
+  violet: palette('violet', 'Vivid Violet (auto dark mode)', { bg: '#F5F2FF', accent: '#6A3DF5', accent2: '#3D86FF', danger: '#FF5A5F', warn: '#FFB81F', darkTwin: { accent: '#8B6CFF', bg: '#0B0614' } }),
+  aqua: palette('aqua', 'Aqua Green', { bg: '#F1F4F3', accent: '#0AA56D', accent2: '#2457C5', danger: '#D93A3A', warn: '#A8650A', ok: '#0AA56D' }),
+  ocean: palette('ocean', 'Ocean Blue', { bg: '#EFF3FA', accent: '#1F6BFF', accent2: '#5B8CFF', danger: '#D63A4A', warn: '#A86A0A' }),
+  sunset: palette('sunset', 'Sunset Orange', { bg: '#F7F3EF', accent: '#F2631B', accent2: '#2B5FC4', danger: '#D33A3A', warn: '#9B6208' }),
+  lilac: palette('lilac', 'Lilac Mist', { bg: '#F4F2FA', accent: '#7B5CF5', accent2: '#3A64D6', danger: '#D23B5A', warn: '#A1660B' }),
+  night: palette('night', 'Midnight Black', { dark: true, bg: '#000000', surface: '#17181B', surfaceAlt: '#232428', accent: '#34D9A0', accent2: '#8FB5FF', danger: '#FF8A80', warn: '#FFCC66', ok: '#34D9A0' }),
+});
+
+/**
  * The design language by platform. The website follows macOS (Sonoma): a frosted side bar, 10px corners, thin
  * separators and soft layered shadows. The phone app follows the website: the same corners, shadows and backdrop tint. Only the Pearl look gets this; the other themes keep their own shapes.
  */
@@ -223,8 +238,8 @@ export function ThemeProvider({ children }) {
     let t = THEMES[themeKey] || THEMES.pearl;
     const scale = FONT_LEVELS[fontLevel] || 1;
     let skin = null;
-    if (t.key === 'pearl') {
-      if (scheme === 'dark') t = PEARL_NIGHT;
+    if (t.skinned) {
+      if (scheme === 'dark' && (t.key === 'pearl' || t.key === 'violet')) t = { ...PEARL_NIGHT, ...(t.darkTwin || null), key: t.key };
       skin = classic ? null : Platform.OS === 'web' ? SKIN.web : SKIN.phone;
       if (skin) t = { ...t, radius: skin.radius, shadow: skin.shadow[t.dark ? 'dark' : 'light'], ...(skin.tint ? { bg: skin.tint[t.dark ? 'dark' : 'light'] } : null) };
     }
