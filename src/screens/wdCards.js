@@ -327,7 +327,7 @@ export function CountList({ title, total, rows, activeLabel, onPress }) {
 /** A coloured count tile for the Home carousel. `tone`: a theme colour; `dark` puts dark text on a light tone (amber). */
 export function PhoneTile({ label, value, tone, dark, onPress }) {
   const t = useTheme();
-  const ink = dark ? '#3B2A00' : '#fff';
+  const ink = dark ? t.text : t.onAccent;
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={({ pressed }) => ({ width: 118, height: 84, borderRadius: 18, padding: 12, backgroundColor: tone, overflow: 'hidden', transform: [{ scale: pressed ? 0.97 : 1 }], ...t.shadow })}>
       <View style={{ position: 'absolute', right: -16, top: -16, width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.22)' }} />
@@ -427,7 +427,7 @@ export function PhoneDoneRow({ entry, onPress, onReopen }) {
   const t = useTheme();
   const ms = completedTime(entry);
   const time = ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-  const facts = [`✓ ${time || 'done'}`, entry.dar ? 'In report' : 'Done only', entry.category].filter(Boolean).join(' · ');
+  const facts = [`✓ ${time || 'done'}`, entry.dar !== false ? 'In report' : 'Done only', entry.category].filter(Boolean).join(' · ');
   return (
     <View style={{ marginBottom: 10, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, padding: 14, gap: 10, ...t.shadow }}>
       <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 6 }}>

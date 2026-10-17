@@ -84,9 +84,10 @@ object AlarmStore {
     val p = prefs(ctx)
     val edit = p.edit()
     for ((id, raw) in p.all) {
-      if (id == "__sound") continue
+      // Settings live in the same prefs file (__sound, __style, __notif_only, __banner, web_*): never alarms, never removed.
+      if (id.startsWith("__") || id.startsWith("web_") || raw !is String) continue
       try {
-        val o = JSONObject(raw as String)
+        val o = JSONObject(raw)
         val at = o.getLong("at")
         if (at <= now) { edit.remove(id); continue }
         book(ctx, id, at, o.optString("title"), o.optString("body"))

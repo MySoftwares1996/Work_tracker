@@ -208,13 +208,14 @@ export function sortTasks(list, by = 'due') {
 export function filterTasks(list, { q = '', priority = '', category = '', subCategory = '', pendingWith = '', status = '', due = '' } = {}, now = new Date()) {
   const needle = q.trim().toLowerCase();
   const dueTest = DUE_TESTS[due];
+  const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
   return list.filter((t) => {
-    if (status && t.status !== status) return false;
+    if (status && !same(t.status, status)) return false;
     if (dueTest && !dueTest(t, now)) return false;
-    if (priority && t.priority !== priority) return false;
-    if (category && t.category !== category) return false;
+    if (priority && !same(t.priority, priority)) return false;
+    if (category && !same(t.category, category)) return false;
     if (subCategory && (subCategory === '__none' ? !!t.subCategory : t.subCategory !== subCategory)) return false;
-    if (pendingWith && t.pendingWith !== pendingWith) return false;
+    if (pendingWith && !same(t.pendingWith, pendingWith)) return false;
     if (!needle) return true;
     return `${t.title} ${t.reference} ${t.notes} ${t.category} ${t.pendingWith}`.toLowerCase().includes(needle);
   });
@@ -248,7 +249,8 @@ export function nextOccurrence(t, existing = [], now = new Date()) {
   for (let i = 0; i < 400 && startOfDay(d) < startOfDay(now); i++) step();     // never in the past
   const dupe = existing.some((x) => isOpen(x) && x.id !== t.id && x.title === t.title && x.recurrence === rec && x.due && dayKey(x.due) === dayKey(d));
   if (dupe) return null;
-  return { ...t, id: newId(), status: 'Not Yet Started', due: d, done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: t.seriesId || t.id, createdAt: now };
+  // Per-occurrence state (reminder, snooze, silence, skips, ticked steps) is not carried to the next one.
+  return { ...t, nextReminder: null, snoozeUntil: 0, lastAckDate: '', skippedDates: [], checklist: (t.checklist || []).map((c) => ({ ...c, done: false })), id: newId(), status: 'Not Yet Started', due: d, done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: t.seriesId || t.id, createdAt: now };
 }
 
 /** The Daily Activity Report text for one day: what was completed (with DAR on), then what is still open and due. */

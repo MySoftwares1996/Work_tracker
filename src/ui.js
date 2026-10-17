@@ -120,7 +120,7 @@ function AppTabs({ tabs, value, onChange, badges }) {
             <Pressable key={x.key} onPress={() => onChange(x.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${x.label}${badge ? `, ${badge}` : ''}`}
               style={{ flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 6 }}>
               <View>
-                <TabIcon name={x.icon || x.key} color={on ? '#fff' : t.accent} active={on} size={20} />
+                <TabIcon name={x.icon || x.key} color={on ? t.onAccent : t.accent} active={on} size={20} />
                 {!!badge && (
                   <View style={{ position: 'absolute', top: -5, left: 12, minWidth: 15, height: 15, borderRadius: 8, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center', backgroundColor: x.key === 'bin' ? t.danger : on ? '#fff' : t.accent }}>
                     <Text style={{ color: x.key !== 'bin' && on ? t.accent : '#fff', fontSize: 9, fontWeight: '800' }}>{badge > 99 ? '99+' : badge}</Text>
@@ -198,7 +198,7 @@ function SideTabs({ tabs, value, onChange, badges }) {
                 height: SIDE_ROW, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, borderRadius: 8,
                 backgroundColor: !on && hovered ? (t.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : 'transparent',
               })}>
-              <TabIcon name={x.icon || x.key} color={on ? '#fff' : t.accent} active={on} size={18} />
+              <TabIcon name={x.icon || x.key} color={on ? t.onAccent : t.accent} active={on} size={18} />
               <Text style={{ flex: 1, fontSize: t.fs(13.5), fontWeight: on ? '600' : '500', color: on ? '#fff' : t.text }} numberOfLines={1}>{x.label}</Text>
               {!!badge && (
                 <Text style={{ color: on ? 'rgba(255,255,255,0.85)' : x.key === 'bin' ? t.danger : t.textDim, fontSize: t.fs(12), fontWeight: '600' }}>{badge > 999 ? '999+' : badge}</Text>
@@ -519,6 +519,7 @@ export function DateTimeField({ label, value, onChange, mode = 'datetime', minim
     
     // Ensure we build upon the existing selected value or start fresh
     const next = value ? new Date(value) : new Date();
+    if (!value && show === 'date') next.setHours(0, 0, 0, 0);      // a date picked on an empty field is a date alone (no clock time)
     
     if (show === 'time') { 
       next.setHours(picked.getHours(), picked.getMinutes(), 0, 0); 

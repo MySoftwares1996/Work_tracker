@@ -21,7 +21,7 @@ export default function CommandPalette({ visible, onClose, tabs, entries, onGoTa
     const k = norm(q).trim();
     const tabRows = tabs.filter((x) => !k || norm(x.label).includes(k)).map((x) => ({ key: `t-${x.key}`, kind: 'Go to', icon: '↗', title: x.label, run: () => onGoTab(x.key) }));
     const entryRows = k
-      ? entries.filter((e) => !e.binned && norm(`${e.title} ${e.reference || ''} ${e.person || ''} ${e.category || ''} ${e.assignee || ''}`).includes(k)).slice(0, 8)
+      ? entries.filter((e) => !e.binned && norm(`${e.title} ${e.reference || ''} ${e.pendingWith || ''} ${e.category || ''}`).includes(k)).slice(0, 8)
         .map((e) => ({ key: `e-${e.id}`, kind: e.done ? 'Completed' : 'Entry', icon: e.done ? '✓' : '•', title: e.title, sub: [e.category, e.status, e.reference].filter(Boolean).join(' · '), run: () => onOpenEntry(e) }))
       : [];
     const add = k && onQuickAdd ? [{ key: 'quick', kind: 'New task', icon: '➕', title: `Create: ${q.trim()}`, sub: 'Opens the form filled in from the sentence', run: () => onQuickAdd(q.trim()) }] : [];
@@ -33,7 +33,6 @@ export default function CommandPalette({ visible, onClose, tabs, entries, onGoTa
     const key = ev.nativeEvent.key;
     if (key === 'ArrowDown') { ev.preventDefault && ev.preventDefault(); setSel((s) => Math.min(s + 1, results.length - 1)); }
     else if (key === 'ArrowUp') { ev.preventDefault && ev.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
-    else if (key === 'Enter') go(results[sel]);
     else if (key === 'Escape') onClose();
   };
 

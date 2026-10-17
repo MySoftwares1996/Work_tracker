@@ -44,6 +44,7 @@ export function playAlertSound() {
 /** A desktop notification (when allowed and the page is in the background). */
 export function showNotification(title, body, onClick) {
   try {
+    if (!loadAlertSettings().notify) return;       // Config > Alerts > Desktop notification is off
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const n = new Notification(title, { body, tag: 'wd-alert' });
     n.onclick = () => { window.focus(); n.close(); if (onClick) onClick(); };

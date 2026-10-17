@@ -640,3 +640,30 @@ test('saved report formats keep their wording; samples added later still reach t
   assert.ok(findFormat(all, 'Imports Payment Initiation') && findFormat(all, 'Offline') && findFormat(all, 'ESI'));
   assert.equal(all.filter((f) => f.subCategory === 'Invoice Payment').length, 1);
 });
+
+test('the next repeat does not inherit the finished one\'s reminder, snooze, silence, skips or ticked steps', () => {
+  const t = task({ title: 'Rec', recurrence: 'Daily', due: new Date(2026, 9, 15, 9, 0), hasTime: true, nextReminder: new Date(2026, 9, 14, 9, 0), snoozeUntil: 12345, lastAckDate: '2026-10-15', skippedDates: ['2026-10-14'], checklist: [{ id: 'a', text: 'one', done: true }, { id: 'b', text: 'two', done: false }] });
+  const n = nextOccurrence(t, [], NOW);
+  assert.equal(n.nextReminder, null);
+  assert.equal(n.snoozeUntil, 0);
+  assert.equal(n.lastAckDate, '');
+  assert.deepEqual(n.skippedDates, []);
+  assert.deepEqual(n.checklist.map((c) => c.done), [false, false]);
+  assert.equal(n.checklist[0].text, 'one');
+  assert.equal(t.checklist[0].done, true);       // the finished task is untouched
+});
+
+test('the Register filters ignore case, as the Dashboard tiles do', () => {
+  const list = [task({ id: 'x', priority: 'high', status: 'pending' }), task({ id: 'y', priority: 'Low', status: 'Done' })];
+  assert.deepEqual(filterTasks(list, { priority: 'High' }, NOW).map((t) => t.id), ['x']);
+  assert.deepEqual(filterTasks(list, { status: 'Pending' }, NOW).map((t) => t.id), ['x']);
+});
+
+test('a backup row due exactly 00:00 keeps its time when the source says it had one', () => {
+  const at = new Date(2026, 9, 15, 0, 0).toISOString();
+  assert.equal(rowToDoc({ id: 'm1', title: 'a', dueAt: at, hasTime: true }).doc.dueTime, '00:00');
+  assert.equal(rowToDoc({ id: 'm2', title: 'a', dueAt: at, dueTime: '00:00' }).doc.dueTime, '00:00');
+  assert.equal(rowToDoc({ id: 'm3', title: 'a', dueAt: at }).doc.dueTime, '');
+  assert.equal(rowToDoc({ id: 'm4', title: 'a', dueAt: '2026-10-15' }).doc.dueTime, '');
+  assert.equal(rowToDoc({ id: 'm5', title: 'a', dueAt: new Date(2026, 9, 15, 9, 30).toISOString() }).doc.dueTime, '09:30');
+});

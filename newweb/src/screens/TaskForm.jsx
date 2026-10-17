@@ -4,7 +4,7 @@ import { copyText } from '../clipboard';
 import { useStore } from '../store';
 import { finalNarration } from '../reportFormats';
 import { monthEndOptions } from '../../../src/monthEnd.js';
-import { isOffDay, templateFrom, applyTemplate, saveTemplate, categoryAsksReminder, reminderFrom, toggleReminderCategory, categoryCarriesSubCategory, subCategoriesFor, findSubCategory, subCategoryMissing, RECURRENCES, dayKey, pad, newId, timeLabel } from '../data';
+import { isOffDay, templateFrom, applyTemplate, saveTemplate, categoryAsksReminder, reminderFrom, toggleReminderCategory, categoryCarriesSubCategory, subCategoriesFor, findSubCategory, subCategoryMissing, RECURRENCES, DONE_STATUS, dayKey, pad, newId, timeLabel } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
 
 const toInputDate = (d) => (d ? dayKey(d) : '');
@@ -70,7 +70,22 @@ export default function TaskForm({ initial, onClose }) {
   const { saveLists, templates, saveTemplates, notify, calendar } = useStore();
   const monthEnd = useMemo(() => monthEndOptions(new Date(), (k) => isOffDay(k, calendar), 5), [calendar]);
   const [tplName, setTplName] = useState(null);      // null = closed; a string = naming the template being saved
-  useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  // Escape and a click on the backdrop close only the topmost popup; the form itself closes when none is open.
+  const popups = useRef({});
+  const anyPopup = () => { const p = popups.current; return !!(p.remClock || p.clockOpen || p.subOpen || p.managing || p.tplOpen || p.remOpen || p.stepsOpen || p.mailOpen || p.tplName !== null); };
+  const closeTopPopup = () => {
+    const p = popups.current;
+    if (p.remClock || p.clockOpen) return;          // a clock closes itself on Escape
+    if (p.subOpen) closeSubRef.current(true);
+    else if (p.mailOpen) setMailOpen(false);
+    else if (p.stepsOpen) setStepsOpen(false);
+    else if (p.remOpen) setRemOpen(false);
+    else if (p.tplOpen) setTplOpen(false);
+    else if (p.managing) setManaging('');
+    else if (p.tplName !== null) setTplName(null);
+  };
+  const closeSubRef = useRef(() => {});
+  useEffect(() => { const k = (e) => { if (e.key !== 'Escape') return; if (anyPopup()) closeTopPopup(); else onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
   const set = (k) => (e) => {
     const v = e.target.value;
     if (k === 'category' && t.subCategory && !subCategoriesFor(lists, v).some((x) => x.name === t.subCategory)) setT({ ...t, category: v, subCategory: '', subCategoryFields: {} });
@@ -86,6 +101,7 @@ export default function TaskForm({ initial, onClose }) {
     const due = date ? new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m) : null;
     const next = { ...t, title: t.title.trim(), due, hasTime: !!(date && time), nextReminder: reminderFrom(remDate, remTime) };
     if (/^completed$/i.test(t.status) && !t.done) actions.complete(next, t.dar);
+    else if (t.done && !DONE_STATUS.test(t.status)) actions.save({ ...next, done: false, completedAt: null });     // status moved away from Completed: reopen it
     else actions.save(next);
     onClose();
   };
@@ -109,6 +125,8 @@ export default function TaskForm({ initial, onClose }) {
   const subSnap = useRef({});
   const openSub = () => { subSnap.current = t.subCategoryFields || {}; setSubOpen(true); };
   const closeSub = (cancel) => { if (cancel) setT((d) => ({ ...d, subCategoryFields: subSnap.current })); setSubOpen(false); setSubError(''); };
+  closeSubRef.current = closeSub;
+  popups.current = { remClock, clockOpen, subOpen: subOpen && !!sc, managing, tplOpen, remOpen, stepsOpen, mailOpen, tplName };
   const subFilled = sc ? sc.fields.filter((f) => String((t.subCategoryFields || {})[f.label] || '').trim()).length : 0;
   const subBlock = (
     <div className="manage-panel sub-panel">
@@ -135,8 +153,8 @@ export default function TaskForm({ initial, onClose }) {
   const addStepNow = () => { if (step.trim()) { setT({ ...t, checklist: [...t.checklist, { id: newId(), text: step.trim(), done: false }] }); setStep(''); } };
   const repeatsEvery = t.recurrence === 'Hourly' || t.recurrence === 'Custom';
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="sheet wide" onSubmit={submit} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !anyPopup() && onClose()}>
+      <form className="sheet wide" onSubmit={submit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.closest('.sub-pop')) e.preventDefault(); }} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
         <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2>
           <span className="tpl-head">
             {isNew && templates.length > 0 && <button type="button" className="btn" onClick={() => setTplOpen(true)}>📋 Templates ▾</button>}

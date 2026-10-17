@@ -1,20 +1,18 @@
 /**
  * App lock decisions, kept pure so they are tested.
  *
- *  'open'   - show the app (nobody named yet: onboarding runs first)
- *  'setup'  - a name is set but no lock yet: create a PIN (and biometric)
- *             before anything else is shown. Also covers a restored backup
- *             that says the lock is on while this phone has no PIN.
+ *  'open'   - show the app (the lock is off)
+ *  'setup'  - the lock was switched on but this phone has no PIN yet (also a
+ *             restored backup that says the lock is on): create a PIN (and
+ *             biometric) before anything else is shown.
  *  'locked' - ask for the PIN / biometric
  *
- * Once someone finishes setup and later turns the lock off in Settings,
- * `setupDone` keeps them from being sent through setup again.
  */
-export function lockPhase({ named, enabled, setupDone, hasPin }) {
-  if (!named) return 'open';
+export function lockPhase({ enabled, hasPin }) {
+  // The lock is opt-in (More > App lock): nobody is sent through setup just for opening the app.
   if (enabled && hasPin) return 'locked';
   if (enabled && !hasPin) return 'setup';
-  return setupDone ? 'open' : 'setup';
+  return 'open';
 }
 
 /** Re-lock after this long in the background - long enough for a file picker or the camera. */

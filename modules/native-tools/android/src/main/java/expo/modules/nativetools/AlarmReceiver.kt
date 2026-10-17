@@ -65,7 +65,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
   companion object {
     private const val CHANNEL_ID = "mpt_full_screen_alarms"
-    private const val QUIET_CHANNEL_ID = "mpt_wd_quiet"
+    private const val QUIET_CHANNEL_ID = "mpt_wd_quiet_v2"
 
     /** The plain full-screen-intent notification: rings via AlarmRingingActivity when locked, a banner otherwise. */
     fun postFallback(context: Context, taskId: String, title: String, body: String) {
@@ -116,7 +116,9 @@ class AlarmReceiver : BroadcastReceiver() {
     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(QUIET_CHANNEL_ID) == null) {
       nm.createNotificationChannel(
-        NotificationChannel(QUIET_CHANNEL_ID, "Task alerts while the web app is in use", NotificationManager.IMPORTANCE_DEFAULT).apply {
+        NotificationChannel(QUIET_CHANNEL_ID, "Task alerts while the web app is in use", NotificationManager.IMPORTANCE_LOW).apply {
+          setSound(null, null)
+          enableVibration(false)
           description = "Working Dashboard alerts shown quietly because the web app is open and in use."
         }
       )

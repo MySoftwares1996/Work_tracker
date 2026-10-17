@@ -34,8 +34,8 @@ export const DEFAULT_NARRATION_TYPES = [
   { id: 'nr-cod-order', name: 'COD Charges against Order Id', hasPercent: false, phrase: 'Amount Paid twds COD Charges Against Order Id: ', docLabel: 'Order Id', fields: [{ label: 'Vendor Name', options: [] }], leadFieldLabel: 'Vendor Name' },
   { id: 'nr-cod-po', name: 'COD Charges against PO', hasPercent: false, phrase: 'Amount Paid twds COD Charges Against PO No: ', docLabel: 'PO No', fields: [{ label: 'Vendor Name', options: [] }], leadFieldLabel: 'Vendor Name' },
   { id: 'nr-ic', name: 'I&C Charges', hasPercent: false, phrase: 'Amount paid twds I&C Charges for Order id: ', docLabel: 'Order Id', fields: [], leadFieldLabel: '' },
-  { id: 'nr-emp-adv', name: 'Employee Advance Request', hasPercent: false, phrase: 'Amount Paid Against Emploee Advance Request Form No: ', docLabel: 'Form No', fields: [], leadFieldLabel: '' },
-  { id: 'nr-emp-set', name: 'Employee Advance Settlement', hasPercent: false, phrase: 'Amount Paid Against Emploee Settlement Request Form No: ', docLabel: 'Form No', fields: [], leadFieldLabel: '' },
+  { id: 'nr-emp-adv', name: 'Employee Advance Request', hasPercent: false, phrase: 'Amount Paid Against Employee Advance Request Form No: ', docLabel: 'Form No', fields: [], leadFieldLabel: '' },
+  { id: 'nr-emp-set', name: 'Employee Advance Settlement', hasPercent: false, phrase: 'Amount Paid Against Employee Settlement Request Form No: ', docLabel: 'Form No', fields: [], leadFieldLabel: '' },
   { id: 'nr-inv', name: 'Payment against Invoice', hasPercent: false, phrase: 'amount paid against Invoice No: ', docLabel: 'Invoice No', fields: [], leadFieldLabel: '' },
   { id: 'nr-legal-case', name: 'Legal Charges (against Case No)', hasPercent: false, phrase: 'amount paid for Legal Charges against Case No: ', docLabel: 'Case No(s)', fields: [], leadFieldLabel: '' },
   { id: 'nr-legal', name: 'Legal Charges (without Case No)', hasPercent: false, phrase: 'amount paid for Legal Charges for ', docLabel: 'Description', fields: [], leadFieldLabel: '' },
@@ -367,7 +367,8 @@ export function validatePaymentDetails(entry, lists, done = false) {
   }
   if (entry.narration) {
     const nr = findNarrationType(lists, entry.narration);
-    if (narrationNeedsDoc(nr) && !s(entry.narration.docNo).trim()) return `Enter the ${(nr && nr.docLabel) || 'document number'} for the Tally Narration, or clear the Narration Type.`;
+    // A type no longer in the lists (nr null) cannot say it needs a document number.
+    if (nr && narrationNeedsDoc(nr) && !s(entry.narration.docNo).trim()) return `Enter the ${nr.docLabel || 'document number'} for the Tally Narration, or clear the Narration Type.`;
     if (nr && nr.hasPercent && !s(entry.narration.percent).trim()) return 'Enter the % for the Tally Narration.';
     const missing = nr ? nr.fields.filter((f) => !s((entry.narration.fieldsValues || {})[f.label]).trim()) : [];
     if (missing.length) return `Fill in ${missing.map((f) => f.label).join(', ')} for the Tally Narration.`;

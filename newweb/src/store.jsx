@@ -73,11 +73,15 @@ export function LiveStore({ children }) {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);     // the first server snapshot has arrived; after that, going offline never replaces the screen
   const [slow, setSlow] = useState(false);              // no answer from the server after 12 s (offline?)
   const [lastSyncAt, setLastSyncAt] = useState(0);       // when data last arrived from the server (shown on the sync dot)
   const tasksRef = useRef([]);
 
-  useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => { setUser(u); setSynced(false); if (!u) setTaskMap({}); }), []);
+  useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => {
+    setUser(u); setSynced(false); setHasLoaded(false);
+    if (!u) { setTaskMap({}); setLists(DEFAULT_LISTS); rawLists.current = null; setCalendar({ holidays: [], leaveDays: [] }); setLinks([]); setTemplates([]); setFormats([]); setSetupDone(false); }
+  }), []);
   useEffect(() => {
     if (!user) return undefined;
     const db = dbOf();
@@ -94,7 +98,7 @@ export function LiveStore({ children }) {
         return next;
       });
       setSynced(!snap.metadata.fromCache);
-      if (!snap.metadata.fromCache) setLastSyncAt(Date.now());
+      if (!snap.metadata.fromCache) { setLastSyncAt(Date.now()); setHasLoaded(true); }
     }, onErr);
     const un2 = onSnapshot(collection(db, 'users', user.uid, 'meta'), (snap) => {
       snap.docChanges().forEach((ch) => { if (ch.type !== 'removed') applyMeta(ch.doc.id, ch.doc.data() || {}); });
@@ -136,10 +140,10 @@ export function LiveStore({ children }) {
 
   useEffect(() => {
     setSlow(false);
-    if (!user || synced) return undefined;
+    if (!user || hasLoaded) return undefined;
     const id = setTimeout(() => setSlow(true), 12000);
     return () => clearTimeout(id);
-  }, [user, synced]);
+  }, [user, hasLoaded]);
 
   // The "in use" note the phone reads (users/<you>/meta/presence): written every minute while this tab is open and was used in
   // the last 15 minutes, and cleared when it closes. While it is fresh the phone only shows a notification; otherwise it rings.
@@ -201,7 +205,8 @@ export function LiveStore({ children }) {
   const tasks = useMemo(() => Object.values(taskMap).filter((t) => !t.purged), [taskMap]);
   tasksRef.current = tasks;
 
-  const flash = useCallback((m) => { setNote(m); setTimeout(() => setNote(''), NOTE_MS); }, []);
+  const noteTimer = useRef(null);
+  const flash = useCallback((m) => { setNote(m); clearTimeout(noteTimer.current); noteTimer.current = setTimeout(() => setNote(''), NOTE_MS); }, []);
   const actions = useMemo(() => {
     const commit = (t) => {
       if (!user) return;
@@ -219,7 +224,7 @@ export function LiveStore({ children }) {
       setFormats(next);
       setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { reportFormats: next, stamps: { reportFormats: now }, ts: now }, { merge: true }).catch((e) => setError(friendlyError(e)));
     },
-    error, synced, slow, lastSyncAt, actions, notify: flash,
+    error, synced, hasLoaded, slow, lastSyncAt, actions, notify: flash,
     // Written with its own stamp in meta/tools, the way the phone stamps it, so the newest edit wins on both.
     saveTemplates: (next) => {
       if (!user) return;
@@ -232,21 +237,24 @@ export function LiveStore({ children }) {
     // Writes an import plan (importBackup.js): the tasks in batches, then the lists and the calendar. Merged, so nothing else is cleared.
     importPlan: async (plan) => {
       if (!user) throw new Error('Sign in first.');
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('You are offline. Connect to the internet and try the import again.');
       const db = dbOf();
+      // Commits wait for the server, so offline they never finish: give up after a while with a clear message instead of hanging.
+      const timeout = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('The server did not answer in time, so the import may be incomplete. Check your internet connection and run the import again (tasks already there are skipped or overwritten safely).')), 45000))]);
       for (let i = 0; i < plan.tasks.length; i += 400) {
         const batch = writeBatch(db);
         plan.tasks.slice(i, i + 400).forEach((x) => batch.set(doc(db, 'users', user.uid, 'tasks', x.id), x.doc, { merge: true }));
-        await batch.commit();
+        await timeout(batch.commit());
       }
       const merged = { ...plan.lists };
-      await setDoc(doc(db, 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, merged), ts: Date.now() }, { merge: true });
+      await timeout(setDoc(doc(db, 'users', user.uid, 'meta', 'lists'), { lists: writeListsValue(rawLists.current, merged), ts: Date.now() }, { merge: true }));
       rawLists.current = writeListsValue(rawLists.current, merged);
       setLists((l) => ({ ...l, ...merged }));
-      if (Object.keys(plan.calendar).length) await setDoc(doc(db, 'users', user.uid, 'meta', 'calendar'), { ...plan.calendar, ts: Date.now() }, { merge: true });
+      if (Object.keys(plan.calendar).length) await timeout(setDoc(doc(db, 'users', user.uid, 'meta', 'calendar'), { ...plan.calendar, ts: Date.now() }, { merge: true }));
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, templates, formats, error, synced, slow, lastSyncAt, actions, persistLists]);
+  }), [user, tasks, lists, calendar, links, templates, formats, error, synced, hasLoaded, slow, lastSyncAt, actions, persistLists]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
@@ -272,7 +280,8 @@ export function DemoStore({ children }) {
   const [note, setNote] = useState('');
   const ref = useRef(tasks);
   ref.current = tasks;
-  const flash = useCallback((m) => { setNote(m); setTimeout(() => setNote(''), NOTE_MS); }, []);
+  const noteTimer = useRef(null);
+  const flash = useCallback((m) => { setNote(m); clearTimeout(noteTimer.current); noteTimer.current = setTimeout(() => setNote(''), NOTE_MS); }, []);
   const actions = useMemo(() => {
     const commit = (t) => setTasks((list) => (list.some((x) => x.id === t.id) ? list.map((x) => (x.id === t.id ? t : x)) : [...list, t]));
     return makeActions(commit, () => ref.current, flash);
@@ -284,7 +293,7 @@ export function DemoStore({ children }) {
   const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: true, actions,
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
   }), [visible, lists, calendar, links, templates, formats, actions]);

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import ClockPicker from './ClockPicker';
 import Logo from './Logo';
 import LoadingScreen from './LoadingScreen';
@@ -29,10 +29,11 @@ export default function App() {
   const store = useStore();
   useEffect(() => { const id = window.requestIdleCallback ? window.requestIdleCallback(prefetch, { timeout: 4000 }) : setTimeout(prefetch, 2500); return () => { if (window.cancelIdleCallback && window.requestIdleCallback) window.cancelIdleCallback(id); else clearTimeout(id); }; }, []);
   const [tab, setTab] = useState(tabFromHash);
+  const tabRef = useRef(tab);       // the tab the app itself last opened: a hashchange to another one (Back / Forward) drops the old Register filter
   const [form, setForm] = useState(null);
-  useEffect(() => { const f = () => setTab(tabFromHash()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
-  const [preset, setPreset] = useState(null);       // a filter the Dashboard tile asked the Register to open with
-  const go = (k, filter = null) => { setPreset(filter ? { ...filter, n: Date.now() } : null); location.hash = k; setTab(k); window.scrollTo({ top: 0 }); };
+  const [preset, setPreset] = useState(null);       // a filter the Dashboard tile asked the Register to open with (cleared when the address changes, e.g. Back)
+  useEffect(() => { const f = () => { const k = tabFromHash(); setTab(k); if (k !== tabRef.current) setPreset(null); tabRef.current = k; }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
+  const go = (k, filter = null) => { tabRef.current = k; location.hash = k; setPreset(filter ? { ...filter, n: Date.now() } : null); setTab(k); window.scrollTo({ top: 0 }); };
 
   if (store.user === undefined) return <LoadingScreen stage="auth" full />;
   if (store.demo && location.search.includes('loading')) return <LoadingScreen stage="data" full />;      // ?demo&loading previews the loading screen
@@ -65,14 +66,15 @@ export default function App() {
         </nav>
         <div className="who">
           {store.demo && <span className="pill demo">Demo data</span>}
-          {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? `In sync${store.lastSyncAt ? ` - last update from the server ${new Date(store.lastSyncAt).toLocaleTimeString()}` : ''}` : 'Syncing...'} />}
+          {!store.demo && store.hasLoaded && !store.synced && <span className="pill demo" role="status" title="Offline: showing the last data received. Changes are sent when the connection returns.">Offline</span>}
+          {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? `In sync${store.lastSyncAt ? ` - last update from the server ${new Date(store.lastSyncAt).toLocaleTimeString()}` : ''}` : store.hasLoaded ? 'Offline - showing the last data received' : 'Syncing...'} />}
           <span className="name" title={store.user.email}>{store.user.displayName || store.user.email}{store.user.email && store.user.displayName ? <small className="who-mail">{store.user.email}</small> : null}</span>
         </div>
       </header>
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
-        {!store.demo && store.slow && !store.synced && !store.error && <div className="banner err" role="status">Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.</div>}
-        {!store.demo && !store.synced && !store.error && !store.slow ? <LoadingScreen stage="data" /> : <Suspense fallback={<LoadingScreen stage="data" />}>{screens[tab]}</Suspense>}
+        {!store.demo && store.slow && !store.hasLoaded && !store.error && <div className="banner err" role="status">Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.</div>}
+        {!store.demo && !store.hasLoaded && !store.error && !store.slow ? <LoadingScreen stage="data" /> : <Suspense fallback={<LoadingScreen stage="data" />}>{screens[tab]}</Suspense>}
       </main>
       <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
       {form && <Suspense fallback={null}><TaskForm initial={form} onClose={() => setForm(null)} /></Suspense>}
@@ -106,13 +108,21 @@ function Tile({ tone, label, value, sub, onClick }) {
   );
 }
 
+/** A fresh "now" every 60 s, so a tab left open past a due time or midnight recounts Overdue / Due Today. */
+function useMinute() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(id); }, []);
+  return now;
+}
+
 function Dashboard({ onEdit, onNew, go }) {
   const { tasks, actions } = useStore();
   const [quick, setQuick] = useState('');
-  const s = useMemo(() => stats(tasks), [tasks]);
+  const now = useMinute();
+  const s = useMemo(() => stats(tasks, now), [tasks, now]);
   const open = tasks.filter(isOpen);
-  const lateAll = sortTasks(open.filter((t) => isOverdue(t)), 'due');
-  const todayAll = sortTasks(open.filter((t) => isDueToday(t) || (isReminderDue(t) && !isOverdue(t))), 'due');
+  const lateAll = sortTasks(open.filter((t) => isOverdue(t, now)), 'due');
+  const todayAll = sortTasks(open.filter((t) => isDueToday(t, now) || (isReminderDue(t) && !isOverdue(t, now))), 'due');
   const late = lateAll.slice(0, 8);
   const today = todayAll.slice(0, 8);
   const addQuick = (e) => {

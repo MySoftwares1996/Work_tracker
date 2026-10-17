@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { View, Alert } from 'react-native';
 import { Card, Small, Btn, Field, Row } from '../ui';
 import { useTheme } from '../theme';
 import { loadGeminiKey, saveGeminiKey, generateWithKey } from '../aiBuiltin';
@@ -11,7 +11,16 @@ export default function WdGeminiKey() {
   const [value, setValue] = useState('');
   const [state, setState] = useState({ busy: false, msg: '', bad: false });
   useEffect(() => { let on = true; loadGeminiKey().then((k) => { if (on) setSaved(!!k); }); return () => { on = false; }; }, []);
-  const save = async () => { await saveGeminiKey(value); setSaved(!!value.trim()); setState({ busy: false, msg: value.trim() ? 'Saved on this phone.' : 'Removed.', bad: false }); setValue(''); };
+  // Save needs a key typed in: an empty field never wipes the saved one. Removing it is its own button.
+  const save = async () => {
+    if (!value.trim()) { setState({ busy: false, msg: 'Paste a key to save.', bad: true }); return; }
+    await saveGeminiKey(value);
+    setSaved(true); setState({ busy: false, msg: 'Saved on this phone.', bad: false }); setValue('');
+  };
+  const remove = () => Alert.alert('Remove the saved key?', 'The report rewrite will use only the free Gemini route.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Remove key', style: 'destructive', onPress: async () => { await saveGeminiKey(''); setSaved(false); setValue(''); setState({ busy: false, msg: 'Key removed.', bad: false }); } },
+  ]);
   const test = async () => {
     setState({ busy: true, msg: '', bad: false });
     try {
@@ -28,8 +37,9 @@ export default function WdGeminiKey() {
         <Small style={{ marginBottom: 6 }}>{saved ? '✓ A key is saved on this phone.' : 'No key saved.'}</Small>
         <Field label="GEMINI API KEY" value={value} onChangeText={setValue} placeholder="Paste the key" autoCapitalize="none" autoCorrect={false} secureTextEntry />
         <Row gap={8} style={{ flexWrap: 'wrap' }}>
-          <Btn title="Save" onPress={save} />
+          <Btn title="Save" disabled={!value.trim()} onPress={save} />
           <Btn kind="soft" title={state.busy ? 'Testing...' : 'Test the key'} disabled={state.busy} onPress={test} />
+          {saved && <Btn kind="ghost" title="Remove key" onPress={remove} />}
         </Row>
         {!!state.msg && <Small style={{ marginTop: 8, color: state.bad ? t.danger : t.ok }}>{state.msg}</Small>}
       </Card>

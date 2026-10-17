@@ -22,7 +22,6 @@ export default function AppLockGate({ children }) {
   const t = useTheme();
   const { data, ready, update } = useStore();
   const lock = data.settings?.appLock || {};
-  const named = !!data.profile?.displayName;
 
   const [phase, setPhase] = useState('checking');
   const [opened, setOpened] = useState(false);       // children mounted at least once
@@ -36,15 +35,19 @@ export default function AppLockGate({ children }) {
 
   const decide = useCallback(async () => {
     const pinSet = await hasPin();
-    setPhase(lockPhase({ named, enabled: !!lock.enabled, setupDone: !!lock.setupDone, hasPin: pinSet }));
-  }, [named, lock.enabled, lock.setupDone]);
+    setPhase(lockPhase({ enabled: !!lock.enabled, hasPin: pinSet }));
+  }, [lock.enabled]);
 
-  // Cold start, and right after onboarding sets the name.
+  // Cold start.
   useEffect(() => {
-    if (!ready) return;
-    if (phase === 'checking' || (phase === 'open' && named && !lock.setupDone && !lock.enabled)) decide();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-decide on these transitions, not on every store write.
-  }, [ready, named, lock.setupDone, lock.enabled]);
+    if (ready && phase === 'checking') decide();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on the first ready.
+  }, [ready]);
+  // The lock switched on (More > App lock) while the app is open and no PIN exists yet: ask for one.
+  useEffect(() => {
+    if (!ready || phase !== 'open' || !lock.enabled) return;
+    hasPin().then((p) => { if (!p) setPhase('setup'); });
+  }, [ready, lock.enabled, phase]);
 
   useEffect(() => { if (phase === 'open') setOpened(true); }, [phase]);
 
@@ -162,9 +165,12 @@ function LockScreen({ name, biometricOn, onUnlock }) {
   const unlockRef = useRef(onUnlock);
   unlockRef.current = onUnlock;
 
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
   const unlock = useCallback(() => { clearLockout(); unlockRef.current(); }, []);
   const tryBiometric = useCallback(async (attempt = 0) => {
     const { ok, error } = await authenticateDetailed();
+    if (!alive.current) return undefined;
     if (ok) return unlock();
     if (error === 'lockout') setError('Too many face / fingerprint tries - use your PIN');
     // Android cancels the prompt itself when the app is not fully on screen yet (just resumed): ask again.
@@ -216,7 +222,7 @@ function LockScreen({ name, biometricOn, onUnlock }) {
     setPinText(next); setError('');
     if (next.length === target) {
       if (await verifyPin(next)) unlock(); else fail();
-    }
+    } else if (!len && next.length >= PIN_MIN && (await verifyPin(next))) unlock();     // the saved PIN's length is unknown: any right PIN opens it
   };
 
   return (

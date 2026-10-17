@@ -815,7 +815,7 @@ const clock = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digi
  * Every alert one open entry should give, soonest first, future ones only:
  *  - due with a time: a warning before it (alerts.dueLeadMin, e.g. 1 hr and 15 min), an alarm that keeps
  *    ringing at it (alarm: true), then "still pending" follow-up alarms (ENTRY_NAG_AFTER) until it is done;
- *  - due on a date only: the evening before, the morning of, and the next morning if still open;
+ *  - due on a date only: one alert at 7 PM on that date (DATE_ONLY_ALERT), never again;
  *  - a deadline: 1 day, 2 hours and 30 minutes before, and an alarm at it (date only: the evening
  *    before and the morning of).
  * Each item: { at: Date, key, title, body, alarm }.
@@ -896,8 +896,12 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
     // yesterday at 15:00 rings today at 15:00, tomorrow at 15:00...). A date-only entry rings at the morning time.
     if (cfg.followUps !== false && !isDateOnly(due)) {
       const wasDue = due.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
+      // Counted from the later of the due day and today, so a task left open for days still has the next ones ahead.
+      const dueDay = dayShift(due, 0);
+      const sinceDue = Math.round((dayShift(now, 0) - dueDay) / 86400000);
+      const first = Math.max(1, sinceDue);
       for (let k = 1; k <= DAILY_REMINDER_DAYS; k++) {
-        const day = dayShift(due, k);
+        const day = dayShift(due, first + k - 1);
         const at = isDateOnly(due) ? atClock(day, cfg.morning, '09:30') : new Date(day.getFullYear(), day.getMonth(), day.getDate(), due.getHours(), due.getMinutes());
         add(at, `daily-${k}`, `Still overdue: ${name}`, `Was due ${wasDue}. Mark it done, or move it.`, ring);
       }
@@ -923,12 +927,11 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
   const snoozeEnd = Number(entry.snoozeUntil) || 0;
   const today = toDateKey(now);
   const sameDay = (d) => toDateKey(d) === today;
-  let kept = applyQuietHours(out.filter((x) => {
-    if (snoozeEnd && x.at.getTime() < snoozeEnd) return false;
+  // The "silenced today" filter runs after quiet hours move an alert, so 22:00 today shifted to 08:00 tomorrow still rings.
+  let kept = applyQuietHours(out.filter((x) => !(snoozeEnd && x.at.getTime() < snoozeEnd)), entry, cfg).filter((x) => {
     const isDeadline = x.key.startsWith('dl');
-    if (sameDay(x.at) && (isDeadline ? entry.deadlineAckDate === today : entry.lastAckDate === today)) return false;
-    return true;
-  }), entry, cfg);
+    return !(sameDay(x.at) && (isDeadline ? entry.deadlineAckDate === today : entry.lastAckDate === today));
+  });
   if (snoozeEnd > now.getTime() + 1000 && due && !Number.isNaN(due.getTime()) && due.getTime() <= snoozeEnd
     && !(sameDay(new Date(snoozeEnd)) && entry.lastAckDate === today)) {
     kept.push({ at: new Date(snoozeEnd), key: 'snooze', title: `Snoozed: ${name}`, body: 'Mark it done, or snooze it again.', alarm: ring });

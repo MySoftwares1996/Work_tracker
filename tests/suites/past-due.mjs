@@ -52,4 +52,7 @@ export async function run({ ck, section }) {
   ck('the entry behind an alarm id', entryOfAlarm('wd:abc:due') === 'abc' && entryOfAlarm('task-9') === null);
   ck('a snooze alarm shows its own task', ringingEntries(all, 'wd:d:snooze', rnow).some((x) => x.id === 'd'));
   ck('a done task is never shown', !ringingEntries([{ ...yest15, done: true }], 'wd:a:daily-1', rnow).length);
+
+  const silenced = moveEntry(e('s', at(3, 10, 0), { snoozeUntil: 5, lastAckDate: '2026-10-03', deadlineAckDate: '2026-10-03', skippedDates: ['2026-10-03', '2026-10-01'] }), at(3, 18, 0), now);
+  ck('Move clears snooze, silence and today\'s skip', !silenced.snoozeUntil && !silenced.lastAckDate && !silenced.deadlineAckDate && silenced.skippedDates.join() === '2026-10-01', JSON.stringify(silenced));
 }

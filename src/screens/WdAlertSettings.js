@@ -194,7 +194,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
         {toggle('Keep reminding after the due time', 'Rings again 10 min, 30 min, 1 hr, 2 hr and 4 hr after, then at the same time every day, until the entry is done.', a.followUps !== false, (v) => set({ followUps: v }))}
         <Small style={{ marginTop: 6, marginBottom: 6 }}>Warnings before the due time ("Due in 1 hr", "Due tomorrow", deadline warnings) are a notification only, for every task, on the phone and the website. The alarm rings at the due time.</Small>
         {toggle('Deadline warnings', '1 day, 2 hours and 30 minutes before a deadline, and an alarm at it.', !!a.deadline, (v) => set({ deadline: v }))}
-        <Small style={{ marginTop: 8, marginBottom: 6 }}>Entries due on a date with no time are announced the evening before and the morning of:</Small>
+        <Small style={{ marginTop: 8, marginBottom: 6 }}>A task due on a date with no time alerts once, at 7 PM on that date. These two times are only for a deadline set on a date with no time (the evening before and the morning of):</Small>
         <Row style={{ gap: 10 }}>
           <View style={{ flex: 1 }}><ClockField label="Morning" value={a.morning} fallback="09:30" onChange={(v) => set({ morning: v })} /></View>
           <View style={{ flex: 1 }}><ClockField label="Evening" value={a.evening} fallback="18:00" onChange={(v) => set({ evening: v })} /></View>

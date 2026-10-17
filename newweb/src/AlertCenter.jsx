@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
 import Logo from './Logo';
 import ClockPicker from './ClockPicker';
-import { SNOOZES, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
+import { SNOOZES, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel, DONE_STATUS } from './data';
 import { finalNarration } from './reportFormats';
 import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
 
@@ -136,7 +136,16 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
     save({ nextReminder: when });
   };
   const skip = () => (a.kind === 'reminder' ? save({ nextReminder: null }) : save({ skippedDates: [...(t.skippedDates || []), today] }));
-  const move = () => { if (/^completed$/i.test(status) && needsFields(withSub(t))) return; if (!a.test) actions.save(withRemark(withFollowUp(withSub(moveTask(t, date, time, status, repeat))), remarks)); finish(a); };
+  const move = () => {
+    if (DONE_STATUS.test(status)) {      // "Completed" in the Move tab completes the task (work log, next repeat), as the Done button does
+      if (needsFields(withSub(t))) return;
+      if (!a.test) actions.complete(withRemark(withFollowUp(withSub(t)), remarks), t.dar);
+      finish(a);
+      return;
+    }
+    if (!a.test) actions.save(withRemark(withFollowUp(withSub(moveTask(t, date, time, status, repeat))), remarks));
+    finish(a);
+  };
   // Wide and short: the choices sit in tabs beside the task, and the main buttons stay in a bar along the bottom.
   const hasReply = !!(sc || (subList.length > 0 && !t.subCategory));
   const tabs = [...(hasReply ? [['reply', 'Reply']] : []), ...(asks ? [['reminder', 'Reminder']] : []), ['move', 'Move'], ['snooze', 'Snooze']];

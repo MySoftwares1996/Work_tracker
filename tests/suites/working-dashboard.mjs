@@ -377,5 +377,18 @@ export async function runExtra2({ ck, section }) {
     const dlPlan = wdm.entryAlertPlan(wdm.silenceEntryToday(dl, now), now);
     ck('silencing the due-time reminder leaves a later deadline today armed (as on the web app)', dlPlan.some((x) => x.key === 'dl'));
   }
-}
 
+  {
+    const wdm = await import('../../src/workingDashboard.js');
+    const now = new Date(2026, 9, 5, 12, 0);
+    const old = { id: 'o1', title: 'Old', dueAt: new Date(2026, 9, 1, 10, 0).toISOString(), done: false, binned: false, priority: 'Medium' };
+    const daily = wdm.entryAlertPlan(old, now).filter((x) => x.key.startsWith('daily-'));
+    ck('a task open for days still has "still overdue" alerts ahead (counted from today)', daily.length >= 2 && daily.every((x) => x.at > now), JSON.stringify(daily.map((x) => x.at)));
+    const dateOnly = { ...old, dueAt: new Date(2026, 9, 9).toISOString() };
+    ck('a date-only task still alerts once', wdm.entryAlertPlan(dateOnly, now).length === 1);
+    // Silenced today, 22:00 alert pushed to 08:00 tomorrow by quiet hours: it must survive the silence filter.
+    const e = { ...old, dueAt: new Date(2026, 9, 5, 22, 0).toISOString(), lastAckDate: '2026-10-05', priority: 'Low' };
+    const plan = wdm.entryAlertPlan(e, now, { quietHours: true, quietFrom: '21:00', quietTo: '08:00', quietExceptHigh: false });
+    ck('an alert moved past midnight by quiet hours is not dropped by today\'s silence', plan.some((x) => x.key === 'due' && x.at.getDate() === 6), JSON.stringify(plan.map((x) => [x.key, x.at])));
+  }
+}

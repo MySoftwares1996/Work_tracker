@@ -59,12 +59,16 @@ export async function completeWdEntry(entryId, { dar = false } = {}) {
   const id = String(entryId);
   const wd = await readWd();
   const ringtone = wd.alarmRingtone || 'chime';
-  let rolled = null;
+  // Worked out here from the entries already read (the updater below runs later, inside React, and must stay pure).
+  const now = new Date();
+  const opts = { holidays: normalizeHolidays(wd.holidays), leaveDays: normalizeLeaveDays(wd.leaveDays) };
+  const before = (wd.entries || []).find((x) => String(x.id) === id);
+  const rolled = before && isOpen(before) ? nextRecurringEntry(before, wd.entries || [], now, opts) : null;
   await changeEntries((entries) => {
     const e = entries.find((x) => String(x.id) === id);
     if (!e || !isOpen(e)) return null;
-    rolled = nextRecurringEntry(e, entries, new Date(), { holidays: normalizeHolidays(wd.holidays), leaveDays: normalizeLeaveDays(wd.leaveDays) });
-    return [...(rolled ? [rolled] : []), ...entries.map((x) => (String(x.id) === id ? completeEntry({ ...x, dar }) : x))];
+    const next = nextRecurringEntry(e, entries, now, opts);
+    return [...(next ? [next] : []), ...entries.map((x) => (String(x.id) === id ? completeEntry({ ...x, dar }) : x))];
   });
   await cancelEntryAlert(id).catch(warnQuiet('workingDashboardActions'));
   if (rolled) await scheduleEntryAlert(rolled, ringtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
@@ -114,6 +118,7 @@ export function snoozeMinutesOf(action) {
 }
 
 const handled = new Set();
+const HANDLED_MAX = 200;
 /**
  * A button pressed on a Working Dashboard alert. `action` is the notification
  * action (WD_DONE / WD_SNOOZE / WD_REMIND / WD_RING) or the alarm's ("DONE" / "SNOOZE" / "DAR" / "REMIND").
@@ -121,7 +126,16 @@ const handled = new Set();
  */
 export async function handleWdAction(action, entryId, key) {
   if (!entryId) return false;
-  if (key) { if (handled.has(key)) return true; handled.add(key); }
+  if (key) {
+    if (handled.has(key)) return true;
+    handled.add(key);
+    if (handled.size > HANDLED_MAX) handled.delete(handled.values().next().value);      // oldest first: the set stays bounded
+    try { return await runWdAction(action, entryId); } catch (err) { handled.delete(key); throw err; }      // a failed press may be retried
+  }
+  return runWdAction(action, entryId);
+}
+
+async function runWdAction(action, entryId) {
   if (action === WD_DONE || action === 'DONE') { await completeWdEntry(entryId); return true; }
   if (action === 'DAR' || action === WD_DAR) { await completeWdEntry(entryId, { dar: true }); return true; }
   const snoozeMin = snoozeMinutesOf(action);
@@ -149,12 +163,9 @@ export async function refreshWdAlerts({ pull = true, force = false, wd: given = 
     try {
       const res = await pullSheetEntries(wd.cloudSyncUrl, blankEntry());
       if (res.ok && res.tasks.length) {
-        let added = 0;
-        await changeEntries((entries) => {
-          const merged = mergeSheetPull(entries, res.tasks, wd.lastSheetPullAt || 0, wd.purgedIds || [], { addOnly: true });
-          added = merged.added;
-          return merged.added ? merged.entries : null;
-        });
+        const pull = (entries) => mergeSheetPull(entries, res.tasks, wd.lastSheetPullAt || 0, wd.purgedIds || [], { addOnly: true });
+        const added = pull(wd.entries || []).added;      // counted from what was read; the updater below stays pure
+        await changeEntries((entries) => { const merged = pull(entries); return merged.added ? merged.entries : null; });
         if (added) wd = live ? wd : await readWd();
       }
     } catch { /* offline: book from what is stored */ }

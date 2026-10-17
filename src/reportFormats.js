@@ -18,12 +18,20 @@ export function placeholdersOf(template) {
   return out;
 }
 
-/** How well a field label answers a mark: 0 = no, else higher is closer (all of the mark's words are in the label; fewer extra words is closer). */
+// A currency word in a label that the mark does not name: "USD Amount" answers {USD amount}, never the rupee {Amount}.
+const CURRENCY_WORDS = new Set(['usd', 'eur', 'gbp', 'aed', 'sgd', 'jpy', 'cny', 'chf', 'aud', 'cad', 'dollar', 'euro', 'pound', 'dirham']);
+
+/**
+ * How well a field label answers a mark: 0 = no, else higher is closer. The same name (any case) is best (2); else all of the
+ * mark's words are in the label (fewer extra words is closer, at most 1) - unless the label has a currency word the mark lacks.
+ */
 function score(mark, label) {
+  if (clean(mark).toLowerCase() === clean(label).toLowerCase() && clean(mark)) return 2;
   const m = tokens(mark);
   const l = tokens(label);
   if (!m.length || !l.length) return 0;
   if (!m.every((w) => l.includes(w))) return 0;
+  if (l.some((w) => CURRENCY_WORDS.has(w) && !m.includes(w))) return 0;
   return m.length / l.length;
 }
 
@@ -74,7 +82,7 @@ export function unmatchedMarks(template, fieldLabels) {
 /** Formats as the meta/tools document keeps them. */
 export function readReportFormats(d = {}) {
   return (Array.isArray(d.reportFormats) ? d.reportFormats : []).filter((f) => f && f.subCategory && typeof f.template === 'string')
-    .map((f, i) => ({ id: String(f.id || `rf-${i}`), category: String(f.category || ''), subCategory: String(f.subCategory), template: String(f.template) }));
+    .map((f, i) => ({ id: String(f.id || `rf-${i}`), category: String(f.category || ''), subCategory: String(f.subCategory), template: String(f.template), ...(f.removed ? { removed: true } : null) }));
 }
 
 /** The formats from the owner's "Tally Narration formats" sheet (the Report tab uses them until Config > Report formats is edited). */
@@ -107,14 +115,21 @@ export const SAMPLE_FORMATS = [
   { category: 'Demand Draft', subCategory: 'Offline', template: 'Prepared Offline Demand Draft application forms with all required details, coordinated with bank officials with Payee Name: {Payee Name}, DD No: {DD No}, Amount: {Amount} & Case No: {Case No}. Shared email acknowledgment with the Legal team confirming that the Demand Draft is ready for pickup.' },
 ].map((f, i) => ({ id: `sample-${i}`, ...f }));
 
+/** The saved entry that means "no format for this Sub Category" (a removed sample format): { subCategory, template: '', removed: true }. */
+export const removedFormat = (subCategory, category = '') => ({ id: `removed-${normName(subCategory).replace(/\s+/g, '-')}`, category: clean(category), subCategory: clean(subCategory), template: '', removed: true });
+
 /**
  * The formats in use: the saved ones (Config > Report formats), plus every sample format whose Sub Category has no saved one - so a
  * format added to the samples later (a new Tally sheet) reaches an account that saved its own list earlier. Nothing saved is changed.
+ * A saved `removed` entry (the tombstone "Remove format" leaves) keeps its sample format out; it is never itself a format.
  */
 export function effectiveFormats(saved = []) {
-  const mine = Array.isArray(saved) ? saved.filter((f) => f && f.subCategory && f.template) : [];
-  if (!mine.length) return SAMPLE_FORMATS;
-  return [...mine, ...SAMPLE_FORMATS.filter((s) => !mine.some((m) => normName(m.subCategory) === normName(s.subCategory)))];
+  const all = Array.isArray(saved) ? saved.filter((f) => f && f.subCategory) : [];
+  const gone = all.filter((f) => f.removed);
+  const mine = all.filter((f) => f.template && !f.removed);
+  if (!all.length) return SAMPLE_FORMATS;
+  const taken = (s) => mine.some((m) => normName(m.subCategory) === normName(s.subCategory)) || gone.some((g) => normName(g.subCategory) === normName(s.subCategory));
+  return [...mine, ...SAMPLE_FORMATS.filter((s) => !taken(s))];
 }
 
 const OWN_MARKS = new Set(['title', 'category', 'sub category', 'mail', 'notes']);

@@ -6,6 +6,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useTheme } from './theme';
 import { useLayout } from './ui';
+import { isOverdue } from './workingDashboard';
 
 const prioColor = (t, p) => (p === 'High' ? t.danger : p === 'Low' ? t.ok : t.warn);
 const day = (iso) => {
@@ -33,7 +34,8 @@ export default function EntryTable({ entries, onOpen, mode = 'open', completedAt
         ))}
       </View>
       {entries.map((e, i) => {
-        const overdue = mode === 'open' && e.dueAt && new Date(e.dueAt).getTime() < Date.now();
+        // The shared rule: a timed task is overdue once its time passes, a date-only one once its day has passed (it alerts at 7 PM, not at midnight).
+        const overdue = mode === 'open' && isOverdue(e);
         return (
           <Pressable key={e.id} onPress={() => onOpen(e)} accessibilityRole="button" accessibilityLabel={e.title}
             style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, ...(i === entries.length - 1 ? { borderBottomLeftRadius: t.radius, borderBottomRightRadius: t.radius } : null), backgroundColor: hovered ? t.accent + '14' : i % 2 ? t.surfaceAlt + '66' : 'transparent' })}>

@@ -25,7 +25,7 @@ export function parseReport(text) {
   const sections = [];
   let title = '';
   let cur = null;
-  rows.forEach((raw) => {
+  rows.forEach((raw, ri) => {
     const line = raw.trim();
     if (!line) return;
     if (BULLET.test(line)) {
@@ -33,8 +33,13 @@ export function parseReport(text) {
       cur.lines.push(clean(line.replace(BULLET, '')));
       return;
     }
-    // A short line without a full stop is a heading; the very first line is the report's title.
-    const looksHeading = line.length <= 70 && !/[.!?]$/.test(line);
+    // A short line without a full stop is a heading only when it reads like one - it ends with ":", a bullet follows it, or it is
+    // a few Capitalised words ("Other work completed" style headings are caught by the bullet that follows). A plain short
+    // sentence ("Paid the vendor") is a line of the report; the very first line is the report's title.
+    const next = rows.slice(ri + 1).map((x) => x.trim()).find(Boolean) || '';
+    const words = line.replace(/[:\-–]+$/, '').split(/\s+/);
+    const titleCase = words.length <= 5 && words.every((w) => /^(?:[A-Z0-9(][^\s]*|and|of|the|&|\/|for|to|in)$/.test(w));
+    const looksHeading = line.length <= 70 && !/[.!?]$/.test(line) && (/[:\-–]$/.test(line) || BULLET.test(next) || titleCase);
     if (!title && !sections.length && /report|activity|daily|\d{4}/i.test(line)) { title = line; return; }
     if (looksHeading) { cur = { heading: clean(line.replace(/[:\-–]+$/, '').replace(/\s*\(\d+\)$/, '')), lines: [] }; sections.push(cur); return; }
     if (!cur) { cur = { heading: '', lines: [] }; sections.push(cur); }
@@ -99,7 +104,8 @@ export function factsOf(line) {
   const nums = (s.match(/\d[\d,]*(?:\.\d+)?/g) || []).map((n) => n.replace(/,/g, '')).filter((n) => n.length >= 2);
   const refs = s.match(/\b[A-Z]{2,}[A-Z0-9/_-]*\d[A-Z0-9/_-]*\b|#\s?\d+/g) || [];
   // A capitalised run of 2+ words is a name ("Tech Profuse", "Rami Reddy") - minus a sentence-opening verb or "Rs".
-  const NOT_NAME = /^(?:[A-Z][a-z]+(?:ed|ing)|Paid|Sent|Made|Got|Did|Rs|The|This|That|Other|Daily|Routine)$/;
+  // Only real verbs and filler are stripped - a blanket "ends in -ed" rule would cut the name "Ahmed" ("Ahmed Khan").
+  const NOT_NAME = /^(?:Paid|Sent|Made|Got|Did|Rs|The|This|That|Other|Daily|Routine|Prepared|Processed|Initiated|Followed|Updated|Shared|Verified|Released|Submitted|Completed|Reviewed|Coordinated|Provided|Modified|Reconciled|Checked|Received|Approved|Arranged|Collected|Filed|Cleared|Raised|Requested|Booked|Closed|Reported|Recorded|Uploaded|Scheduled|Visited|Discussed|[A-Z][a-z]{3,}ing)$/;
   const names = (s.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g) || []).map((n) => {
     const w = n.split(/\s+/);
     while (w.length && NOT_NAME.test(w[0])) w.shift();
@@ -108,6 +114,8 @@ export function factsOf(line) {
   return [...new Set([...nums, ...refs.map((r) => r.replace(/\s/g, '')), ...names])];
 }
 
+const escRe = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** Every fact of every item must appear in the AI text. Returns { ok, missing: [{ line, fact }] }. */
 export function checkFacts(model, aiText) {
   const hay = String(aiText || '').replace(/,(?=\d{2,3}\b)/g, '').replace(/\s+/g, ' ');
@@ -115,7 +123,10 @@ export function checkFacts(model, aiText) {
   const missing = [];
   model.sections.forEach((s) => s.rows.forEach((r) => {
     factsOf(r.line).forEach((f) => {
-      const ok = /^\d/.test(f) ? hay.includes(f) : lower.includes(f.toLowerCase());
+      // Whole tokens only: the fact 250 is not in 2500 or 250.50, and "Rami Reddy" is not inside "Ramiz Reddys".
+      const ok = /^\d/.test(f)
+        ? new RegExp(`(?<![\\d.])${escRe(f)}(?!\\d|\\.\\d)`).test(hay)
+        : new RegExp(`(?<![a-z0-9])${escRe(f.toLowerCase())}(?![a-z0-9])`).test(lower);
       if (!ok) missing.push({ line: r.line, fact: f });
     });
   }));

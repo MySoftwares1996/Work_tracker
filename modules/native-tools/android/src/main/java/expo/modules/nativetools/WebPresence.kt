@@ -62,6 +62,7 @@ object WebPresence {
   fun taskHandled(ctx: Context, taskId: String, timeoutMs: Long = 4000L): Boolean {
     if (!enabled(ctx)) return false
     val entryId = ALERT_ID.find(taskId)?.groupValues?.get(1) ?: return false
+    val alertKey = taskId.substringAfterLast(':')
     return try {
       val auth = static("com.google.firebase.auth.FirebaseAuth", "getInstance") ?: return false
       val user = call(auth, "getCurrentUser") ?: return false
@@ -77,7 +78,8 @@ object WebPresence {
       val status = (call(snap, "get", "status") as? String).orEmpty().trim().lowercase()
       val deleted = call(snap, "get", "deleted") == true || call(snap, "get", "purged") == true
       val snoozeUntil = (call(snap, "get", "snoozeUntil") as? Number)?.toLong() ?: 0L
-      val ackDate = (call(snap, "get", "lastAckDate") as? String).orEmpty()
+      // The day's "silenced" mark is per kind of alert, as in entryAlertPlan: deadline keys (dl...) use deadlineAckDate.
+      val ackDate = (call(snap, "get", if (alertKey.startsWith("dl")) "deadlineAckDate" else "lastAckDate") as? String).orEmpty()
       val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
       // Moved to a later date or time on the web app (Move in the due alert, the entry form): the booked alarm is out of date.
       val dueDate = (call(snap, "get", "dueDate") as? String).orEmpty().trim()
@@ -86,7 +88,9 @@ object WebPresence {
         if (dueDate.isEmpty()) false else {
           val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
           val due = fmt.parse("$dueDate ${if (dueTime.matches(Regex("\\d{1,2}:\\d{2}"))) dueTime else "09:00"}")
-          due != null && due.time > System.currentTimeMillis() + 90_000L
+          // Only the due moment and its nags follow the due date; a next-reminder or deadline alert is legitimately elsewhere.
+          val dueKey = alertKey == "due" || alertKey.startsWith("nag-")
+          dueKey && due != null && due.time > System.currentTimeMillis() + 90_000L
         }
       } catch (_: Throwable) { false }
       deleted || status.startsWith("complet") || status == "done" || snoozeUntil > System.currentTimeMillis() || ackDate == today || movedLater

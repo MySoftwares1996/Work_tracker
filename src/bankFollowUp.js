@@ -6,12 +6,16 @@
  *
  * Pure (no React, no storage), like workingDashboard.js.
  */
-import { noteWork, isUnstartedStatus } from './workingDashboardPayments';
-import { editedNow, isNonWorkingDay } from './workingDashboard';
+import { noteWork, isUnstartedStatus, normStatus } from './workingDashboardPayments';
+import { editedNow, isNonWorkingDay, completedTime } from './workingDashboard';
 
 const s = (v) => String(v === undefined || v === null ? '' : v);
 const p2 = (n) => String(n).padStart(2, '0');
 const dayKey = (d) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+/** The status a follow-up moves a task to when it is still unstarted - used when the account's status list has no In Progress. */
+export const IN_PROGRESS_STATUS = 'In-Progress';
+/** The account's own spelling of In Progress ("In Progress" / "In-Progress" / "in_progress") from its status list. */
+export const inProgressStatus = (statuses) => (Array.isArray(statuses) ? statuses.find((x) => normStatus(x) === 'in progress') : '') || IN_PROGRESS_STATUS;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** "Bank Follow Up's", "Urgent Bank Follow Up's", "Bank Follow-ups"... */
@@ -45,11 +49,12 @@ export function defaultNextFollowUp(e, now = new Date(), { holidays = [], leaveD
 }
 
 /**
- * Records today's follow-up: the banker's remarks and the next follow-up date. The entry stays open, is due (and
+ * Records today's follow-up: the banker's remarks and the next follow-up date (`statuses`: the account's status list, so
+ * the move matches its spelling of In Progress). The entry stays open, is due (and
  * alerts) again on the next date, moves off "Not Yet Started", and today goes into its work log so the Daily
  * Activity Report lists it.
  */
-export function addBankFollowUp(e, { remarks, next, bank, banker } = {}, now = new Date()) {
+export function addBankFollowUp(e, { remarks, next, bank, banker, statuses } = {}, now = new Date()) {
   const text = s(remarks).replace(/\s+/g, ' ').trim();
   const nextDate = next ? new Date(next) : null;
   const okNext = nextDate && !Number.isNaN(nextDate.getTime());
@@ -59,7 +64,7 @@ export function addBankFollowUp(e, { remarks, next, bank, banker } = {}, now = n
   const who = s(banker).replace(/\s+/g, ' ').trim();
   if (bk) item.bank = bk;
   if (who) item.banker = who;
-  const status = !s(e.status).trim() || isUnstartedStatus(e.status) ? 'In-Progress' : e.status;
+  const status = !s(e.status).trim() || isUnstartedStatus(e.status) ? inProgressStatus(statuses) : e.status;
   let row = { ...e, status, bankFollowUps: [...bankFollowUps(e), item] };
   if (okNext) row = { ...row, dueAt: nextDate.toISOString(), snoozeUntil: null, lastAckDate: null };
   row = noteWork(row, 'Followed up', now);
@@ -82,7 +87,10 @@ export function bankFollowUpReportLine(e, date) {
   const withWho = today.map(followUpWho).filter(Boolean).pop() || '';
   let line = withWho ? `${title}: Followed up with ${withWho}.` : `${title}: Followed up with the bank.`;
   if (updates.length) line += ` Banker's update: ${updates.join('; ')}.`;
-  if (e.done) line += ' Completed.';
+  // "Completed." only when it was completed by that day: an older report of a task finished later still shows the next date.
+  const doneMs = e.done ? completedTime(e) : 0;
+  const doneBy = e.done && (!doneMs || dayKey(new Date(doneMs)) <= date);
+  if (doneBy) line += ' Completed.';
   else if (last.next) line += ` Next follow-up: ${fmtFollowDate(last.next)}.`;
   if (escalated) line += ' Escalated to manager.';
   return line;

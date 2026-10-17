@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
 import { Card, Small, Btn, Field } from '../ui';
 import { useTheme } from '../theme';
-import { effectiveFormats, findFormat, placeholdersOf, renderTemplate, planFormatSetup, SAMPLE_FORMATS } from '../reportFormats';
+import { effectiveFormats, findFormat, placeholdersOf, renderTemplate, planFormatSetup, removedFormat, normName, SAMPLE_FORMATS } from '../reportFormats';
 import { paymentLists } from '../workingDashboardPayments';
 
 /**
@@ -26,8 +26,12 @@ export default function WdReportFormats({ wd, entries, setTools, setLists }) {
   const everyFormat = () => (custom ? saved : SAMPLE_FORMATS.map((f, i) => ({ id: f.id || `rf-s${i}`, ...f })));
   const saveFormats = (next) => setTools((w) => ({ ...w, reportFormats: next }));
   const save = (row, text) => {
-    const list = everyFormat().filter((f) => !(row.format && f.id === row.format.id));
-    saveFormats(text.trim() ? [...list, { id: row.format ? row.format.id : `rf-${Date.now().toString(36)}`, category: row.category || (row.format && row.format.category) || '', subCategory: row.format ? row.format.subCategory : row.name, template: text.trim() }] : list);
+    const subName = row.format ? row.format.subCategory : row.name;
+    const category = row.category || (row.format && row.format.category) || '';
+    // The format being replaced, and any earlier "removed" marker for this Sub Category, go; the rest stay.
+    const list = everyFormat().filter((f) => !(row.format && f.id === row.format.id) && !(f.removed && normName(f.subCategory) === normName(subName)));
+    // An empty text removes the format: a marker is saved so a sample format of this Sub Category is not brought back.
+    saveFormats(text.trim() ? [...list, { id: row.format ? row.format.id : `rf-${Date.now().toString(36)}`, category, subCategory: subName, template: text.trim() }] : [...list, removedFormat(subName, category)]);
   };
   const sample = (row) => {
     const e = entries.filter((x) => !x.binned && x.subCategory && findFormat([{ subCategory: x.subCategory, template: 'x' }], row.name)).sort((a, b) => String(b.dueAt || '').localeCompare(String(a.dueAt || '')))[0];

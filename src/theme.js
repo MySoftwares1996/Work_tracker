@@ -245,7 +245,7 @@ export function ThemeProvider({ children }) {
     if (t.skinned) {
       if (scheme === 'dark' && (t.key === 'pearl' || t.key === 'violet' || t.key === 'warm')) t = { ...PEARL_NIGHT, ...(t.darkTwin || null), key: t.key };
       skin = classic ? null : Platform.OS === 'web' ? SKIN.web : SKIN.phone;
-      if (skin) t = { ...t, radius: skin.radius, shadow: skin.shadow[t.dark ? 'dark' : 'light'], ...(skin.tint ? { bg: skin.tint[t.dark ? 'dark' : 'light'] } : null) };
+      if (skin) t = { ...t, radius: skin.radius, shadow: skin.shadow[t.dark ? 'dark' : 'light'], ...(skin.tint && t.key === 'pearl' ? { bg: skin.tint[t.dark ? 'dark' : 'light'] } : null) };
       // Warm keeps its own cream backdrop and has rounder corners and an orange-tinted shadow on the phone.
       if (skin && t.key === 'warm' && Platform.OS !== 'web') {
         const shadow = { shadowColor: t.dark ? '#000000' : '#EA580C', shadowOpacity: t.dark ? 0.4 : 0.1, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 };
