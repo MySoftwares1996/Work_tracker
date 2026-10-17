@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Btn, Row, Sheet, Choices, DateTimeField, PickerButton } from '../ui';
 import { useTheme, ALARM_COLORS } from '../theme';
 import { useStore } from '../store';
+import { effectiveFormats, finalNarration } from '../reportFormats';
 import { isSnoozed, isSilencedToday, RECURRENCES, RECURRENCE_LABELS, recurrenceLabel, completeEntry, nextRecurringEntry, editedNow, DEFAULT_ALERTS, snoozeEntry, silenceEntryToday, alertModeOf, normalizeHolidays, normalizeLeaveDays } from '../workingDashboard';
 import { paymentLists, subCategoryComplete } from '../workingDashboardPayments';
 import { snoozeSuggestions, pastDueEntries, ringingEntries, closedOn, postponeDue, withRemark, moveEntry, skipOccurrence, silenceMinutes } from '../pastDue';
@@ -71,6 +72,7 @@ export default function PastDueAlert() {
   const [moves, setMoves] = useState({});
   const [repeatFor, setRepeatFor] = useState(null);
   const [snoozeFor, setSnoozeFor] = useState(null);
+  const [nextRem, setNextRem] = useState({});      // the next reminder being picked, per card
   const [statusFor, setStatusFor] = useState(null);
   const [samplePrio, setSamplePrio] = useState('High');      // preview only: the background colour follows the priority
   const [more, setMore] = useState({});            // cards with Move and the dropdowns opened out
@@ -316,6 +318,27 @@ export default function PastDueAlert() {
                   <DateTimeField value={moveTo} onChange={(v) => v && setMoves((m) => ({ ...m, [e.id]: v }))} />
                   <Btn title="Move" onPress={() => move(entry, moveTo)} />
                 </View>
+
+                {Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(entry.category) && (
+                  <>
+                    <Text style={{ color: G.dim, fontWeight: '700', fontSize: t.fs(12), letterSpacing: 0.5, marginTop: 16, marginBottom: 6 }}>NEXT REMINDER</Text>
+                    <View style={{ backgroundColor: G.paper, borderRadius: 12, padding: 10 }}>
+                      <DateTimeField clearable value={nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt} onChange={(v) => setNextRem((m) => ({ ...m, [e.id]: v || '' }))} />
+                      <Btn title="Set reminder" onPress={() => { const iso = nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt; const next = { ...live(entry), nextReminderAt: iso || null }; edit(e.id, () => next); fx.scheduleEntryAlert(next, ring, wd.alerts).catch(() => {}); }} />
+                    </View>
+                  </>
+                )}
+                {(() => {
+                  // "Final Narration": the narration of the task's report line (Payments with a report format).
+                  const n = finalNarration(entry, effectiveFormats(wd.reportFormats));
+                  return n ? (
+                    <View style={{ backgroundColor: G.fillStrong, borderRadius: 12, padding: 10, marginTop: 14 }}>
+                      <Text style={{ color: G.text, fontWeight: '800' }}>Final Narration</Text>
+                      <Text selectable style={{ color: G.text, marginTop: 4 }}>{n.text}</Text>
+                      {n.missing.length > 0 && <Text style={{ color: G.dim, marginTop: 4 }}>Still to fill: {n.missing.join(', ')}</Text>}
+                    </View>
+                  ) : null;
+                })()}
 
                 <Row gap={10} style={{ marginTop: 14 }}>
                   <View style={{ flex: 1 }}>
