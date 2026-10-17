@@ -15,7 +15,7 @@ export const ACCOUNT_KEYS = [
   'entries', 'categories', 'priorities', 'statuses', 'assignees', 'holidays', 'leaveDays', 'fixedActivities',
   'activityLog', 'cloudSyncUrl', 'paymentIntro', 'subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories',
   'listsUpdatedAt', 'calendarUpdatedAt', 'deletedIds', 'purgedIds', 'lastSheetPullAt', 'reportSamplesLocal',
-  'links', 'reportAiNotes', 'reportAiNotesSummary', 'templates', 'reportFormats', 'narrationHistory', 'undoHistory', 'toolsStamps', 'toolsUpdatedAt',
+  'links', 'reportAiNotes', 'reportAiNotesSummary', 'templates', 'reportFormats', 'formatSetupAt', 'narrationHistory', 'undoHistory', 'toolsStamps', 'toolsUpdatedAt',
 ];
 
 /**

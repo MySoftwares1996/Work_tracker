@@ -10,6 +10,8 @@ import { fromWebDocOver, mergeHolidays } from './cloudSync';
 import { blankEntry, withCompletedAt, normalizeCalendar, normalizeHolidays, normalizeLeaveDays } from './workingDashboard';
 import { setRealtimeStatus, useRealtimeStatus } from './realtimeStatus';
 import { forAccount } from './account';
+import { planFormatSetup, effectiveFormats } from './reportFormats';
+import { paymentLists } from './workingDashboardPayments';
 
 const PUSH_DELAY_MS = 700;        // after the last change: one tap on Done reaches the web app in about a second
 const RETRY_MS = 15000;           // a push that failed (no signal) is tried again
@@ -27,6 +29,8 @@ export default function RealtimeSync() {
   wdRef.current = wd;
   const userRef = useRef(null);
   const pushRef = useRef(() => {});
+  const metaSeen = useRef({ tools: false, lists: false });      // the account's lists and tools documents have both arrived
+  const [metaTick, setMetaTick] = useState(0);
 
   const updateWd = (fn) => update((db) => ({ ...db, workingDashboard: fn(db.workingDashboard || {}) }));
 
@@ -53,6 +57,20 @@ export default function RealtimeSync() {
     prevLists.current = listsSnapshot;
     updateWd((w) => ({ ...w, listsUpdatedAt: Date.now() }));
   }, [listsSnapshot, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Once per account, automatically: every Category and Sub Category the report formats need is created if it is missing (nothing existing is
+  // changed), as on the website; formatSetupAt stops it running again, so a category deleted later stays deleted.
+  useEffect(() => {
+    if (!ready || !signedUid || wd.accountUid !== signedUid || wd.formatSetupAt || !metaSeen.current.tools || !metaSeen.current.lists) return undefined;
+    // A moment later, so the lists that just arrived are in wd when the plan is made.
+    const timer = setTimeout(() => {
+      const w = wdRef.current;
+      if (w.formatSetupAt) return;
+      const plan = planFormatSetup({ categories: w.categories, subCategories: paymentLists(w, w.categories).subCategories, subCategoryCategories: w.subCategoryCategories }, effectiveFormats(w.reportFormats));
+      updateWd((x) => ({ ...x, formatSetupAt: Date.now(), ...(plan.categories.length || plan.subCategories.length ? { categories: plan.lists.categories, subCategories: plan.lists.subCategories, subCategoryCategories: plan.lists.subCategoryCategories, listsUpdatedAt: Date.now() } : null), toolsUpdatedAt: Date.now() }));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [metaTick, ready, signedUid, wd.accountUid, wd.formatSetupAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /*
    * The web app's "in use" note: tells the phone's alarm code until when to stay quiet (Config > Alerts >
@@ -105,9 +123,12 @@ export default function RealtimeSync() {
   /** Applies what Firestore sent to the data as it is now (not a copy taken earlier); newest wins. */
   const applyRemote = (patch) => {
     if (patch.presence) { presenceRef.current = patch.presence; sendPresence(); return; }
+    if (patch.tools) metaSeen.current.tools = true;
+    if (patch.paymentLists || patch.lists) metaSeen.current.lists = true;
+    if (patch.tools || patch.paymentLists || patch.lists) setMetaTick((n) => n + 1);
     if (patch.tools) {
       // Per item: only what is newer in the account is taken; this device's newer items stay and are sent back below.
-      const got = toolsFromRemote(patch.tools, wdRef.current.toolsStamps);
+      const got = toolsFromRemote(patch.tools, wdRef.current.toolsStamps, wdRef.current);
       if (got) {
         toolsSent.current = Math.max(0, ...Object.values(got.stamps).map(Number));
         updateWd((w) => {

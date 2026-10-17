@@ -78,6 +78,8 @@ export const toolsValue = (wd = {}) => ({
   reportFormats: Array.isArray(wd.reportFormats) ? wd.reportFormats : [],
   reportAiNotesSummary: wd.reportAiNotesSummary || '',
   holdUntil: Number((wd.alerts || {}).holdUntil) || 0,
+  // When the report formats' categories were set up automatically (once per account; the website writes it too). Sent only once set, so it never clears the website's.
+  ...(wd.formatSetupAt ? { formatSetupAt: Number(wd.formatSetupAt) } : null),
 });
 
 /** The stamps after an edit: every item whose value changed gets `now`; the rest keep theirs. */
@@ -93,7 +95,7 @@ const cleanLink = (x) => ({ id: String(x.id || x.url), title: String(x.title || 
  * What to take from the account's copy: { patch: { links?, templates?, ... }, stamps } - only the items whose remote stamp is
  * newer than this device's - or null when nothing is newer. `localStamps` is this device's { item: ms }.
  */
-export function toolsFromRemote(remote, localStamps = {}) {
+export function toolsFromRemote(remote, localStamps = {}, local = {}) {
   if (!remote) return null;
   const rs = remote.stamps && typeof remote.stamps === 'object' ? remote.stamps : {};
   const ts = Number(remote.ts) || 0;
@@ -109,6 +111,7 @@ export function toolsFromRemote(remote, localStamps = {}) {
     else patch[k] = typeof remote[k] === 'string' ? remote[k] : '';
     stamps[k] = at;
   });
+  if (Number(remote.formatSetupAt) && !Number(local.formatSetupAt)) patch.formatSetupAt = Number(remote.formatSetupAt);
   return Object.keys(patch).length ? { patch, stamps } : null;
 }
 

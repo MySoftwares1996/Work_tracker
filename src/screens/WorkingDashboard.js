@@ -188,6 +188,7 @@ export default function WorkingDashboard() {
   const [reportText, setReportText] = useState('');
   const [reportKind, setReportKind] = useState('day');      // 'day' (the Daily Activity Report), 'week' or 'month' (a summary)
   const [reportModel, setReportModel] = useState(null);
+  const [subPop, setSubPop] = useState(null);       // Home: a category's Sub Categories ({ category, due, list })
   const [groupOpen, setGroupOpen] = useState('');   // the Report box whose tasks are shown (oth / pay / fol / out)
   const [reportNote, setReportNote] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
@@ -1840,7 +1841,7 @@ export default function WorkingDashboard() {
               <View key={due}>
                 <Small style={{ fontWeight: '800', textTransform: 'uppercase', marginTop: 14 }}>{name} - {new Date(new Date().getFullYear(), new Date().getMonth() + (due === 'Next Month' ? 1 : 0), 1).toLocaleString([], { month: 'long' })} ({list.length} open)</Small>
                 {[['category', 'By Category', (e) => e.category], ['status', 'By Status', (e) => e.status], ['priority', 'By Priority', (e) => e.priority], ['pendingWith', 'Pending Assignments', (e) => e.pendingWith]].filter(([k]) => fields.includes(k)).map(([k, title, keyOf]) => (
-                  <View key={k} style={colItem}><CountList title={`${name} - ${title}`} total={list.length} rows={groupCounts(list, keyOf, k === 'pendingWith' ? 'Unassigned' : undefined)} onPress={(v) => { setTab('register'); setFilter({ [k]: v, dueWithin: due }); }} /></View>
+                  <View key={k} style={colItem}><CountList title={`${name} - ${title}`} total={list.length} rows={groupCounts(list, keyOf, k === 'pendingWith' ? 'Unassigned' : undefined)} onPress={(v) => { if (k === 'category' && list.some((e) => e.category === v && e.subCategory)) { setSubPop({ category: v, due, list: list.filter((e) => e.category === v) }); return; } setTab('register'); setFilter({ [k]: v, dueWithin: due }); }} /></View>
                 ))}
               </View>
             ))}
@@ -1901,6 +1902,22 @@ export default function WorkingDashboard() {
                 <View style={{ flex: 1 }}><OptionPicker label="Status" source={SOURCES.wdStatus} value={filters.status === ANY ? null : filters.status} onChange={(v) => setFilter({ status: v || ANY })} allowAny anyLabel="All Statuses" /></View>
               </Row>
               <OptionPicker label="Pending with" source={SOURCES.wdAssignee} value={filters.pendingWith === ANY ? null : filters.pendingWith} onChange={(v) => setFilter({ pendingWith: v || ANY })} allowAny anyLabel="All Pending With" />
+              {(() => {
+                const used = [...new Set(openEntries.map((e) => e.subCategory).filter(Boolean))].sort();
+                if (!used.length && !filters.subCategory) return null;
+                return (
+                  <View style={{ marginBottom: 10 }}>
+                    <Small style={{ marginBottom: 5 }}>Sub category</Small>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {[['', 'All'], ...used.map((x) => [x, x]), ['__none', 'None chosen']].map(([v, label]) => (
+                        <Pressable key={v || 'all'} onPress={() => setFilter({ subCategory: v })} accessibilityRole="button" accessibilityState={{ selected: filters.subCategory === v }} style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: (filters.subCategory || '') === v ? t.accent : t.surfaceAlt }}>
+                          <Text style={{ color: (filters.subCategory || '') === v ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })()}
               <Small style={{ marginBottom: 5 }}>Due date</Small>
               <Segmented options={DUE_WITHIN_OPTIONS} value={filters.dueWithin} onChange={(v) => setFilter({ dueWithin: v })} style={{ marginBottom: 12 }} />
               </Card>
@@ -2776,6 +2793,15 @@ export default function WorkingDashboard() {
       ))}
       {!((reportModel && reportModel.groups && reportModel.groups[groupOpen]) || []).length && <Text style={{ color: t.textDim }}>Nothing here.</Text>}
       {Object.keys(dayMoves).length > 0 && <Btn title={`Undo my moves (${Object.keys(dayMoves).length})`} kind="ghost" onPress={undoMoves} />}
+    </Sheet>
+    <Sheet visible={!!subPop} onClose={() => setSubPop(null)} title={subPop ? `${subPop.category} - Sub categories` : ''}>
+      {subPop && groupCounts(subPop.list, (e) => e.subCategory, 'None chosen').map((r) => (
+        <Pressable key={r.label} onPress={() => { const sp = subPop; setSubPop(null); setTab('register'); setFilter({ category: sp.category, subCategory: r.label === 'None chosen' ? '__none' : r.label, dueWithin: sp.due }); }} accessibilityRole="button" style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: t.surface, borderRadius: 14, padding: 14, marginBottom: 8, ...t.shadow }}>
+          <Text style={{ color: t.text, fontWeight: '700', flex: 1 }}>{r.label}</Text>
+          <Text style={{ color: t.accent, fontWeight: '800' }}>{r.count}</Text>
+        </Pressable>
+      ))}
+      {!!subPop && <Btn kind="soft" title={`All ${subPop.category} tasks`} onPress={() => { const sp = subPop; setSubPop(null); setTab('register'); setFilter({ category: sp.category, dueWithin: sp.due }); }} />}
     </Sheet>
     <Sheet visible={shareOpen} onClose={() => setShareOpen(false)} title="Send the report">
       <Field label="SEND TO (Email fills this in)" value={wd.reportEmail || ''} keyboardType="email-address" autoCapitalize="none" onChangeText={(v) => updateWd((w) => ({ ...w, reportEmail: v }))} placeholder="manager@company.com" />

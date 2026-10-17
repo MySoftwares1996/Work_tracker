@@ -187,14 +187,14 @@ export const NO_VALUE_LABEL = 'Uncategorised';
 export const NO_ASSIGNEE_LABEL = 'Unassigned';
 // Overdue or due today - what the "Pending as on Today" tile counts. Not one of the segmented options.
 export const DUE_TILL_TODAY = 'Till Today';
-export const EMPTY_WD_FILTER = { query: '', category: ANY, priority: ANY, status: ANY, pendingWith: ANY, dueWithin: ANY, bank: '' };
+export const EMPTY_WD_FILTER = { query: '', category: ANY, priority: ANY, status: ANY, pendingWith: ANY, dueWithin: ANY, bank: '', subCategory: '' };
 export const DUE_WITHIN_OPTIONS = [ANY, 'Overdue', 'Today', 'Next 7 Days', 'This Month', 'Next Month', 'No Due Date'];
 
 export function isWdFilterActive(f = {}) {
   return !!String(f.query || '').trim()
     || (f.category && f.category !== ANY) || (f.priority && f.priority !== ANY)
     || (f.status && f.status !== ANY) || (f.pendingWith && f.pendingWith !== ANY)
-    || (f.dueWithin && f.dueWithin !== ANY) || !!f.bank;
+    || (f.dueWithin && f.dueWithin !== ANY) || !!f.bank || !!f.subCategory;
 }
 
 /** The bank a bank follow-up was last followed up with ('' when none was named) - the web app's "by bank" view. */
@@ -231,6 +231,8 @@ export function filterEntries(entries = [], f = EMPTY_WD_FILTER, now = new Date(
     if (f.priority && f.priority !== ANY && !fieldMatches(e.priority, f.priority, NO_VALUE_LABEL)) return false;
     if (f.status && f.status !== ANY && !fieldMatches(e.status, f.status, NO_VALUE_LABEL)) return false;
     if (f.pendingWith && f.pendingWith !== ANY && !fieldMatches(e.pendingWith, f.pendingWith, NO_ASSIGNEE_LABEL)) return false;
+    // A Sub Category ('__none' = tasks with none chosen), as the website's Register.
+    if (f.subCategory && (f.subCategory === '__none' ? !!e.subCategory : e.subCategory !== f.subCategory)) return false;
     // web.app's "by bank" view: one bank's follow-ups ('-' = those with no bank named).
     if (f.bank && (f.bank === '-' ? lastNamedBank(e) : lastNamedBank(e).toLowerCase() !== String(f.bank).toLowerCase())) return false;
     if (f.dueWithin && f.dueWithin !== ANY) {
