@@ -967,7 +967,7 @@ export default function WorkingDashboard() {
                     <View style={{ flex: 1 }}><DateTimeField dense mode="time" label="TIME" value={entrySheet.dueAt} onChange={(v) => v && setEntrySheet({ ...entrySheet, dueAt: v })} /></View>
                     <View style={{ flex: 1 }}>
                       <Label dense numberOfLines={1}>REPEATS</Label>
-                      <PickerButton dense text={entrySheet.recurrence && entrySheet.recurrence !== 'none' ? recurrenceLabel(entrySheet) : 'None'} dim={!entrySheet.recurrence || entrySheet.recurrence === 'none'} onPress={() => setRecurrenceOpen(true)} />
+                      <PickerButton dense noChevron text={entrySheet.recurrence && entrySheet.recurrence !== 'none' ? recurrenceLabel(entrySheet) : 'None'} dim={!entrySheet.recurrence || entrySheet.recurrence === 'none'} onPress={() => setRecurrenceOpen(true)} />
                     </View>
                   </Row>
                 );
@@ -1119,7 +1119,7 @@ export default function WorkingDashboard() {
           {!!binBtn && <View style={{ marginTop: 8 }}>{binBtn}</View>}
           <Sheet visible={stepsOpen} onClose={() => setStepsOpen(false)} title="Checklist">
             {f.checklist}
-            <Btn title="Done" onPress={() => setStepsOpen(false)} />
+            <Btn style={{ marginTop: 14 }} title="Done" onPress={() => setStepsOpen(false)} />
           </Sheet>
           <Sheet visible={!!detailSheet} onClose={() => setDetailSheet(null)} title={detailTitle}>
             {detailSheet === 'alert' && f.alert}
@@ -1127,7 +1127,7 @@ export default function WorkingDashboard() {
             {detailSheet === 'reminder' && f.reminder}
             {detailSheet === 'mail' && f.mail}
             {detailSheet === 'history' && f.history}
-            <Btn title="Done" onPress={() => setDetailSheet(null)} />
+            <Btn style={{ marginTop: 14 }} title="Done" onPress={() => setDetailSheet(null)} />
           </Sheet>
         </View>
       );
@@ -1189,7 +1189,7 @@ export default function WorkingDashboard() {
   const phoneSubtitle = tab === 'dashboard' || tab === 'report' ? new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }) : tab === 'register' ? `${openEntries.length} open` : tab === 'done' ? `${allDone.length} done` : '';
 
   return (
-    <View style={[{ flex: 1, paddingLeft: sideBar }, t.bgGradient ? { backgroundImage: t.bgGradient } : null]}>
+    <View style={{ flex: 1, paddingLeft: sideBar, backgroundColor: t.bg }}>
     <Screen headerless bottomBar onRefresh={Platform.OS !== 'web' ? pullRefresh : undefined}>
       {/* The phone's app bar: the search and meeting-mode buttons, the signed-in name chip, then the serif title. */}
       {phoneLayout && (
@@ -1206,9 +1206,9 @@ export default function WorkingDashboard() {
       )}
       {!phoneLayout && (
       <>
-      {/* web.app: a window-style top bar - frosted, and it stays at the top while the page scrolls. */}
+      {/* web.app: a top bar that stays at the top while the page scrolls. */}
       <Row style={[{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-        Platform.OS === 'web' && t.frosted ? { position: 'sticky', top: 0, zIndex: 20, backgroundColor: t.bar, backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', marginHorizontal: wide ? -28 : tabletWidth ? -20 : -16, paddingHorizontal: wide ? 28 : tabletWidth ? 20 : 16, paddingVertical: 10, marginTop: wide ? -20 : -8, borderBottomWidth: 0.5, borderBottomColor: t.sideEdge } : null]}>
+        Platform.OS === 'web' ? { position: 'sticky', top: 0, zIndex: 20, backgroundColor: t.bar, backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', marginHorizontal: wide ? -28 : tabletWidth ? -20 : -16, paddingHorizontal: wide ? 28 : tabletWidth ? 20 : 16, paddingVertical: 10, marginTop: wide ? -20 : -8, borderBottomWidth: 0.5, borderBottomColor: t.sideEdge } : null]}>
         {/* web.app only: the app's logo beside the title (the APK's header has none). */}
         {Platform.OS === 'web' && <View style={{ marginRight: 12 }}><AnimatedLogo size={44} /></View>}
         <View style={{ flex: 1 }}>
@@ -1220,7 +1220,7 @@ export default function WorkingDashboard() {
           ) : (
             <>
               {/* APK: the same title and date as the website, sized for the phone. */}
-              <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(t.frosted ? 26 : 22), letterSpacing: t.frosted ? -0.6 : 0 }}>{TAB_TITLES[tab]}</Text>
+              <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(26), letterSpacing: -0.6 }}>{TAB_TITLES[tab]}</Text>
               <Small>{new Date().toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</Small>
             </>
           )}
@@ -1552,7 +1552,7 @@ export default function WorkingDashboard() {
                 if (!used.length && !filters.subCategory) return null;
                 return (
                   <View style={{ marginBottom: 10 }}>
-                    <Small style={{ marginBottom: 5 }}>Sub category</Small>
+                    <Label>Sub category</Label>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                       {[['', 'All'], ...used.map((x) => [x, x]), ['__none', 'None chosen']].map(([v, label]) => (
                         <Pressable key={v || 'all'} onPress={() => setFilter({ subCategory: v })} accessibilityRole="button" accessibilityState={{ selected: filters.subCategory === v }} style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: (filters.subCategory || '') === v ? t.accent : t.surfaceAlt }}>
@@ -1563,7 +1563,7 @@ export default function WorkingDashboard() {
                   </View>
                 );
               })()}
-              <Small style={{ marginBottom: 5 }}>Due date</Small>
+              <Label>Due date</Label>
               <Segmented options={DUE_WITHIN_OPTIONS} value={filters.dueWithin} onChange={(v) => setFilter({ dueWithin: v })} style={{ marginBottom: 12 }} />
               </Card>
             )}
@@ -1717,7 +1717,7 @@ export default function WorkingDashboard() {
               <NarrationForm lead={[
               // Optional: pick an entry - its mail chain and saved narration come in, and the result can be saved back to it.
               <View key="entry">
-              <Small style={{ marginBottom: 5 }}>ENTRY (optional)</Small>
+              <Label>ENTRY (optional)</Label>
               {narrationEntry ? (
                 <Row style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <Text style={{ flex: 1, color: t.text, fontWeight: '700' }} numberOfLines={2}>{narrationEntry.title}</Text>

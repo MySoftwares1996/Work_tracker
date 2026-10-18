@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
 import { Card, Small, Btn, Field, Row } from '../ui';
 import { useTheme } from '../theme';
+import Icon from '../icons';
 import { addOption, removeOption, addSubCategory, addSubCategories, parseSubCategoryLines, applySubCategoryEdit, validateSubCategory, removeSubCategory, withCarrying } from '../listsCore';
 
 const DONE_STATUS = /^(completed?|done|closed)$/i;
@@ -11,10 +12,10 @@ export const LIST_META = [['categories', 'Categories'], ['priorities', 'Prioriti
 function Chip({ label, on, onPress, onRemove, small }) {
   const t = useTheme();
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
+    <Pressable onPress={onPress} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: on ? t.primaryDark : t.surface, borderWidth: 1, borderColor: on ? t.primaryDark : t.border }}>
       <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
       {!!small && <Text style={{ color: on ? '#fff' : t.textDim, fontSize: t.fs(11) }}>{small}</Text>}
-      {!!onRemove && <Pressable onPress={onRemove} hitSlop={8} accessibilityLabel={`Delete ${label}`}><Text style={{ color: on ? '#fff' : t.danger, fontWeight: '800' }}>✕</Text></Pressable>}
+      {!!onRemove && <Pressable onPress={onRemove} hitSlop={8} accessibilityLabel={`Delete ${label}`}><Icon name="close" size={13} color={on ? '#fff' : t.danger} stroke={2.6} /></Pressable>}
     </Pressable>
   );
 }
@@ -75,12 +76,12 @@ function SubEditor({ sc, subs, onSave, onCancel }) {
   return (
     <View style={{ marginTop: 8 }}>
       <Field label="SUB CATEGORY NAME" value={name} onChangeText={setName} />
-      <Small style={{ marginBottom: 6 }}>FIELDS TO FILL IN</Small>
+      <Small style={{ marginBottom: 6, fontWeight: '800', letterSpacing: 0.8 }}>FIELDS TO FILL IN</Small>
       {rows.map((r) => (
         <Row key={r.key} gap={6} style={{ alignItems: 'flex-start' }}>
           <Field style={{ flex: 1 }} value={r.label} onChangeText={(v) => setRow(r.key, { label: v })} placeholder="Field name" />
           <Field style={{ flex: 1 }} value={r.options} onChangeText={(v) => setRow(r.key, { options: v })} placeholder="Choices, comma separated" />
-          <Btn kind="soft" title="✕" onPress={() => setRows((x) => x.filter((y) => y.key !== r.key))} />
+          <Btn kind="soft" title="Remove" onPress={() => setRows((x) => x.filter((y) => y.key !== r.key))} />
         </Row>
       ))}
       {!rows.length && <Small style={{ marginBottom: 8 }}>No fields yet.</Small>}

@@ -3,6 +3,8 @@ import { View, Text, Pressable, AppState, StyleSheet, Alert, BackHandler } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Btn, Small } from './ui';
 import { useTheme } from './theme';
+import Icon from './icons';
+import { display } from './fonts';
 import { useStore } from './store';
 import { hasPin, setPin as savePin, verifyPin, pinLength, isBiometricAvailable, authenticateWithBiometric, authenticateDetailed, loadLockout, saveLockout, clearLockout } from './appLock';
 import { lockPhase, shouldRelock, PIN_MIN, PIN_MAX, lockoutMs } from './appLockCore';
@@ -111,8 +113,8 @@ function PinDots({ length, filled, error }) {
       {Array.from({ length }, (_, i) => (
         <View key={i} style={{
           width: 14, height: 14, borderRadius: 7,
-          backgroundColor: i < filled ? (error ? t.danger : t.accent) : 'transparent',
-          borderWidth: 2, borderColor: error ? t.danger : i < filled ? t.accent : t.border,
+          backgroundColor: i < filled ? (error ? t.danger : t.primary) : 'transparent',
+          borderWidth: 2, borderColor: error ? t.danger : i < filled ? t.primary : t.border,
         }} />
       ))}
     </View>
@@ -130,7 +132,7 @@ function PinPad({ onDigit, onBack, left }) {
       accessibilityLabel={opts.a11y || label}
       style={({ pressed }) => ({
         width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: onPress && !opts.plain ? (pressed ? t.accent + '33' : t.surfaceAlt) : 'transparent',
+        backgroundColor: onPress && !opts.plain ? (pressed ? t.tint : t.surfaceAlt) : 'transparent',
       })}
     >
       <Text style={{ color: t.text, fontSize: opts.small ? t.fs(15) : t.fs(26), fontWeight: '600' }}>{label}</Text>
@@ -227,8 +229,8 @@ function LockScreen({ name, biometricOn, onUnlock }) {
 
   return (
     <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-      <Text style={{ fontSize: t.fs(44) }}>🔒</Text>
-      <Text style={{ color: t.text, fontSize: t.fs(20), fontWeight: '800', marginTop: 10 }}>{name ? `Welcome back, ${name}` : 'Locked'}</Text>
+      <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}><Icon name="lock" size={40} color={t.primary} stroke={2} /></View>
+      <Text style={{ color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(26), letterSpacing: -0.4, marginTop: 14 }}>{name ? `Welcome back, ${name}` : 'Locked'}</Text>
       <Small style={{ marginTop: 4 }}>{canBio ? 'Use your fingerprint / face, or enter your PIN' : 'Enter your PIN'}</Small>
       <PinDots length={target} filled={pin.length} error={!!error} />
       <Small style={{ color: t.danger, minHeight: 18, marginTop: -10, marginBottom: 8 }}>
@@ -272,18 +274,18 @@ function LockSetup({ onDone, onSkip }) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
         <Text style={{ fontSize: t.fs(56), textAlign: 'center' }}>👆</Text>
-        <Text style={{ color: t.text, fontSize: t.fs(22), fontWeight: '800', textAlign: 'center', marginTop: 12 }}>Unlock with fingerprint or face?</Text>
+        <Text style={{ color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(26), letterSpacing: -0.4, textAlign: 'center', marginTop: 12 }}>Unlock with fingerprint or face?</Text>
         <Small style={{ textAlign: 'center', marginTop: 8 }}>Faster than typing your PIN every time. Your PIN still works as a backup.</Small>
         <Btn style={{ marginTop: 28 }} title="Use fingerprint / face" onPress={enableBiometric} />
-        <Btn style={{ marginTop: 10 }} kind="soft" title="PIN only" onPress={() => onDone({ pin: first, biometric: false })} />
+        <Btn style={{ marginTop: 10 }} kind="neutral" title="PIN only" onPress={() => onDone({ pin: first, biometric: false })} />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-      <Text style={{ fontSize: t.fs(44) }}>🛡️</Text>
-      <Text style={{ color: t.text, fontSize: t.fs(20), fontWeight: '800', marginTop: 10, textAlign: 'center' }}>
+      <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}><Icon name="lock" size={40} color={t.primary} stroke={2} /></View>
+      <Text style={{ color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(26), letterSpacing: -0.4, marginTop: 14, textAlign: 'center' }}>
         {step === 'create' ? 'Secure your app' : 'Confirm your PIN'}
       </Text>
       <Small style={{ marginTop: 4, textAlign: 'center' }}>
@@ -304,7 +306,7 @@ function LockSetup({ onDone, onSkip }) {
           onPress={() => { setFirst(pin); setPinText(''); setStep('confirm'); }}
         />
       )}
-      {step === 'create' && !!onSkip && <Btn style={{ marginTop: 8, alignSelf: 'stretch' }} kind="soft" title="Skip for now" onPress={onSkip} />}
+      {step === 'create' && !!onSkip && <Btn style={{ marginTop: 8, alignSelf: 'stretch' }} kind="neutral" title="Skip for now" onPress={onSkip} />}
     </SafeAreaView>
   );
 }

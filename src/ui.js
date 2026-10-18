@@ -36,9 +36,6 @@ export function usePressSpring(to = 0.96) {
   return { scale: v, onPressIn: () => go(to), onPressOut: () => go(1) };
 }
 
-/** Frosted-glass style for a bar: blur behind it on the website (and on iOS, where the style is honoured). */
-export const frost = (t) => (Platform.OS === 'web' && t.frosted ? { backdropFilter: 'blur(28px) saturate(180%)', WebkitBackdropFilter: 'blur(28px) saturate(180%)' } : null);
-
 /**
  * The floating tab bar at the foot of a tool (Working Dashboard's design, shared by every tool with tabs).
  * tabs: [{ key, label, icon }] - icon is a tabIcons.js name. badges: { [key]: number }.
@@ -50,7 +47,7 @@ export function BottomTabs({ tabs, value, onChange, badges = {} }) {
   if (wide) return <SideTabs tabs={tabs} value={value} onChange={onChange} badges={badges} />;
   // A phone (the APK, or a phone-width screen) with a short list of tabs: the app-style bar - edge to edge, the chosen tab in a soft pill.
   if (tabs.length <= 5) return <PhoneBar tabs={tabs} value={value} onChange={onChange} badges={badges} />;
-  // APK with many tabs: the website's side bar turned sideways - a frosted bar with the selected tab in an accent pill that glides.
+  // APK with many tabs: the side bar turned sideways - a bar with the selected tab in an accent pill that glides.
   if (Platform.OS !== 'web') return <AppTabs tabs={tabs} value={value} onChange={onChange} badges={badges} />;
   // The website opened on a phone: iOS-style tab bar, edge to edge, the selected tab in the accent colour.
   return (
@@ -60,7 +57,7 @@ export function BottomTabs({ tabs, value, onChange, badges = {} }) {
         position: 'absolute', left: 0, right: 0, bottom: 0,
         flexDirection: 'row', backgroundColor: t.bar, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 6), paddingHorizontal: 4,
         borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline,
-      }, frost(t)]}
+      }]}
     >
       {tabs.map((x) => <PhoneTab key={x.key} x={x} on={value === x.key} badge={badges[x.key]} onChange={onChange} crowded={tabs.length > 6} />)}
     </View>
@@ -78,7 +75,7 @@ function PhoneBar({ tabs, value, onChange, badges }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12) + 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: t.border }, frost(t)]}>
+    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12) + 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: t.border }]}>
       {tabs.map((x) => {
         const on = value === x.key;
         const badge = badges[x.key];
@@ -177,7 +174,7 @@ function SideTabs({ tabs, value, onChange, badges }) {
     if (reduceMotionCache) { slide.setValue(to); return; }
     Animated.spring(slide, { toValue: to, useNativeDriver: true, speed: 18, bounciness: 7 }).start();
   }, [index]); // eslint-disable-line react-hooks/exhaustive-deps
-  // macOS Sonoma's sidebar: frosted, a hairline edge, small rounded rows; the selected row takes the accent colour.
+  // The wide-screen side bar: a line on its edge, small rounded rows; the selected row takes the accent colour.
   return (
     <View
       accessibilityRole="tablist"
@@ -185,7 +182,7 @@ function SideTabs({ tabs, value, onChange, badges }) {
         position: 'absolute', left: 0, top: 0, bottom: 0, width: SIDE_BAR_WIDTH,
         backgroundColor: t.bar, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: t.sideEdge,
         paddingTop: 18, paddingBottom: 14, paddingHorizontal: 10,
-      }, frost(t)]}
+      }]}
     >
       <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(11), letterSpacing: 0.4, marginLeft: 10, marginBottom: 6 }}>WORKING DASHBOARD</Text>
       <View style={{ gap: SIDE_GAP }}>
@@ -230,7 +227,7 @@ export function Screen({ children, scroll = true, padded = true, headerless = fa
   const { wide, tablet } = useLayout();
   const sides = padded ? (wide ? 28 : 20) : 0;
   return (
-    <SafeAreaView style={[{ flex: 1, backgroundColor: t.bg }, t.bgGradient ? { backgroundImage: t.bgGradient } : null]} edges={edges}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }} edges={edges}>
       <Body
         style={{ flex: 1 }}
         contentContainerStyle={scroll ? [
@@ -965,7 +962,7 @@ export function OptionPicker({
 }
 
 /** The drop-down field: the current value, then a chevron. Used by every drop-down. */
-export function PickerButton({ text, dim, onPress, style, dense }) {
+export function PickerButton({ text, dim, onPress, style, dense, noChevron }) {
   const t = useTheme();
   return (
     <Pressable
@@ -978,7 +975,7 @@ export function PickerButton({ text, dim, onPress, style, dense }) {
       }, style]}
     >
       <Text numberOfLines={1} style={{ color: dim ? t.textDim : t.text, fontWeight: '600', fontSize: t.fs(dense ? 12.5 : 14.5), flex: 1 }}>{text}</Text>
-      <Icon name="chevronDown" size={16} color={t.textDim} stroke={2} style={{ marginLeft: 4 }} />
+      {!noChevron && <Icon name="chevronDown" size={16} color={t.textDim} stroke={2} style={{ marginLeft: 4 }} />}
     </Pressable>
   );
 }

@@ -51,9 +51,11 @@ Several sessions have changed the alert code; check this list before changing it
 
 ## Look and feel - the phone follows the website
 
-- One "modern" look (Config > Appearance > Interface style; "Classic" turns it off): Pearl with a tinted backdrop, 12px corners,
-  soft shadows, compact stat tiles, a priority dot instead of a card stripe, the sliding accent pill in the tab bar / side bar,
-  automatic dark mode. Shared pieces: `src/theme.js` (SKIN), `src/ui.js` (BottomTabs / AppTabs / SideTabs, Card, Btn, Field, Sheet).
+- One look, "Ledger" (the owner approved the redesign; the older Pearl / Glass / Warm looks and the "Classic" switch are gone, stored theme
+  keys are mapped by `themeKeyOf`): warm paper ground, flat white cards with a 1px line, Fraunces titles and big numbers, Manrope for the rest,
+  the sliding accent pill kept only for the tablet / side bar. Shared pieces: `src/themeTokens.js` (tokens, six themes, dark twins; plain data so
+  the tests read it) re-exported by `src/theme.js` (provider), `src/icons.js` (the line icons), `src/fonts.js`, `src/ui.js` (PhoneBar, Card, Btn,
+  Field, Chip, Segmented, Sheet, Group / Item, EmptyState, SearchField, Toggle), `src/screens/wdCards.js` (PhoneHeader, PhoneKpi, PhoneRow, PhoneDoneRow, Fab).
 - Website only: macOS frosted side bar, sticky top bar, hover lift, Links / Narration tabs, wide-screen dashboard columns.
 - APK and phone width: the same tiles, cards, finder (search button in the header, `src/CommandPalette.js`) and Register / Completed
   table switch (`src/EntryTable.js`); the APK tab bar is `AppTabs` in `src/ui.js`.
@@ -97,7 +99,17 @@ The due date quick picks also offer "Month end -1 ... -5" (a drop-down): the las
 
 The owner chose the "UI Studio" designs: Dashboard = Option 1 (Classic Enhanced: 11 pastel tiles, this / next month breakdown cards, Needs attention / Due today rows with Done and DAR buttons) and Register = plain card grid ("A": three across on the website; the phone has All / Overdue / Today chips). The phone has no Quick add bar (the owner asked).
 
-Phone look: the owner chose style E from the style studio - the "Warm" theme (`warm` in `src/theme.js`: cream backdrop, burnt-orange accent #C2410C and text #7A5C45 - darkened from the studio's values to pass 4.5:1 contrast, 18px corners, orange-tinted shadows; the default for the phone, replaces an unpicked Pearl) - and wants the signed-in user's name chip top right of the app bar on every phone screen (`userLabel` in `WorkingDashboard.js`). Layouts follow preview E too: title + subtitle header, plain tiles, flat cards with Done / DAR (`PhoneKpi`, `PhoneRow card`, `PhoneDoneRow` in `wdCards.js`).
+Phone look - "Ledger", Forest by default (replaces the Warm theme): ground #F7F5EF, card #FFFFFF, soft fill #EFEBDF, line #E4E0D4, ink #16231F, muted #5E6B66,
+primary #0B6B52, primaryDark #123A2F (hero panel, selected chips, profile card, Welcome), primaryTint #E3F1EC / #0B5A45, mint #9BD3BF, danger #B42318, amber #C27A0E
+(dots; `t.warn` is the text-safe #8F5806); cards radius 20, hero 24, buttons and fields 14, no shadows (only the + button has a soft one). Config > Appearance has six colour
+swatches (Forest, Harbour, Plum, Ember, Ink, Rose - each swaps primary / primaryDark / tint), "Follow the phone's dark mode" (`settings.followDark`, every theme has a dark twin) and
+Text size (`settings.fontLevel`). Tokens and the 4.5:1 contrast check live in `src/themeTokens.js` / `tests/suites/ledger-theme.mjs`; screens read `t.*` only (`t.primary`, `t.primaryDark`,
+`t.tint`, `t.tintText`, `t.mint`, `t.heroDim`, `t.dangerTint`, `t.prioDot`, `t.fontDisplay`). Fonts: `@expo-google-fonts/fraunces` (titles, big numbers: `display()`) and `manrope`
+(`src/fonts.js` loads them with `useAppFonts` in `App.js` - never blocking, the system font is the fallback - and `patchText()` gives every `<Text>` without a family the Manrope
+weight of its fontWeight; a TextInput sets `fontFamily: ff(600)` itself). Chrome icons are `src/icons.js` line icons (no emoji in the chrome). The signed-in name chip sits top right of the
+app bar on every phone screen with the search and meeting-mode circles (`PhoneHeader`, `userLabel` in `WorkingDashboard.js`). Layouts follow the artboards: Home (hero panel, three tinted tiles, Needs attention), Tasks (search, All / Overdue /
+Today / Week chips, cards with Done / DAR), the entry form (2-up category / pending, priority buttons, due row, notes, MORE DETAILS pills opening popups, sticky Cancel / Save), Report (day strip,
+four count boxes, white report card, Copy report / Rewrite with AI bar), Done, More (dark profile card), Config, the full-screen alert (colour by priority) and Welcome (`WdFormBits.js` has the form's pills).
 
 Sync: a phone push sends only the fields that changed since the phone last saw the server's copy (`diffWebDoc` in `firebaseSyncCore.js`, snapshot `MPT_RT_SNAP_<uid>`), so an offline phone no longer undoes web edits; unsent work for an account that is signed out is kept under `MPT_UNSYNCED_<uid>` (`account.js`).
 

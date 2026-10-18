@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Field, Small, Row, Btn, Sheet, PickerButton, Choices, useLayout } from '../ui';
+import { Field, Small, Label, Row, Btn, Sheet, PickerButton, Choices, useLayout } from '../ui';
+import Icon from '../icons';
 import { useTheme } from '../theme';
 import { useStore } from '../store';
 import { recordNarration, toggleFav, removeHistory } from '../narrationHistory';
@@ -16,7 +17,7 @@ function InlinePick({ label, value, placeholder = 'Select', options, onChange })
   const shown = (options.find(([k]) => k === value) || [])[1] || value;
   return (
     <View style={{ marginBottom: 12 }}>
-      <Small style={{ marginBottom: 5 }}>{label}</Small>
+      <Label>{label}</Label>
       <PickerButton text={shown || placeholder} dim={!shown} onPress={() => setOpen((v) => !v)} />
       {open && (
         <View style={{ marginTop: 6 }}>
@@ -127,19 +128,19 @@ export function NarrationForm({ nd, setNd, lists, subText = '', mailChain = '', 
         <Pressable onPress={() => setNd({ includeMail: !nd.includeMail })} accessibilityRole="checkbox" accessibilityState={{ checked: !!nd.includeMail }}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <View style={{ width: 22, height: 22, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: nd.includeMail ? t.accent : 'transparent', borderWidth: nd.includeMail ? 0 : 2, borderColor: t.accent }}>
-            {!!nd.includeMail && <Text style={{ color: '#fff', fontWeight: '900', fontSize: t.fs(12) }}>✓</Text>}
+            {!!nd.includeMail && <Icon name="check" size={14} color={t.onAccent} stroke={3} />}
           </View>
           <Text style={{ color: t.text, fontSize: t.fs(14) }}>Include mail chain</Text>
         </Pressable>
-        <Small style={{ marginBottom: 5 }}>GENERATED NARRATION</Small>
+        <Label>GENERATED NARRATION</Label>
         <Row gap={6} style={{ alignItems: 'flex-start' }}>
           <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: t.surfaceAlt }}>
             <Text style={{ color: t.text, fontSize: t.fs(13.5) }} selectable>{preview}</Text>
             {!!missing.length && <Text style={{ color: t.warn, fontSize: t.fs(12), marginTop: 6, fontWeight: '700' }}>Still blank: {missing.join(', ')}</Text>}
           </View>
           <Pressable accessibilityLabel="Copy narration" onPress={onCopy}
-            style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent + '1F' }}>
-            <Text style={{ color: t.accent, fontSize: t.fs(16) }}>⧉</Text>
+            style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.tint }}>
+            <Icon name="copy" size={19} color={t.tintText} stroke={1.9} />
           </Pressable>
         </Row>
       </View>

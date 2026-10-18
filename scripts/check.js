@@ -208,7 +208,7 @@ const FORBIDDEN = [
   // The photo editor is a fixed dark surface on purpose (a photo reads best on
   // near-black whatever the app theme); only its accent follows the theme.
   // The browser's Alert dialog (platformSetup.web.js) is plain page CSS, outside the app's theme.
-  [/#[0-9A-Fa-f]{6}/, 'hardcoded colour (use the theme)', (f) => !/theme\.js|charts\.js|colour\.js|ErrorBoundary\.js|ImageEditor\.js|imageEditorHtml\.js|platformSetup\.web\.js/.test(f)],
+  [/#[0-9A-Fa-f]{6}/, 'hardcoded colour (use the theme)', (f) => !/theme\.js|themeTokens\.js|charts\.js|colour\.js|ErrorBoundary\.js|ImageEditor\.js|imageEditorHtml\.js|platformSetup\.web\.js/.test(f)],
 ];
 for (const f of files) {
   const src = fs.readFileSync(f, 'utf8');
