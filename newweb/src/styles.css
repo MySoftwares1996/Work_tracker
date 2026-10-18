@@ -820,3 +820,39 @@ textarea.auto, .sheet.wide .col textarea.auto, .sheet.wide .cols3 > .col:first-c
 
 /* Keyboard users can always see where they are (buttons, links, fields, anything focusable). */
 :where(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+
+/* ---- empty states, skeleton rows, bulk selection, notification explainer ---- */
+.empty-state { padding: 34px 22px; gap: 6px; background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.empty-icon { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: color-mix(in srgb, var(--violet) 14%, var(--surface)); color: var(--violet); margin-bottom: 4px; }
+.empty-title { margin: 0; font-size: 18px; color: var(--ink); }
+.empty-state .btn { margin-top: 8px; }
+.list > .empty-state, .two .empty-state { padding: 22px 16px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.skeleton-card { min-height: 110px; padding: 16px; gap: 10px; border-left-color: var(--line); box-shadow: none; border: 1px solid var(--line); }
+.skeleton-list.list { display: flex; flex-direction: column; gap: 10px; }
+.skeleton-list.list .skeleton-card { min-height: 64px; padding: 12px 14px; }
+.sk { display: block; height: 12px; border-radius: 8px; background: linear-gradient(90deg, color-mix(in srgb, var(--ink) 7%, transparent) 25%, color-mix(in srgb, var(--ink) 14%, transparent) 50%, color-mix(in srgb, var(--ink) 7%, transparent) 75%); background-size: 200% 100%; animation: sk-shimmer 1.4s linear infinite; }
+.sk-title { width: 62%; height: 16px; }
+.sk-line { width: 90%; }
+.sk-chips { width: 40%; height: 18px; border-radius: 999px; }
+@keyframes sk-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
+.sel-box { position: absolute; top: 12px; right: 12px; z-index: 2; width: 20px; height: 20px; margin: 0; accent-color: var(--violet); cursor: pointer; opacity: 0; transition: opacity 0.12s; }
+.card:hover .sel-box, .sel-box:focus-visible, .sel-box:checked, .card.selecting .sel-box { opacity: 1; }
+@media (hover: none) { .sel-box { opacity: 1; } }
+.card.is-selected { box-shadow: 0 0 0 2px var(--violet), var(--shadow); }
+.card.is-selected .card-title { padding-right: 26px; }
+.sel-col { width: 34px; }
+td.sel-col .sel-box, th.sel-col .sel-box { position: static; opacity: 1; }
+tr.is-selected td { background: color-mix(in srgb, var(--violet) 8%, transparent); }
+.bulk-bar { position: sticky; bottom: 16px; z-index: 14; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: fit-content; max-width: 100%; margin: 18px auto 0; padding: 10px 14px; background: var(--surface); border: 1.5px solid var(--violet); border-radius: 16px; box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22); }
+.bulk-count { margin-right: 4px; }
+.bulk-move { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
+.bulk-move input { border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 8px; background: var(--surface); color: var(--ink); font: inherit; }
+
+.notify-card { width: min(420px, 100%); }
+.notify-body { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 24px 24px 8px; }
+.notify-body h2 { margin: 4px 0 0; font-size: 20px; }
+.notify-body p { margin: 0; color: var(--muted); }

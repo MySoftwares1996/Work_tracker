@@ -81,7 +81,11 @@ export default function AlertCenter({ onOpen }) {
     return () => { document.title = base; };
   }, [current]);
 
-  if (!current) return null;
+  const explained = (r) => {
+    setExplain(false);
+    if (r === 'granted') { saveAlertSettings({ ...loadAlertSettings(), notify: true }); setSettings(loadAlertSettings()); window.dispatchEvent(new Event('wd-alert-settings')); }
+  };
+  if (!current) return explain && shouldOfferExplainer() ? <NotifyExplainer onDone={explained} /> : null;      // after the alert is dealt with, not on top of it
   const finish = (a) => { handled.current.set(a.key, Date.now()); saveHandled(handled.current); setQueue((q) => q.filter((x) => x.key !== a.key)); };
   return <AlertCard key={current.key} a={current} count={live.length} lists={lists} actions={actions} finish={finish} onOpen={onOpen} notify={notify} />;
 }

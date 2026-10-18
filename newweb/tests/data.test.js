@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
+import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveDueDate } from '../src/bulk.js';
 import { webBackup } from '../src/exportBackup.js';
 import { formatsAfterEdit, removedFormat } from '../src/reportFormats.js';
 import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS, effectiveFormats } from '../src/reportFormats.js';
@@ -711,4 +712,43 @@ test('removing a sample report format writes the phone\'s marker and keeps the o
   assert.ok(!saved.some((f) => f.removed && f.subCategory === 'ESI'));
   assert.equal(effectiveFormats(saved).find((f) => f.subCategory === 'ESI').template, 'ESI paid {Amount}');
   assert.equal(formatsAfterEdit(after, { subCategory: 'esi' }, '').filter((f) => f.removed).length, 2);
+});
+
+test('bulk selection: toggling and keeping only the rows still shown', () => {
+  const a = task({ id: 'a' }); const b = task({ id: 'b' });
+  let sel = toggleSelected(new Set(), 'a');
+  sel = toggleSelected(sel, 'b');
+  assert.deepEqual([...sel], ['a', 'b']);
+  assert.deepEqual([...toggleSelected(sel, 'a')], ['b']);
+  assert.deepEqual(selectedRows([b], sel).map((t) => t.id), ['b']);
+});
+
+test('bulk Done skips tasks whose Sub Category still needs fields', () => {
+  const lists = { ...DEFAULT_LISTS, subCategories: [{ id: 's', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] }] };
+  const needs = task({ id: 'n', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: {} });
+  const filled = task({ id: 'f', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: { 'Vendor Name': 'Acme' } });
+  const plain = task({ id: 'p' });
+  const { doable, skipped } = planBulkComplete([needs, filled, plain], lists);
+  assert.deepEqual(doable.map((t) => t.id), ['f', 'p']);
+  assert.deepEqual(skipped.map((t) => t.id), ['n']);
+  assert.equal(bulkCompleteNote(2, 0, false), '2 tasks marked done');
+  assert.equal(bulkCompleteNote(1, 0, true), '1 task marked DAR');
+  assert.match(bulkCompleteNote(2, 1, false), /2 tasks marked done; 1 skipped/);
+  assert.match(bulkCompleteNote(0, 3, true), /^3 skipped/);
+});
+
+test('bulk Move date keeps the time of day, clears a snooze and ignores bad dates', () => {
+  const timed = task({ due: new Date(2026, 9, 15, 17, 30), hasTime: true, snoozeUntil: 5, lastAckDate: '2026-10-15' });
+  const m = moveDueDate(timed, '2026-11-02');
+  assert.equal(dayKey(m.due), '2026-11-02');
+  assert.equal(m.due.getHours(), 17);
+  assert.equal(m.due.getMinutes(), 30);
+  assert.equal(m.hasTime, true);
+  assert.equal(m.snoozeUntil, 0);
+  const dateOnly = moveDueDate(task({ due: new Date(2026, 9, 15), hasTime: false }), '2026-10-20');
+  assert.equal(dayKey(dateOnly.due), '2026-10-20');
+  assert.equal(dateOnly.hasTime, false);
+  assert.equal(moveDueDate(task({ due: null }), '2026-10-20').hasTime, false);
+  assert.equal(moveDueDate(timed, 'nonsense'), timed);
+  assert.equal(moveDueDate(timed, '2026-02-31'), timed);
 });

@@ -352,29 +352,29 @@ export async function runExtra3({ ck, section }) {
 
   section('Storage: sync bookkeeping is cleared with everything, and an account switch keeps the unsent copy');
   const sc2 = await import('../../src/storeCore.js');
-  const keys = ['MPT_DB_V1', 'MPT_RT_ACK_u1', 'MPT_RT_SNAP_u1', 'MPT_UNSYNCED_u1', 'MPT_CORRUPT_SEEN', 'MPT_CORRUPT_MPT_X_5', 'MPT_OTHER'];
-  const all = sc2.syncStateKeys(keys);
-  ck('every sync key and recovery copy is listed', all.length === 5 && !all.includes('MPT_OTHER') && !all.includes('MPT_DB_V1'));
-  const acct = await import('../../src/account.js');
-  const store = new Map([['MPT_RT_ACK_u1', '{}'], ['MPT_RT_SNAP_u1', '{}'], ['MPT_UNSYNCED_u1', '{}'], ['MPT_RT_SNAP_u2', '{}'], ['MPT_DB_V1', '{}']]);
-  const fake = { getAllKeys: async () => [...store.keys()], multiRemove: async (ks) => ks.forEach((k) => store.delete(k)) };
-  const cleared = await acct.clearSyncState({ uid: 'u1', storage: fake });
-  ck('a sign-out wipe clears ack and snapshot but keeps the unsent copy and other accounts', cleared.length === 2 && store.has('MPT_UNSYNCED_u1') && store.has('MPT_RT_SNAP_u2') && !store.has('MPT_RT_SNAP_u1'));
-  await acct.clearSyncState({ includeUnsynced: true, storage: fake });
-  ck('with includeUnsynced everything of every account goes, the data itself stays', !store.has('MPT_UNSYNCED_u1') && !store.has('MPT_RT_SNAP_u2') && store.has('MPT_DB_V1'));
+  const keys2 = ['MPT_DB_V1', 'MPT_RT_ACK_u1', 'MPT_RT_SNAP_u1', 'MPT_UNSYNCED_u1', 'MPT_CORRUPT_SEEN', 'MPT_CORRUPT_MPT_X_5', 'MPT_OTHER'];
+  const all2 = sc2.syncStateKeys(keys2);
+  ck('every sync key and recovery copy is listed', all2.length === 5 && !all2.includes('MPT_OTHER') && !all2.includes('MPT_DB_V1'));
+  const acct2 = await import('../../src/account.js');
+  const st2 = new Map([['MPT_RT_ACK_u1', '{}'], ['MPT_RT_SNAP_u1', '{}'], ['MPT_UNSYNCED_u1', '{}'], ['MPT_RT_SNAP_u2', '{}'], ['MPT_DB_V1', '{}']]);
+  const fake2 = { getAllKeys: async () => [...st2.keys2()], multiRemove: async (ks) => ks.forEach((k) => st2.delete(k)) };
+  const cleared = await acct2.clearSyncState({ uid: 'u1', storage: fake2 });
+  ck('a sign-out wipe clears ack and snapshot but keeps the unsent copy and other accounts', cleared.length === 2 && st2.has('MPT_UNSYNCED_u1') && st2.has('MPT_RT_SNAP_u2') && !st2.has('MPT_RT_SNAP_u1'));
+  await acct2.clearSyncState({ includeUnsynced: true, storage: fake2 });
+  ck('with includeUnsynced everything of every account goes, the data itself stays', !st2.has('MPT_UNSYNCED_u1') && !st2.has('MPT_RT_SNAP_u2') && st2.has('MPT_DB_V1'));
 
   section('Storage: recovery copies are capped at 3 per key, one per distinct damage');
   const cp = sc2.corruptCopyPlan;
-  let seenC = {}; let wr = 0; let dr = [];
-  for (let i = 1; i <= 8; i++) { const p = cp([['MPT_X', 'bad' + i]], seenC, i); seenC = p.seen; wr += p.writes.length; dr = dr.concat(p.drop); }
-  ck('8 different damages: 8 writes, only the newest 3 remain', wr === 8 && seenC.MPT_X.copies.length === 3 && dr.length === 5 && seenC.MPT_X.copies[2] === 'MPT_CORRUPT_MPT_X_8');
-  const again = cp([['MPT_X', 'bad8']], seenC, 9);
+  let seenC2 = {}; let wr = 0; let dr = [];
+  for (let i = 1; i <= 8; i++) { const p = cp([['MPT_X', 'bad' + i]], seenC2, i); seenC2 = p.seen; wr += p.writes.length; dr = dr.concat(p.drop); }
+  ck('8 different damages: 8 writes, only the newest 3 remain', wr === 8 && seenC2.MPT_X.copies.length === 3 && dr.length === 5 && seenC2.MPT_X.copies[2] === 'MPT_CORRUPT_MPT_X_8');
+  const again = cp([['MPT_X', 'bad8']], seenC2, 9);
   ck('the same damage again writes nothing and drops nothing', !again.writes.length && !again.drop.length);
-  const two = cp([['MPT_X', 'bad9'], ['MPT_Y', 'oops']], seenC, 10);
+  const two = cp([['MPT_X', 'bad9'], ['MPT_Y', 'oops']], seenC2, 10);
   ck('each key has its own cap', two.writes.length === 2 && two.seen.MPT_Y.copies.length === 1 && two.seen.MPT_X.copies.length === 3);
-  const old = ['MPT_CORRUPT_MPT_X_1', 'MPT_CORRUPT_MPT_X_2', 'MPT_CORRUPT_MPT_X_3', 'MPT_CORRUPT_MPT_X_4', 'MPT_CORRUPT_MPT_XY_9', 'MPT_CORRUPT_MPT_Z_1'];
-  const pruned = cp([['MPT_X', 'bad']], {}, 99, 3, old);
+  const old2 = ['MPT_CORRUPT_MPT_X_1', 'MPT_CORRUPT_MPT_X_2', 'MPT_CORRUPT_MPT_X_3', 'MPT_CORRUPT_MPT_X_4', 'MPT_CORRUPT_MPT_XY_9', 'MPT_CORRUPT_MPT_Z_1'];
+  const pruned = cp([['MPT_X', 'bad']], {}, 99, 3, old2);
   ck('copies from a previous app version (no ledger) are pruned, oldest first', pruned.drop.join() === 'MPT_CORRUPT_MPT_X_1,MPT_CORRUPT_MPT_X_2' && pruned.seen.MPT_X.copies.join() === 'MPT_CORRUPT_MPT_X_3,MPT_CORRUPT_MPT_X_4,MPT_CORRUPT_MPT_X_99');
-  const prunedSame = cp([['MPT_X', 'bad']], pruned.seen, 100, 3, [...old.slice(2, 4), 'MPT_CORRUPT_MPT_X_99']);
+  const prunedSame = cp([['MPT_X', 'bad']], pruned.seen, 100, 3, [...old2.slice(2, 4), 'MPT_CORRUPT_MPT_X_99']);
   ck('a later launch with the same damage leaves it at 3', !prunedSame.writes.length && !prunedSame.drop.length);
 }
