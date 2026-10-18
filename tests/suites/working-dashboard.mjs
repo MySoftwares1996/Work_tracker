@@ -327,7 +327,7 @@ export async function runExtra2({ ck, section }) {
   {
     section('Working Dashboard: Alarm or Reminder, per task');
     const { alertModeOf, ALERT_MODES, entryAlertPlan, blankEntry } = await import('../../src/workingDashboard.js');
-    const { fromWebDocOver, toWebTask, mergeSheetPull } = await import('../../src/cloudSync.js');
+    const { fromWebDocOver, toWebTask } = await import('../../src/cloudSync.js');
     const now = new Date(2026, 9, 5, 9, 0);
     const base = { id: 'a1', title: 'Pay vendor', dueAt: new Date(2026, 9, 5, 15, 0).toISOString(), done: false, binned: false };
     const alarm = entryAlertPlan({ ...base, alertMode: 'alarm' }, now);
@@ -350,8 +350,6 @@ export async function runExtra2({ ck, section }) {
     ck('the choice is sent to the web app with the task', doc.alertMode === 'gentle');
     const back = fromWebDocOver({ ...base, alertMode: 'gentle' }, { ...doc, alertMode: undefined }, blankEntry());
     ck('a web copy without the field keeps the phone\'s choice', back.alertMode === 'gentle');
-    const pulled = mergeSheetPull([{ ...base, alertMode: 'gentle', src: 'cloud', updatedAt: '2026-10-01T00:00:00Z' }], [{ ...base, updatedAt: '2026-10-05T00:00:00Z' }]);
-    ck('a newer sheet row keeps the choice (the sheet has no column for it)', pulled.entries[0].alertMode === 'gentle');
   }
 
   {

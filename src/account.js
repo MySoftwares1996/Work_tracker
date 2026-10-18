@@ -10,13 +10,13 @@ import { DEFAULT_DB, syncStateKeys } from './storeCore';
 import { dirtyEntries, ackKey, raceTimeout } from './firebaseSyncCore';
 
 /*
- * What belongs to an account (its tasks, lists, holidays, sync state and its own Apps Script). Everything else in
+ * What belongs to an account (its tasks, lists, holidays and sync state). Everything else in
  * workingDashboard - alert timings, reminders, the alarm sound, sort order - is how this device behaves, and stays.
  */
 export const ACCOUNT_KEYS = [
   'entries', 'categories', 'priorities', 'statuses', 'assignees', 'holidays', 'leaveDays', 'fixedActivities',
-  'activityLog', 'cloudSyncUrl', 'paymentIntro', 'subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories',
-  'listsUpdatedAt', 'calendarUpdatedAt', 'deletedIds', 'purgedIds', 'lastSheetPullAt', 'reportSamplesLocal',
+  'activityLog', 'paymentIntro', 'subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories',
+  'listsUpdatedAt', 'calendarUpdatedAt', 'deletedIds', 'purgedIds',
   'links', 'reportAiNotes', 'reportAiNotesSummary', 'templates', 'reportFormats', 'formatSetupAt', 'narrationHistory', 'undoHistory', 'toolsStamps', 'toolsUpdatedAt',
 ];
 

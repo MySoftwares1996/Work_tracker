@@ -1,10 +1,8 @@
 /**
  * Gmail "Fetch Mail", plus the pure mapping from a fetched email into a draft Working Dashboard entry ("Add task").
  *
- * With no Apps Script (`baseUrl` empty) the mail comes straight from Gmail with the person's own Google sign-in
- * (gmailApi.js) - nothing to set up. Someone who added their own script in Config > Cloud Sync keeps using it.
+ * The mail comes straight from Gmail with the person's own Google sign-in (gmailApi.js) - nothing to set up.
  */
-import { cloudGet } from './cloudSync';
 import { blankEntry } from './workingDashboard';
 
 async function gmail() {
@@ -13,22 +11,19 @@ async function gmail() {
   return { api, token };
 }
 
-export async function fetchUnreadEmails(baseUrl, opts) {
-  if (!baseUrl) { const { api, token } = await gmail(); return api.listUnread(token); }
-  const data = await cloudGet(baseUrl, { action: 'fetchEmails' }, opts);
-  if (!data || data.status !== 'success') throw new Error((data && data.message) || 'Could not fetch mail.');
-  return data.emails || [];
+export async function fetchUnreadEmails() {
+  const { api, token } = await gmail();
+  return api.listUnread(token);
 }
 
-export async function markEmailRead(baseUrl, id, opts) {
-  if (!baseUrl) { const { api, token } = await gmail(); await api.markRead(token, id); return; }
-  await cloudGet(baseUrl, { action: 'markEmailRead', id }, opts);
+export async function markEmailRead(id) {
+  const { api, token } = await gmail();
+  await api.markRead(token, id);
 }
 
-export async function fetchEmailBody(baseUrl, id, opts) {
-  if (!baseUrl) { const { api, token } = await gmail(); return api.messageText(token, id); }
-  const data = await cloudGet(baseUrl, { action: 'emailBody', id }, opts);
-  return (data && data.status === 'success') ? (data.body || '') : '';
+export async function fetchEmailBody(id) {
+  const { api, token } = await gmail();
+  return api.messageText(token, id);
 }
 
 export function filterEmails(emails = [], query = '') {

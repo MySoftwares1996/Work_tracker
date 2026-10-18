@@ -16,7 +16,7 @@ import { loadAll, assemble, writeStored, SLICES } from './storeCore';
 import { completeEntry, withCompletedAt, nextRecurringEntry, isOpen, blankEntry, snoozeEntry, editedNow, normalizeHolidays, normalizeLeaveDays, setAlertOffDays } from './workingDashboard';
 import { cancelEntryAlert, snoozeEntryAlert, scheduleEntryAlert, syncEntryAlerts, planAll, readSnoozes, WD_DONE, WD_DAR, WD_SNOOZE, WD_SNOOZE_MIN, WD_REMIND, WD_RING } from './workingDashboardNotify';
 import { stopAlarmRinging } from './tracker';
-import { pullSheetEntries, mergeSheetPull, isValidScriptUrl, fromWebDocOver } from './cloudSync';
+import { fromWebDocOver } from './cloudSync';
 import { mergeRemoteEntries, applyRemovedIds } from './firebaseSyncCore';
 import { warnQuiet } from './quietCatch';
 
@@ -151,25 +151,13 @@ export const WD_REFRESH_TASK = 'PT_WD_ALERT_REFRESH';
 const SIG_KEY = 'MPT_WD_ALERT_SIG';
 
 /**
- * Books the alerts again from what is stored, after first adding any entry the
- * web app created since the app last ran (read from the Google Sheet; only new
- * entries are added, nothing the phone has is replaced). Skipped when the
+ * Books the alerts again from what is stored, after first reading the web app's edits since the app last ran
+ * (Realtime Sync, when signed in). Skipped when the
  * alerts would come out the same as last time.
  */
 export async function refreshWdAlerts({ pull = true, force = false, wd: given = null } = {}) {
   let wd = given || await readWd();      // the app passes what it holds; reading every stored collection costs more
   if (!given) setAlertOffDays(wd.holidays, wd.leaveDays);     // with the app closed: quiet hours' off days
-  if (pull && isValidScriptUrl(wd.cloudSyncUrl || '')) {
-    try {
-      const res = await pullSheetEntries(wd.cloudSyncUrl, blankEntry());
-      if (res.ok && res.tasks.length) {
-        const pull = (entries) => mergeSheetPull(entries, res.tasks, wd.lastSheetPullAt || 0, wd.purgedIds || [], { addOnly: true });
-        const added = pull(wd.entries || []).added;      // counted from what was read; the updater below stays pure
-        await changeEntries((entries) => { const merged = pull(entries); return merged.added ? merged.entries : null; });
-        if (added) wd = live ? wd : await readWd();
-      }
-    } catch { /* offline: book from what is stored */ }
-  }
   // Signed in to Realtime Sync: the web app's edits since the app last ran (a task done, moved or changed there) are
   // read now, so the alerts booked below are the current ones and not the old ones that would ring for nothing.
   if (pull && wd.accountUid) {

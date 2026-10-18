@@ -1,6 +1,5 @@
 /**
- * Fetch Mail straight from Gmail, with the person's own Google sign-in - no Apps Script to set up. Returns mail in
- * the same shape the Apps Script did ({ id, subject, sender, date, body }), so the screens are unchanged.
+ * Fetch Mail straight from Gmail, with the person's own Google sign-in. Returns mail as { id, subject, sender, date, body }.
  *
  * `token` is a Google access token allowing GMAIL_SCOPE (firebaseSync.getGoogleAccessToken). `fetchImpl` is
  * injectable for the tests.

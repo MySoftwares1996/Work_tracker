@@ -1,120 +1,10 @@
 import { normalizeKeyPoints } from './workingDashboardPayments';
 
 /**
- * Generic client for the user's existing Apps Script web app (the Google
- * Sheets delta-sync / Gmail / Gemini backend they already run for their web
- * app) - the request/response mechanics shared by Cloud Sync, Gmail Fetch
- * Mail and the AI Daily Report. Kept pure and fetch-injectable so it is
- * testable without a network, the same way every other module here is.
+ * Converters between the phone's entries and the web app's task documents (Firestore, users/{uid}/tasks), used by
+ * Realtime Sync (firebaseSync*.js, RealtimeSync.js). Pure, so they are testable without a network.
+ * (The name is from the Google Sheet days: the readers below still accept sheet-style column names.)
  */
-
-export const SCRIPT_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/;
-export const isValidScriptUrl = (url) => SCRIPT_URL_RE.test(String(url || '').trim());
-
-export function buildGetUrl(baseUrl, params = {}) {
-  const url = String(baseUrl || '').trim();
-  if (!url) return '';
-  const q = Object.keys(params).map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
-  return q ? `${url}?${q}` : url;
-}
-
-/** Turns Google's HTML error page into a plain, specific instruction. */
-export function explainHtmlReply(html) {
-  const t = String(html || '');
-  const title = ((/<title[^>]*>([^<]*)<\/title>/i.exec(t) || [])[1] || '').trim();
-  const text = t.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 1500);
-  const low = (title + ' ' + text).toLowerCase();
-  if (/accounts\.google\.com|sign in|servicelogin/.test(low)) {
-    return 'Google asked for a sign-in — in Apps Script set Deploy > Manage deployments > Edit > Who has access: Anyone.';
-  }
-  if (/authori[sz]ation required|needs? permission|access denied|\b403\b/.test(low)) {
-    return 'The script needs your permission again — open Apps Script, press Run on any function and approve.';
-  }
-  if (/too many times|quota|rate limit|\b429\b/.test(low)) {
-    return 'Google is rate-limiting the script for a while — retrying automatically, more slowly.';
-  }
-  if (/unable to open the file at this time|try again|temporar|\bbusy\b|\b50[023]\b/.test(low)) {
-    return 'Google Apps Script was busy for a moment (temporary) — retrying automatically.';
-  }
-  return `Google returned a temporary error page${title ? ` ("${title}")` : ''} — retrying automatically.`;
-}
-
-export function parseCloudResponse(text) {
-  try { return JSON.parse(text); } catch { throw new Error(explainHtmlReply(text)); }
-}
-
-const DEFAULT_TIMEOUT_MS = 30000;
-
-const TOO_SLOW = 'Google took too long to answer — try again in a moment.';
-
-/**
- * One request, its body included, in `timeoutMs`: past that the request is aborted (where fetch supports it) and the
- * call fails. The body read used to sit outside the timeout, so a script that sent headers and then stalled hung the sync.
- */
-async function fetchText(url, init, { fetchImpl, timeoutMs }) {
-  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-  let timer;
-  const guard = new Promise((_, reject) => {
-    timer = setTimeout(() => { try { if (ctrl) ctrl.abort(); } catch { /* nothing to abort */ } reject(new Error(TOO_SLOW)); }, timeoutMs);
-  });
-  const work = (async () => {
-    const res = await fetchImpl(url, ctrl ? { ...init, signal: ctrl.signal } : init);
-    return res.text();
-  })();
-  work.catch(() => {});             // a failure that comes after the timeout is not an unhandled rejection
-  try { return await Promise.race([work, guard]); } finally { clearTimeout(timer); }
-}
-
-/** POST { action, ... } to the deployed Apps Script, returns the parsed JSON body. */
-export async function cloudRequest(baseUrl, payload, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-  const url = String(baseUrl || '').trim();
-  if (!url) throw new Error('Cloud Sync URL is not configured (Config > Cloud Sync).');
-  const text = await fetchText(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
-  }, { fetchImpl, timeoutMs });
-  return parseCloudResponse(text);
-}
-
-/** GET for the Gmail endpoints (fetchEmails/markEmailRead/emailBody). */
-export async function cloudGet(baseUrl, params, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-  const url = buildGetUrl(baseUrl, params);
-  if (!url) throw new Error('Cloud Sync URL is not configured (Config > Cloud Sync).');
-  const text = await fetchText(url, { method: 'GET' }, { fetchImpl, timeoutMs });
-  return parseCloudResponse(text);
-}
-
-/** Config > Cloud Sync's "Test connection" button. */
-export async function testConnection(baseUrl, opts) {
-  if (!isValidScriptUrl(baseUrl)) {
-    return { ok: false, message: 'URL looks wrong. It must look like https://script.google.com/macros/s/…/exec (copy it from Deploy > Manage deployments).' };
-  }
-  try {
-    const data = await cloudRequest(baseUrl, { action: 'ping' }, opts);
-    if (data && data.status === 'success') {
-      return { ok: true, message: `Connected — your sheet has ${data.taskCount || 0} entries.`, taskCount: data.taskCount, sheet: data.sheet, scriptVersion: data.scriptVersion };
-    }
-    return { ok: false, message: (data && data.message) || 'Unexpected reply from the script.' };
-  } catch (err) {
-    return { ok: false, message: err.message || 'Could not reach the script.' };
-  }
-}
-
-/* ---------- Pulling entries down from the sheet ---------- */
-
-// The web app's script has gone by several names for "give me every task";
-// try them in turn and use the first that answers with a list.
-const PULL_TOTAL_MS = 60000;
-const PULL_ACTIONS = ['getTasks', 'pullTasks', 'getAllTasks', 'fetchTasks', 'loadTasks'];
-
-const taskListOf = (data) => {
-  if (!data || typeof data !== 'object') return null;
-  for (const k of ['tasks', 'entries', 'data', 'items', 'rows']) {
-    if (Array.isArray(data[k])) return data[k];
-  }
-  return Array.isArray(data) ? data : null;
-};
 
 const asBool = (v) => v === true || v === 1 || /^(true|yes|y|1|x|✓|✔|☑|checked|dar|included|marked)$/i.test(String(v || '').trim());
 const EPOCH = '1970-01-01T00:00:00.000Z';
@@ -179,12 +69,6 @@ const sheetRecurrence = (v) => {
   const k = String(v === undefined || v === null ? '' : v).trim().toLowerCase();
   return KNOWN_RECURRENCE.includes(k) ? k : 'none';
 };
-
-/** The fields a person can change on the phone, as one string - what the sheet said vs what is there now. */
-export function entrySig(e) {
-  return JSON.stringify([e.title, e.category, e.priority, e.status, e.pendingWith, e.reference, e.recurrence, e.recurrenceEveryMin || null, e.dueAt, e.deadlineAt, e.notes, !!e.done, !!e.binned, !!e.dar, e.keyPoints || [],
-    e.subCategory || null, e.subCategoryFields || null, e.paymentDetails || null, e.narration || null]);
-}
 
 const squash = (k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
 const DONE_STATUS = /^(completed|complete|done|closed|resolved|finished)$/i;
@@ -302,7 +186,6 @@ export function normalizeSheetTask(raw, blank) {
   if (row.narration === null) delete row.narration;
   // Deleted forever on the web app (it keeps the row, flagged): never shown, and removed if the phone has it.
   if (asBool(pick('purged', 'ispurged'))) row.purged = true;
-  row.sheetSig = entrySig(row);       // lets a later pull tell "unchanged since I loaded it" from "edited on the phone"
   return row;
 }
 
@@ -319,7 +202,6 @@ export function fromWebDoc(d, blank) {
   if (d && typeof d === 'object' && seenWebFields.size < 80) Object.keys(d).forEach((k) => seenWebFields.add(k));
   const row = normalizeSheetTask(d, blank);
   if (!row) return null;
-  delete row.sheetSig;
   // The web app lists a completed task in its Daily Activity Report unless it was marked "Done" only
   // (darInclude: false): a document saying nothing about it is in.
   if (d && typeof d === 'object') {
@@ -461,87 +343,10 @@ export function repairWebShapedEntries(entries = [], blank = {}) {
   return changed ? out : entries;
 }
 
-const countBy = (list, keys) => {
-  const out = {};
-  list.forEach((r) => { const k = keys.find((x) => r && r[x] !== undefined); const v = k ? String(r[k]) : '(none)'; out[v] = (out[v] || 0) + 1; });
-  return out;
-};
-
-/** Asks the script for every entry in the sheet. Resolves { ok, tasks } or { ok:false, message }. */
-export async function pullSheetEntries(baseUrl, blank, opts) {
-  let lastMessage = '';
-  let empty = null;
-  // Up to five names are tried, but the whole pull gets one budget (not 30 s each): each try gets what is left of it.
-  const budget = Number(opts && opts.totalMs) || PULL_TOTAL_MS;
-  const started = Date.now();
-  for (const action of PULL_ACTIONS) {
-    const left = budget - (Date.now() - started);
-    if (left <= 0) { lastMessage = lastMessage || TOO_SLOW; break; }
-    let data;
-    try { data = await cloudRequest(baseUrl, { action }, { ...(opts || {}), timeoutMs: Math.min(Number(opts && opts.timeoutMs) || DEFAULT_TIMEOUT_MS, left) }); } catch (err) { lastMessage = err.message; continue; }
-    const list = taskListOf(data);
-    if (list) {
-      const found = { ok: true, action, columns: Object.keys(list[0] || {}), sample: list.slice(0, 2), statuses: countBy(list, ['Status', 'status', 'taskStatus']), tasks: list.map((r) => normalizeSheetTask(r, blank)).filter(Boolean) };
-      if (list.length) return found;
-      empty = empty || found;           // an action that answers with no rows may just be a "changes since" call; try the others first
-      continue;
-    }
-    lastMessage = (data && (data.message || data.error)) || lastMessage;
-  }
-  if (empty) return empty;
-  return { ok: false, message: `The script has your sheet but did not hand back its entries${lastMessage ? ` (${lastMessage})` : ''}.` };
-}
-
-const HOLIDAY_ACTIONS = ['getHolidays', 'getCalendar', 'pullHolidays', 'holidays'];
-
-
 /** Adds holidays the phone does not have yet (same day + name); never removes or edits one. */
 export function mergeHolidays(local = [], incoming = []) {
   const key = (h) => `${h.date}|${String(h.title || '').toLowerCase()}`;
   const have = new Set(local.map(key));
   const added = incoming.filter((h) => !have.has(key(h)));
   return { holidays: [...local, ...added].sort((a, b) => String(a.date).localeCompare(String(b.date))), added: added.length };
-}
-
-/**
- * Merges a sheet pull into the local entries. The sheet wins for every entry
- * that has not been touched on the phone since it was loaded; an entry that
- * was edited here (its fields no longer match what the sheet said when it was
- * loaded) is kept, so a later pull cannot undo your edit with the sheet's old
- * copy. Local-only entries are always kept. `lastPullAt` is only used for
- * entries loaded by an older version, which carry no record of what the sheet said.
- * `addOnly` (set while Realtime Sync is signed in, where the web app's live
- * data is the source of truth) only adds entries the phone does not have yet:
- * the sheet's copy of an existing entry lags the web app and used to replace it.
- */
-export function mergeSheetPull(local = [], pulled = [], lastPullAt = 0, purgedIds = [], { addOnly = false } = {}) {
-  const stamp = (e) => (e && e.updatedAt ? new Date(e.updatedAt).getTime() || 0 : 0);
-  const byId = new Map(local.map((e) => [String(e.id), e]));
-  // Entries deleted forever on the phone: the sheet still has them, and every pull brought them back.
-  const purged = new Set((purgedIds || []).map(String));
-  let added = 0;
-  let replaced = 0;
-  let keptLocal = 0;
-  pulled.forEach((p) => {
-    if (purged.has(String(p.id))) return;
-    if (p.purged) { if (byId.delete(String(p.id))) replaced++; return; }   // deleted forever on the web app
-    const cur = byId.get(String(p.id));
-    if (!cur) { byId.set(String(p.id), p); added++; return; }
-    if (addOnly) { keptLocal++; return; }
-    // A copy that arrived from Realtime Sync (the web app's live data) is fuller than the sheet's: the sheet
-    // lacks web-only fields such as the DAR mark. Keep it unless the sheet row is strictly newer - decided
-    // by the timestamps alone, not also by when the sheet was last pulled.
-    const keep = (row) => (cur.alertMode && !row.alertMode ? { ...row, alertMode: cur.alertMode } : row);   // the sheet has no column for it
-    if (cur.src === 'cloud') {
-      if (stamp(p) <= stamp(cur)) { keptLocal++; return; }
-      byId.set(String(p.id), keep(p));
-      replaced++;
-      return;
-    }
-    const edited = cur.sheetSig ? entrySig(cur) !== cur.sheetSig : !!lastPullAt && stamp(cur) > lastPullAt;
-    if (edited) { keptLocal++; return; }
-    byId.set(String(p.id), keep(p));
-    replaced++;
-  });
-  return { entries: [...byId.values()], added, replaced, keptLocal };
 }

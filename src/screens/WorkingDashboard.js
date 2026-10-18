@@ -48,10 +48,11 @@ import WdHolidaysTab from './WdHolidaysTab';
 import WdHolidaySheet from './WdHolidaySheet';
 import { BankFollowUpForm } from './WdBankFollowUp';
 import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, followUpWho, followUpsByBank } from '../bankFollowUp';
-import { learnStyle, buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, examplesFor, checkFacts } from '../reportStyle';
-import { getAdvice } from '../sheets';
-import { listReportSamples, rewriteReportWithAi } from '../workingDashboardReportCloud';
+import { buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, checkFacts } from '../reportStyle';
 import { shareReportPdf } from '../reportPdf';
+
+// The app's built-in Gemini (aiBuiltin.js), loaded only when the button is pressed.
+const rewriteReportWithAi = async (prompt) => (await (await import('../aiBuiltin')).rewriteWithGemini(prompt)).text;
 import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, holidaysWithinDays, normalizeHolidays, normalizeLeaveDays, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
 import WdWeeklyReview from './WdWeeklyReview';
@@ -201,13 +202,12 @@ export default function WorkingDashboard() {
   const [groupOpen, setGroupOpen] = useState('');   // the Report box whose tasks are shown (oth / pay / fol / out)
   const [reportNote, setReportNote] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
-  const [samples, setSamples] = useState([]);
   const [mailSheet, setMailSheet] = useState(false);
 
   // Realtime Sync (Firestore + Google Sign-In)
   const { user: googleUser, listenError, pushError } = useRealtimeStatus();      // the sync itself runs app-wide (RealtimeSync.js)
-  // Fetch Mail works with the person's own Apps Script if they added one, else straight from Gmail once signed in.
-  const mailAvailable = !!wd.cloudSyncUrl || !!googleUser;
+  // Fetch Mail reads Gmail with the person's own Google sign-in.
+  const mailAvailable = !!googleUser;
   const [realtimeBusy, setRealtimeBusy] = useState(false);
   const realtimeError = listenError || pushError;
   // Offline: the browser says so (web), or the last send failed (phone). Edits are kept here and sent when the connection returns.
@@ -456,7 +456,7 @@ export default function WorkingDashboard() {
     });
     scheduleEntryAlert(row, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
-    if (row.emailId && isNew) markEmailRead(wd.cloudSyncUrl, row.emailId).catch(warnQuiet('markEmailRead'));      // the mail the task came from is marked read once the task exists
+    if (row.emailId && isNew) markEmailRead(row.emailId).catch(warnQuiet('markEmailRead'));      // the mail the task came from is marked read once the task exists
     closeEntrySheet();
   };
 
@@ -659,13 +659,13 @@ export default function WorkingDashboard() {
     setMailSheet(true);
     if (!mailAvailable) return;
     setMailBusy(true);
-    try { setEmails(await fetchUnreadEmails(wd.cloudSyncUrl)); }
+    try { setEmails(await fetchUnreadEmails()); }
     catch (e) { Alert.alert('Could not fetch mail', e.message); }
     finally { setMailBusy(false); }
   };
   const ignoreEmail = (email) => {
     setEmails((list) => list.filter((e) => e.id !== email.id));
-    markEmailRead(wd.cloudSyncUrl, email.id).catch(warnQuiet('markEmailRead'));
+    markEmailRead(email.id).catch(warnQuiet('markEmailRead'));
   };
   const addTaskFromEmail = async (email) => {
     closeMail();
@@ -676,7 +676,7 @@ export default function WorkingDashboard() {
     setEmails((list) => list.filter((e) => e.id !== email.id));      // marked read in Gmail only when the task is saved (commitEntry)
     if (!email.body) {
       try {
-        const body = (await fetchEmailBody(wd.cloudSyncUrl, email.id)).slice(0, 500);
+        const body = (await fetchEmailBody(email.id)).slice(0, 500);
         setEntrySheet((s) => (s && s.emailId === email.id && !String(s.notes || '').trim() ? { ...s, notes: `From: ${email.sender || ''}\n\n${body}` } : s));
       } catch { /* keep the placeholder note */ }
     }
@@ -750,12 +750,7 @@ export default function WorkingDashboard() {
     setAiBusy(true);
     try {
       const prompt = buildSummaryPrompt(draft, wd.reportAiNotesSummary || '', reportKind);
-      const advisor = data.settings?.aiAdvisor || {};
-      let ai = '';
-      if (advisor.enabled && advisor.endpoint) {
-        try { const res = await getAdvice(advisor.endpoint, prompt, { task: `${reportKind}-summary`, date: reportDate, draft }); ai = (res && (res.advice || res.reply)) || ''; } catch { ai = ''; }
-      }
-      if (!ai.trim()) ai = await rewriteReportWithAi(wd.cloudSyncUrl, { date: reportDate, draft, itemCount: 0, prompt, examples: [] });
+      const ai = await rewriteReportWithAi(prompt);
       const lost = summaryNumbersLost(draft, ai);
       if (!ai.trim() || lost.length) { setReportNote(`AI version was not used${lost.length ? ` - it lost ${lost.length} number(s) such as ${lost[0]}` : ''}. Showing the standard summary.`); return; }
       setReportAlt({ standard: draft, ai: ai.trim(), showing: 'ai' });
@@ -772,23 +767,8 @@ export default function WorkingDashboard() {
     setAiBusy(true);
     try {
       const draft = reportModelToText(model, { headings: true });
-      // Your past reports (saved here and on the sheet) teach the wording; the facts come only from the draft.
-      let pool = samples;
-      if (!pool.length && wd.cloudSyncUrl) { try { pool = await listReportSamples(wd.cloudSyncUrl); setSamples(pool); } catch { pool = []; } }
-      const style = learnStyle([...(wd.reportSamplesLocal || []), ...pool.map((x) => x.sampleText)].filter((x, i, a) => a.indexOf(x) === i));
-      const prompt = buildStylePrompt(model, draft, style, wd.reportAiNotes || '');
-      const examples = model.sections.flatMap((sec) => sec.rows.map((r) => ({ line: r.line, like: examplesFor({ section: sec.title, category: r.entry && r.entry.category, text: r.line }, style, 2) })));
-      const advisor = data.settings?.aiAdvisor || {};
-      let ai = '';
-      if (advisor.enabled && advisor.endpoint) {
-        // The Apps Script AI endpoint takes the whole prompt as its instructions, so the style is followed exactly.
-        // If it fails, fall through to the Cloud Sync rewrite below rather than giving up.
-        try {
-          const res = await getAdvice(advisor.endpoint, prompt, { task: 'daily-activity-report', date: model.date, draft });
-          ai = (res && (res.advice || res.reply)) || '';
-        } catch { ai = ''; }
-      }
-      if (!ai.trim()) ai = await rewriteReportWithAi(wd.cloudSyncUrl, { date: model.date, draft, itemCount: model.data.bullets, prompt, examples });
+      const prompt = buildStylePrompt(model, draft, null, wd.reportAiNotes || '');
+      let ai = await rewriteReportWithAi(prompt);
       // As on the web app: merged section by section - payments, duty and import lines stay word for word, and a
       // section the AI shortened keeps the standard wording. Mail chains it copied in are taken out.
       const mails = entries.map((x) => String(x.reference || '').trim()).filter((x) => x.length > 6);
@@ -800,7 +780,7 @@ export default function WorkingDashboard() {
       if (!facts.ok) { setReportNote(`AI version was not used — it lost ${facts.missing.length} fact(s) such as "${facts.missing[0].fact}". Showing the complete standard report.`); return; }
       setReportAlt({ standard: reportModelToText(model), ai, showing: 'ai', date: model.date, draft });
       setReportText(ai);
-      setReportNote(`✨ Written in your style${style.samples ? ` (learned from ${style.samples} past report${style.samples === 1 ? '' : 's'})` : ' (no past reports to learn from yet)'} — every item, amount, name and reference checked present.`);
+      setReportNote(`✨ Rewritten with AI — every item, amount, name and reference checked present.`);
     } catch (e) {
       setReportNote(`AI not available right now (${e.message}) — showing the complete standard report.`);
     } finally { setAiBusy(false); }
@@ -1275,8 +1255,8 @@ export default function WorkingDashboard() {
           <Text style={{ fontSize: t.fs(14) }}>{meetingOn ? '🔕' : '🔔'}</Text>
         </Pressable>
         <Pressable onPress={() => setTab('config')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surfaceAlt, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : wd.cloudSyncUrl ? t.warn : t.textDim }} />
-          <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline · edits waiting' : googleUser && realtimeError ? 'sync error' : googleUser ? 'live' : wd.lastSheetPullAt ? `synced ${new Date(wd.lastSheetPullAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : wd.cloudSyncUrl ? 'sheet' : 'local'}</Text>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : t.textDim }} />
+          <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline · edits waiting' : googleUser && realtimeError ? 'sync error' : googleUser ? 'live' : 'local'}</Text>
         </Pressable>
       </Row>
       </>
@@ -1893,7 +1873,7 @@ export default function WorkingDashboard() {
                 {/* "Both" (phone-width screens): the report as a PDF, to send on WhatsApp or attach to a mail. */}
                 <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="📄 PDF" onPress={pdfReport} />
                 <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="⬇ Excel" onPress={csvReport} />
-                {/* The person's own Apps Script if they added one, else the app's built-in AI (aiBuiltin.js). On a phone
+                {/* The app's built-in AI (aiBuiltin.js). On a phone
                     it has a line of its own below: four buttons in a row were too narrow to read. */}
                 {!phoneLayout && <Btn style={{ flex: 1 }} title={aiBusy ? 'Writing with AI...' : '✨ Rewrite with AI'} disabled={aiBusy} onPress={rewriteAny} />}
               </Row>
@@ -2030,7 +2010,7 @@ export default function WorkingDashboard() {
         </FadeInUp>
       </SwipeTabs>
 
-      {/* Gmail, with the person's own sign-in (or their own Apps Script). */}
+      {/* Gmail, with the person's own sign-in. */}
       {(tab === 'dashboard' || tab === 'register' || tab === 'done') && mailAvailable && (
         <Btn style={{ marginTop: 16 }} kind="soft" title="✉️ Fetch Mail" onPress={openMail} />
       )}

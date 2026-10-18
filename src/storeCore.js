@@ -196,10 +196,6 @@ export const DEFAULT_DB = {
       walk: { enabled: false, start: '11:00', end: '19:30', everyMin: 90 },
       water: { enabled: false, start: '10:00', end: '19:30', everyMin: 60 },
     },
-    // The same Apps Script deployment the user's existing web app talks to
-    // (Cloud Sync, Gmail Fetch Mail, and the AI Daily Report all go through
-    // this one URL). Empty until Config > Cloud Sync is filled in.
-    cloudSyncUrl: '',
     paymentIntro: null, // null = use workingDashboardReport.js's DEFAULT_PAYMENT_INTRO
     // The web app's payment lists, received with Realtime Sync (null until then - see
     // workingDashboardPayments.paymentLists for the defaults): Sub Categories with their rule fields, the
@@ -210,14 +206,13 @@ export const DEFAULT_DB = {
     narrationTypes: null,
     // Bumped whenever categories/priorities/statuses/assignees or
     // holidays/leaveDays change locally, so firebaseSync.js's push() knows
-    // the meta docs need writing - the same "newest timestamp wins" rule
-    // the Apps Script sync already uses for its own lists/calendar bundle.
+    // the meta docs need writing ("newest timestamp wins").
     listsUpdatedAt: 0,
     calendarUpdatedAt: 0,
     // Entries deleted forever on this phone, waiting to be deleted in Firestore too. Without them
     // the cloud copy came straight back on the next sync.
     deletedIds: [],
-    // Every entry ever deleted forever here, kept so a Cloud Sync (sheet) pull does not re-add it.
+    // Every entry ever deleted forever here, kept so a sync does not re-add it.
     purgedIds: [],
   },
 };
@@ -270,10 +265,17 @@ export const REMOVED_SECTIONS = ['hydration'];
 /** Storage keys that belonged to removed tools, deleted on the next load. */
 export const REMOVED_KEYS = ['MPT_HYD_LOG_V1'];
 
+/** Working Dashboard settings that belonged to removed features (the Google Apps Script / Sheet sync). Stopped being read; dropped when stored data is loaded or restored. */
+export const REMOVED_WD_FIELDS = ['cloudSyncUrl', 'lastSheetPullAt', 'reportSamplesLocal'];
+
 export function withoutRemoved(obj) {
   if (!obj || typeof obj !== 'object') return obj;
   const out = { ...obj };
   for (const k of REMOVED_SECTIONS) delete out[k];
+  if (out.workingDashboard && typeof out.workingDashboard === 'object') {
+    out.workingDashboard = { ...out.workingDashboard };
+    for (const k of REMOVED_WD_FIELDS) delete out.workingDashboard[k];
+  }
   return out;
 }
 
@@ -455,7 +457,7 @@ export async function loadAll() {
   const slices = {};
   let migrated = false;
   // Rewriting the core (migrated) is what drops a removed tool's data from it.
-  if (core && REMOVED_SECTIONS.some((k) => k in core)) migrated = true;
+  if (core && (REMOVED_SECTIONS.some((k) => k in core) || (core.workingDashboard && REMOVED_WD_FIELDS.some((k) => k in core.workingDashboard)))) migrated = true;
   if (REMOVED_KEYS.some((k) => map[k] != null)) {
     await AsyncStorage.multiRemove(REMOVED_KEYS).catch(warnQuiet('storeCore'));
   }

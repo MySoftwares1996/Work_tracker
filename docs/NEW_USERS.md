@@ -21,7 +21,7 @@ everything else. It goes out with the website once you switch it on:
 Until this is done, the rules in Firebase are whatever they were before. **Do not invite other people before
 this step.**
 
-### 2. Switch on Gmail and the AI (built in - nobody needs an Apps Script)
+### 2. Switch on Gmail and the AI (built in)
 
 Fetch Mail reads each person's own Gmail with their own sign-in, and the Daily Report's AI rewrite uses Gemini
 inside this Firebase project. Both are switched on once, by you:
@@ -62,9 +62,7 @@ They tap **Sign in with Google**. That is all.
 - **One device, several people:** signing in with a different account on the same phone or browser shows that
   account's own data. The previous account's tasks are never shown to, or sent into, the new one.
 - **"Use without an account":** everything stays on that device only. Signing in later moves it into the account.
-- **No Apps Script needed:** Fetch Mail and the AI report are built in. Config → Own Apps Script is only for
-  someone who already runs a script of their own; then Fetch Mail and the AI use it instead. Never share yours -
-  it reads your Gmail.
+- **Nothing to set up:** Fetch Mail and the AI report are built in (Google sign-in and Gemini).
 - **AI limits:** the free Gemini tier allows a limited number of requests a day for the whole project. If it is
   reached, the app says so and shows the standard report.
 - **Free plan limits:** Firebase's free plan allows about 50,000 reads and 20,000 writes a day across all users -

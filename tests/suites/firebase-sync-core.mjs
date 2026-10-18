@@ -94,7 +94,7 @@ export async function runExtra({ ck, section }) {
 export async function runExtra2({ ck, section }) {
   const { push, __setMetaFormats } = await import('../../src/firebaseSync.js');
   const { decodeLists, encodeLists, decodeCalendar, encodeCalendar } = await import('../../src/firebaseSyncCore.js');
-  const { fromWebDoc, toWebTask, repairWebShapedEntries, mergeSheetPull } = await import('../../src/cloudSync.js');
+  const { fromWebDoc, toWebTask, repairWebShapedEntries } = await import('../../src/cloudSync.js');
   const { blankEntry } = await import('../../src/workingDashboard.js');
   const { __batches, __resetBatches } = await import('../stubs/firebase.mjs');
 
@@ -136,7 +136,6 @@ export async function runExtra2({ ck, section }) {
   ck('entries made on the phone are left alone', repaired.find((x) => x.id === 'phone-1') === mine);
   ck('repairing again changes nothing', repairWebShapedEntries(repaired, blankEntry()) === repaired);
   ck('a purged raw entry is removed', !repairWebShapedEntries([{ ...brokenA, purged: true }], blankEntry()).length);
-  ck('a sheet row flagged purged removes the phone\'s copy', mergeSheetPull([a], [{ ...a, purged: true }], 0).entries.length === 0);
 
   section('Realtime Sync: lists and holidays are stored without nested arrays');
   const lists = [['MIS'], ['High', 'Low'], ['Pending'], ['Self']];
@@ -298,19 +297,6 @@ export async function runExtra3({ ck, section }) {
   let slowErr = null;
   await gm.listUnread('tok', { fetchImpl: () => new Promise(() => {}), timeoutMs: 30 }).catch((e) => { slowErr = e; });
   ck('a request that never answers fails with a clear message', slowErr && /too long/.test(slowErr.message));
-
-  section('Cloud Sync: the body read is inside the timeout; the pull has one budget');
-  const cs = await import('../../src/cloudSync.js');
-  let bodyErr = null;
-  await cs.cloudRequest('https://script.google.com/macros/s/x/exec', { action: 'ping' }, { fetchImpl: async () => ({ text: () => new Promise(() => {}) }), timeoutMs: 30 }).catch((e) => { bodyErr = e; });
-  ck('a stalled body fails after the timeout', bodyErr && /too long/.test(bodyErr.message));
-  let aborted = false;
-  await cs.cloudGet('https://script.google.com/macros/s/x/exec', { a: 1 }, { fetchImpl: (u, init) => new Promise((_, rej) => { init.signal.addEventListener('abort', () => { aborted = true; rej(new Error('aborted')); }); }), timeoutMs: 20 }).catch(() => {});
-  ck('the request is aborted, not left running', aborted);
-  let calls = 0;
-  const t0 = Date.now();
-  const pulled = await cs.pullSheetEntries('https://script.google.com/macros/s/x/exec', {}, { fetchImpl: () => { calls++; return new Promise(() => {}); }, timeoutMs: 60, totalMs: 150 });
-  ck('five hanging actions are not waited out one by one', !pulled.ok && Date.now() - t0 < 600 && calls < 5, `${calls} calls, ${Date.now() - t0} ms`);
 
   section('Firebase Sync Core: field-wise merge of a web document over an unsent local edit');
   const base = { id: 'x', description: 'Pay vendor', dueDate: '2026-10-20', status: 'Pending', assignee: 'Ravi', updatedAt: 100 };

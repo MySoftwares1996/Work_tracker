@@ -128,7 +128,7 @@ with a real compiler against the Android API) · the APK itself is only proven b
   `web/shims/`; the phone's native Android code is `modules/native-tools` (alarms, tracker, web presence).
 - **Shared data**: both talk to the same Firestore account (`users/<uid>/tasks`, `meta/lists`, `meta/calendar`,
   `meta/presence`) through Realtime Sync (`src/RealtimeSync.js`, `src/firebaseSync*.js`, `src/cloudSync.js`), signed in with Google.
-  An optional Apps Script / Google Sheet and Gmail are extras (`src/cloudSync.js`, `src/gmail.js`).
+  Gmail (Fetch Mail, add a task from a mail) is read with the Google sign-in (`src/gmailApi.js`). The Google Apps Script / Sheet sync was removed; `src/cloudSync.js` now only holds the entry <-> web document converters (`toWebTask`, `fromWebDoc`).
 - **A bug on both** (a task, a list, an alert or a report is wrong everywhere): look at the data first - the entry shape
   and its sync (`cloudSync.js`, `firebaseSyncCore.js`, `store.js`), then the shared logic (`workingDashboard.js`,
   `workingDashboardNotify.js`, `workingDashboardReport.js`). Do not fix it in a screen.

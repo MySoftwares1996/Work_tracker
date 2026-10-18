@@ -2,9 +2,8 @@
  * Google Sign-In + Firestore realtime sync - the same `users/{uid}/tasks` +
  * `users/{uid}/meta/{lists,calendar}` shape the web app's `rt` object
  * already uses in the "work-tracker-3b728" Firebase project, so a
- * phone and the web app can share entries live. The Apps Script/Sheets
- * sync (src/cloudSync.js) stays in independently, the same backup role it
- * has on the web app.
+ * phone and the web app can share entries live (the entry <-> document
+ * converters are in src/cloudSync.js).
  *
  * Every Firestore/auth call lives here, kept separate from
  * firebaseSyncCore.js's pure merge/ack logic so that part stays unit
