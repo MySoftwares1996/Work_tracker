@@ -440,7 +440,7 @@ export function buildPeriodSummary({ entries = [], kind = 'week', date, lists = 
   const live = entries.filter((e) => e && !e.binned && !e.purged && !isSkippedPaymentCategory(e.category));
   const completed = live.filter((e) => e.done && inRange(completedOn(e)));
   // The daily report's rule: Duty and Import payments are not counted as payments (they have their own wording and section).
-  const isPay = (e) => isPaymentEntry(e, lists) || (isPaymentCategory(e.category) && !isDutyPaymentEntry(e, lists) && !isImportPaymentCategory(e.category));
+  const isPay = (e) => countsAsPayment(e, lists);
   const payments = completed.filter(isPay).length;
   const cats = {};
   completed.forEach((e) => { const c = e.category || 'Uncategorised'; cats[c] = (cats[c] || 0) + 1; });
@@ -518,9 +518,12 @@ export function reportCsvRows(model, text) {
   return { rows: String(text || '').split('\n').filter((l) => l.trim()).map((l) => ({ Line: l.replace(/^\*\s+/, '') })), columns: ['Line'] };
 }
 
+/** The daily report's rule for "a payment": Duty and Import payments have their own wording and section and are not counted. */
+export const countsAsPayment = (e, lists) => isPaymentEntry(e, lists) || (isPaymentCategory(e.category) && !isDutyPaymentEntry(e, lists) && !isImportPaymentCategory(e.category));
+
 /**
  * Payments of one month by vendor (the amounts written in Key Points), biggest first - the Dashboard's "Payments by vendor".
- * `monthKey` is "YYYY-MM"; Domestic / Urgent payments are left out, as in the report. Returns
+ * `monthKey` is "YYYY-MM"; Domestic / Urgent, Duty and Import payments are left out, as in the report. Returns
  * { total, count, withAmount, rows: [{ vendor, total, count }] }.
  */
 export function paymentsByVendor(entries = [], lists = paymentLists(), monthKey) {
@@ -529,7 +532,7 @@ export function paymentsByVendor(entries = [], lists = paymentLists(), monthKey)
   let total = 0; let count = 0; let withAmount = 0;
   (entries || []).forEach((e) => {
     if (!e || !e.done || e.binned || e.purged || isSkippedPaymentCategory(e.category)) return;
-    if (!(isPaymentEntry(e, lists) || isPaymentCategory(e.category))) return;
+    if (!countsAsPayment(e, lists)) return;
     const day = completedOn(e);
     if (!day || day.slice(0, 7) !== key) return;
     count += 1;

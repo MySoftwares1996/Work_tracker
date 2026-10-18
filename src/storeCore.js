@@ -418,10 +418,25 @@ async function writeStoredNow(pairs) {
   swept.forEach((k) => (heads.some(([h, v]) => h === k && readManifest(v)) ? pieced.add(k) : pieced.delete(k)));
 }
 
-/** Every storage key belonging to these keys, pieces included - for clearing them. */
+/** The sync bookkeeping keys: per account (ack map, server snapshot, unsent-edits copy) and the corrupt-copy ledger. */
+export const SYNC_STATE_PREFIXES = ['MPT_RT_ACK_', 'MPT_RT_SNAP_', 'MPT_UNSYNCED_'];
+export const CORRUPT_SEEN_KEY = 'MPT_CORRUPT_SEEN';
+/** Of `allKeys`: the sync bookkeeping, and with `withCorrupt` the recovery copies (MPT_CORRUPT_*) as well. */
+export function syncStateKeys(allKeys = [], { withCorrupt = true, withUnsynced = true } = {}) {
+  return allKeys.filter((k) => typeof k === 'string' && (
+    SYNC_STATE_PREFIXES.some((p) => k.startsWith(p) && (withUnsynced || p !== 'MPT_UNSYNCED_'))
+    || (withCorrupt && (k === CORRUPT_SEEN_KEY || k.startsWith('MPT_CORRUPT_')))));
+}
+
+/**
+ * Every storage key belonging to these keys, pieces included - for clearing them. Clearing the main data key (the
+ * "erase everything" path) also takes the sync bookkeeping and the recovery copies, which belong to that data.
+ */
 export async function storedKeysOf(keys) {
   const all = AsyncStorage.getAllKeys ? await AsyncStorage.getAllKeys().catch(() => []) : [];
-  return [...keys, ...all.filter((k) => keys.some((key) => isChunkOf(key)(k)))];
+  const out = [...keys, ...all.filter((k) => keys.some((key) => isChunkOf(key)(k)))];
+  if (keys.includes(KEY)) syncStateKeys(all).forEach((k) => { if (!out.includes(k)) out.push(k); });
+  return out;
 }
 
 export async function loadAll() {

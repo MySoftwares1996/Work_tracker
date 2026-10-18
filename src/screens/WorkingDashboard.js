@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Pressable, ScrollView, Linking, Platform, AppState } from 'react-native';
+import { View, Text, StyleSheet, Alert, Pressable, ScrollView, Linking, Platform, AppState, Vibration } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AnimatedLogo from '../AnimatedLogo';
@@ -486,13 +486,15 @@ export default function WorkingDashboard() {
   };
 
   const act = (shown, kind, opts = {}) => {
+    // A short tap-buzz on the phone when a task is completed (the built-in vibrator: no extra library).
+    if (Platform.OS !== 'web' && kind === 'complete') { try { Vibration.vibrate(12); } catch { /* no vibrator */ } }
     // web.app: ✓ or DAR on a task with a checklist opens the checklist first, to tick the steps before it is completed.
-    if (kind === 'complete' && !opts.checklistOk) {
+    if (Platform.OS === 'web' && kind === 'complete' && !opts.checklistOk) {
       const live = entriesRef.current.find((x) => x.id === shown.id) || shown;
       if (checklistOf(live).length) { setChecklistSheet({ id: live.id, opts }); return; }
     }
     // web.app: DAR on a card first asks for the notes that go into the daily report.
-    if (kind === 'complete' && opts.dar === true && opts.notes === undefined) {
+    if (Platform.OS === 'web' && kind === 'complete' && opts.dar === true && opts.notes === undefined) {
       setDarNote({ entry: entriesRef.current.find((x) => x.id === shown.id) || shown, text: '' });
       return;
     }
@@ -692,11 +694,20 @@ export default function WorkingDashboard() {
     applyMoves(model, (wd.reportMoves || {})[date] || {}, { lists: { darPaymentIntro: wd.paymentIntro }, payLists: plists, formats, date, details: true });
     if (reportOpts.subFields) addSubFields(model);
     setReportModel(model);
-    setReportAlt(null);
+    // The AI rewrite is kept when this is the same date and the report's facts did not change (compared on the full-heading draft the AI was given).
+    const draftNow = reportModelToText(model, { headings: true });
+    const keepAi = !!reportAlt && reportAlt.date === date && reportAlt.draft === draftNow;
+    if (!keepAi) setReportAlt(null);
     // The pending list ("Pending:" - open tasks due by this day, by priority) is added when switched on, as on the website.
     const pend = reportOpts.pending ? entries.filter((e) => isOpen(e) && e.dueAt && toDateKey(new Date(e.dueAt)) <= date).sort((a, b) => ({ High: 0, Medium: 1, Low: 2 }[a.priority] ?? 3) - ({ High: 0, Medium: 1, Low: 2 }[b.priority] ?? 3)) : [];
-    setReportText(reportModelToText(model, { headings: reportOpts.headings }) + (pend.length ? `\n\nPending:\n${pend.map((e) => `* ${e.title}${e.priority ? ` [${e.priority}]` : ''}`).join('\n')}` : ''));
-    setReportNote('');
+    const standardText = reportModelToText(model, { headings: reportOpts.headings }) + (pend.length ? `\n\nPending:\n${pend.map((e) => `* ${e.title}${e.priority ? ` [${e.priority}]` : ''}`).join('\n')}` : '');
+    if (keepAi) {
+      setReportAlt({ ...reportAlt, standard: standardText });      // only a display switch changed: the AI text stays
+      setReportText(reportAlt.showing === 'ai' ? reportAlt.ai : standardText);
+    } else {
+      setReportText(standardText);
+      setReportNote(reportAlt ? 'The report changed - rewrite with AI again' : '');
+    }
     setReportKind('day');
     return model;
   };
@@ -787,7 +798,7 @@ export default function WorkingDashboard() {
       if (!verdict.ok) { setReportNote(`AI version was not used (it ${merged ? 'shortened every section' : verdict.reason}) — showing the complete standard report.`); return; }
       const facts = checkFacts(model, ai);
       if (!facts.ok) { setReportNote(`AI version was not used — it lost ${facts.missing.length} fact(s) such as "${facts.missing[0].fact}". Showing the complete standard report.`); return; }
-      setReportAlt({ standard: reportModelToText(model), ai, showing: 'ai' });
+      setReportAlt({ standard: reportModelToText(model), ai, showing: 'ai', date: model.date, draft });
       setReportText(ai);
       setReportNote(`✨ Written in your style${style.samples ? ` (learned from ${style.samples} past report${style.samples === 1 ? '' : 's'})` : ' (no past reports to learn from yet)'} — every item, amount, name and reference checked present.`);
     } catch (e) {

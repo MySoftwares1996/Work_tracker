@@ -46,6 +46,7 @@ Several sessions have changed the alert code; check this list before changing it
 - Each alert's text carries the task's priority, category, person and mail chain (`entryAlertPlan`).
 - Done vs DAR: ✓ / Done completes a task and keeps it out of the daily report; DAR completes it into the report.
   Same on cards, the Past Due screen and the alert buttons.
+- After a reboot, task alerts that came due in the last 12 hours while the phone was off are listed in one "Missed while the phone was off" notification (`AlarmStore.restoreAll`, Kotlin: needs the next APK build).
 - Not done: a server push (Firebase function) so the phone follows web edits instantly instead of up to 15 min later.
 
 ## Look and feel - the phone follows the website
@@ -96,7 +97,7 @@ The due date quick picks also offer "Month end -1 ... -5" (a drop-down): the las
 
 The owner chose the "UI Studio" designs: Dashboard = Option 1 (Classic Enhanced: 11 pastel tiles, this / next month breakdown cards, Needs attention / Due today rows with Done and DAR buttons) and Register = plain card grid ("A": three across on the website; the phone has All / Overdue / Today chips). The phone has no Quick add bar (the owner asked).
 
-Phone look: the owner chose style E from the style studio - the "Warm" theme (`warm` in `src/theme.js`: cream backdrop, orange accent, 18px corners, orange-tinted shadows; the default for the phone, replaces an unpicked Pearl) - and wants the signed-in user's name chip top right of the app bar on every phone screen (`userLabel` in `WorkingDashboard.js`). Layouts follow preview E too: title + subtitle header, plain tiles, flat cards with Done / DAR (`PhoneKpi`, `PhoneRow card`, `PhoneDoneRow` in `wdCards.js`).
+Phone look: the owner chose style E from the style studio - the "Warm" theme (`warm` in `src/theme.js`: cream backdrop, burnt-orange accent #C2410C and text #7A5C45 - darkened from the studio's values to pass 4.5:1 contrast, 18px corners, orange-tinted shadows; the default for the phone, replaces an unpicked Pearl) - and wants the signed-in user's name chip top right of the app bar on every phone screen (`userLabel` in `WorkingDashboard.js`). Layouts follow preview E too: title + subtitle header, plain tiles, flat cards with Done / DAR (`PhoneKpi`, `PhoneRow card`, `PhoneDoneRow` in `wdCards.js`).
 
 Sync: a phone push sends only the fields that changed since the phone last saw the server's copy (`diffWebDoc` in `firebaseSyncCore.js`, snapshot `MPT_RT_SNAP_<uid>`), so an offline phone no longer undoes web edits; unsent work for an account that is signed out is kept under `MPT_UNSYNCED_<uid>` (`account.js`).
 

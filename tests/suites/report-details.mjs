@@ -70,6 +70,11 @@ export async function run({ ck, section }) {
   const impDone = { ...dutyDone, id: 'i', category: 'Import Payments' };
   const sm = buildPeriodSummary({ entries: [dutyDone, impDone, usdPay], kind: 'week', date: '2026-10-07', lists, now: new Date(2026, 9, 8) });
   ck('Duty and Import payments are not counted as payments', sm.completed === 3 && sm.payments === 1);
+  const rupPay = { ...usdPay, id: 'r', keyPoints: [{ key: 'Amount', value: 'Rs 5,000' }] };
+  const dutyAmt = { ...dutyDone, keyPoints: [{ key: 'Amount', value: 'Rs 9,000' }] };
+  const impAmt = { ...impDone, keyPoints: [{ key: 'Amount', value: 'Rs 7,000' }] };
+  const pv = paymentsByVendor([rupPay, dutyAmt, impAmt], lists, '2026-10');
+  ck('payments by vendor leaves Duty and Import out, as the report does', pv.count === 1 && pv.total === 5000);
   // 10. unknown narration type does not block
   const orphan = { ...blankEntry(), category: 'Vendor Payments', narration: { typeName: 'Deleted type', docNo: '' } };
   ck('a narration type gone from the lists does not demand a document number', validatePaymentDetails(orphan, lists, true) === '');
@@ -92,7 +97,7 @@ export async function run({ ck, section }) {
   ck('"decision 5" is not 5 Dec', qa('decision 5 pending').dueAt === null);
   ck('"5 marketing" is not 5 Mar', qa('5 marketing plans').dueAt === null);
   ck('"5 dec" still is', new Date(qa('pay 5 dec').dueAt).getMonth() === 11);
-  ck('a past date with no year goes to next year', new Date(qa('file 5 oct').dueAt).getFullYear() === 2027 && new Date(qa('file 5/10').dueAt).getFullYear() === 2027);
+  ck('a past date with no year goes to next year', new Date(qa('file 5 oct').dueAt).getFullYear() === 2027 && new Date(qa('file by 5/10').dueAt).getFullYear() === 2027);      // adjusted: a numeric date needs "by/on/before/till" or a year
   ck('a day or month out of range is not a date', qa('INV 45-13').dueAt === null && qa('INV 45-13').title === 'INV 45-13' && qa('ref 31/02').dueAt === null);
   // 12. templates keep the sub category
   const tp = templateFrom({ title: 'Rent', category: 'Payments', subCategory: 'Rent Payments', subCategoryFields: { Month: 'Oct', Premises: 'HO' } });

@@ -1,6 +1,9 @@
 package expo.modules.nativetools
 
 import android.app.AlarmManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -78,22 +81,54 @@ object AlarmStore {
     prefs(ctx).edit().remove(taskId).apply()
   }
 
-  /** Re-books every remembered alarm still ahead; ones whose time passed while the phone was off are dropped. */
+  /** Re-books every remembered alarm still ahead; ones whose time passed while the phone was off are dropped - after one "Missed" notice. */
   fun restoreAll(ctx: Context) {
     val now = System.currentTimeMillis()
     val p = prefs(ctx)
     val edit = p.edit()
+    val missed = ArrayList<String>()
     for ((id, raw) in p.all) {
       // Settings live in the same prefs file (__sound, __style, __notif_only, __banner, web_*): never alarms, never removed.
       if (id.startsWith("__") || id.startsWith("web_") || raw !is String) continue
       try {
         val o = JSONObject(raw)
         val at = o.getLong("at")
-        if (at <= now) { edit.remove(id); continue }
+        if (at <= now) {
+          // A task alert that came due in the last 12 hours while the phone was off is listed in the "Missed" notice below.
+          if (id.startsWith("wd:") && now - at <= MISSED_WINDOW_MS) o.optString("title").takeIf { it.isNotBlank() }?.let { missed.add(it) }
+          edit.remove(id); continue
+        }
         book(ctx, id, at, o.optString("title"), o.optString("body"))
       } catch (_: Exception) { edit.remove(id) }
     }
     edit.apply()
+    if (missed.isNotEmpty()) notifyMissed(ctx, missed)
+  }
+
+  private const val MISSED_WINDOW_MS = 12L * 60 * 60 * 1000
+  private const val MISSED_CHANNEL_ID = "mpt_wd_missed"
+
+  /** One quiet notification naming the alerts that came due while the phone was off (up to three, then "and N more"). */
+  private fun notifyMissed(ctx: Context, titles: List<String>) {
+    try {
+      val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(MISSED_CHANNEL_ID) == null) {
+        nm.createNotificationChannel(NotificationChannel(MISSED_CHANNEL_ID, "Missed while the phone was off", NotificationManager.IMPORTANCE_DEFAULT))
+      }
+      val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)
+      val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+      val pi = if (open != null) PendingIntent.getActivity(ctx, 7702, open, flags) else null
+      val shown = titles.take(3).joinToString("\n") { "• $it" } + if (titles.size > 3) "\nand ${titles.size - 3} more" else ""
+      @Suppress("DEPRECATION")
+      val b = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(ctx, MISSED_CHANNEL_ID) else Notification.Builder(ctx)
+      b.setContentTitle(if (titles.size == 1) "Missed while the phone was off" else "${titles.size} alerts missed while the phone was off")
+        .setContentText(titles.first())
+        .setStyle(Notification.BigTextStyle().bigText(shown))
+        .setSmallIcon(ctx.applicationInfo.icon)
+        .setAutoCancel(true)
+      if (pi != null) b.setContentIntent(pi)
+      nm.notify(7702, b.build())
+    } catch (_: Exception) { /* a notice that cannot be shown must never break the restore */ }
   }
 
   /** The ringtone the app chose for alarms ("default", "chime", "bell", "ping", "drop", "alarm" or "silent"). */

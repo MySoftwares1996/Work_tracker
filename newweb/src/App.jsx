@@ -3,6 +3,8 @@ import ClockPicker from './ClockPicker';
 import Logo from './Logo';
 import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
+import EmptyState, { SkeletonRows } from './EmptyState';
+import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveDueDate } from './bulk';
 
 import { copyText } from './clipboard';
 import { weeklyReview, slipReason } from '../../src/weeklyReview.js';
@@ -40,6 +42,7 @@ export default function App() {
   if (store.demo && location.search.includes('loading')) return <LoadingScreen stage="data" full />;      // ?demo&loading previews the loading screen
   if (!store.user) return <SignIn />;
 
+  const booting = !store.hasLoaded && !store.error && !store.slow;      // the first server answer has not arrived: Dashboard / Register show placeholder rows
   const tasks = store.tasks;
   const counts = { register: tasks.filter(isOpen).length, done: tasks.filter((t) => t.done && !t.binned).length, bin: tasks.filter((t) => t.binned).length };
   const openForm = (t) => setForm(t || blankTask());
@@ -75,7 +78,7 @@ export default function App() {
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
         {!store.demo && store.slow && !store.hasLoaded && !store.error && <div className="banner err" role="status">Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.</div>}
-        {!store.demo && !store.hasLoaded && !store.error && !store.slow ? <LoadingScreen stage="data" /> : <Suspense fallback={<LoadingScreen stage="data" />}>{screens[tab]}</Suspense>}
+        {booting && !['dashboard', 'register'].includes(tab) ? <LoadingScreen stage="data" /> : <Suspense fallback={<LoadingScreen stage="data" />}>{screens[tab]}</Suspense>}
       </main>
       <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
       {form && <Suspense fallback={null}><TaskForm initial={form} onClose={() => setForm(null)} /></Suspense>}
@@ -99,11 +102,11 @@ function SignIn() {
   );
 }
 
-function Tile({ tone, label, value, sub, onClick }) {
+function Tile({ tone, label, value, sub, onClick, loading }) {
   return (
     <button className={`tile ${tone}`} onClick={onClick}>
       <span className="tile-label">{label}</span>
-      <span className="tile-value">{value}</span>
+      <span className="tile-value">{loading ? '–' : value}</span>
       <span className="tile-sub">{sub}</span>
     </button>
   );
@@ -118,6 +121,7 @@ function useMinute() {
 
 function Dashboard({ onEdit, onNew, go }) {
   const { tasks, actions } = useStore();
+  const loading = useLoading();
   const [quick, setQuick] = useState('');
   const now = useMinute();
   const s = useMemo(() => stats(tasks, now), [tasks, now]);
@@ -144,29 +148,31 @@ function Dashboard({ onEdit, onNew, go }) {
       </form>
       </div>
       <section className="tiles">
-        <Tile tone="coral" label="Pending as on Today" value={s.pendingAsOnToday} sub="Overdue + due today" onClick={() => go('register', { due: 'pending' })} />
-        <Tile tone="amber" label="Due Today" value={s.dueToday} sub="Still on the clock" onClick={() => go('register', { due: 'today' })} />
-        <Tile tone="pink" label="Overdue" value={s.overdue} sub="Past the due time" onClick={() => go('register', { due: 'overdue' })} />
-        <Tile tone="violet" label="Next 7 Days" value={s.dueSoon} sub="Coming up" onClick={() => go('register', { due: 'next7' })} />
-        <Tile tone="blue" label="This Month" value={s.thisMonth} sub={`Due in ${new Date().toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'month' })} />
-        <Tile tone="violet" label="Next Month" value={s.nextMonth} sub={`Due in ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'nextmonth' })} />
-        <Tile tone="teal" label="No Due Date" value={s.noDueDate} sub="Needs a deadline" onClick={() => go('register', { due: 'none' })} />
-        <Tile tone="amber" label="Pending" value={s.pending} sub="Status Pending" onClick={() => go('register', { status: 'Pending' })} />
-        <Tile tone="coral" label="High priority" value={s.high} sub="Open tasks" onClick={() => go('register', { priority: 'High' })} />
-        <Tile tone="blue" label="Open tasks" value={s.open} sub="In the register" onClick={() => go('register')} />
-        <Tile tone="teal" label="Done today" value={s.doneToday} sub="Completed" onClick={() => go('done')} />
+        <Tile loading={loading} tone="coral" label="Pending as on Today" value={s.pendingAsOnToday} sub="Overdue + due today" onClick={() => go('register', { due: 'pending' })} />
+        <Tile loading={loading} tone="amber" label="Due Today" value={s.dueToday} sub="Still on the clock" onClick={() => go('register', { due: 'today' })} />
+        <Tile loading={loading} tone="pink" label="Overdue" value={s.overdue} sub="Past the due time" onClick={() => go('register', { due: 'overdue' })} />
+        <Tile loading={loading} tone="violet" label="Next 7 Days" value={s.dueSoon} sub="Coming up" onClick={() => go('register', { due: 'next7' })} />
+        <Tile loading={loading} tone="blue" label="This Month" value={s.thisMonth} sub={`Due in ${new Date().toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'month' })} />
+        <Tile loading={loading} tone="violet" label="Next Month" value={s.nextMonth} sub={`Due in ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'nextmonth' })} />
+        <Tile loading={loading} tone="teal" label="No Due Date" value={s.noDueDate} sub="Needs a deadline" onClick={() => go('register', { due: 'none' })} />
+        <Tile loading={loading} tone="amber" label="Pending" value={s.pending} sub="Status Pending" onClick={() => go('register', { status: 'Pending' })} />
+        <Tile loading={loading} tone="coral" label="High priority" value={s.high} sub="Open tasks" onClick={() => go('register', { priority: 'High' })} />
+        <Tile loading={loading} tone="blue" label="Open tasks" value={s.open} sub="In the register" onClick={() => go('register')} />
+        <Tile loading={loading} tone="teal" label="Done today" value={s.doneToday} sub="Completed" onClick={() => go('done')} />
       </section>
-      <Breakdowns tasks={tasks} go={go} />
-      <WeeklyReview tasks={tasks} now={now} onEdit={onEdit} />
+      {!loading && <Breakdowns tasks={tasks} go={go} />}
+      {!loading && <WeeklyReview tasks={tasks} now={now} onEdit={onEdit} />}
       <div className="two">
         <section>
           <h2 className="h2 red">Needs attention <span className="muted">({lateAll.length} overdue)</span></h2>
-          {!late.length && <Empty text="Nothing overdue. Nice." />}
+          {loading && <SkeletonRows count={4} compact />}
+          {!loading && !late.length && <Empty icon="check" title="Nothing overdue" text="Nothing is past its due time. Nice." />}
           <div className="list">{late.map((t) => <CompactRow key={t.id} t={t} onEdit={onEdit} />)}</div>
         </section>
         <section>
           <h2 className="h2 amb">Due today <span className="muted">({todayAll.length})</span></h2>
-          {!today.length && <Empty text="Nothing due today." />}
+          {loading && <SkeletonRows count={4} compact />}
+          {!loading && !today.length && <Empty icon="calendar" title="Nothing due today" text="Today's list is clear." />}
           <div className="list">{today.map((t) => <CompactRow key={t.id} t={t} onEdit={onEdit} />)}</div>
         </section>
       </div>
@@ -292,7 +298,9 @@ function usePaged(rows, resetKey) {
 }
 const MoreButton = ({ more, onClick }) => (more > 0 ? <div className="more-row"><button type="button" className="btn" onClick={onClick}>Show {Math.min(more, PAGE)} more ({more} left)</button></div> : null);
 
-const Empty = ({ text }) => <div className="empty"><Logo size={40} className="float" /><p>{text}</p></div>;
+const Empty = (props) => <EmptyState {...props} />;
+/** True until the first server snapshot has arrived (and no error / timeout was shown): lists then draw placeholder rows instead of an empty state. */
+function useLoading() { const { hasLoaded, error, slow } = useStore(); return !hasLoaded && !error && !slow; }
 
 function Chip({ children, tone }) { return <span className={`chip ${tone || ''}`}>{children}</span>; }
 const priTone = (p) => ({ high: 'coral', medium: 'amber', low: 'teal' })[String(p).toLowerCase()] || '';

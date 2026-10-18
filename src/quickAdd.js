@@ -70,7 +70,10 @@ export function parseQuickAdd(input, { now = new Date(), categories = [], assign
     if (!d) return false;
     date = d < day0(now) ? new Date(d.getFullYear() + 1, d.getMonth(), d.getDate()) : d;
   })) { /* done */ }
-  else take(/\s(?:on\s+)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?=\s)/, (m) => {
+  else take(/\s(?:(on|by|before|till|until)\s+)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?=\s)/i, (raw) => {
+    // A bare "12-10" (INV 12-10, ratio 3/4) is not a date: it needs a date word before it or a year after it.
+    if (!raw[1] && !raw[4]) return false;
+    const m = [raw[0], raw[2], raw[3], raw[4]];
     const y = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : now.getFullYear();
     const [dd, mo] = dateOrder === 'mdy' ? [Number(m[2]), Number(m[1])] : [Number(m[1]), Number(m[2])];      // day first by default, as in India
     const d = validDate(y, mo - 1, dd);
