@@ -762,7 +762,7 @@ export default function WorkingDashboard() {
       if (!ai.trim() || lost.length) { setReportNote(`AI version was not used${lost.length ? ` - it lost ${lost.length} number(s) such as ${lost[0]}` : ''}. Showing the standard summary.`); return; }
       setReportAlt({ standard: draft, ai: ai.trim(), showing: 'ai' });
       setReportText(ai.trim());
-      setReportNote('✨ Rewritten with AI - every number is kept. Use "Show the standard version" to compare.');
+      setReportNote('Rewritten with AI - every number is kept. Use "Show the standard version" to compare.');
     } catch (e) {
       setReportNote(`AI not available right now (${e.message}) - showing the standard summary.`);
     } finally { setAiBusy(false); }
@@ -787,7 +787,7 @@ export default function WorkingDashboard() {
       if (!facts.ok) { setReportNote(`AI version was not used — it lost ${facts.missing.length} fact(s) such as "${facts.missing[0].fact}". Showing the complete standard report.`); return; }
       setReportAlt({ standard: reportModelToText(model), ai, showing: 'ai', date: model.date, draft });
       setReportText(ai);
-      setReportNote(`✨ Rewritten with AI — every item, amount, name and reference checked present.`);
+      setReportNote(`Rewritten with AI — every item, amount, name and reference checked present.`);
     } catch (e) {
       setReportNote(`AI not available right now (${e.message}) — showing the complete standard report.`);
     } finally { setAiBusy(false); }
@@ -911,7 +911,7 @@ export default function WorkingDashboard() {
               return (
                 <>
                   <Pressable onPress={() => setNarrOpen(true)} accessibilityRole="button" style={{ alignSelf: 'flex-start', backgroundColor: t.surfaceAlt, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 12 }}>
-                    <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(13.5) }}>📝 Final Narration{n.missing.length ? ` · ${n.missing.length} to fill` : ''}</Text>
+                    <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(13.5) }}>Final Narration{n.missing.length ? ` · ${n.missing.length} to fill` : ''}</Text>
                   </Pressable>
                   <Sheet visible={narrOpen} onClose={() => setNarrOpen(false)} title="Final Narration">
                     <Text selectable style={{ color: t.text, fontSize: t.fs(14.5), marginBottom: 8 }}>{n.text}</Text>
@@ -1039,7 +1039,7 @@ export default function WorkingDashboard() {
                 {!!c.done && <Icon name="check" size={15} color={t.onAccent} stroke={2.8} />}
               </Pressable>
               <Text style={{ flex: 1, color: c.done ? t.textDim : t.text, textDecorationLine: c.done ? 'line-through' : 'none', fontSize: t.fs(14.5) }}>{c.text}</Text>
-              <Pressable onPress={() => setEntrySheet((d) => ({ ...d, checklist: removeStep(d.checklist, c.id) }))} hitSlop={8} accessibilityLabel="Remove step"><Text style={{ color: t.textDim, fontSize: t.fs(16) }}>✕</Text></Pressable>
+              <Pressable onPress={() => setEntrySheet((d) => ({ ...d, checklist: removeStep(d.checklist, c.id) }))} hitSlop={8} accessibilityLabel="Remove step"><Icon name="close" size={16} color={t.textDim} stroke={2.2} /></Pressable>
             </Row>
           ))}
           <Row gap={8}>
@@ -1056,7 +1056,7 @@ export default function WorkingDashboard() {
           {showAudit && (entrySheet.audit || []).slice(0, 15).map((a, i) => (
             <Row key={`${a.at}-${i}`} gap={8} style={{ paddingVertical: 4 }}>
               <Small style={{ width: 96 }}>{new Date(a.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</Small>
-              <Small style={{ width: 44, fontWeight: '700' }}>{a.by === 'web' ? '🌐 web' : '📱 phone'}</Small>
+              <Small style={{ width: 44, fontWeight: '700' }}>{a.by === 'web' ? 'web' : 'phone'}</Small>
               <Text style={{ flex: 1, color: t.text, fontSize: t.fs(12.5) }}>{a.what}</Text>
             </Row>
           ))}
@@ -1265,7 +1265,7 @@ export default function WorkingDashboard() {
         <Card style={{ marginBottom: 12, backgroundColor: blend(t.warn, 0.14, t.surface), borderWidth: 1, borderColor: blend(t.warn, 0.5, t.surface) }}>
           <Row style={{ alignItems: 'center', gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: t.text, fontWeight: '800' }}>🔕 Meeting mode until {new Date(holdUntil).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</Text>
+              <Text style={{ color: t.text, fontWeight: '800' }}>Meeting mode until {new Date(holdUntil).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</Text>
               <Small>Alerts are held and ring once when it ends.</Small>
             </View>
             <Btn kind="soft" title="End now" onPress={() => setHold(0)} />
@@ -1274,7 +1274,7 @@ export default function WorkingDashboard() {
       )}
       {!!alarmBlock && (
         <Card style={{ marginBottom: 12, backgroundColor: blend(t.danger, 0.1, t.surface), borderWidth: 1, borderColor: blend(t.danger, 0.45, t.surface) }}>
-          <Text style={{ color: t.danger, fontWeight: '800', fontSize: t.fs(14.5) }}>⚠ Alarms cannot open full screen yet</Text>
+          <Text style={{ color: t.danger, fontWeight: '800', fontSize: t.fs(14.5) }}>Alarms cannot open full screen yet</Text>
           <Small style={{ marginTop: 3, marginBottom: 8 }}>
             {alarmBlock === 'overlay'
               ? 'Android shows task alerts only as a notification you must tap. Allow "Open over other apps" so an alert opens full screen on the lock screen and while you use the phone.'
@@ -1420,14 +1420,14 @@ export default function WorkingDashboard() {
             {/* Phone-width screens and the whole website: the bank follow-ups to make today, with the banker's last word on each. */}
             {(phoneLayout || Platform.OS === 'web') && !!followToday.length && (
               <View style={colItem}><Card style={{ marginTop: 14 }}>
-                <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 }}>📞 Follow-ups today ({followToday.length})</Small>
+                <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 }}>Follow-ups today ({followToday.length})</Small>
                 {followToday.map(({ entry, overdue, last, long }, i) => (
                   <Pressable key={entry.id} onPress={() => openFollowUp(entry)} accessibilityRole="button" accessibilityLabel={`Follow up: ${entry.title}`}
                     style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: t.border }}>
                     <Row style={{ alignItems: 'center', gap: 8 }}>
                       <Text style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: t.fs(14) }} numberOfLines={1}>{entry.title}</Text>
                       {/* "Both" (phone-width screens): a long pending follow-up is marked (it is listed first everywhere). */}
-                      {phoneLayout && long && <Text style={{ color: t.danger, fontWeight: '800', fontSize: t.fs(12) }}>⚠ Long pending</Text>}
+                      {phoneLayout && long && <Text style={{ color: t.danger, fontWeight: '800', fontSize: t.fs(12) }}>Long pending</Text>}
                       <Text style={{ color: overdue ? t.danger : t.accent, fontWeight: '700', fontSize: t.fs(12.5) }}>{overdue ? 'Overdue' : fmtDue(entry.dueAt)}</Text>
                     </Row>
                     <Small numberOfLines={2} style={{ marginTop: 2 }}>
@@ -1442,7 +1442,7 @@ export default function WorkingDashboard() {
             {/* web.app: open bank follow-ups by bank - where things are stuck. */}
             {!!byBank.length && (
               <View style={colItem}><Card style={{ marginTop: 14 }}>
-                <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 }}>🏦 Bank follow-ups by bank</Small>
+                <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 }}>Bank follow-ups by bank</Small>
                 <Row style={{ paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: t.border }}>
                   {['Bank', 'Open', 'Overdue', 'Oldest', 'Long pending'].map((h, i) => (
                     <Text key={h} style={{ flex: i ? 1 : 2, color: t.textDim, fontWeight: '700', fontSize: t.fs(12), textAlign: i ? 'center' : 'left' }}>{h}</Text>
@@ -1471,7 +1471,7 @@ export default function WorkingDashboard() {
               <View style={colItem}>
                 <Card style={{ marginTop: 14 }}>
                   <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Small style={{ fontWeight: '700', textTransform: 'uppercase' }}>💳 Payments by vendor</Small>
+                    <Small style={{ fontWeight: '700', textTransform: 'uppercase' }}>Payments by vendor</Small>
                     <Row gap={6}>
                       {[['This month', 0], ['Last month', 1]].map(([label, n]) => (
                         <Pressable key={n} onPress={() => setPayMonth(n)} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: payMonth === n ? t.accent : t.surfaceAlt }}>
@@ -1515,7 +1515,7 @@ export default function WorkingDashboard() {
               ))}
             </Card></View>
             </View>
-            <Btn style={{ marginTop: 14 }} kind="soft" title="📝 Daily Activity Report" onPress={() => goTab('report')} />
+            <Btn style={{ marginTop: 14 }} kind="soft" title="Daily Activity Report" onPress={() => goTab('report')} />
           </View>
         )}
 
@@ -1564,7 +1564,9 @@ export default function WorkingDashboard() {
                 );
               })()}
               <Label>Due date</Label>
-              <Segmented options={DUE_WITHIN_OPTIONS} value={filters.dueWithin} onChange={(v) => setFilter({ dueWithin: v })} style={{ marginBottom: 12 }} />
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                {DUE_WITHIN_OPTIONS.map((o) => <Chip key={o} label={o} on={filters.dueWithin === o} onPress={() => setFilter({ dueWithin: o })} />)}
+              </View>
               </Card>
             )}
 
@@ -1820,8 +1822,8 @@ export default function WorkingDashboard() {
               </Row>
               {/* Phone-width screens and the whole website: totals for the week (from Monday) or the month (from the 1st) up to the date above. */}
               {(phoneLayout || Platform.OS === 'web') && <Row gap={10} style={{ marginBottom: 8 }}>
-                <Btn style={{ flex: 1 }} kind={reportKind === 'week' ? 'primary' : 'soft'} title="📅 This week" onPress={() => buildSummary('week')} />
-                <Btn style={{ flex: 1 }} kind={reportKind === 'month' ? 'primary' : 'soft'} title="🗓 This month" onPress={() => buildSummary('month')} />
+                <Btn style={{ flex: 1 }} kind={reportKind === 'week' ? 'primary' : 'soft'} title="This week" onPress={() => buildSummary('week')} />
+                <Btn style={{ flex: 1 }} kind={reportKind === 'month' ? 'primary' : 'soft'} title="This month" onPress={() => buildSummary('month')} />
               </Row>}
               {!!reportModel && (
                 <Small>
@@ -1892,19 +1894,19 @@ export default function WorkingDashboard() {
               </Row>
             )}
             {!!reportAlt && (
-              <Btn style={{ marginTop: 10 }} kind="soft" title={reportAlt.showing === 'ai' ? 'Show the standard version' : '✨ Show the AI version'}
+              <Btn style={{ marginTop: 10 }} kind="soft" title={reportAlt.showing === 'ai' ? 'Show the standard version' : 'Show the AI version'}
                 onPress={() => { const next = reportAlt.showing === 'ai' ? 'standard' : 'ai'; setReportText(reportAlt[next]); setReportAlt({ ...reportAlt, showing: next }); }} />
             )}
             {!!reportText && !phoneLayout && (
               <Row gap={10} style={{ marginTop: 14, flexWrap: 'wrap' }}>
-                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="📋 Copy" onPress={copyReport} />
-                {(phoneLayout || Platform.OS === 'web') && <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="✉️ Email" onPress={emailReport} />}
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="Copy" onPress={copyReport} />
+                {(phoneLayout || Platform.OS === 'web') && <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="Email" onPress={emailReport} />}
                 {/* "Both" (phone-width screens): the report as a PDF, to send on WhatsApp or attach to a mail. */}
-                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="📄 PDF" onPress={pdfReport} />
-                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="⬇ Excel" onPress={csvReport} />
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="PDF" onPress={pdfReport} />
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="Excel" onPress={csvReport} />
                 {/* The app's built-in AI (aiBuiltin.js). On a phone
                     it has a line of its own below: four buttons in a row were too narrow to read. */}
-                {!phoneLayout && <Btn style={{ flex: 1 }} title={aiBusy ? 'Writing with AI...' : '✨ Rewrite with AI'} disabled={aiBusy} onPress={rewriteAny} />}
+                {!phoneLayout && <Btn style={{ flex: 1 }} title={aiBusy ? 'Writing with AI...' : 'Rewrite with AI'} disabled={aiBusy} onPress={rewriteAny} />}
               </Row>
             )}
 
@@ -2085,7 +2087,7 @@ export default function WorkingDashboard() {
 
       {/* Gmail, with the person's own sign-in. */}
       {(tab === 'dashboard' || tab === 'register' || tab === 'done') && mailAvailable && (
-        <Btn style={{ marginTop: 16 }} kind="soft" title="✉️ Fetch Mail" onPress={openMail} />
+        <Btn style={{ marginTop: 16 }} kind="soft" title="Fetch Mail" onPress={openMail} />
       )}
       <View style={{ height: 110 }} />
 
@@ -2151,8 +2153,8 @@ export default function WorkingDashboard() {
               {steps.map((c) => (
                 <Pressable key={c.id} onPress={() => tick(c.id)} accessibilityRole="checkbox" accessibilityState={{ checked: !!c.done }} accessibilityLabel={c.text}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: t.border }}>
-                  <View style={{ width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: c.done ? t.ok : 'transparent', borderWidth: c.done ? 0 : 2, borderColor: t.border }}>
-                    {!!c.done && <Text style={{ color: t.onAccent, fontWeight: '900', fontSize: t.fs(12) }}>✓</Text>}
+                  <View style={{ width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: c.done ? t.primary : 'transparent', borderWidth: c.done ? 0 : 2, borderColor: t.textDim }}>
+                    {!!c.done && <Icon name="check" size={14} color={t.onAccent} stroke={3} />}
                   </View>
                   <Text style={{ flex: 1, color: c.done ? t.textDim : t.text, fontSize: t.fs(14), textDecorationLine: c.done ? 'line-through' : 'none' }}>{c.text}</Text>
                 </Pressable>
@@ -2194,7 +2196,7 @@ export default function WorkingDashboard() {
         ) : (
           <View>
             <Row gap={8}>
-              <Field style={{ flex: 1 }} value={mailQuery} onChangeText={setMailQuery} placeholder="🔍 Search fetched mail..." />
+              <Field style={{ flex: 1 }} value={mailQuery} onChangeText={setMailQuery} placeholder="Search fetched mail" />
               <Btn title={mailBusy ? 'Fetching...' : 'Refresh'} disabled={mailBusy} onPress={openMail} style={{ paddingHorizontal: 14 }} />
             </Row>
             {mailBusy && <P dim style={{ marginTop: 10 }}>Fetching your unread mail...</P>}
@@ -2227,14 +2229,14 @@ export default function WorkingDashboard() {
     )}
     <Sheet visible={!!groupOpen && !!reportModel && !!reportModel.groups} onClose={() => setGroupOpen('')} title={({ oth: 'Other work', pay: 'Payments', fol: 'Followed up', out: 'Left out (Done, not DAR)' })[groupOpen] || ''}>
       {((reportModel && reportModel.groups && reportModel.groups[groupOpen]) || []).map((it) => (
-        <View key={it.id} style={{ backgroundColor: t.surface, borderRadius: 16, padding: 12, marginBottom: 10, ...t.shadow }}>
+        <View key={it.id} style={{ backgroundColor: t.surface, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: t.border }}>
           <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14) }}>{it.title}</Text>
           {!!it.line && it.line !== it.title && <Text style={{ color: t.textDim, fontSize: t.fs(13), marginTop: 3 }}>{it.line}</Text>}
           <Text style={{ color: t.textDim, fontSize: t.fs(11), fontWeight: '800', marginTop: 8 }}>MOVE TO</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
             {REPORT_GROUPS.map((g) => (
-              <Pressable key={g.key} onPress={() => moveTask(it.id, g.key)} accessibilityRole="button" accessibilityState={{ selected: g.key === groupOpen }} style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: g.key === groupOpen ? t.accent : t.surfaceAlt }}>
-                <Text style={{ color: g.key === groupOpen ? t.onAccent : t.text, fontWeight: '800', fontSize: t.fs(12) }}>{g.label}</Text>
+              <Pressable key={g.key} onPress={() => moveTask(it.id, g.key)} accessibilityRole="button" accessibilityState={{ selected: g.key === groupOpen }} style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: g.key === groupOpen ? t.primaryDark : t.surfaceAlt }}>
+                <Text style={{ color: g.key === groupOpen ? '#fff' : t.text, fontWeight: '800', fontSize: t.fs(12) }}>{g.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -2245,14 +2247,14 @@ export default function WorkingDashboard() {
     </Sheet>
     <Sheet visible={monthEndOpen} onClose={() => setMonthEndOpen(false)} title="Month end (last working days)">
       {monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 5).map((m) => (
-        <Pressable key={m.key} onPress={() => { setEntrySheet((d) => ({ ...d, dueAt: new Date(`${m.key}T00:00:00`).toISOString() })); setMonthEndOpen(false); }} accessibilityRole="button" style={{ backgroundColor: t.surface, borderRadius: 14, padding: 14, marginBottom: 8, ...t.shadow }}>
+        <Pressable key={m.key} onPress={() => { setEntrySheet((d) => ({ ...d, dueAt: new Date(`${m.key}T00:00:00`).toISOString() })); setMonthEndOpen(false); }} accessibilityRole="button" style={{ backgroundColor: t.surface, borderRadius: 16, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: t.border }}>
           <Text style={{ color: t.text, fontWeight: '700' }}>{m.label}</Text>
         </Pressable>
       ))}
     </Sheet>
     <Sheet visible={!!subPop} onClose={() => setSubPop(null)} title={subPop ? `${subPop.category} - Sub categories` : ''}>
       {subPop && groupCounts(subPop.list, (e) => e.subCategory, 'None chosen').map((r) => (
-        <Pressable key={r.label} onPress={() => { const sp = subPop; setSubPop(null); openRegister({ category: sp.category, subCategory: r.label === 'None chosen' ? '__none' : r.label, dueWithin: sp.due }); }} accessibilityRole="button" style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: t.surface, borderRadius: 14, padding: 14, marginBottom: 8, ...t.shadow }}>
+        <Pressable key={r.label} onPress={() => { const sp = subPop; setSubPop(null); openRegister({ category: sp.category, subCategory: r.label === 'None chosen' ? '__none' : r.label, dueWithin: sp.due }); }} accessibilityRole="button" style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: t.surface, borderRadius: 16, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: t.border }}>
           <Text style={{ color: t.text, fontWeight: '700', flex: 1 }}>{r.label}</Text>
           <Text style={{ color: t.accent, fontWeight: '800' }}>{r.count}</Text>
         </Pressable>
@@ -2261,9 +2263,9 @@ export default function WorkingDashboard() {
     </Sheet>
     <Sheet visible={shareOpen} onClose={() => setShareOpen(false)} title="Send the report">
       <Field label="SEND TO (Email fills this in)" value={wd.reportEmail || ''} keyboardType="email-address" autoCapitalize="none" onChangeText={(v) => updateWd((w) => ({ ...w, reportEmail: v }))} placeholder="manager@company.com" />
-      <Btn style={{ marginBottom: 8 }} title="✉️ Email" onPress={() => { setShareOpen(false); emailReport(); }} />
-      <Btn style={{ marginBottom: 8 }} kind="soft" title="📄 PDF" onPress={() => { setShareOpen(false); pdfReport(); }} />
-      <Btn kind="soft" title="⬇ Excel" onPress={() => { setShareOpen(false); csvReport(); }} />
+      <Btn style={{ marginBottom: 8 }} title="Email" onPress={() => { setShareOpen(false); emailReport(); }} />
+      <Btn style={{ marginBottom: 8 }} kind="soft" title="PDF" onPress={() => { setShareOpen(false); pdfReport(); }} />
+      <Btn kind="soft" title="Excel" onPress={() => { setShareOpen(false); csvReport(); }} />
     </Sheet>
 
     {formOn && (tab === 'dashboard' || tab === 'register') && <Fab onPress={openNewEntry} right={wide ? 32 : 20} bottom={fabBottom} />}

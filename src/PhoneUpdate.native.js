@@ -57,10 +57,10 @@ export default function PhoneUpdate() {
   if (working || showError) return <UpdateBar phase={showError && !working ? 'error' : isDownloading ? 'downloading' : 'checking'} progress={isDownloading ? downloadProgress : undefined} elapsedMs={elapsed} top={insets.top} />;
   if (!isUpdatePending) return null;
   return (
-    <View accessibilityRole="alert" style={{ position: 'absolute', left: 12, right: 12, bottom: Math.max(insets.bottom, 8) + 84, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, backgroundColor: t.accent, ...t.shadow }}>
+    <View accessibilityRole="alert" style={{ position: 'absolute', left: 20, right: 20, bottom: Math.max(insets.bottom, 12) + 96, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: t.radius, backgroundColor: t.primaryDark, elevation: 8 }}>
       <Text style={{ flex: 1, color: '#fff', fontWeight: '700' }}>A new version of the app is ready.</Text>
-      <Pressable onPress={() => { Updates.reloadAsync().catch(warnQuiet('PhoneUpdate.native')); }} accessibilityRole="button" style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#fff' }}>
-        <Text style={{ color: t.accent, fontWeight: '800' }}>Restart</Text>
+      <Pressable onPress={() => { Updates.reloadAsync().catch(warnQuiet('PhoneUpdate.native')); }} accessibilityRole="button" style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#fff' }}>
+        <Text style={{ color: t.primaryDark, fontWeight: '800' }}>Restart</Text>
       </Pressable>
     </View>
   );

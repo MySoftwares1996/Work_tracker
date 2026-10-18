@@ -34,7 +34,7 @@ export default function WdGeminiKey() {
     <View>
       <Small style={{ marginBottom: 10 }}>The report rewrite uses the free Gemini route first. If it is busy or its daily limit is used, your own key (free at aistudio.google.com) is tried. It stays on this phone only.</Small>
       <Card>
-        <Small style={{ marginBottom: 6 }}>{saved ? '✓ A key is saved on this phone.' : 'No key saved.'}</Small>
+        <Small style={{ marginBottom: 6 }}>{saved ? 'A key is saved on this phone.' : 'No key saved.'}</Small>
         <Field label="GEMINI API KEY" value={value} onChangeText={setValue} placeholder="Paste the key" autoCapitalize="none" autoCorrect={false} secureTextEntry />
         <Row gap={8} style={{ flexWrap: 'wrap' }}>
           <Btn title="Save" disabled={!value.trim()} onPress={save} />

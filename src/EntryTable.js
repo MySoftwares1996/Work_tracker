@@ -26,7 +26,7 @@ export default function EntryTable({ entries, onOpen, mode = 'open', completedAt
     ? [['Task', 4, (e) => e.title], ['Category', 2, (e) => e.category], ['Pending with', 1.5, (e) => e.pendingWith], ['Completed', 1.6, (e) => day(completedAt ? completedAt(e) : e.completedAt)], ['Report', 1, (e) => (e.dar === false ? 'Done only' : 'DAR')]]
     : [['Task', 4, (e) => e.title], ['Category', 2, (e) => e.category], ['Status', 1.5, (e) => e.status], ['Pending with', 1.5, (e) => e.pendingWith], ['Due', 1.6, (e) => day(e.dueAt)]];
   return (
-    <View style={{ backgroundColor: t.surface, borderRadius: t.radius, ...t.shadow }}>
+    <View style={{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 16, backgroundColor: t.surfaceAlt, borderBottomWidth: 0.5, borderBottomColor: t.border, borderTopLeftRadius: t.radius, borderTopRightRadius: t.radius, position: 'sticky', top: 0, zIndex: 1 }}>
         <View style={{ width: 22 }} />
         {cols.map(([label, flex]) => (

@@ -47,9 +47,9 @@ export default function WdReportFormats({ wd, entries, setTools, setLists }) {
             <Small style={{ marginVertical: 6 }}>Only what is missing is created; nothing you already have is changed.</Small>
             <Btn title="Add them to my lists" onPress={() => { setLists(setup.lists); Alert.alert('Added', 'The categories and sub categories were added.'); }} />
           </View>
-        ) : <Small>✓ Every category and sub category in the formats is already in your lists.</Small>}
+        ) : <Small>Every category and sub category in the formats is already in your lists.</Small>}
       </Card>
-      <Field value={find} onChangeText={setFind} placeholder="🔍 Search sub categories..." />
+      <Field value={find} onChangeText={setFind} placeholder="Search sub categories" />
       {rows.map((row) => {
         const on = open === row.key;
         const e = on ? sample(row) : null;

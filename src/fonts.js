@@ -28,14 +28,13 @@ export function useAppFonts(timeoutMs = 2500) {
     (async () => {
       try {
         const Font = await import('expo-font');
-        const fr = await import('@expo-google-fonts/fraunces');
-        const mr = await import('@expo-google-fonts/manrope');
+        // Only the five faces the app uses (not every weight in the packages), so the bundle and a phone update stay small.
         await Font.loadAsync({
-          Fraunces_600SemiBold: fr.Fraunces_600SemiBold,
-          Manrope_500Medium: mr.Manrope_500Medium,
-          Manrope_600SemiBold: mr.Manrope_600SemiBold,
-          Manrope_700Bold: mr.Manrope_700Bold,
-          Manrope_800ExtraBold: mr.Manrope_800ExtraBold,
+          Fraunces_600SemiBold: require('@expo-google-fonts/fraunces/600SemiBold/Fraunces_600SemiBold.ttf'),
+          Manrope_500Medium: require('@expo-google-fonts/manrope/500Medium/Manrope_500Medium.ttf'),
+          Manrope_600SemiBold: require('@expo-google-fonts/manrope/600SemiBold/Manrope_600SemiBold.ttf'),
+          Manrope_700Bold: require('@expo-google-fonts/manrope/700Bold/Manrope_700Bold.ttf'),
+          Manrope_800ExtraBold: require('@expo-google-fonts/manrope/800ExtraBold/Manrope_800ExtraBold.ttf'),
         });
         fontsReady = true;
         if (alive) setState((s) => (s === 'late' ? 'ready-late' : 'ready'));

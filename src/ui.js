@@ -7,7 +7,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import TabIcon from './tabIcons';
 import { SIDE_BAR_WIDTH, CONTENT_MAX_WIDTH, layoutFor } from './layout';
 import { useTheme, opaque, withAlpha } from './theme';
-import Svg, { Path } from 'react-native-svg';
 import { warnQuiet } from './quietCatch';
 import Icon, { ICON_NAMES } from './icons';
 import { ff, display } from './fonts';
@@ -611,7 +610,7 @@ export function DateTimeField({ label, value, onChange, mode = 'datetime', minim
             borderRadius: t.fieldRadius, paddingHorizontal: dense ? 9 : 14,
           }}>
             <Text numberOfLines={1} style={{ color: value ? t.text : t.textDim, fontWeight: '600', fontSize: t.fs(dense ? 12.5 : 14.5) }}>
-              {value ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (dense ? 'Time' : 'Select Time')}
+              {value ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : (dense ? 'Time' : 'Select Time')}
             </Text>
           </Pressable>
         )}
