@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, Pressable, TextInput, ScrollView, Modal, StyleSheet, Platform,
-  Alert, Keyboard, useWindowDimensions, Animated, PanResponder, Easing, AccessibilityInfo,
+  Alert, Keyboard, useWindowDimensions, Animated, PanResponder, Easing, AccessibilityInfo, RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import TabIcon from './tabIcons';
@@ -218,8 +218,11 @@ export function useAboveBottomBar() {
   return wide ? 24 : Math.max(insets.bottom, 8) + 72;
 }
 
-export function Screen({ children, scroll = true, padded = true, headerless = false, bottomBar = false }) {
+export function Screen({ children, scroll = true, padded = true, headerless = false, bottomBar = false, onRefresh }) {
   const t = useTheme();
+  // Pull down to refresh (phone): the spinner shows while onRefresh runs, and at least a moment so it reads as done.
+  const [refreshing, setRefreshing] = React.useState(false);
+  const pull = onRefresh ? async () => { setRefreshing(true); try { await Promise.all([onRefresh(), new Promise((r) => setTimeout(r, 700))]); } catch { /* the screen shows its own errors */ } setRefreshing(false); } : null;
   const Body = scroll ? ScrollView : View;
   const edges = headerless ? ['top', 'left', 'right'] : ['left', 'right'];
   const { wide, tablet } = useLayout();
@@ -233,6 +236,7 @@ export function Screen({ children, scroll = true, padded = true, headerless = fa
           tablet && { width: '100%', maxWidth: CONTENT_MAX_WIDTH + sides * 2, alignSelf: 'center' },
         ] : undefined}
         keyboardShouldPersistTaps="handled"
+        {...(scroll && pull ? { refreshControl: <RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={t.accent} colors={[t.accent]} progressBackgroundColor={t.surface} /> } : null)}
       >
         {children}
       </Body>

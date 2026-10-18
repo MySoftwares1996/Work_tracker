@@ -37,8 +37,27 @@ function NarrationBox({ t }) {
 
 /** A popup over the form: anything that adds or edits options opens here, so the form itself never grows. */
 function Popup({ title, sub, onClose, children, foot }) {
+  // Keyboard: focus moves into the popup, Tab stays inside it, and focus goes back to where it was when it closes.
+  const box = useRef(null);
+  useEffect(() => {
+    const before = document.activeElement;
+    const items = () => [...(box.current ? box.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') : [])].filter((x) => !x.disabled && x.offsetParent !== null);
+    const first = items().find((x) => x.tagName !== 'BUTTON' || !x.classList.contains('ghost'));
+    if (first && !box.current.contains(document.activeElement)) first.focus();
+    const trap = (e) => {
+      if (e.key !== 'Tab') return;
+      const list = items();
+      if (!list.length) return;
+      const a = list[0]; const z = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+      else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+    };
+    const el = box.current;
+    el && el.addEventListener('keydown', trap);
+    return () => { el && el.removeEventListener('keydown', trap); if (before && before.focus && document.contains(before)) before.focus(); };
+  }, []);
   return (
-    <div className="sub-pop" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={title}>
+    <div ref={box} className="sub-pop" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={title}>
       <div className="sub-card">
         <div className="sub-head"><span><b>{title}</b>{sub && <small>{sub}</small>}</span><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
         {children}

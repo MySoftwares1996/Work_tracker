@@ -12,6 +12,7 @@ import { shareCsv } from '../csv';
 
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
 import { newId } from '../ids';
+import { refreshWdAlerts } from '../workingDashboardActions';
 import { warnQuiet } from '../quietCatch';
 import { seenWebFields } from '../cloudSync';
 import { useRealtimeStatus, setRealtimeStatus } from '../realtimeStatus';
@@ -283,6 +284,8 @@ export default function WorkingDashboard() {
   /* ---------- entry CRUD ---------- */
   /** A Home tile: the Tasks list with ONLY that filter (no leftover filter or chip). */
   const openRegister = (patch = {}) => { setFilters({ ...EMPTY_WD_FILTER, ...patch }); setQuickView(''); setVisibleCount(5); setTab('register'); };
+  // Pull down on any tab: read the website's edits now and rebook the alerts (the same job the background refresh does).
+  const pullRefresh = () => refreshWdAlerts({ pull: true, wd });
   const goTab = (k) => { setTab(k); setVisibleCount(5); if (k === 'report' && (!reportModel || reportKind === 'day')) buildReport(); };
   // The narration form starts from the entry's saved narration ("Include mail chain" off for a new one; an older
   // narration, saved before the tick existed, keeps the mail chain - as on the web app).
@@ -1189,7 +1192,7 @@ export default function WorkingDashboard() {
 
   return (
     <View style={[{ flex: 1, paddingLeft: sideBar }, t.bgGradient ? { backgroundImage: t.bgGradient } : null]}>
-    <Screen headerless bottomBar>
+    <Screen headerless bottomBar onRefresh={Platform.OS !== 'web' ? pullRefresh : undefined}>
       {/* The phone's app bar: the logo and title, the finder and the alerts bell - nothing else; sync and settings are under More. */}
       {phoneLayout && (
         <Row style={{ alignItems: 'center', gap: 10, marginBottom: 12 }}>

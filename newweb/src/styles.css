@@ -817,3 +817,6 @@ textarea.auto, .sheet.wide .col textarea.auto, .sheet.wide .cols3 > .col:first-c
 .wr-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wr-why { color: var(--coral); font-size: 13px; white-space: nowrap; }
 @media (max-width: 520px) { .wr-item { flex-direction: column; gap: 0; } .wr-stats b { font-size: 22px; } }
+
+/* Keyboard users can always see where they are (buttons, links, fields, anything focusable). */
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
