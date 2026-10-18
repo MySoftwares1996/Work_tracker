@@ -9,6 +9,8 @@ import { SIDE_BAR_WIDTH, CONTENT_MAX_WIDTH, layoutFor } from './layout';
 import { useTheme, opaque, withAlpha } from './theme';
 import Svg, { Path } from 'react-native-svg';
 import { warnQuiet } from './quietCatch';
+import Icon, { ICON_NAMES } from './icons';
+import { ff, display } from './fonts';
 
 /**
  * @param headerless  true only for screens with the navigation header hidden.
@@ -19,7 +21,7 @@ import { warnQuiet } from './quietCatch';
  * screen that has a title bar.
  */
 /** Room left at the foot of a screen for the floating bottom tab bar, so the last card is never under it. */
-export const BOTTOM_BAR_SPACE = 80;
+export const BOTTOM_BAR_SPACE = 96;
 
 /** The current window's layout (see layout.js): re-renders when the window is resized or rotated. */
 export function useLayout() {
@@ -65,26 +67,28 @@ export function BottomTabs({ tabs, value, onChange, badges = {} }) {
   );
 }
 
-/** The phone's own tab bar: five tabs at most, edge to edge, big touch targets, the chosen tab's icon in a soft accent pill. */
+/** The phone-bar icon for each tab key (the Ledger line icons). */
+const PHONE_ICON = { dashboard: 'home', register: 'tasks', report: 'report', done: 'done', more: 'more' };
+
+/**
+ * The phone's own tab bar (Ledger): white, a line on top, five tabs at most. The chosen tab's icon sits in a 58x30 pill of the
+ * primary tint and takes the primary colour; labels are 11px 700.
+ */
 function PhoneBar({ tabs, value, onChange, badges }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 10), paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: t.border }, frost(t)]}>
+    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12) + 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: t.border }, frost(t)]}>
       {tabs.map((x) => {
         const on = value === x.key;
         const badge = badges[x.key];
+        const iconName = PHONE_ICON[x.key];
         return (
-          <Pressable key={x.key} onPress={() => onChange(x.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${x.label}${badge ? `, ${badge}` : ''}`} style={{ flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 2 }}>
-            <View style={{ width: 54, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }}>
-              <TabIcon name={x.icon || x.key} color={on ? t.accent : t.textDim} active={on} size={23} />
-              {!!badge && (
-                <View style={{ position: 'absolute', top: -4, right: 0, minWidth: 17, height: 17, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: x.key === 'done' ? t.ok : t.danger }}>
-                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>{badge > 99 ? '99+' : badge}</Text>
-                </View>
-              )}
+          <Pressable key={x.key} onPress={() => onChange(x.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${x.label}${badge ? `, ${badge}` : ''}`} style={{ flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 4, gap: 3 }}>
+            <View style={{ width: 58, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.tint : 'transparent' }}>
+              {iconName ? <Icon name={iconName} size={23} color={on ? t.primary : t.textDim} /> : <TabIcon name={x.icon || x.key} color={on ? t.primary : t.textDim} active={on} size={23} />}
             </View>
-            <Text style={{ marginTop: 3, fontSize: 11, fontWeight: on ? '800' : '600', color: on ? t.accent : t.textDim }} numberOfLines={1}>{x.label}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: on ? t.primary : t.textDim }} numberOfLines={1}>{x.label}</Text>
           </Pressable>
         );
       })}
@@ -213,7 +217,7 @@ function SideTabs({ tabs, value, onChange, badges }) {
 export function useAboveBottomBar() {
   const insets = useSafeAreaInsets();
   const { wide } = useLayout();
-  return wide ? 24 : Math.max(insets.bottom, 8) + 72;
+  return wide ? 24 : Math.max(insets.bottom, 12) + 4 + 66;
 }
 
 export function Screen({ children, scroll = true, padded = true, headerless = false, bottomBar = false, onRefresh }) {
@@ -224,7 +228,7 @@ export function Screen({ children, scroll = true, padded = true, headerless = fa
   const Body = scroll ? ScrollView : View;
   const edges = headerless ? ['top', 'left', 'right'] : ['left', 'right'];
   const { wide, tablet } = useLayout();
-  const sides = padded ? (wide ? 28 : tablet ? 20 : 16) : 0;
+  const sides = padded ? (wide ? 28 : 20) : 0;
   return (
     <SafeAreaView style={[{ flex: 1, backgroundColor: t.bg }, t.bgGradient ? { backgroundImage: t.bgGradient } : null]} edges={edges}>
       <Body
@@ -242,40 +246,38 @@ export function Screen({ children, scroll = true, padded = true, headerless = fa
   );
 }
 
-/** A friendly empty screen: a round icon, a title, one line of help and (optionally) the one action that fills it. */
-export function EmptyState({ icon = '✅', title, text, action, onAction }) {
+/** A friendly empty screen: a round tinted icon, a serif title, one line of help and (optionally) the one action that fills it. */
+export function EmptyState({ icon = 'done', title, text, action, onAction }) {
   const t = useTheme();
   return (
     <View accessibilityRole="summary" style={{ alignItems: 'center', paddingVertical: 36, paddingHorizontal: 24, gap: 10 }}>
-      <View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: t.accent + '1F', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: t.fs(38) }}>{icon}</Text>
+      <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}>
+        {ICON_NAMES.includes(icon) ? <Icon name={icon} size={44} color={t.primary} stroke={2} /> : <Text style={{ fontSize: t.fs(40) }}>{icon}</Text>}
       </View>
-      <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(20), textAlign: 'center', marginTop: 4 }}>{title}</Text>
-      {!!text && <Text style={{ color: t.textDim, fontSize: t.fs(14), lineHeight: t.fs(21), textAlign: 'center' }}>{text}</Text>}
-      {!!action && <Btn style={{ marginTop: 8, alignSelf: 'center', paddingHorizontal: 24 }} title={action} onPress={onAction} />}
+      <Text style={{ color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(28), letterSpacing: -0.5, textAlign: 'center', marginTop: 6 }}>{title}</Text>
+      {!!text && <Text style={{ color: t.textDim, fontSize: t.fs(15), lineHeight: t.fs(22), textAlign: 'center', fontWeight: '500' }}>{text}</Text>}
+      {!!action && <Btn style={{ marginTop: 10, alignSelf: 'center', paddingHorizontal: 26 }} title={action} onPress={onAction} />}
     </View>
   );
 }
 
 export function Card({ children, style, onPress, tone }) {
   const t = useTheme();
-  // A card has an elevation shadow; a translucent background lets that shadow
-  // show through as a grey box on Android. Flatten any #RRGGBBAA to opaque.
+  // Flat white card with a 1px line (Ledger). A translucent background is flattened to opaque.
   const flat = StyleSheet.flatten(style) || {};
   const fixedStyle = flat.backgroundColor ? [style, { backgroundColor: opaque(flat.backgroundColor, t.surface) }] : style;
   style = fixedStyle;
   const base = {
     backgroundColor: opaque(tone || t.surface, t.surface),
     borderRadius: t.radius,
-    borderWidth: t.frosted && Platform.OS === 'web' ? 0 : t.dark ? 1 : StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: t.border,
-    padding: 14,
+    padding: 16,
     ...t.shadow,
   };
   if (onPress) {
-    // Dips under the finger and springs back (the CSS transition on the website does the springing).
     return (
-      <Pressable onPress={onPress} style={({ pressed, hovered }) => [base, style, hovered && Platform.OS === 'web' && { transform: [{ translateY: -2 }] }, pressed && { transform: [{ scale: 0.975 }], opacity: 0.94 }]}>
+      <Pressable onPress={onPress} style={({ pressed, hovered }) => [base, style, hovered && Platform.OS === 'web' && { transform: [{ translateY: -1 }] }, pressed && { transform: [{ scale: 0.985 }], opacity: 0.94 }]}>
         {children}
       </Pressable>
     );
@@ -285,7 +287,7 @@ export function Card({ children, style, onPress, tone }) {
 
 export function H2({ children, style, numberOfLines }) {
   const t = useTheme();
-  return <Text numberOfLines={numberOfLines} style={[{ fontSize: t.fs(17), fontWeight: '600', color: t.text, marginBottom: 8 }, style]}>{children}</Text>;
+  return <Text numberOfLines={numberOfLines} style={[{ fontSize: t.fs(16), fontWeight: '800', color: t.text, marginBottom: 8 }, style]}>{children}</Text>;
 }
 
 export function P({ children, dim, style, numberOfLines }) {
@@ -301,16 +303,23 @@ export function Small({ children, style, numberOfLines }) {
   return <Text numberOfLines={numberOfLines} style={[{ fontSize: t.fs(11.5), color: t.textDim }, style]}>{children}</Text>;
 }
 
+/** The small spaced caps label above a field (11px 800, muted). */
+export function Label({ children, style, numberOfLines, dense }) {
+  const t = useTheme();
+  return <Text numberOfLines={numberOfLines} style={[{ fontSize: t.fs(dense ? 10 : 11), fontWeight: '800', letterSpacing: dense ? 0.4 : 0.8, color: t.textDim, textTransform: 'uppercase', marginBottom: 6 }, style]}>{children}</Text>;
+}
+
 export function Btn({ title, onPress, kind = 'primary', style, disabled, icon }) {
   const t = useTheme();
   const map = {
-    primary: { bg: t.accent, fg: t.onAccent || '#fff' },
-    ghost: { bg: 'transparent', fg: t.accent, border: t.accent },
-    soft: { bg: t.surfaceAlt, fg: t.text, border: t.border },
-    danger: { bg: t.danger, fg: '#fff' },
-    ok: { bg: t.ok, fg: '#fff' },
+    primary: { bg: t.primary, fg: t.onAccent },
+    ghost: { bg: 'transparent', fg: t.primary, border: t.primary },
+    soft: { bg: t.tint, fg: t.tintText },
+    neutral: { bg: t.surfaceAlt, fg: t.text },
+    danger: { bg: t.danger, fg: t.dark ? t.bg : '#fff' },
+    ok: { bg: t.primary, fg: t.onAccent },
   }[kind];
-  const press = usePressSpring(0.96);
+  const press = usePressSpring(0.97);
   const web = Platform.OS === 'web';
   return (
     <Pressable
@@ -322,13 +331,13 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
       style={({ pressed }) => [{
         backgroundColor: map.bg,
         borderColor: map.border || 'transparent',
-        borderWidth: map.border ? 1 : 0,
-        paddingVertical: web ? 8 : 12,
-        paddingHorizontal: web ? 14 : 16,
+        borderWidth: map.border ? 1.5 : 0,
+        paddingVertical: web ? 10 : 13,
+        paddingHorizontal: 16,
         borderRadius: t.btnRadius,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: disabled ? 0.45 : pressed ? 0.82 : 1,
+        opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
       }, style]}
     >
       <Animated.View style={{ transform: [{ scale: press.scale }], maxWidth: '100%' }}>
@@ -336,7 +345,7 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.75}
-          style={{ color: map.fg, fontWeight: '600', fontSize: t.fs(web ? 13.5 : 15), textAlign: 'center', flexShrink: 1 }}
+          style={{ color: map.fg, fontWeight: '800', fontSize: t.fs(web ? 14 : 15), textAlign: 'center', flexShrink: 1 }}
         >
           {icon ? icon + '  ' : ''}{title}
         </Text>
@@ -365,7 +374,7 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, m
   const handleChange = (v) => { if (numeric) setEditing(v); onChangeText?.(v); };
   return (
     <View style={[{ marginBottom: 12 }, style]}>
-      {!!label && <Small style={{ marginBottom: 5 }}>{label}</Small>}
+      {!!label && <Label>{label}</Label>}
       <TextInput
         value={shown}
         onChangeText={handleChange}
@@ -378,21 +387,58 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, m
         numberOfLines={compact ? 1 : undefined}
         {...inputProps}
         style={{
-          backgroundColor: t.surfaceAlt,
+          backgroundColor: t.surface,
           borderWidth: 1,
-          borderColor: focused ? t.accent : t.border,
+          borderColor: focused ? t.primary : t.fieldBorder,
           borderRadius: t.fieldRadius,
-          paddingHorizontal: 12,
-          paddingVertical: Platform.OS === 'ios' ? 12 : 9,
+          paddingHorizontal: 14,
+          paddingVertical: multiline ? 12 : Platform.OS === 'ios' ? 13 : 10,
           color: t.text,
-          fontSize: t.fs(15),
+          fontFamily: ff(600),
+          fontSize: t.fs(14.5),
           // `compact`: one line to start with, growing as lines are added (Task description, Notes).
-          minHeight: multiline ? (compact ? 44 : 80) : undefined,
+          minHeight: multiline ? (compact ? 62 : 90) : 46,
           textAlignVertical: multiline && !compact ? 'top' : 'center',
           // The macOS focus ring on the website: a soft halo in the accent colour.
           ...(Platform.OS === 'web' && focused ? { boxShadow: `0 0 0 3px ${t.accent}40` } : null),
         }}
       />
+    </View>
+  );
+}
+
+/** An on / off switch (Config): a 46x28 track, primary when on, with a white knob. */
+export function Toggle({ value, onChange, label }) {
+  const t = useTheme();
+  return (
+    <Pressable onPress={() => onChange(!value)} accessibilityRole="switch" accessibilityState={{ checked: !!value }} accessibilityLabel={label} hitSlop={8}
+      style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: value ? t.primary : t.fieldBorder, justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', top: 3, left: value ? 21 : 3, width: 22, height: 22, borderRadius: 11, backgroundColor: value ? t.onAccent : '#fff' }} />
+    </Pressable>
+  );
+}
+
+/** The search box: a white field with a line, the search icon at the left and a clear button when something is typed. */
+export function SearchField({ value, onChangeText, placeholder, style, onSubmitEditing, height = 48 }) {
+  const t = useTheme();
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: 16, paddingHorizontal: 14, height }, style]}>
+      <Icon name="search" size={20} color={t.textDim} stroke={1.9} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={t.textDim}
+        returnKeyType="search"
+        onSubmitEditing={onSubmitEditing}
+        accessibilityLabel={placeholder}
+        style={{ flex: 1, color: t.text, fontFamily: ff(600), fontSize: t.fs(14), paddingVertical: 0, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null) }}
+      />
+      {!!value && (
+        <Pressable onPress={() => onChangeText('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear search">
+          <Icon name="close" size={16} color={t.textDim} stroke={2.2} />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -423,7 +469,7 @@ function useKeyboardHeight() {
  * `dismissable = false` locks the sheet: no X button, the backdrop no longer
  * closes it, and the Android back button is swallowed.
  */
-export function Sheet({ visible, onClose, title, children, full, dismissable = true, fillDesktop = false, footer = null }) {
+export function Sheet({ visible, onClose, title, children, full, dismissable = true, fillDesktop = false, footer = null, bigTitle = false }) {
   const t = useTheme();
   const { height } = useWindowDimensions();
   const kb = useKeyboardHeight();
@@ -436,11 +482,11 @@ export function Sheet({ visible, onClose, title, children, full, dismissable = t
   const fillWidth = fillDesktop && wide && Platform.OS === 'web';
 
   const header = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-      <H2 style={{ flex: 1, marginBottom: 0, paddingRight: 8 }} numberOfLines={2}>{title}</H2>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+      <Text numberOfLines={2} style={{ flex: 1, paddingRight: 8, color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(bigTitle ? 30 : 24), letterSpacing: -0.6 }}>{title}</Text>
       {dismissable && (
-        <Pressable onPress={onClose} hitSlop={12} style={{ padding: 4 }} accessibilityLabel="Close">
-          <Text style={{ color: t.textDim, fontSize: t.fs(20) }}>✕</Text>
+        <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Close" accessibilityRole="button" style={{ width: bigTitle ? 44 : 40, height: bigTitle ? 44 : 40, borderRadius: 22, backgroundColor: bigTitle ? t.surface : t.surfaceAlt, borderWidth: bigTitle ? 1 : 0, borderColor: t.border, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="close" size={18} color={t.text} stroke={2.2} />
         </Pressable>
       )}
     </View>
@@ -450,13 +496,13 @@ export function Sheet({ visible, onClose, title, children, full, dismissable = t
     return (
       <Modal visible={visible} animationType={Platform.OS === 'web' ? 'fade' : 'slide'} onRequestClose={requestClose} statusBarTranslucent>
         <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }} edges={['top', 'bottom']}>
-          <View style={{ flex: 1, paddingHorizontal: fillWidth ? 32 : 16, paddingTop: 16, width: '100%', maxWidth: fillWidth ? undefined : tablet ? 760 : undefined, alignSelf: 'center' }}>
+          <View style={{ flex: 1, paddingHorizontal: fillWidth ? 32 : 20, paddingTop: 16, width: '100%', maxWidth: fillWidth ? undefined : tablet ? 760 : undefined, alignSelf: 'center' }}>
             {header}
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: footer ? 16 : 24 + kb }}>
               {children}
             </ScrollView>
             {/* footer: stays at the bottom (above the keyboard) while the page scrolls - the form's Save. */}
-            {!!footer && <View style={{ paddingTop: 10, paddingBottom: 10 + kb, borderTopWidth: 1, borderTopColor: t.border, backgroundColor: t.bg }}>{footer}</View>}
+            {!!footer && <View style={{ paddingTop: 12, paddingBottom: 12 + kb, marginHorizontal: -20, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: t.border, backgroundColor: t.surface }}>{footer}</View>}
           </View>
         </SafeAreaView>
       </Modal>
@@ -470,7 +516,7 @@ export function Sheet({ visible, onClose, title, children, full, dismissable = t
       {/* On a tablet or desktop it opens as a centred dialog instead: a sheet the full width of a big
           screen is hard to read. */}
       <View style={{ flex: 1, justifyContent: tablet ? 'center' : 'flex-end', alignItems: tablet ? 'center' : undefined, padding: tablet ? 24 : 0, paddingBottom: kb + (tablet ? 24 : 0) }}>
-        <Pressable onPress={dismissable ? onClose : undefined} disabled={!dismissable} style={[StyleSheet.absoluteFill, { backgroundColor: t.mac ? 'rgba(0,0,0,0.28)' : 'rgba(0,0,0,0.4)' }, Platform.OS === 'web' ? { backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' } : null]} accessibilityLabel="Close" />
+        <Pressable onPress={dismissable ? onClose : undefined} disabled={!dismissable} style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(15,23,20,0.5)' }, Platform.OS === 'web' ? { backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' } : null]} accessibilityLabel="Close" />
         <SafeAreaView edges={['bottom']} style={{ width: '100%', maxWidth: tablet ? 680 : undefined }}>
           <View style={{
             maxHeight: maxH,
@@ -479,15 +525,16 @@ export function Sheet({ visible, onClose, title, children, full, dismissable = t
             borderTopRightRadius: t.sheetRadius,
             borderBottomLeftRadius: tablet ? t.sheetRadius : 0,
             borderBottomRightRadius: tablet ? t.sheetRadius : 0,
-            paddingHorizontal: 16,
+            paddingHorizontal: 20,
             paddingTop: 8,
             paddingBottom: 6,
             overflow: 'hidden',
-            ...t.shadow,
+            borderWidth: 1,
+            borderColor: t.border,
             elevation: 12,
-            ...(Platform.OS === 'web' ? { boxShadow: `0 0 0 0.5px ${t.dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'}, 0 24px 70px rgba(0,0,0,0.30)`, animation: 'wdPop .24s cubic-bezier(.2,.9,.3,1.2)' } : null),
+            ...(Platform.OS === 'web' ? { boxShadow: '0 -8px 40px rgba(15,23,20,0.18)', animation: 'wdPop .24s cubic-bezier(.2,.9,.3,1.2)' } : null),
           }}>
-            <View style={{ alignSelf: 'center', width: 36, height: 5, borderRadius: 3, backgroundColor: t.border, marginBottom: 10 }} />
+            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: t.border, marginBottom: 12 }} />
             {header}
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -514,7 +561,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import TimePickerModal from './TimePickerModal';
 
 /** `clearable` adds a ✕ that empties the field (onChange(null)) - an optional date could be set but never removed. */
-export function DateTimeField({ label, value, onChange, mode = 'datetime', minimumDate, maximumDate, placeholder, labelColor, clearable, dense }) {
+export function DateTimeField({ label, value, onChange, mode = 'datetime', minimumDate, maximumDate, placeholder, labelColor, clearable, dense, iconOnly }) {
   const t = useTheme();
   const [show, setShow] = React.useState(null); // 'date' | 'time' | null
   
@@ -541,37 +588,42 @@ export function DateTimeField({ label, value, onChange, mode = 'datetime', minim
   };
 
   return (
-    <View style={{ marginBottom: 12 }}>
-      {!!label && <Small numberOfLines={dense ? 1 : undefined} style={[{ marginBottom: 5 }, labelColor ? { color: labelColor, fontWeight: '800' } : null]}>{label}</Small>}
-      <Row gap={dense ? 4 : 10}>
-        {mode !== 'time' && (
+    <View style={{ marginBottom: iconOnly ? 0 : 12 }}>
+      {!!label && !iconOnly && <Label dense={dense} numberOfLines={dense ? 1 : undefined} style={labelColor ? { color: labelColor } : null}>{label}</Label>}
+      <Row gap={dense ? 6 : 10}>
+        {/* iconOnly: just a calendar button (the Report's "pick another date"). */}
+        {iconOnly && (
+          <Pressable onPress={() => setShow('date')} accessibilityRole="button" accessibilityLabel={label || 'Pick a date'} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="calendar" size={20} color={t.text} stroke={1.9} />
+          </Pressable>
+        )}
+        {!iconOnly && mode !== 'time' && (
         <Pressable onPress={() => setShow('date')} style={{
-          flex: 1, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
-          borderRadius: t.radius - 8, paddingHorizontal: dense ? 8 : 12, paddingVertical: dense ? 13 : 11,
+          flex: 1, backgroundColor: t.surface, borderWidth: 1, borderColor: t.fieldBorder, minHeight: 46, justifyContent: 'center',
+          borderRadius: t.fieldRadius, paddingHorizontal: dense ? 9 : 14,
         }}>
-          <Text numberOfLines={1} style={{ color: value ? t.text : t.textDim, fontSize: t.fs(dense ? 13 : 15) }}>
+          <Text numberOfLines={1} style={{ color: value ? t.text : t.textDim, fontWeight: '600', fontSize: t.fs(dense ? 12.5 : 14.5) }}>
             {value ? d.toLocaleDateString([], dense ? { day: '2-digit', month: 'short' } : { day: '2-digit', month: 'short', year: 'numeric' }) : (placeholder || (dense ? 'Date' : 'Select Date'))}
           </Text>
         </Pressable>
         )}
-        {mode !== 'date' && (
+        {!iconOnly && mode !== 'date' && (
           <Pressable onPress={() => setShow('time')} style={{
             // mode 'time': a time only (the time button takes the whole row).
-            ...(mode === 'time' ? { flex: 1 } : { width: 110 }), backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
-            // web.app: the time select is round (a pill); the phone keeps the rounded square.
-            borderRadius: Platform.OS === 'web' ? 999 : t.radius - 8, paddingHorizontal: dense ? 8 : Platform.OS === 'web' ? 16 : 12, paddingVertical: dense ? 13 : 11, alignItems: Platform.OS === 'web' ? 'center' : undefined,
+            ...(mode === 'time' ? { flex: 1 } : { width: 110 }), backgroundColor: t.surface, borderWidth: 1, borderColor: t.fieldBorder, minHeight: 46, justifyContent: 'center',
+            borderRadius: t.fieldRadius, paddingHorizontal: dense ? 9 : 14,
           }}>
-            <Text numberOfLines={1} style={{ color: value ? t.text : t.textDim, fontSize: t.fs(dense ? 13 : 15) }}>
+            <Text numberOfLines={1} style={{ color: value ? t.text : t.textDim, fontWeight: '600', fontSize: t.fs(dense ? 12.5 : 14.5) }}>
               {value ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (dense ? 'Time' : 'Select Time')}
             </Text>
           </Pressable>
         )}
-        {!!clearable && !!value && (
+        {!iconOnly && !!clearable && !!value && (
           <Pressable onPress={() => { setShow(null); onChange(null); }} hitSlop={8} accessibilityLabel={`Clear ${label || 'date'}`} style={{
-            width: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surfaceAlt,
-            borderWidth: 1, borderColor: t.border, borderRadius: t.radius - 8, paddingVertical: 11,
+            width: 42, minHeight: 46, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface,
+            borderWidth: 1, borderColor: t.fieldBorder, borderRadius: t.fieldRadius,
           }}>
-            <Text style={{ color: t.textDim, fontSize: t.fs(15), fontWeight: '700' }}>✕</Text>
+            <Icon name="close" size={16} color={t.textDim} stroke={2.2} />
           </Pressable>
         )}
       </Row>
@@ -593,30 +645,44 @@ export function DateTimeField({ label, value, onChange, mode = 'datetime', minim
   );
 }
 
-export function Segmented({ options, value, onChange, style }) {
+/**
+ * A row of options in a soft track. Default: the chosen one is the dark primary with white text (tone 'dark');
+ * tone 'light' gives a white pill with a hairline shadow (Config > Appearance > Text size).
+ */
+export function Segmented({ options, value, onChange, style, tone = 'dark' }) {
   const t = useTheme();
+  const darkOn = tone !== 'light';
   return (
-    // iOS's UISegmentedControl: a grey track with a white, shadowed pill
-    // under the selected segment - not a solid accent fill.
-    <Row style={[{ backgroundColor: t.bgAlt, borderRadius: t.btnRadius, padding: 2 }, style]} gap={2}>
+    <Row style={[{ backgroundColor: t.surfaceAlt, borderRadius: 14, padding: 3 }, style]} gap={2}>
       {options.map((o) => {
         const key = typeof o === 'string' ? o : o.key;
         const label = typeof o === 'string' ? o : o.label;
         const on = value === key;
         return (
-          <Pressable key={key} onPress={() => onChange(key)} style={{
-            // Optional per-option weight, so a long label can have more room
-            // than a short one instead of every segment being equal.
+          <Pressable key={key} onPress={() => onChange(key)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{
+            // Optional per-option weight, so a long label can have more room than a short one instead of every segment being equal.
             flex: (typeof o === 'object' && o.flex) || 1,
-            paddingVertical: 7, paddingHorizontal: 4, alignItems: 'center', borderRadius: Math.max(t.btnRadius - 2, 6),
-            backgroundColor: on ? t.surface : 'transparent',
-            ...(on ? { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 } : null),
+            paddingVertical: 8, paddingHorizontal: 4, alignItems: 'center', borderRadius: 11,
+            backgroundColor: on ? (darkOn ? t.primaryDark : t.surface) : 'transparent',
+            ...(on && !darkOn ? { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 } : null),
           }}>
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ color: on ? t.text : t.textDim, fontWeight: on ? '600' : '500', fontSize: t.fs(12.5) }}>{label}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ color: on ? (darkOn ? '#fff' : t.text) : t.textDim, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
           </Pressable>
         );
       })}
     </Row>
+  );
+}
+
+/** A filter chip: white pill with a line; the chosen one is the dark primary with white text. `count` sits after the label. */
+export function Chip({ label, count, on, onPress, style, accessibilityLabel }) {
+  const t = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={accessibilityLabel || label}
+      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.primaryDark : t.surface, borderWidth: 1, borderColor: on ? t.primaryDark : t.border, opacity: pressed ? 0.85 : 1 }, style]}>
+      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
+      {count != null && <Text style={{ color: on ? '#fff' : t.text, fontWeight: '800', fontSize: t.fs(13), opacity: 0.7, marginLeft: 4 }}>{count}</Text>}
+    </Pressable>
   );
 }
 
@@ -646,17 +712,17 @@ export function RingtonePicker({ label = 'Ringtone', value = 'default', onChange
 
   return (
     <View style={{ marginBottom: compact ? 0 : 12 }}>
-      {!!label && <Small style={{ marginBottom: 5 }}>{label}</Small>}
+      {!!label && <Label>{label}</Label>}
       <Pressable
         onPress={() => setOpen(true)}
         style={{
-          backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
-          borderRadius: t.radius - 8, paddingHorizontal: 12, paddingVertical: 11,
+          backgroundColor: t.surface, borderWidth: 1, borderColor: t.fieldBorder,
+          borderRadius: t.fieldRadius, paddingHorizontal: 14, minHeight: 46,
           flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         }}
       >
-        <Text style={{ color: t.text, fontSize: t.fs(15) }}>{ringtoneLabel(value)}</Text>
-        <Text style={{ color: t.textDim, fontSize: t.fs(13) }}>Change</Text>
+        <Text style={{ color: t.text, fontWeight: '600', fontSize: t.fs(14.5) }}>{ringtoneLabel(value)}</Text>
+        <Text style={{ color: t.primary, fontWeight: '800', fontSize: t.fs(13) }}>Change</Text>
       </Pressable>
 
       <Sheet visible={open} onClose={close} title="Choose a ringtone">
@@ -669,9 +735,9 @@ export function RingtonePicker({ label = 'Ringtone', value = 'default', onChange
                   onPress={() => { onChange?.(r.id); }}
                   style={{
                     flex: 1, flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: selected ? t.accent + '1F' : t.surfaceAlt,
-                    borderWidth: 1, borderColor: selected ? t.accent : t.border,
-                    borderRadius: t.radius - 8, paddingHorizontal: 12, paddingVertical: 12,
+                    backgroundColor: selected ? t.tint : t.surface,
+                    borderWidth: 1, borderColor: selected ? t.primary : t.border,
+                    borderRadius: t.fieldRadius, paddingHorizontal: 12, paddingVertical: 12,
                   }}
                 >
                   <View style={{
@@ -688,11 +754,11 @@ export function RingtonePicker({ label = 'Ringtone', value = 'default', onChange
                     onPress={() => play(r.id)}
                     style={{
                       width: 46, paddingVertical: 12, alignItems: 'center',
-                      backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border,
-                      borderRadius: t.radius - 8,
+                      backgroundColor: t.surface, borderWidth: 1, borderColor: t.border,
+                      borderRadius: t.fieldRadius,
                     }}
                   >
-                    <Text style={{ fontSize: t.fs(15) }}>{playing === r.id ? '■' : '▶'}</Text>
+                    <Text style={{ fontSize: t.fs(15), color: t.text }}>{playing === r.id ? '■' : '▶'}</Text>
                   </Pressable>
                 )}
               </Row>
@@ -729,7 +795,7 @@ import { useStore as useStoreForPicker } from './store';
  */
 export function OptionPicker({
   label, value, onChange, source, multi = false, allowAny = false,
-  placeholder = 'Select', anyLabel = 'Any', compact = false, editChip = false, dense = false,
+  placeholder = 'Select', anyLabel = 'Any', compact = false, editChip = false, dense = false, trigger,
 }) {
   const t = useTheme();
   const { data, update } = useStoreForPicker();
@@ -820,33 +886,34 @@ export function OptionPicker({
           </View>
         </Pressable>
       )}
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 46, paddingRight: 14, borderTopWidth: first ? 0 : 0.5, borderTopColor: t.border }}>
-        <Text numberOfLines={1} style={{ flex: 1, color: tone || t.text, fontSize: t.fs(16.5), fontStyle: italic ? 'italic' : 'normal' }}>{content}</Text>
-        {checked && <Text style={{ color: t.accent, fontSize: t.fs(17), fontWeight: '700', marginLeft: 8 }}>✓</Text>}
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingRight: 14, borderTopWidth: first ? 0 : 1, borderTopColor: t.border }}>
+        <Text numberOfLines={1} style={{ flex: 1, color: tone || t.text, fontWeight: '700', fontSize: t.fs(15), fontStyle: italic ? 'italic' : 'normal' }}>{content}</Text>
+        {checked && <Icon name="check" size={18} color={t.primary} stroke={2.4} style={{ marginLeft: 8 }} />}
       </View>
     </Pressable>
   );
 
   return (
-    <View style={{ marginBottom: compact ? 0 : 12 }}>
-      {!!label && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-          <Small numberOfLines={dense ? 1 : undefined} style={dense ? { flex: 1 } : undefined}>{label}</Small>
+    <View style={{ marginBottom: compact || trigger ? 0 : 12 }}>
+      {!trigger && !!label && (
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <Label numberOfLines={dense ? 1 : undefined} style={dense ? { flex: 1 } : undefined}>{label}</Label>
           {editChip && (
-            <Pressable onPress={() => openPicker(true)} hitSlop={6} style={{ backgroundColor: t.accent + '22', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 }}>
-              <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(12) }}>Edit</Text>
+            <Pressable onPress={() => openPicker(true)} hitSlop={6} style={{ backgroundColor: t.tint, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 }}>
+              <Text style={{ color: t.tintText, fontWeight: '800', fontSize: t.fs(12) }}>Edit</Text>
             </Pressable>
           )}
         </View>
       )}
-      <PickerButton dense={dense} text={shown || (allowAny ? anyLabel : placeholder)} dim={!shown} onPress={() => openPicker(false)} />
+      {/* trigger: the caller draws what opens the picker (the form's Status chip) instead of the drop-down field. */}
+      {trigger ? trigger({ open: () => openPicker(false), text: shown }) : <PickerButton dense={dense} text={shown || (allowAny ? anyLabel : placeholder)} dim={!shown} onPress={() => openPicker(false)} />}
 
       <Sheet visible={open} onClose={close} title={label ? label.charAt(0) + label.slice(1).toLowerCase() : source?.title || 'Select'}>
         <View>
           {/* iOS search bar: type and press Enter - an exact match is selected, a new name is created. */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: t.surfaceAlt, borderRadius: 11, paddingHorizontal: 10, height: 38 }}>
-              <Text style={{ color: t.textDim, marginRight: 6, fontSize: t.fs(14) }}>🔍</Text>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: t.surface, borderWidth: 1, borderColor: t.fieldBorder, borderRadius: 14, paddingHorizontal: 12, height: 46 }}>
+              <Icon name="search" size={18} color={t.textDim} stroke={1.9} style={{ marginRight: 8 }} />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
@@ -856,19 +923,19 @@ export function OptionPicker({
                 returnKeyType="done"
                 blurOnSubmit={false}
                 onSubmitEditing={submit}
-                style={{ flex: 1, color: t.text, fontSize: t.fs(16), paddingVertical: 0 }}
+                style={{ flex: 1, color: t.text, fontFamily: ff(600), fontSize: t.fs(14.5), paddingVertical: 0 }}
               />
-              {!!query && <Pressable onPress={() => setQuery('')} hitSlop={8}><Text style={{ color: t.textDim, fontSize: t.fs(14) }}>✕</Text></Pressable>}
+              {!!query && <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="Clear"><Icon name="close" size={16} color={t.textDim} stroke={2.2} /></Pressable>}
             </View>
             {!!options.length && (
               <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
-                <Text style={{ color: t.accent, fontSize: t.fs(16), fontWeight: editing ? '700' : '400' }}>{editing ? 'Done' : 'Edit'}</Text>
+                <Text style={{ color: t.primary, fontSize: t.fs(15), fontWeight: '800' }}>{editing ? 'Done' : 'Edit'}</Text>
               </Pressable>
             )}
           </View>
 
-          <View style={{ backgroundColor: t.surfaceAlt, borderRadius: 12, overflow: 'hidden' }}>
-            {canCreate && row('__create', `+ Add "${query.trim()}"`, { onPress: create, first: true, tone: t.accent })}
+          <View style={{ backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: 16, overflow: 'hidden' }}>
+            {canCreate && row('__create', `+ Add "${query.trim()}"`, { onPress: create, first: true, tone: t.primary })}
             {allowAny && !q && row('__any', anyLabel, { onPress: () => { onChange?.(multi ? [] : null); close(); }, checked: anySelected, first: !canCreate, italic: true })}
             {visible.map((o, i) => {
               const on = multi ? selected.includes(o.value) : selected === o.value;
@@ -897,7 +964,7 @@ export function OptionPicker({
   );
 }
 
-/** iOS pop-up button: the current value, then the up/down chevron. Used by every drop-down. */
+/** The drop-down field: the current value, then a chevron. Used by every drop-down. */
 export function PickerButton({ text, dim, onPress, style, dense }) {
   const t = useTheme();
   return (
@@ -905,15 +972,13 @@ export function PickerButton({ text, dim, onPress, style, dense }) {
       onPress={onPress}
       accessibilityRole="button"
       style={({ pressed }) => [{
-        backgroundColor: t.surfaceAlt, borderRadius: 10, paddingHorizontal: dense ? 8 : 12, minHeight: 44,
-        flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.7 : 1,
-        ...(dense ? { borderWidth: 1, borderColor: t.border, minHeight: 46 } : null),
+        backgroundColor: t.surface, borderRadius: t.fieldRadius, paddingHorizontal: dense ? 9 : 14, minHeight: 46,
+        borderWidth: 1, borderColor: t.fieldBorder,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: pressed ? 0.7 : 1,
       }, style]}
     >
-      <Text numberOfLines={1} style={{ color: dim ? t.textDim : t.text, fontSize: t.fs(dense ? 13 : 15.5), flex: 1 }}>{text}</Text>
-      {!dense && <Svg width={12} height={18} viewBox="0 0 12 18" style={{ marginLeft: 8 }}>
-        <Path d="M2.5 6.5 6 3l3.5 3.5M2.5 11.5 6 15l3.5-3.5" stroke={t.accent} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </Svg>}
+      <Text numberOfLines={1} style={{ color: dim ? t.textDim : t.text, fontWeight: '600', fontSize: t.fs(dense ? 12.5 : 14.5), flex: 1 }}>{text}</Text>
+      <Icon name="chevronDown" size={16} color={t.textDim} stroke={2} style={{ marginLeft: 4 }} />
     </Pressable>
   );
 }
@@ -1014,60 +1079,69 @@ export function AnimatedNumber({ value, style, duration = 700 }) {
   return <Text style={style}>{shown}</Text>;
 }
 
-/** iOS grouped section: small grey caps title, a rounded white block of rows, an optional footnote. */
+/** A grouped section (More, Config): small spaced caps title, a white card with a line holding the rows, an optional footnote. */
 export function Group({ title, footer, children }) {
   const t = useTheme();
   return (
-    <View style={{ marginBottom: 22 }}>
-      {!!title && <Text style={{ color: t.textDim, fontSize: t.fs(13), marginLeft: 16, marginBottom: 6, textTransform: 'uppercase' }}>{title}</Text>}
-      <View style={{ backgroundColor: t.surface, borderRadius: 12, overflow: 'hidden' }}>{children}</View>
-      {!!footer && <Text style={{ color: t.textDim, fontSize: t.fs(12.5), lineHeight: 17, marginHorizontal: 16, marginTop: 7 }}>{footer}</Text>}
+    <View style={{ marginBottom: 18 }}>
+      {!!title && <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, marginLeft: 4, marginBottom: 8, textTransform: 'uppercase' }}>{title}</Text>}
+      <View style={{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>{children}</View>
+      {!!footer && <Text style={{ color: t.textDim, fontSize: t.fs(12.5), lineHeight: t.fs(18), marginHorizontal: 6, marginTop: 8, fontWeight: '500' }}>{footer}</Text>}
     </View>
   );
 }
 
+/** The tint pairs for the square icon holders (More): [background, icon colour]. */
+export const toneOf = (t, tone) => ({
+  green: [t.tint, t.tintText], slate: [t.slateTint, t.slateText], red: [t.dangerTint, t.dangerText], amber: [t.warnTint, t.warnText],
+}[tone] || [t.tint, t.tintText]);
+
 /**
- * One row: coloured icon tile, label, then a value and chevron, a switch, or both a
- * value and nothing else. `last` removes the divider under the final row of a group.
+ * One row: a tinted square icon holder (iconName + tone, or an emoji `icon`), the label, then a value and chevron, or a
+ * switch. `last` removes the divider under the final row of a group.
  */
-export function Item({ icon, color, label, value, valueColor, onPress, right, last, destructive, chevron = true }) {
+export function Item({ icon, iconName, tone, label, value, valueColor, onPress, right, last, destructive, chevron = true, first }) {
   const t = useTheme();
   const tappable = !!onPress;
+  const [bg, fg] = toneOf(t, tone);
   return (
     <Pressable
       onPress={onPress}
       disabled={!tappable}
-      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', paddingLeft: 14, paddingRight: 12, minHeight: 48, backgroundColor: pressed && tappable ? t.surfaceAlt : t.surface })}
+      accessibilityRole={tappable ? 'button' : undefined}
+      accessibilityLabel={label}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13, minHeight: 60, borderTopWidth: first ? 0 : 1, borderTopColor: t.surfaceAlt, backgroundColor: pressed && tappable ? t.surfaceAlt : t.surface })}
     >
-      {!!icon && (
-        <View style={{ width: 30, height: 30, borderRadius: 7, backgroundColor: color || t.accent, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-          <Text style={{ fontSize: 17 }}>{icon}</Text>
+      {!!(iconName || icon) && (
+        <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+          {iconName ? <Icon name={iconName} size={18} color={fg} stroke={1.9} /> : <Text style={{ fontSize: 17 }}>{icon}</Text>}
         </View>
       )}
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 48, borderBottomWidth: last ? 0 : 0.5, borderBottomColor: t.border, paddingVertical: 8 }}>
-        <Text style={{ flex: 1, color: destructive ? t.danger : t.text, fontSize: t.fs(17), paddingRight: 8 }}>{label}</Text>
-        {value != null && <Text numberOfLines={1} style={{ color: valueColor || t.textDim, fontSize: t.fs(16), maxWidth: 170 }}>{value}</Text>}
-        {right}
-        {tappable && chevron && !right && <Text style={{ color: t.textDim, fontSize: t.fs(22), marginLeft: 6, marginTop: -2 }}>›</Text>}
-      </View>
+      <Text style={{ flex: 1, color: destructive ? t.danger : t.text, fontWeight: '700', fontSize: t.fs(15) }}>{label}</Text>
+      {value != null && <Text numberOfLines={1} style={{ color: valueColor || t.textDim, fontWeight: '700', fontSize: t.fs(13), maxWidth: 170 }}>{value}</Text>}
+      {right}
+      {tappable && chevron && !right && <Icon name="chevronRight" size={16} color={t.chevron} stroke={2} />}
     </Pressable>
   );
 }
 
-/** A choice list inside a sheet, with a tick on the current one (iOS style). */
+/** A choice list inside a sheet, with a tick on the current one. */
 export function Choices({ options, value, onChange }) {
   const t = useTheme();
   return (
-    <View style={{ backgroundColor: t.surfaceAlt, borderRadius: 12, overflow: 'hidden' }}>
-      {options.map(([key, label, sub], i) => (
-        <Pressable key={String(key)} onPress={() => onChange(key)} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 13, borderTopWidth: i ? 0.5 : 0, borderTopColor: t.border }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: t.text, fontSize: t.fs(16) }}>{label}</Text>
-            {!!sub && <Text style={{ color: t.textDim, fontSize: t.fs(12) }}>{sub}</Text>}
-          </View>
-          {String(value) === String(key) && <Text style={{ color: t.accent, fontSize: t.fs(18), fontWeight: '700' }}>✓</Text>}
-        </Pressable>
-      ))}
+    <View style={{ backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: 16, overflow: 'hidden' }}>
+      {options.map(([key, label, sub], i) => {
+        const on = String(value) === String(key);
+        return (
+          <Pressable key={String(key)} onPress={() => onChange(key)} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: i ? 1 : 0, borderTopColor: t.border, backgroundColor: on ? t.tint : t.surface }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: on ? t.tintText : t.text, fontWeight: '700', fontSize: t.fs(15) }}>{label}</Text>
+              {!!sub && <Text style={{ color: t.textDim, fontSize: t.fs(12), fontWeight: '500' }}>{sub}</Text>}
+            </View>
+            {on && <Icon name="check" size={18} color={t.primary} stroke={2.4} />}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

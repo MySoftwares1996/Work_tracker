@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { FlexWidget, TextWidget, requestWidgetUpdate } from 'react-native-android-widget';
 import { loadAll, assemble } from './storeCore';
-import { THEMES } from './theme';
+import { THEMES, darkTheme } from './theme';
 import { WIDGET_NAMES, widgetsHidden, workSummaryWidgetData, workTodayWidgetData, workNextWidgetData } from './widgetData';
 import { completeWdEntry } from './workingDashboardActions';
 
@@ -16,9 +16,9 @@ import { completeWdEntry } from './workingDashboardActions';
  */
 
 // Widgets are drawn by the launcher, so they take fixed colours from the
-// app's own themes: the Warm look in light mode and its dark twin (Hero's ok / danger) in dark mode.
+// app's own themes: the Ledger look (Forest) in light mode and its dark twin in dark mode.
 const fromTheme = (th) => ({ bg: th.surface, text: th.text, dim: th.textDim, accent: th.accent, ok: th.ok, danger: th.danger, track: th.border });
-const PALETTE = { light: fromTheme(THEMES.warm), dark: fromTheme({ ...THEMES.hero, ...THEMES.warm.darkTwin }) };
+const PALETTE = { light: fromTheme(THEMES.forest), dark: fromTheme(darkTheme('forest')) };
 
 const open = (path) => ({ clickAction: 'OPEN_URI', clickActionData: { uri: `workingdashboard://${path}` } });
 

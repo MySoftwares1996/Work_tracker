@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { askNotificationPermission, snoozeExplainer } from './alerts';
+import Icon from './icons';
 
 /** A small card shown before the browser's own permission prompt. "Allow alerts" asks the browser; "Not now" is remembered for 7 days. */
 export default function NotifyExplainer({ onDone }) {
@@ -26,7 +27,7 @@ export default function NotifyExplainer({ onDone }) {
     <div className="modal-overlay" onClick={later}>
       <div ref={card} className="modal-card notify-card" role="dialog" aria-modal="true" aria-labelledby="notify-title" onClick={(e) => e.stopPropagation()}>
         <div className="notify-body">
-          <span className="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg></span>
+          <span className="empty-icon" aria-hidden="true"><Icon name="bell" size={34} /></span>
           <h2 id="notify-title">Allow alerts?</h2>
           <p>Allow alerts so due tasks pop up even when this tab is in the background.</p>
         </div>

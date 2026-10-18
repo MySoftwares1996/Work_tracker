@@ -1,40 +1,40 @@
 import React from 'react';
-import { View, Text, Alert, Platform } from 'react-native';
-import { Group, Item, Card, Small, Row } from '../ui';
+import { View, Text, Alert, Platform, Pressable } from 'react-native';
+import { Group, Item, Small, Row } from '../ui';
 import { useTheme } from '../theme';
+import { display } from '../fonts';
 import { clearPin } from '../appLock';
 import { buildBackupExport, backupExportName, backupExportText } from '../backupExport';
 import { downloadText } from '../links';
 import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
 
-// The More tab (phone layout): account card, Manage / Settings groups and the App updates panel. Split out of WorkingDashboard.js unchanged.
+// The More tab (phone layout): the dark profile card, Manage / Settings groups and the App updates card.
 export default function WdMoreTab({ googleUser, waiting, realtimeError, binnedEntries, setTab, wd, data, update }) {
   const t = useTheme();
+  const who = googleUser?.displayName || (googleUser ? 'Signed in' : 'This device only');
+  const sync = waiting ? 'Offline' : googleUser && realtimeError ? 'Sync error' : googleUser ? 'In sync' : 'Local';
   return (
     <View>
-      <Card style={{ marginBottom: 14 }}>
-        <Row gap={12} style={{ alignItems: 'center' }}>
-          <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: t.onAccent, fontWeight: '800', fontSize: t.fs(19) }}>{String(googleUser?.displayName || googleUser?.email || 'W').trim().charAt(0).toUpperCase()}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{googleUser?.displayName || (googleUser ? 'Signed in' : 'This device only')}</Text>
-            <Small numberOfLines={1}>{googleUser?.email || 'Sign in with Google under Config to sync'}</Small>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surfaceAlt, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : t.textDim }} />
-            <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline' : googleUser && realtimeError ? 'sync error' : googleUser ? 'in sync' : 'local'}</Text>
-          </View>
-        </Row>
-      </Card>
+      <View style={{ backgroundColor: t.primaryDark, borderRadius: 22, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+        <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: t.mint, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: t.primaryDark, fontFamily: display(), fontWeight: '600', fontSize: t.fs(24) }}>{String(googleUser?.displayName || googleUser?.email || 'W').trim().charAt(0).toUpperCase()}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(16) }}>{who}</Text>
+          <Text numberOfLines={1} style={{ color: t.heroDim, fontWeight: '600', fontSize: t.fs(12.5) }}>{googleUser?.email || 'Sign in with Google under Config to sync'}</Text>
+        </View>
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
+          <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(12) }}>{sync}</Text>
+        </View>
+      </View>
       <Group title="Manage">
-        <Item icon="📅" color={t.accent} label="Holidays & leave" onPress={() => setTab('holidays')} />
-        <Item icon="🔗" color={t.accent2} label="Links" onPress={() => setTab('links')} />
-        <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
+        <Item first iconName="calendar" tone="green" label="Holidays & leave" onPress={() => setTab('holidays')} />
+        <Item iconName="link" tone="slate" label="Links" onPress={() => setTab('links')} />
+        <Item iconName="trash" tone="red" label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
       </Group>
       <Group title="Settings">
-        <Item icon="⚙️" color={t.textDim} label="Config" onPress={() => setTab('config')} />
-        <Item icon="💾" color={t.ok} label="Export a backup" value="All tasks (JSON)" last={Platform.OS === 'web'} onPress={async () => {
+        <Item first iconName="gear" tone="amber" label="Config" onPress={() => setTab('config')} />
+        <Item iconName="download" tone="green" label="Export a backup" value="All tasks (JSON)" last={Platform.OS === 'web'} onPress={async () => {
           try {
             const name = backupExportName();
             const text = backupExportText(buildBackupExport({ entries: wd.entries, lists: wd, links: wd.links, templates: wd.templates, reportFormats: wd.reportFormats, holidays: wd.holidays, leaveDays: wd.leaveDays, source: Platform.OS === 'web' ? 'web' : 'phone' }));
@@ -48,7 +48,7 @@ export default function WdMoreTab({ googleUser, waiting, realtimeError, binnedEn
             else Alert.alert('Backup saved', `Saved as ${name}, but this phone cannot share files.`);
           } catch (e) { Alert.alert('Backup failed', String(e?.message || e)); }
         }} />
-        {Platform.OS !== 'web' && <Item icon="🔒" color={t.accent} label="App lock" value={data.settings?.appLock?.enabled ? 'On' : 'Off'} last onPress={() => {
+        {Platform.OS !== 'web' && <Item iconName="lock" tone="slate" label="App lock" value={data.settings?.appLock?.enabled ? 'On' : 'Off'} last onPress={() => {
           if (data.settings?.appLock?.enabled) {
             Alert.alert('App lock', 'Turn the PIN lock off?', [
               { text: 'Cancel', style: 'cancel' },
@@ -60,12 +60,20 @@ export default function WdMoreTab({ googleUser, waiting, realtimeError, binnedEn
       {(() => {
         // The phone's own updates: whether this build can receive them, which version is running, and a button to look now (always here).
         const u = updateStatus();
+        const check = async () => Alert.alert('App updates', await checkForPhoneUpdate());
         return (
-          <Group title="App updates" footer={!u ? 'Updates are for the installed phone app.' : u.enabled ? 'A new version is downloaded when the app opens; tap Restart in the bar that appears.' : 'This build was made without the update settings, so it cannot receive updates - a new APK build is needed.'}>
-            {!!u && <Item icon="🔄" color={u.enabled ? t.ok : t.danger} label="Updates" value={u.enabled ? `On${u.channel ? ` · ${u.channel}` : ''}` : 'Off'} />}
-            {!!u && <Item icon="📦" color={t.textDim} label="Running" value={`${u.running}${u.when ? ` · ${u.when}` : ''}`} />}
-            <Item icon="🔎" color={t.accent} label="Check for an update now" onPress={async () => Alert.alert('App updates', await checkForPhoneUpdate())} last />
-          </Group>
+          <View>
+            <View style={{ backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: t.radius, paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14) }}>{!u ? 'App updates' : u.enabled ? 'App updates are on' : 'App updates are off'}</Text>
+                <Text style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(13), lineHeight: t.fs(18) }}>{!u ? 'Updates are for the installed phone app.' : `Running ${u.running}${u.when ? ` · ${u.when}` : ''}${u.enabled && u.channel ? ` · ${u.channel}` : ''}`}</Text>
+              </View>
+              <Pressable onPress={check} accessibilityRole="button" accessibilityLabel="Check for an update now" style={({ pressed }) => ({ backgroundColor: t.primary, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14, opacity: pressed ? 0.85 : 1 })}>
+                <Text style={{ color: t.onAccent, fontWeight: '800', fontSize: t.fs(13) }}>Check now</Text>
+              </Pressable>
+            </View>
+            {!!u && <Text style={{ color: t.textDim, fontSize: t.fs(12.5), lineHeight: t.fs(18), fontWeight: '500', marginHorizontal: 6, marginTop: 8 }}>{u.enabled ? 'A new version is downloaded when the app opens; tap Restart in the bar that appears.' : 'This build was made without the update settings, so it cannot receive updates - a new APK build is needed.'}</Text>}
+          </View>
         );
       })()}
     </View>

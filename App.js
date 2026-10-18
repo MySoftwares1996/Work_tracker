@@ -14,6 +14,7 @@ import { StoreProvider, useStore } from './src/store';
 import ErrorBoundary from './src/ErrorBoundary';
 import AppLockGate from './src/AppLockGate';
 import { ThemeProvider, useTheme, SPLASH } from './src/theme';
+import { patchText, useAppFonts } from './src/fonts';
 import { initNotifications, addResponseListener, dismissEntryNotifications } from './src/notify';
 import { refreshWidgets } from './src/widgets';
 import { armTodaysReminders, syncEntryAlerts, entryIdOfAlarm, wdAlarmId, snoozeNudge, armWeeklySummary } from './src/workingDashboardNotify';
@@ -37,6 +38,9 @@ import AnimatedLogo from './src/AnimatedLogo';
  * Working Dashboard tool inside My Personal Tracker, opening straight on it.
  */
 const Stack = createNativeStackNavigator();
+
+// Ledger's fonts (Fraunces + Manrope): every <Text> without a font family of its own gets the Manrope weight that matches its fontWeight.
+patchText();
 
 // Lets the header buttons below call navigate()/goBack() the same way every screen already does.
 const navRef = createNavigationContainerRef();
@@ -334,11 +338,14 @@ function Root() {
 }
 
 export default function App() {
+  // The fonts load in a moment; if they fail or are slow the app still opens, in the system font.
+  const fonts = useAppFonts();
+  if (!fonts.show) return <View style={{ flex: 1, backgroundColor: SPLASH.bg }} />;
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: SPLASH.bg }}>
       <SafeAreaProvider>
         {/* Outside the providers, so a crash inside one is still caught. */}
-        <ErrorBoundary>
+        <ErrorBoundary key={fonts.key}>
           <StoreProvider>
             <ThemeProvider>
               <Root />

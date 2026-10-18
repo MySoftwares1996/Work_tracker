@@ -42,8 +42,8 @@ export const DEFAULT_DB = {
     emergencyName: '', emergencyPhone: '', allergies: '', conditions: '',
   },
   settings: {
-    theme: 'warm',
-    uiMode: 'modern',      // 'modern' = macOS look on the website / iOS look on the phone; 'classic' = the earlier plain look
+    theme: 'forest',      // Ledger colour theme: forest, harbour, plum, ember, ink or rose (earlier keys are mapped by themeKeyOf in theme.js)
+    followDark: true,      // follow the phone's dark mode (Config > Appearance)
     fontLevel: 2,
     office: { lat: null, lng: null, radius: DEFAULTS.geofenceRadiusM, label: 'Office' },
     // Set by the user in Work Tracker > Config. Empty means the built-in view.

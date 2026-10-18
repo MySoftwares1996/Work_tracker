@@ -5,9 +5,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, Pressable, Platform, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Swipeable } from 'react-native-gesture-handler';
 import { useLayout, FadeInUp, AnimatedNumber, Card, Small, Row, prefersReducedMotion } from '../ui';
-import { useTheme, blend } from '../theme';
+import Icon from '../icons';
+import { display } from '../fonts';
+import { useTheme } from '../theme';
 import { checklistText } from '../checklist';
 import { recordNarration } from '../narrationHistory';
 import { isBankFollowUpCategory, followUpAgeText } from '../bankFollowUp';
@@ -17,33 +18,21 @@ import { recurrenceLabel, isOverdue, completedTime, isSkippedToday } from '../wo
 export const fmtDate = (iso) => (iso ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T12:00:00` : iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 export const fmtDateTime = (iso) => (iso ? new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
 
-// Two cards a row on a phone, three on a tablet, four on a wide screen (see useLayout in ui.js).
-export const TILE_WIDTHS = { 2: ['45%', '49%'], 3: ['30%', '32.5%'], 4: ['22%', '24.3%'] };
 
 export function StatTile({ label, value, sub, color, onPress, index = 0 }) {
   const t = useTheme();
-  const [minWidth, maxWidth] = TILE_WIDTHS[useLayout().columns];
-  const web = t.frosted;      // the modern look (website and phone): compact tiles; Classic keeps the stacked tile with a stripe
   const phone = Platform.OS !== 'web';
-  // web.app: compact tiles - the number beside its label, so all seven fit on a row or two instead of filling the screen.
+  // Compact tiles: the number beside its label, so all of them fit on a row or two instead of filling the screen.
   return (
-    <FadeInUp delay={index * 60} style={web ? { flexGrow: 1, flexBasis: phone ? 150 : 170, minWidth: phone ? 140 : 150 } : { flex: 1, minWidth, maxWidth }}>
-      <Card onPress={onPress} style={web ? { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, transitionProperty: 'transform, box-shadow', transitionDuration: '180ms' } : { borderLeftWidth: 4, borderLeftColor: color || t.accent, paddingVertical: 12 }}>
-        {web ? (
-          <Row gap={12}>
-            <AnimatedNumber value={value} style={{ color: color || t.text, fontWeight: '800', fontSize: t.fs(24), letterSpacing: -0.5, minWidth: 30 }} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={phone ? 2 : 1} style={{ color: t.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{label}</Text>
-              {!!sub && <Small numberOfLines={1}>{sub}</Small>}
-            </View>
-          </Row>
-        ) : (
-          <>
-            <AnimatedNumber value={value} style={{ color: color || t.text, fontWeight: '800', fontSize: t.fs(24) }} />
-            <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(13), marginTop: 2 }}>{label}</Text>
-            {!!sub && <Small>{sub}</Small>}
-          </>
-        )}
+    <FadeInUp delay={index * 60} style={{ flexGrow: 1, flexBasis: phone ? 150 : 170, minWidth: phone ? 140 : 150 }}>
+      <Card onPress={onPress} style={{ paddingVertical: 10, paddingHorizontal: 14, transitionProperty: 'transform, box-shadow', transitionDuration: '180ms' }}>
+        <Row gap={12}>
+          <AnimatedNumber value={value} style={{ color: color || t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(26), letterSpacing: -0.5, minWidth: 30 }} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={phone ? 2 : 1} style={{ color: t.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{label}</Text>
+            {!!sub && <Small numberOfLines={1}>{sub}</Small>}
+          </View>
+        </Row>
       </Card>
     </FadeInUp>
   );
@@ -108,7 +97,7 @@ export function RoundBtn({ icon, label, onPress, color, solid, a11y }) {
  * row, like the APK ("device compatible"). Lists in the grid show whole rows of two.
  */
 export const GRID = Platform.OS === 'web';
-export const SEARCH_PLACEHOLDER = '🔍 Search tasks...';
+export const SEARCH_PLACEHOLDER = 'Search tasks';
 // Cards (APK and web.app): DAR completes the task AND puts it in the daily report; ✓ completes it and keeps it OUT of it.
 export const WEB_DAR = true;
 export const GRID_COLS = 2;
@@ -243,7 +232,7 @@ export function EntryRow({ entry, mode = 'open', onPress, onToggleDar, onAct, ri
 }
 
 /** iOS-style "Completed · Undo" bar above the tab bar; disappears after a few seconds. */
-export function UndoBar({ undo, onUndo, onHide, bottom, left = 16 }) {
+export function UndoBar({ undo, onUndo, onHide, bottom, left = 20 }) {
   const t = useTheme();
   useEffect(() => {
     if (!undo) return undefined;
@@ -260,10 +249,10 @@ export function UndoBar({ undo, onUndo, onHide, bottom, left = 16 }) {
   }, [undo]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!undo) return null;
   return (
-    <Animated.View style={{ opacity: rise, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }], position: 'absolute', left, right: 16, bottom, flexDirection: 'row', alignItems: 'center', backgroundColor: t.text, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16, elevation: 14, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }}>
-      <Text style={{ color: t.bg, flex: 1, fontSize: t.fs(14) }} numberOfLines={2}>{undo.message}</Text>
+    <Animated.View style={{ opacity: rise, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }], position: 'absolute', left, right: 20, bottom, flexDirection: 'row', alignItems: 'center', backgroundColor: t.primaryDark, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16, elevation: 14, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }}>
+      <Text style={{ color: '#fff', flex: 1, fontSize: t.fs(14), fontWeight: '600' }} numberOfLines={2}>{undo.message}</Text>
       <Pressable onPress={onUndo} hitSlop={10} accessibilityRole="button" accessibilityLabel="Undo">
-        <Text style={{ color: t.warn, fontWeight: '800', fontSize: t.fs(15), marginLeft: 14 }}>Undo</Text>
+        <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(15), marginLeft: 14 }}>Undo</Text>
       </Pressable>
     </Animated.View>
   );
@@ -273,7 +262,7 @@ export function ShowMore({ total, visibleCount, onPress }) {
   const t = useTheme();
   return Platform.OS !== 'web' && total > visibleCount ? (
     <Pressable onPress={onPress} style={{ paddingVertical: 14, alignItems: 'center' }}>
-      <Text style={{ color: t.accent, fontWeight: '700' }}>••• Show more ({total - visibleCount} left)</Text>
+      <Text style={{ color: t.primary, fontWeight: '800' }}>Show more ({total - visibleCount} left)</Text>
     </Pressable>
   ) : null;
 }
@@ -320,112 +309,155 @@ export function CountList({ title, total, rows, activeLabel, onPress }) {
 }
 
 /*
- * The phone's own pieces (the app-style Home and Tasks): a coloured tile for the Home carousel, and a compact task row that
- * slides open to Done / DAR.
+ * The phone's own pieces (Ledger): the app bar, the stat tiles, the task cards and the + button.
  */
 
-/** The Warm look's count tile: a plain bordered card, a small muted label over a big number (red for the alarming ones). */
-export function PhoneKpi({ label, value, tone, onPress }) {
+/** The initial of the signed-in name (or the first letter given). */
+const initialOf = (name) => String(name || '?').trim().charAt(0).toUpperCase() || '?';
+
+/** The 44px white circle used for the app bar's actions (search, meeting-mode bell). */
+export function CircleBtn({ icon, label, onPress, active }) {
   const t = useTheme();
-  const alarm = tone === t.danger;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={({ pressed }) => ({ width: '31.5%', minHeight: 72, borderRadius: t.radius, padding: 12, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, justifyContent: 'space-between', opacity: pressed ? 0.85 : 1, ...t.shadow })}>
-      <Text style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(11), lineHeight: t.fs(13) }} numberOfLines={2}>{label}</Text>
-      <Text style={{ color: alarm && value ? t.danger : t.text, fontWeight: '800', fontSize: t.fs(24), letterSpacing: -0.5 }}>{value}</Text>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? t.warnTint : t.surface, borderWidth: 1, borderColor: active ? t.amber : t.border, opacity: pressed ? 0.8 : 1 })}>
+      <Icon name={icon} size={20} color={active ? t.warnText : t.text} stroke={2} />
     </Pressable>
   );
 }
 
-/** A task as one rounded row: a priority dot, the title, chips, and when it is due. With onDone / onDar it slides open to ✓ Done and ✓ DAR. */
-export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp, card }) {
+/**
+ * The phone's app bar: a row of actions at the right (search, meeting-mode bell, the name chip), then the serif title with a
+ * muted line under it. `onBack` puts a 44px back circle before the title (pages opened from More).
+ */
+export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bellOn, onUser, onBack }) {
   const t = useTheme();
-  const swipe = useRef(null);
-  const due = entry.dueAt ? new Date(entry.dueAt) : null;
-  const overdue = isOverdue(entry);
-  const pc = t[PRIORITY_COLOR[entry.priority]] || t.textDim;
-  const late = overdue && due ? daysLate(due) : 0;
-  const when = due
-    ? (overdue ? `Overdue${late ? `\n${late} d` : ''}` : `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })}${isMidnight(due) ? '' : `\n${due.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}`)
-    : 'No date';
-  const chips = [entry.priority && { text: entry.priority, color: pc }, entry.category && { text: entry.category }, entry.pendingWith && { text: entry.pendingWith }, entry.recurrence && entry.recurrence !== 'none' && { text: `↻ ${recurrenceLabel(entry)}` }, checklistText(entry) && { text: `☑ ${checklistText(entry)}` }].filter(Boolean);
-  const body = (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={({ pressed }) => ({ backgroundColor: t.surface, borderRadius: 18, paddingVertical: 13, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12, opacity: pressed ? 0.92 : 1, ...(onDone ? null : t.shadow) })}>
-      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: pc, marginTop: 6 }} />
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15.5), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
-        <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-          {chips.map((c, i) => (
-            <View key={i} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: (c.color || t.textDim) + '22' }}>
-              <Text style={{ color: c.color || t.textDim, fontWeight: '700', fontSize: t.fs(11.5) }} numberOfLines={1}>{c.text}</Text>
-            </View>
-          ))}
-        </Row>
-      </View>
-      <View style={{ alignItems: 'flex-end', gap: 6 }}>
-        <Text style={{ color: overdue ? t.danger : t.textDim, fontWeight: '700', fontSize: t.fs(11.5), textAlign: 'right', lineHeight: t.fs(15) }}>{when}</Text>
-        {!!onFollowUp && <Pressable onPress={onFollowUp} hitSlop={8} accessibilityRole="button" accessibilityLabel="Bank follow-up"><Text style={{ fontSize: t.fs(18) }}>📞</Text></Pressable>}
-      </View>
-    </Pressable>
-  );
-  // card (the Warm look): title, one line of facts, and Done / DAR under it - a flat bordered card, no chips.
-  if (card && onDone) {
-    const btn = (label, bg, ink, fn) => (
-      <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 11, borderRadius: Math.max(t.radius - 4, 8), alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
-        <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(14) }}>{label}</Text>
-      </Pressable>
-    );
-    const dueText = due ? (overdue ? `Overdue${late ? ` ${late} d` : ''}` : `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })}${isMidnight(due) ? '' : ` ${due.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}`) : 'No date';
-    const facts = [entry.priority, entry.category, entry.pendingWith, entry.recurrence && entry.recurrence !== 'none' ? `↻ ${recurrenceLabel(entry)}` : '', checklistText(entry) ? `☑ ${checklistText(entry)}` : ''].filter(Boolean).join(' · ');
-    return (
-      <View style={{ marginBottom: 10, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, padding: 14, gap: 10, ...t.shadow }}>
-        <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 6 }}>
-          <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
-          <Row style={{ alignItems: 'center', gap: 6 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: pc }} />
-            <Text style={{ flex: 1, color: t.textDim, fontSize: t.fs(12) }} numberOfLines={2}>{facts ? `${facts} · ` : ''}<Text style={overdue ? { color: t.danger, fontWeight: '700' } : null}>{dueText}</Text></Text>
-            {!!onFollowUp && <Pressable onPress={onFollowUp} hitSlop={8} accessibilityRole="button" accessibilityLabel="Bank follow-up"><Text style={{ fontSize: t.fs(18) }}>📞</Text></Pressable>}
-          </Row>
-        </Pressable>
-        <Row gap={8}>
-          {btn('Done', t.accent, t.onAccent, onDone)}
-          {onDar && btn('DAR', blend(t.accent, 0.14, t.surface), t.accent, onDar)}
-        </Row>
-      </View>
-    );
-  }
-  if (!onDone) return <View style={{ marginBottom: 10 }}>{body}</View>;
-  const action = (label, color, fn) => (
-    <Pressable onPress={() => { if (swipe.current) swipe.current.close(); fn(); }} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete'} style={{ width: 70, alignItems: 'center', justifyContent: 'center', backgroundColor: color }}>
-      <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(17) }}>✓</Text>
-      <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(12) }}>{label}</Text>
-    </Pressable>
-  );
   return (
-    <View style={{ marginBottom: 10, borderRadius: 18, overflow: 'hidden', ...t.shadow }}>
-      <Swipeable ref={swipe} overshootRight={false} friction={1.6} rightThreshold={40} renderRightActions={() => <View style={{ flexDirection: 'row' }}>{action('Done', t.ok, onDone)}{onDar ? action('DAR', blend(t.text, 0.3, t.ok), onDar) : null}</View>}>
-        {body}
-      </Swipeable>
+    <View style={{ marginBottom: 14 }}>
+      <Row gap={8} style={{ justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
+        <CircleBtn icon="search" label="Search" onPress={onSearch} />
+        <CircleBtn icon={bellOn ? 'bellOff' : 'bell'} label={bellOn ? 'Meeting mode is on' : 'Meeting mode'} onPress={onBell} active={bellOn} />
+        <Pressable onPress={onUser} accessibilityRole="button" accessibilityLabel={`Signed in as ${userLabel}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: 150, height: 44, paddingLeft: 7, paddingRight: 14, borderRadius: 22, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.8 : 1 })}>
+          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: t.fs(13) }}>{initialOf(userLabel)}</Text>
+          </View>
+          <Text numberOfLines={1} style={{ flexShrink: 1, color: t.text, fontWeight: '700', fontSize: t.fs(13) }}>{userLabel}</Text>
+        </Pressable>
+      </Row>
+      <Row gap={12} style={{ alignItems: 'center' }}>
+        {onBack ? <CircleBtn icon="back" label="Back to More" onPress={onBack} /> : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} accessibilityRole="header" style={{ color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(onBack ? 30 : 32), letterSpacing: -0.6, lineHeight: t.fs(onBack ? 34 : 36) }}>{title}</Text>
+          {!!subtitle && <Text numberOfLines={1} style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(13), marginTop: 5 }}>{subtitle}</Text>}
+        </View>
+      </Row>
     </View>
   );
 }
 
-/** A finished task as a row: a green dot, the title, when it was completed and whether it is in the daily report, and Reopen. */
+/** The + button: 56px, radius 20, primary with a soft primary shadow. */
+export function Fab({ onPress, bottom, right = 20, label = 'New entry' }) {
+  const t = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
+      style={({ pressed }) => ({ position: 'absolute', right, bottom, width: 56, height: 56, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.primary, opacity: pressed ? 0.9 : 1, ...t.fabShadow })}>
+      <Icon name="plus" size={26} color={t.onAccent} stroke={2.2} />
+    </Pressable>
+  );
+}
+
+/** A section heading with an optional link at the right ("Needs attention" - "See all"). */
+export function SectionHead({ title, action, onAction, style }) {
+  const t = useTheme();
+  return (
+    <Row style={[{ justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4, marginBottom: 10 }, style]}>
+      <Text accessibilityRole="header" style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{title}</Text>
+      {!!action && <Pressable onPress={onAction} hitSlop={8} accessibilityRole="button"><Text style={{ color: t.primary, fontWeight: '700', fontSize: t.fs(13) }}>{action}</Text></Pressable>}
+    </Row>
+  );
+}
+
+/**
+ * A count tile. With a `tone` ('red' | 'amber' | 'slate') it is a tinted tile (Home's Overdue / Due today / Next 7 days);
+ * without one it is a plain white card with a line (the "More counts"). The number is Fraunces.
+ */
+export function PhoneKpi({ label, value, tone, onPress, wide }) {
+  const t = useTheme();
+  const colours = { red: [t.dangerTint, t.dangerText], amber: [t.warnTint, t.warnText], slate: [t.slateTint, t.slateText] }[tone];
+  const bg = colours ? colours[0] : t.surface;
+  const fg = colours ? colours[1] : t.text;
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}
+      style={({ pressed }) => ({ width: wide ? '31.5%' : undefined, flex: wide ? undefined : 1, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, gap: 4, backgroundColor: bg, borderWidth: colours ? 0 : 1, borderColor: t.border, opacity: pressed ? 0.85 : 1 })}>
+      <Text style={{ color: colours ? fg : t.textDim, fontWeight: '700', fontSize: t.fs(11) }} numberOfLines={1}>{label}</Text>
+      <Text style={{ color: fg, fontFamily: display(), fontWeight: '600', fontSize: t.fs(28), lineHeight: t.fs(30) }}>{value}</Text>
+    </Pressable>
+  );
+}
+
+/** "Today 6:00 PM", "Yesterday 11:00 AM", "Tomorrow", "21 Oct 4:30 PM". */
+export const relativeDue = (due) => {
+  const now = new Date();
+  const day0 = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Math.round((day0(due) - day0(now)) / 86400000);
+  const name = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : diff === -1 ? 'Yesterday' : due.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  return isMidnight(due) ? name : `${name} ${due.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+};
+
+/** A task as a flat white card: title, one line of facts (priority dot first, the due text last) and Done / DAR under it. */
+export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
+  const t = useTheme();
+  const due = entry.dueAt ? new Date(entry.dueAt) : null;
+  const overdue = isOverdue(entry);
+  const dot = t.prioDot[entry.priority] || t.textDim;
+  const late = overdue && due ? daysLate(due) : 0;
+  const dueText = due ? (late >= 2 ? `Overdue ${late} d` : relativeDue(due)) : 'No date';
+  const facts = [entry.priority, entry.category, entry.pendingWith, entry.recurrence && entry.recurrence !== 'none' ? `↻ ${recurrenceLabel(entry)}` : '', checklistText(entry) ? `☑ ${checklistText(entry)}` : ''].filter(Boolean).join(' · ');
+  const btn = (label, bg, ink, fn) => (
+    <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 11, borderRadius: 14, alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
+      <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(14) }}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 14, paddingHorizontal: 16, gap: 10 }}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 7 }}>
+        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
+        <Row style={{ alignItems: 'center', gap: 7 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} />
+          <Text style={{ flex: 1, color: t.textDim, fontWeight: '600', fontSize: t.fs(12.5) }} numberOfLines={2}>{facts ? `${facts} · ` : ''}<Text style={overdue ? { color: t.danger, fontWeight: '800' } : null}>{dueText}</Text></Text>
+          {!!onFollowUp && (
+            <Pressable onPress={onFollowUp} hitSlop={8} accessibilityRole="button" accessibilityLabel="Bank follow-up" style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="phone" size={17} color={t.tintText} stroke={1.9} />
+            </Pressable>
+          )}
+        </Row>
+      </Pressable>
+      {!!onDone && (
+        <Row gap={8}>
+          {btn('Done', t.primary, t.onAccent, onDone)}
+          {onDar && btn('DAR', t.tint, t.tintText, onDar)}
+        </Row>
+      )}
+    </View>
+  );
+}
+
+/** A finished task: a green check in a tinted circle, the title, when it was completed and whether it is in the daily report, and Reopen. */
 export function PhoneDoneRow({ entry, onPress, onReopen }) {
   const t = useTheme();
   const ms = completedTime(entry);
   const time = ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-  const facts = [`✓ ${time || 'done'}`, entry.dar !== false ? 'In report' : 'Done only', entry.category].filter(Boolean).join(' · ');
+  const facts = [time || 'Done', entry.dar !== false ? 'In report' : 'Done only', entry.category].filter(Boolean).join(' · ');
   return (
-    <View style={{ marginBottom: 10, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, padding: 14, gap: 10, ...t.shadow }}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 6 }}>
-        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
-        <Row style={{ alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.ok }} />
-          <Text style={{ flex: 1, color: t.textDim, fontSize: t.fs(12) }} numberOfLines={2}>{facts}</Text>
-        </Row>
+    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 13, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="check" size={18} color={t.primary} stroke={2.4} />
+      </View>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ flex: 1, minWidth: 0, gap: 3 }}>
+        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(14.5), lineHeight: t.fs(19) }} numberOfLines={2}>{entry.title}</Text>
+        <Text style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(12.5) }} numberOfLines={1}>{facts}</Text>
       </Pressable>
-      <Pressable onPress={onReopen} accessibilityRole="button" accessibilityLabel="Reopen" style={({ pressed }) => ({ paddingVertical: 11, borderRadius: Math.max(t.radius - 4, 8), alignItems: 'center', backgroundColor: blend(t.accent, 0.14, t.surface), opacity: pressed ? 0.85 : 1 })}>
-        <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(14) }}>Reopen</Text>
+      <Pressable onPress={onReopen} accessibilityRole="button" accessibilityLabel="Reopen" style={({ pressed }) => ({ paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: t.tint, opacity: pressed ? 0.85 : 1 })}>
+        <Text style={{ color: t.tintText, fontWeight: '800', fontSize: t.fs(13) }}>Reopen</Text>
       </Pressable>
     </View>
   );

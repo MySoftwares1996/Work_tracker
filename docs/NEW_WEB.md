@@ -1,6 +1,6 @@
 # The new web app (`newweb/`)
 
-A separate website, built from scratch with its own look: a centred tab bar at the top, bold colourful tiles, cards. It signs in
+A separate website with the "Ledger" look: a white top bar (brand, pill tabs, the signed-in person), serif page titles, a dark green TODAY panel with tinted count tiles, white cards with 1px lines. Six colour themes (Forest default, Harbour, Plum, Ember, Ink, Rose), each with a dark twin, set in `src/themes.js` (Config > Appearance also has the dark-mode switch and the text size). It signs in
 with Google and reads and writes the **same Firebase account** as the phone app and the Expo website (`users/<uid>/tasks`,
 `meta/lists`, `meta/calendar`, `meta/tools`), so both always show the same tasks. It does not touch the phone app or the Expo website.
 

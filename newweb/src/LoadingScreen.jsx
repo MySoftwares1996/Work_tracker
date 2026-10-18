@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Logo from './Logo';
+import Icon from './icons';
 
 const TIPS = [
   'Click a task\'s mail subject to copy it and open the task.',
-  'The 📋 button on a card saves it as a template for new entries.',
+  'The template button on a card saves it as a starting point for new entries.',
   'The Report tab can rewrite your daily report with Gemini.',
   'Pick your colours in Config > Appearance.',
   'Mark a task Done, or DAR to put it in the daily report.',
@@ -40,7 +41,7 @@ export default function LoadingScreen({ stage = 'data', full = false }) {
     setTaps((n) => n + 1);
     setCheer(CHEERS[(taps + 1) % CHEERS.length]);
     if (reduced()) return;
-    const made = Array.from({ length: 16 }, (_, i) => ({ id: `${Date.now()}-${i}`, a: (360 / 16) * i + Math.random() * 12, d: 70 + Math.random() * 40, c: ['#2fd6c1', '#ffd166', '#ff6b8a', '#8b5cf6', '#4ea1ff'][i % 5] }));
+    const made = Array.from({ length: 16 }, (_, i) => ({ id: `${Date.now()}-${i}`, a: (360 / 16) * i + Math.random() * 12, d: 70 + Math.random() * 40, c: ['var(--mint)', 'var(--primary)', 'var(--amber)', 'var(--danger)', 'var(--primary-dark)'][i % 5] }));
     setSparks(made);
     setTimeout(() => setSparks([]), 900);
   };
@@ -61,7 +62,7 @@ export default function LoadingScreen({ stage = 'data', full = false }) {
       </div>
       <h2 className="ls-title">Working Dashboard</h2>
       <ol className="ls-steps">
-        <li className={authDone ? 'done' : 'now'}><span className="ls-dot">{authDone ? '✓' : ''}</span>{authDone ? 'Signed in' : 'Signing you in'}</li>
+        <li className={authDone ? 'done' : 'now'}><span className="ls-dot">{authDone ? <Icon name="check" size={11} strokeWidth={3} /> : ''}</span>{authDone ? 'Signed in' : 'Signing you in'}</li>
         <li className={authDone ? 'now' : ''}><span className="ls-dot" />Loading your tasks</li>
       </ol>
       <div className="ls-bar" aria-hidden="true"><span /></div>

@@ -202,15 +202,43 @@ test('a point on the dial becomes an hour or a minute', () => {
 });
 
 import { readFileSync } from 'node:fs';
-import { THEMES } from '../src/themes.js';
-test('every theme in the chooser has its CSS and the tokens the screens use', () => {
+import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.js';
+const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
+const contrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+
+test('the six Ledger themes: Forest is the default and an old saved theme key becomes Forest', () => {
+  assert.deepEqual(THEMES.map((t) => t.id), ['forest', 'harbour', 'plum', 'ember', 'ink', 'rose']);
+  assert.equal(DEFAULT_THEME, 'forest');
+  ['violet', 'aqua', 'ocean', 'sunset', 'lilac', 'night', '', null, undefined].forEach((old) => assert.equal(normalizeTheme(old), 'forest'));
+  THEMES.forEach((t) => assert.equal(normalizeTheme(t.id), t.id));
+  const f = themeVars('forest', 'light');
+  assert.equal(f['--primary'], '#0B6B52');
+  assert.equal(f['--primary-dark'], '#123A2F');
+  assert.equal(f['--primary-tint'], '#E3F1EC');
+  assert.equal(themeVars('rose', 'light')['--primary'], '#B42318');
+  assert.equal(themeVars('violet', 'light')['--primary'], '#0B6B52');
+});
+
+test('every theme has a dark twin with the same tokens, and the CSS starts from the Forest / light values', () => {
   const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
-  assert.ok(THEMES.length >= 6);
-  THEMES.filter((t) => t.id !== 'violet').forEach((t) => {
-    const m = new RegExp(`:root\\[data-theme="${t.id}"\\] \\{([^}]*)\\}`).exec(css);
-    assert.ok(m, t.id);
-    ['--bg', '--surface', '--ink', '--violet', '--on-accent', '--tile-coral', '--tile-teal-fg', '--danger-bg', '--shadow'].forEach((v) => assert.ok(m[1].includes(v + ':'), `${t.id} ${v}`));
+  const root = /:root \{([^}]*)\}/.exec(css)[1];
+  const light = themeVars('forest', 'light');
+  Object.entries(light).forEach(([k, v]) => assert.ok(new RegExp(`${k}:\\s*${v.replace(/[()]/g, '\\$&')}`, 'i').test(root), `styles.css :root has ${k}: ${v}`));
+  THEMES.forEach((t) => {
+    assert.deepEqual(Object.keys(themeVars(t.id, 'dark')).sort(), Object.keys(light).sort(), t.id);
+    assert.equal(themeVars(t.id, 'dark')['--ground'], '#0F1714');
+    assert.equal(themeVars(t.id, 'dark')['--card'], '#17211D');
   });
+});
+
+test('all text passes 4.5:1 in every theme, light and dark', () => {
+  const PAIRS = [['--ink', '--ground'], ['--ink', '--card'], ['--ink', '--soft'], ['--muted', '--ground'], ['--muted', '--card'], ['--muted', '--soft'], ['--primary', '--ground'], ['--primary', '--card'],
+    ['--on-primary', '--primary'], ['--primary-ink', '--primary-tint'], ['--primary-ink', '--card'], ['--ink', '--primary-tint'], ['--muted', '--primary-tint'], ['#FFFFFF', '--primary-dark'], ['--mint', '--primary-dark'],
+    ['--danger-ink', '--danger-tint'], ['--on-danger', '--danger'], ['--danger', '--card'], ['--danger', '--ground'], ['--amber-ink', '--amber-tint'], ['--slate-ink', '--slate-tint'], ['--ink', '--amber-tint'], ['--ink', '--danger-tint'], ['--muted', '--danger-tint']];
+  THEMES.forEach((t) => ['light', 'dark'].forEach((mode) => {
+    const v = themeVars(t.id, mode);
+    PAIRS.forEach(([a, b]) => { const r = contrast(a[0] === '#' ? a : v[a], b[0] === '#' ? b : v[b]); assert.ok(r >= 4.5, `${t.id} ${mode} ${a} on ${b} is ${r.toFixed(2)}`); });
+  }));
 });
 
 test('sub categories: read from the lists, shown for the right categories, required before Completed', () => {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
-import Logo from './Logo';
+import Icon from './icons';
+import { priTone } from './ui';
 import ClockPicker from './ClockPicker';
 import { SNOOZES, followUpPicks, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel, DONE_STATUS } from './data';
 import { finalNarration } from './reportFormats';
@@ -164,26 +165,28 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
     <div className="alert-overlay" role="alertdialog" aria-modal="true" aria-label="Task due now">
       <div className={`alert-card tone-${tone}`}>
         <div className="alert-band">
-          <span className="alert-bell" aria-hidden="true"><Logo size={44} /></span>
+          <span className="alert-bell" aria-hidden="true"><Icon name="bell" size={30} strokeWidth={1.8} /></span>
           <div className="alert-band-text">
-            <div className="alert-heading">{alertHeading(a)}</div>
-            <div className="alert-meta">{a.test ? 'Test alert' : dueLabel(t)}{count > 1 ? ` · ${count - 1} more waiting` : ''}</div>
+            <span className="alert-heading">{alertHeading(a)}</span>
+            <h2 className="alert-title">{t.title}</h2>
           </div>
-          <button type="button" className="alert-close" onClick={() => finish(a)} aria-label="Dismiss this alert">✕</button>
+          <div className="alert-side">
+            <span className="alert-meta">{a.test ? 'Test alert' : dueLabel(t)}{count > 1 ? ` · ${count - 1} more waiting` : ''}</span>
+            <button type="button" className="alert-close" onClick={() => finish(a)} aria-label="Dismiss this alert"><Icon name="x" size={18} /></button>
+          </div>
         </div>
         <div className="alert-main">
           <div className="alert-left">
-            <h2 className="alert-title">{t.title}</h2>
             <div className="chips">
-              {t.priority && <span className="chip coral">{t.priority}</span>}
+              {t.priority && <span className={`chip ${priTone(t.priority)}`}>{t.priority}</span>}
               {t.category && <span className="chip violet">{t.category}</span>}
               {t.pendingWith && <span className="chip amber">Pending with: {t.pendingWith}</span>}
               {t.status && <span className="chip">{t.status}</span>}
-              {t.recurrence !== RECURRENCES[0] && <span className="chip">↻ {t.recurrence}</span>}
+              {t.recurrence !== RECURRENCES[0] && <span className="chip"><Icon name="repeat" size={12} />{t.recurrence}</span>}
             </div>
             {(t.reference || t.notes) && (
               <div className="alert-notes">
-                {t.reference && <p>✉ {t.reference}</p>}
+                {t.reference && <p className="alert-ref"><Icon name="mail" size={14} />{t.reference}</p>}
                 {t.notes && <p>{t.notes}</p>}
               </div>
             )}

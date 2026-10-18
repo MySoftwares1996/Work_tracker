@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ClockPicker from '../ClockPicker';
+import Icon from '../icons';
 import { copyText } from '../clipboard';
 import { useStore } from '../store';
 import { finalNarration } from '../reportFormats';
@@ -21,8 +22,8 @@ function NarrationBox({ t }) {
   const copy = async () => { notify((await copyText(n.text)) ? 'Narration copied' : 'Could not copy the narration'); };
   return (
     <>
-      <span className="btn-copy narr-btn">
-        <button type="button" className="btn" onClick={() => setOpen(true)}>📝 Final Narration{n.missing.length > 0 ? ` · ${n.missing.length} to fill` : ''}</button>
+      <span className="pair narr-btn">
+        <button type="button" className="pill-btn o" onClick={() => setOpen(true)}><Icon name="chat" />Final Narration{n.missing.length > 0 ? <b>{n.missing.length} to fill</b> : null}</button>
         <button type="button" className="mini" onClick={copy} aria-label="Copy the final narration">Copy</button>
       </span>
       {open && (
@@ -59,7 +60,7 @@ function Popup({ title, sub, onClose, children, foot }) {
   return (
     <div ref={box} className="sub-pop" onMouseDown={(e) => e.target === e.currentTarget && onClose()} role="dialog" aria-modal="true" aria-label={title}>
       <div className="sub-card">
-        <div className="sub-head"><span><b>{title}</b>{sub && <small>{sub}</small>}</span><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="sub-head"><span><b>{title}</b>{sub && <small>{sub}</small>}</span><button type="button" className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={18} /></button></div>
         {children}
         <div className="sub-foot">{foot || <button type="button" className="btn primary" onClick={onClose}>Done</button>}</div>
       </div>
@@ -91,7 +92,7 @@ export default function TaskForm({ initial, onClose }) {
   const [tplName, setTplName] = useState(null);      // null = closed; a string = naming the template being saved
   // Escape and a click on the backdrop close only the topmost popup; the form itself closes when none is open.
   const popups = useRef({});
-  const anyPopup = () => { const p = popups.current; return !!(p.remClock || p.clockOpen || p.subOpen || p.managing || p.tplOpen || p.remOpen || p.stepsOpen || p.mailOpen || p.tplName !== null); };
+  const anyPopup = () => { const p = popups.current; return !!(p.remClock || p.clockOpen || p.subOpen || p.managing || p.remOpen || p.stepsOpen || p.mailOpen || p.tplName !== null); };
   const closeTopPopup = () => {
     const p = popups.current;
     if (p.remClock || p.clockOpen) return;          // a clock closes itself on Escape
@@ -99,7 +100,6 @@ export default function TaskForm({ initial, onClose }) {
     else if (p.mailOpen) setMailOpen(false);
     else if (p.stepsOpen) setStepsOpen(false);
     else if (p.remOpen) setRemOpen(false);
-    else if (p.tplOpen) setTplOpen(false);
     else if (p.managing) setManaging('');
     else if (p.tplName !== null) setTplName(null);
   };
@@ -131,6 +131,15 @@ export default function TaskForm({ initial, onClose }) {
       <select value={t[field]} onChange={set(field)} aria-label={label}>{blank && <option value="">-</option>}{opts(lists[key], t[field]).map((x) => <option key={x}>{x}</option>)}</select>
     </div>
   );
+  const priClass = (x) => ({ high: 'hi', medium: 'med', low: 'low' })[String(x).toLowerCase()] || '';
+  const prioritySeg = (
+    <div className="field">
+      <span className="field-head">Priority<button type="button" className="mini" onClick={() => setManaging(managing === 'priorities' ? '' : 'priorities')}>{managing === 'priorities' ? 'Done' : '+ / − Edit'}</button></span>
+      <div className="prio" role="group" aria-label="Priority">
+        {opts(lists.priorities, t.priority).map((x) => <button type="button" key={x} className={`${t.priority === x ? 'on ' : ''}${priClass(x)}`} aria-pressed={t.priority === x} onClick={() => setT({ ...t, priority: x })}>{x}</button>)}
+      </div>
+    </div>
+  );
   const subs = subCategoriesFor(lists, t.category);
   const sc = findSubCategory(lists, t.subCategory);
   const needSub = categoryCarriesSubCategory(lists, t.category);
@@ -140,15 +149,14 @@ export default function TaskForm({ initial, onClose }) {
   const [remOpen, setRemOpen] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
-  const [tplOpen, setTplOpen] = useState(false);
   const subSnap = useRef({});
   const openSub = () => { subSnap.current = t.subCategoryFields || {}; setSubOpen(true); };
   const closeSub = (cancel) => { if (cancel) setT((d) => ({ ...d, subCategoryFields: subSnap.current })); setSubOpen(false); setSubError(''); };
   closeSubRef.current = closeSub;
-  popups.current = { remClock, clockOpen, subOpen: subOpen && !!sc, managing, tplOpen, remOpen, stepsOpen, mailOpen, tplName };
+  popups.current = { remClock, clockOpen, subOpen: subOpen && !!sc, managing, remOpen, stepsOpen, mailOpen, tplName };
   const subFilled = sc ? sc.fields.filter((f) => String((t.subCategoryFields || {})[f.label] || '').trim()).length : 0;
   const subBlock = (
-    <div className="manage-panel sub-panel">
+    <div className="sub-panel">
       <div className="field-head"><span className="field" title={needSub ? 'Needed to mark Completed' : undefined}>Sub category{needSub ? ' *' : ''}</span><button type="button" className="mini" onClick={() => setManaging(managing === 'sub' ? '' : 'sub')}>{managing === 'sub' ? 'Done' : '+ / − Edit'}</button></div>
       {managing === 'sub' && <Popup title={`Sub categories${t.category ? ` under ${t.category}` : ''}`} onClose={() => setManaging('')}><SubCategoryManager lists={lists} only={t.category} /></Popup>}
       {(
@@ -157,7 +165,7 @@ export default function TaskForm({ initial, onClose }) {
             <option value="">{t.category ? '-' : 'Choose a Category first'}</option>{(t.subCategory && !subs.some((x) => x.name === t.subCategory) ? [{ name: t.subCategory }, ...subs] : subs).map((x) => <option key={x.name}>{x.name}</option>)}
           </select>
           {sc && sc.fields.length > 0 && (
-            <button type="button" className="btn primary sub-btn" onClick={openSub}>Sub category details <span className="sub-count">{subFilled} of {sc.fields.length} filled</span></button>
+            <button type="button" className="pill-btn sub-btn" onClick={openSub}><Icon name="list" />Sub category details<b>{subFilled} of {sc.fields.length} filled</b></button>
           )}
           {t.category && !subs.length && <p className="muted">No Sub Categories under {t.category} yet. Use + / − Edit to add them.</p>}
         </>
@@ -173,135 +181,138 @@ export default function TaskForm({ initial, onClose }) {
   const repeatsEvery = t.recurrence === 'Hourly' || t.recurrence === 'Custom';
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !anyPopup() && onClose()}>
-      <form className="sheet wide" onSubmit={submit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.closest('.sub-pop')) e.preventDefault(); }} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
-        <div className="sheet-head"><h2>{isNew ? 'New entry' : 'Edit entry'}</h2>
+      <form className="sheet wide" onSubmit={submit} onKeyDown={(e) => {
+        if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.closest('.sub-pop')) e.preventDefault();
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (!anyPopup() && !e.currentTarget.querySelector('.sub-pop')) e.currentTarget.requestSubmit(); }
+      }} role="dialog" aria-modal="true" aria-label={isNew ? 'New entry' : 'Edit entry'}>
+        <div className="sheet-head">
+          <div><h2>{isNew ? 'New entry' : 'Edit entry'}</h2><p className="sub">Press Ctrl + Enter to save</p></div>
           <span className="tpl-head">
-            {isNew && templates.length > 0 && <button type="button" className="btn" onClick={() => setTplOpen(true)}>📋 Templates ▾</button>}
             <span className="alert-icons" role="group" aria-label="Alert at the due time">
-              {[['', '🔔', 'Alert at the due time: default'], ['alarm', '⏰', 'Alert at the due time: Alarm (pop-up + sound)'], ['gentle', '🔕', 'Alert at the due time: Reminder (notification only)']].map(([v, ico, tip]) => <button type="button" key={v} className={`ai${t.alertMode === v ? ' on' : ''}`} title={tip} aria-label={tip} aria-pressed={t.alertMode === v} onClick={() => setT({ ...t, alertMode: v })}>{ico}</button>)}
+              {[['', 'bell', 'Alert at the due time: default'], ['alarm', 'alarm', 'Alert at the due time: Alarm (pop-up + sound)'], ['gentle', 'bellOff', 'Alert at the due time: Reminder (notification only)']].map(([v, ico, tip]) => <button type="button" key={v} className={`ai${t.alertMode === v ? ' on' : ''}`} title={tip} aria-label={tip} aria-pressed={t.alertMode === v} onClick={() => setT({ ...t, alertMode: v })}><Icon name={ico} size={18} /></button>)}
             </span>
             {tplName === null
               ? <button type="button" className="btn" onClick={() => setTplName(t.title.trim())} title="Keep this entry's usual fields to start new entries from">Save as template</button>
               : <span className="tpl-save"><input autoFocus value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="Template name" aria-label="Template name" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('tpl-ok')?.click(); } }} />
                 <button type="button" id="tpl-ok" className="btn primary" onClick={() => { saveTemplates(saveTemplate(templates, templateFrom(t, tplName || t.title))); notify(`Template saved: ${tplName || t.title || 'Template'}`); setTplName(null); }}>Save</button>
                 <button type="button" className="btn ghost" onClick={() => setTplName(null)}>Cancel</button></span>}
-            <button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button>
-          </span></div>
-        {tplOpen && (
-          <Popup title="Start from a template" sub="Fills the form from a saved template" onClose={() => setTplOpen(false)}>
-            <div className="tpl-row">
+            <button type="button" className="x-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={20} /></button>
+          </span>
+        </div>
+        <div className="form-body">
+          {isNew && templates.length > 0 && (
+            <div className="tpl-row"><span className="tpl-label">Start from a template</span>
               {templates.map((tp) => (
-              <span key={tp.id} className="chip tpl-chip"><button type="button" onClick={() => { setT((cur) => applyTemplate(cur, tp)); setTplOpen(false); }} title="Fill the form from this template">{tp.name}</button><button type="button" className="tpl-x" aria-label={`Delete template ${tp.name}`} onClick={() => saveTemplates(templates.filter((x) => x.id !== tp.id))}>✕</button></span>
-            ))}
+                <span key={tp.id} className="tpl-chip"><button type="button" onClick={() => setT((cur) => applyTemplate(cur, tp))} title="Fill the form from this template">{tp.name}</button><button type="button" className="tpl-x" aria-label={`Delete template ${tp.name}`} onClick={() => saveTemplates(templates.filter((x) => x.id !== tp.id))}><Icon name="x" size={12} /></button></span>
+              ))}
             </div>
-          </Popup>
-        )}
-        <div className="cols3">
-        <div className="col fcard">
-          <h3 className="fcard-title">What</h3>
-          <label className="field full">Task description<AutoText value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
-          {pick('categories', 'Category', 'category', true)}
-          {subBlock}
-          <NarrationBox t={t} />
-          {manager}
-        </div>
-        <div className="col fcard">
-          <h3 className="fcard-title">When</h3>
-          <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-          <div className="two-f">
-          <label className="field">Month end
-            <select value={monthEnd.some((m) => m.key === date) && !time ? date : ''} onChange={(e) => { if (e.target.value) { setDate(e.target.value); setTime(''); } }} aria-label="Month end: the last working days of the month" title="The last working days of the month (not Sundays, holidays or leave days). A date alone alerts once, at 7 PM that day.">
-              <option value="">Month end ...</option>{monthEnd.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-            </select>
-          </label>
-          <div className="field">Due time
-            <button type="button" className="time-btn" onClick={() => setClockOpen(true)} disabled={!date} aria-label="Pick the due time on a clock">
-              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-              <span>{timeLabel(time) || (date ? 'Set time' : 'Pick a date first')}</span>
-            </button>
-          </div>
-          </div>
-          <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
-          {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
-        {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
-        {t.category && (
-          <button type="button" className="btn rem-btn" onClick={() => setRemOpen(true)} title="Next reminder date and time">⏰ {remDate ? `Next reminder: ${remDate}${remTime ? ' ' + timeLabel(remTime) : ''}` : 'Next reminder'}</button>
-        )}
-
-        {remOpen && (
-          <Popup title="Next reminder" sub="9:00 AM if no time" onClose={() => setRemOpen(false)}>
-            {t.category && (
-          <label className="field check"><input type="checkbox" checked={categoryAsksReminder(lists, t.category)} onChange={() => saveLists(toggleReminderCategory(lists, t.category))} /> Ask for a next reminder date &amp; time under {t.category}</label>
-        )}
-            <div className="fields">
-              <label className="field">Date<input type="date" value={remDate} onChange={(e) => setRemDate(e.target.value)} /></label>
-              <div className="field">Time
-                <button type="button" className="time-btn" onClick={() => setRemClock(true)} disabled={!remDate} aria-label="Pick the reminder time on a clock">
-                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                  <span>{timeLabel(remTime) || (remDate ? 'Set time' : 'Pick a date first')}</span>
-                </button>
-              </div>
-              {remDate && <div className="field">&nbsp;<button type="button" className="btn ghost" onClick={() => { setRemDate(''); setRemTime(''); }}>Clear reminder</button></div>}
-            </div>
-          </Popup>
-        )}
-        </div>
-        <div className="col fcard">
-          <h3 className="fcard-title">Who &amp; notes</h3>
-          <div className="two-f">{pick('priorities', 'Priority', 'priority')}{pick('statuses', 'Status', 'status')}</div>
-          {pick('pendingWith', 'Pending with', 'pendingWith', true)}
-          <label className="field full">Notes<AutoText value={t.notes} onChange={set('notes')} /></label>
-          <div className="btn-row">
-        <button type="button" className="btn check-btn" onClick={() => setStepsOpen(true)}>☑ Checklist{t.checklist.length > 0 ? ` (${t.checklist.filter((c) => c.done).length}/${t.checklist.length} done)` : ''}</button>
-            <span className="btn-copy">
-              <button type="button" className="btn" onClick={() => setMailOpen(true)}>✉ Mail chain{t.reference.trim() ? ' ✓' : ''}</button>
-              <button type="button" className="mini" disabled={!t.reference.trim()} aria-label="Copy the mail chain" onClick={async () => { notify((await copyText(t.reference)) ? 'Mail chain copied' : 'Could not copy the mail chain'); }}>Copy</button>
-            </span>
-          </div>
-          <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
-        {stepsOpen && (
-          <Popup title="Checklist" sub="Steps to tick before the task is done" onClose={() => setStepsOpen(false)}>
-          {t.checklist.map((c) => (
-            <div key={c.id} className="row">
-              <label className="check-row"><input type="checkbox" checked={c.done} onChange={() => setT({ ...t, checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)) })} /><span className={c.done ? 'struck' : ''}>{c.text}</span></label>
-              <button type="button" className="btn ghost" onClick={() => setT({ ...t, checklist: t.checklist.filter((x) => x.id !== c.id) })} aria-label={`Remove ${c.text}`}>✕</button>
-            </div>
-          ))}
-          <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
-          </Popup>
-        )}
-          {mailOpen && (
-            <Popup title="Mail chain" sub="The mail subject this task came from" onClose={() => setMailOpen(false)}>
-              <div className="field full">
-                <span className="field-head">Mail chain<button type="button" className="mini" disabled={!t.reference.trim()} onClick={async () => { notify((await copyText(t.reference)) ? 'Mail chain copied' : 'Could not copy the mail chain'); }}>Copy</button></span>
-                <input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" aria-label="Mail chain" autoFocus />
-              </div>
-            </Popup>
           )}
+          <div className="cols3">
+            <div className="col fcard">
+              <h3 className="fcard-title">WHAT</h3>
+              <label className="field full">Task description<AutoText value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
+              <div className="two-f">{pick('categories', 'Category', 'category', true)}{pick('statuses', 'Status', 'status')}</div>
+              {prioritySeg}
+              {subBlock}
+              {manager}
+            </div>
+            <div className="col fcard">
+              <h3 className="fcard-title">WHEN</h3>
+              <div className="two-f">
+                <label className="field">Due date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+                <div className="field">Due time
+                  <button type="button" className="time-btn" onClick={() => setClockOpen(true)} disabled={!date} aria-label="Pick the due time on a clock">
+                    <span>{timeLabel(time) || (date ? 'Set time' : 'Pick a date first')}</span>
+                    <Icon name="clock" size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="two-f">
+                <label className="field">Month end
+                  <select value={monthEnd.some((m) => m.key === date) && !time ? date : ''} onChange={(e) => { if (e.target.value) { setDate(e.target.value); setTime(''); } }} aria-label="Month end: the last working days of the month" title="The last working days of the month (not Sundays, holidays or leave days). A date alone alerts once, at 7 PM that day.">
+                    <option value="">Month end ...</option>{monthEnd.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+                  </select>
+                </label>
+                <label className="field">Repeats<select value={t.recurrence} onChange={set('recurrence')}>{opts(RECURRENCES, t.recurrence).map((x) => <option key={x}>{x}</option>)}</select></label>
+              </div>
+              {t.recurrence === 'Custom' && <label className="field">Every (minutes)<input type="number" min="1" value={t.recurrenceEveryMin || ''} onChange={(e) => setT({ ...t, recurrenceEveryMin: Number(e.target.value) || null })} /></label>}
+              {repeatsEvery && <p className="muted">Hourly and custom repeats are set here but are repeated by the phone app, not by this site.</p>}
+              {t.category && (
+                <button type="button" className="pill-btn o rem-btn" onClick={() => setRemOpen(true)} title="Next reminder date and time"><Icon name="clock" />{remDate ? `Next reminder: ${remDate}${remTime ? ' ' + timeLabel(remTime) : ''}` : 'Next reminder'}</button>
+              )}
+              <button type="button" className="pill-btn o check-btn" onClick={() => setStepsOpen(true)}><Icon name="checklist" />Checklist{t.checklist.length > 0 ? <b>{t.checklist.filter((c) => c.done).length}/{t.checklist.length} done</b> : null}</button>
+              {remOpen && (
+                <Popup title="Next reminder" sub="9:00 AM if no time" onClose={() => setRemOpen(false)}>
+                  {t.category && (
+                    <label className="field check"><input type="checkbox" checked={categoryAsksReminder(lists, t.category)} onChange={() => saveLists(toggleReminderCategory(lists, t.category))} /> Ask for a next reminder date &amp; time under {t.category}</label>
+                  )}
+                  <div className="fields">
+                    <label className="field">Date<input type="date" value={remDate} onChange={(e) => setRemDate(e.target.value)} /></label>
+                    <div className="field">Time
+                      <button type="button" className="time-btn" onClick={() => setRemClock(true)} disabled={!remDate} aria-label="Pick the reminder time on a clock">
+                        <span>{timeLabel(remTime) || (remDate ? 'Set time' : 'Pick a date first')}</span>
+                        <Icon name="clock" size={16} />
+                      </button>
+                    </div>
+                    {remDate && <div className="field">&nbsp;<button type="button" className="btn ghost" onClick={() => { setRemDate(''); setRemTime(''); }}>Clear reminder</button></div>}
+                  </div>
+                </Popup>
+              )}
+            </div>
+            <div className="col fcard">
+              <h3 className="fcard-title">WHO &amp; NOTES</h3>
+              {pick('pendingWith', 'Pending with', 'pendingWith', true)}
+              <label className="field full">Notes<AutoText value={t.notes} onChange={set('notes')} placeholder="Add notes" /></label>
+              <span className="pair">
+                <button type="button" className="pill-btn o" onClick={() => setMailOpen(true)}><Icon name="mail" />Mail chain{t.reference.trim() ? <b>added</b> : null}</button>
+                <button type="button" className="mini" disabled={!t.reference.trim()} aria-label="Copy the mail chain" onClick={async () => { notify((await copyText(t.reference)) ? 'Mail chain copied' : 'Could not copy the mail chain'); }}>Copy</button>
+              </span>
+              <NarrationBox t={t} />
+              <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
+              {stepsOpen && (
+                <Popup title="Checklist" sub="Steps to tick before the task is done" onClose={() => setStepsOpen(false)}>
+                  {t.checklist.map((c) => (
+                    <div key={c.id} className="row">
+                      <label className="check-row"><input type="checkbox" checked={c.done} onChange={() => setT({ ...t, checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)) })} /><span className={c.done ? 'struck' : ''}>{c.text}</span></label>
+                      <button type="button" className="icon-btn" onClick={() => setT({ ...t, checklist: t.checklist.filter((x) => x.id !== c.id) })} aria-label={`Remove ${c.text}`}><Icon name="x" size={16} /></button>
+                    </div>
+                  ))}
+                  <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
+                </Popup>
+              )}
+              {mailOpen && (
+                <Popup title="Mail chain" sub="The mail subject this task came from" onClose={() => setMailOpen(false)}>
+                  <div className="field full">
+                    <span className="field-head">Mail chain<button type="button" className="mini" disabled={!t.reference.trim()} onClick={async () => { notify((await copyText(t.reference)) ? 'Mail chain copied' : 'Could not copy the mail chain'); }}>Copy</button></span>
+                    <input value={t.reference} onChange={set('reference')} placeholder="Paste or type the mail subject" aria-label="Mail chain" autoFocus />
+                  </div>
+                </Popup>
+              )}
+            </div>
+          </div>
+          {subError && <div className="banner err" role="alert">{subError}</div>}
         </div>
-        </div>
-        {subError && <div className="banner err" role="alert">{subError}</div>}
         <div className="sheet-foot">
           {!isNew && !t.binned && <button type="button" className="btn danger" onClick={() => { actions.bin(t); onClose(); }}>Move to bin</button>}
           <span className="grow" />
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={!t.title.trim()}>Save</button>
+          <button type="button" className="btn soft big" onClick={onClose}>Cancel</button>
+          <button className="btn primary big" disabled={!t.title.trim()}>Save entry</button>
         </div>
-      {subOpen && sc && (
-        <div className="sub-pop" onMouseDown={(e) => e.target === e.currentTarget && closeSub(true)} role="dialog" aria-modal="true" aria-label="Sub category details">
-          <div className="sub-card">
-            <div className="sub-head"><span><b>{sc.name}</b><small>Sub category details</small></span><button type="button" className="btn ghost" onClick={() => closeSub(true)} aria-label="Close">✕</button></div>
-            <div className="fields sub-fields">{sc.fields.map((f) => (
-              <label className={`field${/^completed$/i.test(t.status) && !String((t.subCategoryFields || {})[f.label] || '').trim() ? ' need' : ''}`} key={f.label}><span className="flabel">{f.label}{/^completed$/i.test(t.status) && <span className="req"> *</span>}</span>
-                {f.options && f.options.length ? <select value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
-                  : <input value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })} />}
-              </label>
-            ))}</div>
-            {subError && <p className="banner err" role="alert">{subError}</p>}
-            <div className="sub-foot"><button type="button" className="btn" onClick={() => closeSub(true)}>Cancel</button><button type="button" className="btn primary" onClick={() => closeSub(false)}>Done</button></div>
+        {subOpen && sc && (
+          <div className="sub-pop" onMouseDown={(e) => e.target === e.currentTarget && closeSub(true)} role="dialog" aria-modal="true" aria-label="Sub category details">
+            <div className="sub-card">
+              <div className="sub-head"><span><b>{sc.name}</b><small>Sub category details</small></span><button type="button" className="icon-btn" onClick={() => closeSub(true)} aria-label="Close"><Icon name="x" size={18} /></button></div>
+              <div className="fields sub-fields">{sc.fields.map((f) => (
+                <label className={`field${/^completed$/i.test(t.status) && !String((t.subCategoryFields || {})[f.label] || '').trim() ? ' need' : ''}`} key={f.label}><span className="flabel">{f.label}{/^completed$/i.test(t.status) && <span className="req"> *</span>}</span>
+                  {f.options && f.options.length ? <select value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })}><option value="">-</option>{f.options.map((o) => <option key={o}>{o}</option>)}</select>
+                    : <input value={(t.subCategoryFields || {})[f.label] || ''} onChange={(e) => setT({ ...t, subCategoryFields: { ...t.subCategoryFields, [f.label]: e.target.value } })} />}
+                </label>
+              ))}</div>
+              {subError && <p className="banner err" role="alert">{subError}</p>}
+              <div className="sub-foot"><button type="button" className="btn" onClick={() => closeSub(true)}>Cancel</button><button type="button" className="btn primary" onClick={() => closeSub(false)}>Done</button></div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </form>
       {remClock && <ClockPicker value={remTime} onPick={(v) => { setRemTime(v); setRemClock(false); }} onClear={() => { setRemTime(''); setRemClock(false); }} onClose={() => setRemClock(false)} />}
       {clockOpen && <ClockPicker value={time} onPick={(v) => { setTime(v); setClockOpen(false); }} onClear={() => { setTime(''); setClockOpen(false); }} onClose={() => setClockOpen(false)} />}

@@ -1,202 +1,110 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { useColorScheme } from 'react-native';
 import { useStore } from './store';
 
 /**
- * Five themes from the spec: Pearl, Glassmorphism, Neumorphism, Claymorphism, 3D Hero.
+ * "Ledger" - the one look of the app (Forest is the default). Six colour themes share one structure: a warm paper ground,
+ * flat white cards with a 1px line, Fraunces for titles and big numbers, Manrope for everything else. A theme only swaps
+ * its primary / primaryDark / primaryTint (and the mint on dark panels); every theme has a dark twin that follows the
+ * phone's dark mode (Config > Appearance can turn that off).
  * Every screen reads colours from here only - never hard-code a hex in a screen.
  */
-export const THEMES = {
-  pearl: {
-    key: 'pearl',
-    label: 'Pearl (auto dark mode)',
-    dark: false,
-    // iOS system palette: systemGroupedBackground, secondarySystemGroupedBackground,
-    // separator, label/secondaryLabel, and the standard systemBlue/red/orange/green.
-    bg: '#F2F2F7',
-    bgAlt: '#E5E5EA',
-    surface: '#FFFFFF',
-    surfaceAlt: '#F2F2F7',
-    border: '#E5E5EA',
-    text: '#000000',
-    textDim: '#8E8E93',
-    accent: '#007AFF',
-    accent2: '#5AC8FA',
-    danger: '#FF3B30',
-    warn: '#FF9500',
-    ok: '#34C759',
-    // Extra category colours, so different tools/sections can each carry
-    // their own identity instead of the whole app reading as one flat blue.
-    indigo: '#5856D6',
-    teal: '#30B0C7',
-    pink: '#FF2D55',
-    purple: '#AF52DE',
-    radius: 14,
-    // iOS cards sit nearly flat against the grouped background - a hairline
-    // border does the separating, not a heavy drop shadow.
-    shadow: { shadowColor: '#000000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+
+// The families loaded by src/fonts.js (@expo-google-fonts). Fraunces for titles and big numbers; Manrope picked by weight for the rest.
+export const FONT_DISPLAY = 'Fraunces_600SemiBold';
+export const FONT_BY_WEIGHT = { 400: 'Manrope_500Medium', 500: 'Manrope_500Medium', 600: 'Manrope_600SemiBold', 700: 'Manrope_700Bold', 800: 'Manrope_800ExtraBold', 900: 'Manrope_800ExtraBold' };
+/** The Manrope family for a fontWeight ('700', 'bold', 600 ...). */
+export const fontFor = (weight) => {
+  const w = weight === 'bold' ? 700 : weight === 'normal' || weight == null ? 400 : Number(weight) || 400;
+  return FONT_BY_WEIGHT[Math.max(400, Math.min(900, Math.round(w / 100) * 100))] || FONT_BY_WEIGHT[400];
+};
+
+// The light and dark ground shared by every colour theme.
+const GROUND = {
+  light: { bg: '#F7F5EF', surface: '#FFFFFF', surfaceAlt: '#EFEBDF', border: '#E4E0D4', fieldBorder: '#D9D4C5', text: '#16231F', textDim: '#5E6B66', chevron: '#9AA39F', dark: false },
+  dark: { bg: '#0F1714', surface: '#17211D', surfaceAlt: '#1F2B26', border: '#2A3832', fieldBorder: '#34453E', text: '#EAF2EE', textDim: '#9DB0A8', chevron: '#6F8279', dark: true },
+};
+// Signal colours: the plain colour (dots, fills), the tint behind it and the text on that tint.
+const SIGNAL = {
+  light: {
+    danger: '#B42318', dangerTint: '#FBE7E4', dangerText: '#8E1F15',
+    amber: '#C27A0E', warn: '#9A5F08', warnTint: '#FBF0DC', warnText: '#7A4E08',
+    slateTint: '#E6ECF2', slateText: '#27435B', accent2: '#27435B',
+    ok: '#13795B', okTint: '#E3F1EC', okText: '#0B5A45',
+    indigo: '#4F46B8', teal: '#0F766E', pink: '#B4236B', purple: '#7E3FB8',
   },
-  glass: {
-    key: 'glass',
-    label: 'Glassmorphism',
-    dark: false,
-    bg: '#DDE7FF',
-    bgAlt: '#F6DDF0',
-    surface: 'rgba(255,255,255,0.55)',
-    surfaceAlt: 'rgba(255,255,255,0.35)',
-    border: 'rgba(255,255,255,0.75)',
-    text: '#1B2340',
-    textDim: '#5B6486',
-    accent: '#5A5BFF',
-    accent2: '#16B39C',
-    danger: '#E0464B',
-    warn: '#E08A00',
-    ok: '#12A06F',
-    indigo: '#6B5CE0',
-    teal: '#16A0B3',
-    pink: '#E0559A',
-    purple: '#8A5CE0',
-    radius: 24,
-    blur: true,
-    shadow: { shadowColor: '#4B5A9B', shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 4 },
+  dark: {
+    danger: '#FF8A7E', dangerTint: '#3D1F1B', dangerText: '#FFB4AB',
+    amber: '#E5A23A', warn: '#E5A23A', warnTint: '#3A2B10', warnText: '#F2C679',
+    slateTint: '#1E2B38', slateText: '#A9C4DD', accent2: '#A9C4DD',
+    ok: '#4FD08F', okTint: '#1C3A31', okText: '#8FE0C4',
+    indigo: '#A5A0F0', teal: '#5CCFC3', pink: '#F08BB8', purple: '#C9A0F2',
   },
-  neu: {
-    key: 'neu',
-    label: 'Neumorphism',
-    dark: false,
-    bg: '#E4E9F0',
-    bgAlt: '#E4E9F0',
-    surface: '#E4E9F0',
-    surfaceAlt: '#EDF1F7',
-    border: '#D2D9E4',
-    text: '#2A3140',
-    textDim: '#78818F',
-    accent: '#4A76F0',
-    accent2: '#2AA79B',
-    danger: '#D4565B',
-    warn: '#D79A16',
-    ok: '#27A06F',
-    indigo: '#6A6FD1',
-    teal: '#2C9AAA',
-    pink: '#D1608F',
-    purple: '#8C6FD1',
+};
+
+// The six colour themes: [light, dark] values of primary / primaryDark / primaryTint / tint text / mint / soft text on the dark panels.
+const COLOURS = {
+  forest: { label: 'Forest', swatch: '#0B6B52', light: { primary: '#0B6B52', primaryDark: '#123A2F', tint: '#E3F1EC', tintText: '#0B5A45', mint: '#9BD3BF', heroDim: '#D4EBE1' }, dark: { primary: '#3FBF98', primaryDark: '#1B4A3C', tint: '#1C3A31', tintText: '#8FE0C4', mint: '#9BD3BF', heroDim: '#D4EBE1' } },
+  harbour: { label: 'Harbour', swatch: '#2457C5', light: { primary: '#2457C5', primaryDark: '#14284F', tint: '#E4ECFA', tintText: '#1C4399', mint: '#A9C4F5', heroDim: '#D3E1FA' }, dark: { primary: '#7FA6F5', primaryDark: '#1E3A75', tint: '#1D2B4A', tintText: '#B4CCFA', mint: '#B4CCFA', heroDim: '#D3E1FA' } },
+  plum: { label: 'Plum', swatch: '#8A3FD1', light: { primary: '#8A3FD1', primaryDark: '#3A1B57', tint: '#F0E6FA', tintText: '#6B2BA8', mint: '#D6B4F2', heroDim: '#EBDAF8' }, dark: { primary: '#C08EF0', primaryDark: '#4D2A73', tint: '#2E2040', tintText: '#DFC3F7', mint: '#D6B4F2', heroDim: '#EBDAF8' } },
+  ember: { label: 'Ember', swatch: '#C2410C', light: { primary: '#C2410C', primaryDark: '#5A200A', tint: '#FBE9DF', tintText: '#9A3412', mint: '#F4B896', heroDim: '#F9D9C6' }, dark: { primary: '#F58A52', primaryDark: '#7A2F0F', tint: '#3A2216', tintText: '#FBBE9C', mint: '#F4B896', heroDim: '#F9D9C6' } },
+  ink: { label: 'Ink', swatch: '#16231F', light: { primary: '#16231F', primaryDark: '#0E1513', tint: '#E9ECEB', tintText: '#16231F', mint: '#B8C7C1', heroDim: '#D3DDD9' }, dark: { primary: '#B8C7C1', primaryDark: '#26332F', tint: '#243029', tintText: '#D3DDD9', mint: '#B8C7C1', heroDim: '#D3DDD9' } },
+  rose: { label: 'Rose', swatch: '#B42318', light: { primary: '#B42318', primaryDark: '#5C1A14', tint: '#FBE7E4', tintText: '#8E1F15', mint: '#F2B1AA', heroDim: '#F7D2CD' }, dark: { primary: '#F27A6F', primaryDark: '#7A2820', tint: '#3C2220', tintText: '#F7B3AB', mint: '#F2B1AA', heroDim: '#F7D2CD' } },
+};
+
+const build = (key, dark) => {
+  const g = dark ? GROUND.dark : GROUND.light;
+  const s = dark ? SIGNAL.dark : SIGNAL.light;
+  const c = COLOURS[key][dark ? 'dark' : 'light'];
+  return {
+    key,
+    label: COLOURS[key].label,
+    ...g,
+    ...s,
+    primary: c.primary,
+    primaryDark: c.primaryDark,
+    tint: c.tint,
+    tintText: c.tintText,
+    mint: c.mint,
+    heroDim: c.heroDim,
+    // Names the screens have always read.
+    bgAlt: g.surfaceAlt,
+    accent: c.primary,
+    // Text on a primary-coloured button: white on the light themes, near-black on the lightened dark primaries.
+    onAccent: dark ? '#0B1A15' : '#FFFFFF',
     radius: 20,
-    soft: true,
-    shadow: { shadowColor: '#A7B2C4', shadowOpacity: 0.9, shadowRadius: 10, shadowOffset: { width: 6, height: 6 }, elevation: 2 },
-  },
-  clay: {
-    key: 'clay',
-    label: 'Claymorphism',
-    dark: false,
-    bg: '#EDE4FF',
-    bgAlt: '#F6EEFF',
-    surface: '#FFFFFF',
-    surfaceAlt: '#F7F1FF',
-    border: '#E2D4FF',
-    text: '#2B2150',
-    textDim: '#6F6592',
-    accent: '#7A4DFF',
-    accent2: '#FF7AA2',
-    danger: '#F0555F',
-    warn: '#FFA630',
-    ok: '#39C08B',
-    indigo: '#8579F5',
-    teal: '#3FBFCF',
-    pink: '#FF7AA2',
-    purple: '#B27AFF',
-    radius: 30,
-    puffy: true,
-    shadow: { shadowColor: '#9C7BE8', shadowOpacity: 0.35, shadowRadius: 18, shadowOffset: { width: 0, height: 12 }, elevation: 6 },
-  },
-  hero: {
-    key: 'hero',
-    label: '3D Hero',
-    dark: true,
-    bg: '#070C1A',
-    bgAlt: '#0D1730',
-    surface: '#111C36',
-    surfaceAlt: '#16224A',
-    border: '#243358',
-    text: '#EAF1FF',
-    textDim: '#8DA0C6',
-    accent: '#4F8CFF',
-    accent2: '#33E1C4',
-    danger: '#FF5F6D',
-    warn: '#FFC542',
-    ok: '#2BD9A0',
-    indigo: '#8C8AFF',
-    teal: '#33E1C4',
-    pink: '#FF6FA5',
-    purple: '#C58CFF',
-    radius: 20,
-    glow: true,
-    shadow: { shadowColor: '#4F8CFF', shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  },
+    heroRadius: 24,
+    btnRadius: 14,
+    fieldRadius: 14,
+    sheetRadius: 24,
+    // Flat: a 1px line does the separating. Only the + button has a soft shadow (fabShadow).
+    shadow: {},
+    fabShadow: { shadowColor: c.primary, shadowOpacity: dark ? 0.3 : 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+    // The priority dots: High red, Medium amber, Low green.
+    prioDot: { High: s.danger, Medium: s.amber, Low: s.ok },
+    bar: g.surface,
+    frosted: false,
+    mac: false,
+    bgGradient: null,
+    hairline: g.border,
+    sideEdge: g.border,
+    font: FONT_BY_WEIGHT,
+    fontDisplay: FONT_DISPLAY,
+  };
 };
 
+/** The themes, as the light version of each (the dark twin is built from the same key when the phone is in dark mode). */
+export const THEMES = Object.fromEntries(Object.keys(COLOURS).map((k) => [k, build(k, false)]));
+export const DEFAULT_THEME = 'forest';
+/** Config > Appearance: the colour swatches. */
+export const THEME_SWATCHES = Object.entries(COLOURS).map(([key, v]) => ({ key, label: v.label, color: v.swatch }));
+/** The dark twin of a theme (home-screen widgets and the like read it directly). */
+export const darkTheme = (key) => build(COLOURS[key] ? key : DEFAULT_THEME, true);
 
-/**
- * Pearl's dark twin: iOS / macOS dark mode. Not a choice in the theme list - Pearl switches to it by itself when the
- * phone or computer is set to dark (ThemeProvider below).
- */
-const PEARL_NIGHT = {
-  ...THEMES.pearl,
-  dark: true,
-  bg: '#000000',
-  bgAlt: '#1C1C1E',
-  surface: '#1C1C1E',
-  surfaceAlt: '#2C2C2E',
-  border: '#38383A',
-  text: '#FFFFFF',
-  textDim: '#98989F',
-  accent: '#0A84FF',
-  accent2: '#64D2FF',
-  danger: '#FF453A',
-  warn: '#FF9F0A',
-  ok: '#30D158',
-  indigo: '#5E5CE6',
-  teal: '#40C8E0',
-  pink: '#FF375F',
-  purple: '#BF5AF2',
-  shadow: { shadowColor: '#000000', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-};
-
-/**
- * The website's six colour themes (newweb/src/themes.js) in the phone's Pearl shape: same corners, shadows and backdrop tint,
- * their own backdrop, accent and the colours the tiles use (danger / warn / accent / accent2 = the tile colours).
- */
-const palette = (key, label, c) => ({ ...(c.dark ? PEARL_NIGHT : THEMES.pearl), key, label, skinned: true, ...c });
-THEMES.pearl.skinned = true;
-Object.assign(THEMES, {
-  violet: palette('violet', 'Vivid Violet (auto dark mode)', { bg: '#F5F2FF', accent: '#6A3DF5', accent2: '#3D86FF', danger: '#FF5A5F', warn: '#FFB81F', darkTwin: { accent: '#8B6CFF', bg: '#0B0614' } }),
-  aqua: palette('aqua', 'Aqua Green', { bg: '#F1F4F3', accent: '#0AA56D', accent2: '#2457C5', danger: '#D93A3A', warn: '#A8650A', ok: '#0AA56D' }),
-  ocean: palette('ocean', 'Ocean Blue', { bg: '#EFF3FA', accent: '#1F6BFF', accent2: '#5B8CFF', danger: '#D63A4A', warn: '#A86A0A' }),
-  sunset: palette('sunset', 'Sunset Orange', { bg: '#F7F3EF', accent: '#F2631B', accent2: '#2B5FC4', danger: '#D33A3A', warn: '#9B6208' }),
-  lilac: palette('lilac', 'Lilac Mist', { bg: '#F4F2FA', accent: '#7B5CF5', accent2: '#3A64D6', danger: '#D23B5A', warn: '#A1660B' }),
-  // The phone's "Warm" look (chosen by the owner from the style studio): cream backdrop, orange accent, 18px corners, tinted shadows.
-  // Text and accent were darkened a step from the studio's #9A7B64 / #EA580C so they pass the 4.5:1 contrast standard on the cream and white surfaces.
-  warm: palette('warm', 'Warm (auto dark mode)', { bg: '#FFF7EF', surface: '#FFFFFF', surfaceAlt: '#FFEEDD', border: '#F3E2D0', text: '#2B1A0E', textDim: '#7A5C45', accent: '#C2410C', accent2: '#2B5FC4', danger: '#DC2626', warn: '#B45309', ok: '#16A34A', darkTwin: { bg: '#17100A', surface: '#241911', surfaceAlt: '#302216', border: '#3D2B1C', text: '#FDF2E7', textDim: '#BDA089', accent: '#FB923C', onAccent: '#2B1A0E' } }),
-  night: palette('night', 'Midnight Black', { dark: true, bg: '#000000', surface: '#17181B', surfaceAlt: '#232428', accent: '#34D9A0', accent2: '#8FB5FF', danger: '#FF8A80', warn: '#FFCC66', ok: '#34D9A0' }),
-});
-
-/**
- * The design language by platform. The website follows macOS (Sonoma): a frosted side bar, 10px corners, thin
- * separators and soft layered shadows. The phone app follows the website: the same corners, shadows and backdrop tint. Only the Pearl look gets this; the other themes keep their own shapes.
- */
-const SKIN = {
-  web: {
-    radius: 12, btnRadius: 8, fieldRadius: 8, sheetRadius: 14,
-    bar: { light: 'rgba(246,246,248,0.72)', dark: 'rgba(36,36,38,0.72)' },
-    shadow: { light: { boxShadow: '0 0 0 0.5px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.05), 0 6px 20px rgba(0,0,0,0.05)' }, dark: { boxShadow: '0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 3px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.35)' } },
-  },
-  // The phone app takes the website's look (same corners, soft shadows and tinted backdrop), sized for touch.
-  phone: {
-    radius: 12, btnRadius: 10, fieldRadius: 10, sheetRadius: 20,
-    bar: { light: 'rgba(250,250,252,0.97)', dark: 'rgba(30,30,34,0.97)' },
-    tint: { light: '#EFEEFA', dark: '#0E0F1C' },
-    shadow: { light: { shadowColor: '#5B5BA8', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }, dark: { shadowColor: '#000000', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 } },
-  },
-};
+// Themes stored by earlier looks: the ones that map sensibly keep their colour family, everything else becomes Forest.
+const OLD_THEME_KEYS = { ocean: 'harbour', violet: 'plum', lilac: 'plum', sunset: 'ember', night: 'ink' };
+/** A stored theme key (possibly one from an earlier look) as one of the six. */
+export const themeKeyOf = (stored) => (COLOURS[stored] ? stored : OLD_THEME_KEYS[stored] || DEFAULT_THEME);
 
 // Four font-size levels from the spec.
 export const FONT_LEVELS = { 1: 0.9, 2: 1.0, 3: 1.15, 4: 1.3 };
@@ -216,12 +124,12 @@ export const SPLASH = { bg: '#0B1220', spinner: '#4F8CFF' };
 // The web.app alarm window's fixed looks (src/WebAlarm.js): the dark window and the red top banner keep their colours
 // whatever the app theme, like an alarm clock's.
 export const ALARM_COLORS = {
-  // The phone's full-screen alert (PastDueAlert): its background follows the task's priority.
+  // The phone's full-screen alert (PastDueAlert): its background follows the task's priority (deep red / amber-brown / green / slate).
   priority: {
-    High: { top: '#DC2626', bottom: '#7F1D1D', label: 'HIGH PRIORITY', icon: '🚨' },
-    Medium: { top: '#D97706', bottom: '#78350F', label: 'MEDIUM PRIORITY', icon: '⏰' },
-    Low: { top: '#059669', bottom: '#064E3B', label: 'LOW PRIORITY', icon: '🔔' },
-    None: { top: '#2563EB', bottom: '#1E3A8A', label: 'TASK', icon: '🔔' },
+    High: { top: '#4A1712', bottom: '#4A1712', dim: '#F6CFC9', label: 'HIGH PRIORITY', icon: '🚨' },
+    Medium: { top: '#4A2E0A', bottom: '#4A2E0A', dim: '#F3DDB4', label: 'MEDIUM PRIORITY', icon: '⏰' },
+    Low: { top: '#123A2F', bottom: '#123A2F', dim: '#CFE8DD', label: 'LOW PRIORITY', icon: '🔔' },
+    None: { top: '#1F2F3F', bottom: '#1F2F3F', dim: '#C9D8E6', label: 'TASK', icon: '🔔' },
   },
   glass: { fill: 'rgba(255,255,255,0.14)', fillStrong: 'rgba(255,255,255,0.26)', line: 'rgba(255,255,255,0.28)', text: '#FFFFFF', dim: 'rgba(255,255,255,0.78)', paper: 'rgba(255,255,255,0.96)', ink: '#1F2937' },
   dark: { surface: '#111827', surfaceAlt: '#1F2937', text: '#F9FAFB', textDim: '#9CA3AF', border: '#374151', title: '#F87171', link: '#93C5FD' },
@@ -232,46 +140,17 @@ const ThemeCtx = createContext(null);
 
 export function ThemeProvider({ children }) {
   const { data } = useStore();
-  // Pearl that nobody picked (the old default) shows as Warm; picking a theme in Config marks it chosen.
-  const picked = data?.settings?.theme;
-  const themeKey = !picked || (picked === 'pearl' && !data?.settings?.themePicked) ? 'warm' : picked;
+  const themeKey = themeKeyOf(data?.settings?.theme);
   const fontLevel = data?.settings?.fontLevel || 2;
-  const classic = data?.settings?.uiMode === 'classic';
+  // "Follow the phone's dark mode" (Config > Appearance): on unless switched off.
+  const followDark = data?.settings?.followDark !== false;
 
   const scheme = useColorScheme();
   const value = useMemo(() => {
-    let t = THEMES[themeKey] || THEMES.pearl;
+    const t = build(themeKey, followDark && scheme === 'dark');
     const scale = FONT_LEVELS[fontLevel] || 1;
-    let skin = null;
-    if (t.skinned) {
-      if (scheme === 'dark' && (t.key === 'pearl' || t.key === 'violet' || t.key === 'warm')) t = { ...PEARL_NIGHT, ...(t.darkTwin || null), key: t.key };
-      skin = classic ? null : Platform.OS === 'web' ? SKIN.web : SKIN.phone;
-      if (skin) t = { ...t, radius: skin.radius, shadow: skin.shadow[t.dark ? 'dark' : 'light'], ...(skin.tint && t.key === 'pearl' ? { bg: skin.tint[t.dark ? 'dark' : 'light'] } : null) };
-      // Warm keeps its own cream backdrop and has rounder corners and an orange-tinted shadow on the phone.
-      if (skin && t.key === 'warm' && Platform.OS !== 'web') {
-        const shadow = { shadowColor: t.dark ? '#000000' : '#C2410C', shadowOpacity: t.dark ? 0.4 : 0.1, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 };
-        t = { ...t, bg: scheme === 'dark' ? '#17100A' : '#FFF7EF', radius: 18, shadow };
-      }
-    }
-    return {
-      ...t,
-      btnRadius: skin ? skin.btnRadius : t.radius - 6,
-      fieldRadius: skin ? skin.fieldRadius : t.radius - 8,
-      sheetRadius: skin ? skin.sheetRadius : 20,
-      // Frosted bars (tab bar, side bar): translucent, blurred where the platform can (the website, iOS).
-      bar: skin ? skin.bar[t.dark ? 'dark' : 'light'] : t.surface,
-      frosted: !!skin,
-      // The website's desktop backdrop: a soft wallpaper-like tint, so the frosted side bar has something to blur.
-      bgGradient: skin && Platform.OS === 'web' ? (t.dark ? 'linear-gradient(135deg,#0B0F1E 0%,#150F24 55%,#1E1218 100%)' : 'linear-gradient(135deg,#E6ECFB 0%,#F2ECF9 55%,#FCF0EA 100%)') : null,
-      // Text on an accent-coloured button: white, except where the accent is too light for it (Warm in dark mode).
-      onAccent: t.onAccent || '#FFFFFF',
-      hairline: t.dark ? 'rgba(255,255,255,0.18)' : 'rgba(60,60,67,0.29)',
-      sideEdge: t.dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.14)',
-      mac: Platform.OS === 'web',
-      fs: (n) => Math.round(n * scale),
-      fontLevel,
-    };
-  }, [themeKey, fontLevel, scheme, classic]);
+    return { ...t, fs: (n) => Math.round(n * scale), fontLevel };
+  }, [themeKey, fontLevel, scheme, followDark]);
 
   return <ThemeCtx.Provider value={value}>{children}</ThemeCtx.Provider>;
 }
@@ -283,7 +162,7 @@ export function ThemeOverride({ value, children }) {
 }
 
 // Outside the provider (nothing renders there today) a bare theme would have no fs() and crash the first caller.
-const FALLBACK_THEME = { ...THEMES.pearl, btnRadius: 8, fieldRadius: 6, sheetRadius: 20, bar: THEMES.pearl.surface, frosted: false, mac: false, hairline: '#E5E5EA', sideEdge: '#E5E5EA', fs: (n) => n, fontLevel: 2 };
+const FALLBACK_THEME = { ...THEMES.forest, fs: (n) => n, fontLevel: 2 };
 export const useTheme = () => useContext(ThemeCtx) || FALLBACK_THEME;
 
 

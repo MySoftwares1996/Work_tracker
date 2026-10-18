@@ -99,7 +99,7 @@ try {
   ok('Checklist: the typed description is intact', await intact());
 
   // Save closes the form and the task appears.
-  await form.getByRole('button', { name: 'Save', exact: true }).click();
+  await form.getByRole('button', { name: 'Save entry', exact: true }).click();
   await page.waitForTimeout(500);
   ok('Save closes the form', !(await form.isVisible()));
   await page.getByRole('navigation', { name: 'Sections' }).getByRole('button', { name: /^Register/ }).click();

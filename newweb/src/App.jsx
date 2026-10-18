@@ -1,8 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Logo from './Logo';
+import Icon from './icons';
 import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
 import EmptyState, { SkeletonRows } from './EmptyState';
+import { PageHead, Chip, priTone, priDot } from './ui';
 import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveDueDate } from './bulk';
 
 import { copyText } from './clipboard';
@@ -10,7 +12,7 @@ import { weeklyReview, slipReason } from '../../src/weeklyReview.js';
 
 import { useStore } from './store';
 
-import { breakdown, subBreakdown, templateFrom, saveTemplate, DUE_FILTERS, isReminderDue, reminderLabel, subCategoryMissing, RECURRENCES, SORTS, blankTask, dueLabel, filterTasks, isDueNextMonth, isDueThisMonth, isDueToday, isOpen, isOverdue, sortTasks, stats } from './data';
+import { breakdown, subBreakdown, templateFrom, saveTemplate, DUE_FILTERS, isReminderDue, reminderLabel, subCategoryMissing, RECURRENCES, SORTS, blankTask, dayKey, dueLabel, filterTasks, isDueNextMonth, isDueThisMonth, isDueToday, isOpen, isOverdue, sortTasks, stats } from './data';
 
 // The Report, Config and the entry form load when first opened (and are fetched quietly once the page is idle), so the page starts smaller.
 const loadReport = () => import('./screens/Report');
@@ -45,21 +47,23 @@ export default function App() {
   const tasks = store.tasks;
   const counts = { register: tasks.filter(isOpen).length, done: tasks.filter((t) => t.done && !t.binned).length, bin: tasks.filter((t) => t.binned).length };
   const openForm = (t) => setForm(t || blankTask());
+  const onNew = () => openForm();
   const screens = {
-    dashboard: <Dashboard onEdit={openForm} onNew={() => openForm()} go={go} />,
-    register: <Register onEdit={openForm} preset={preset} />,
-    done: <Completed onEdit={openForm} />,
-    holidays: <Holidays />,
-    bin: <Bin />,
+    dashboard: <Dashboard onEdit={openForm} onNew={onNew} go={go} />,
+    register: <Register onEdit={openForm} onNew={onNew} preset={preset} />,
+    done: <Completed onEdit={openForm} onNew={onNew} />,
+    holidays: <Holidays onNew={onNew} />,
+    bin: <Bin onNew={onNew} />,
     report: <Report />,
-    links: <Links />,
+    links: <Links onNew={onNew} />,
     config: <Config />,
   };
+  const name = store.user.displayName || store.user.email || '';
 
   return (
     <div className="app">
       <header className="top">
-        <div className="brand"><Logo size={34} className="brand-logo" /><span className="brand-name">Working Dashboard</span></div>
+        <div className="brand"><Logo size={36} className="brand-logo" /><span className="brand-name">Working Dashboard</span></div>
         <nav className="tabs" aria-label="Sections">
           {TABS.map(([k, label]) => (
             <button key={k} className={`tab${tab === k ? ' on' : ''}`} onClick={() => go(k)} aria-current={tab === k ? 'page' : undefined}>
@@ -71,7 +75,7 @@ export default function App() {
           {store.demo && <span className="pill demo">Demo data</span>}
           {!store.demo && store.hasLoaded && !store.synced && <span className="pill demo" role="status" title="Offline: showing the last data received. Changes are sent when the connection returns.">Offline</span>}
           {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? `In sync${store.lastSyncAt ? ` - last update from the server ${new Date(store.lastSyncAt).toLocaleTimeString()}` : ''}` : store.hasLoaded ? 'Offline - showing the last data received' : 'Syncing...'} />}
-          <span className="name" title={store.user.email}>{store.user.displayName || store.user.email}{store.user.email && store.user.displayName ? <small className="who-mail">{store.user.email}</small> : null}</span>
+          <span className="me" title={store.user.email || name}><i className="me-av" aria-hidden="true">{(name.trim().charAt(0) || '?').toUpperCase()}</i><span className="me-name">{name}</span></span>
         </div>
       </header>
       <main className="page">
@@ -79,7 +83,6 @@ export default function App() {
         {!store.demo && store.slow && !store.hasLoaded && !store.error && <div className="banner err" role="status">Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.</div>}
         {booting && !['dashboard', 'register'].includes(tab) ? <LoadingScreen stage="data" /> : <Suspense fallback={<LoadingScreen stage="data" />}>{screens[tab]}</Suspense>}
       </main>
-      <button className="fab" onClick={() => openForm()} aria-label="New entry">+ New entry</button>
       {form && <Suspense fallback={null}><TaskForm initial={form} onClose={() => setForm(null)} /></Suspense>}
       <AlertCenter onOpen={openForm} />
     </div>
@@ -88,26 +91,23 @@ export default function App() {
 
 function SignIn() {
   const { signIn, error } = useStore();
+  const points = [
+    'Alarms that ring on time, even on the lock screen',
+    'One tap to finish a task, or add it to the daily report',
+    'The same data on every device you sign in on',
+  ];
   return (
-    <div className="center">
-      <div className="signin">
-        <Logo size={84} className="float" />
-        <h1>Working Dashboard</h1>
-        <p>Your tasks, deadlines and daily report - the same account as your phone.</p>
-        <button className="btn primary" onClick={signIn}>Sign in with Google</button>
+    <div className="welcome">
+      <div className="welcome-in">
+        <Logo size={68} tone="mint" mode="still" className="welcome-logo" />
+        <h1>Your work, always in step.</h1>
+        <p className="lead">Tasks, alerts and the daily report - on your phone and on the web, kept in sync.</p>
+        <div className="pts">{points.map((p) => <div key={p}><i><Icon name="check" size={15} strokeWidth={2.6} /></i>{p}</div>)}</div>
+        <button type="button" className="g-btn" onClick={signIn}><b aria-hidden="true">G</b>Sign in with Google</button>
         {error && <p className="banner err" role="alert">{error}</p>}
+        <p className="fine">Your tasks stay in your own private space.</p>
       </div>
     </div>
-  );
-}
-
-function Tile({ tone, label, value, sub, onClick, loading }) {
-  return (
-    <button className={`tile ${tone}`} onClick={onClick}>
-      <span className="tile-label">{label}</span>
-      <span className="tile-value">{loading ? '–' : value}</span>
-      <span className="tile-sub">{sub}</span>
-    </button>
   );
 }
 
@@ -118,8 +118,18 @@ function useMinute() {
   return now;
 }
 
+/** A coloured count tile (Overdue, Due today, Next 7 days, This month): opens the Register on that filter. */
+function Stat({ tone, label, value, loading, onClick }) {
+  return (
+    <button type="button" className={`st ${tone}`} onClick={onClick}>
+      <span>{label}</span>
+      <b>{loading ? '–' : value}</b>
+    </button>
+  );
+}
+
 function Dashboard({ onEdit, onNew, go }) {
-  const { tasks, actions } = useStore();
+  const { tasks, actions, user } = useStore();
   const loading = useLoading();
   const [quick, setQuick] = useState('');
   const now = useMinute();
@@ -136,45 +146,70 @@ function Dashboard({ onEdit, onNew, go }) {
     actions.save({ ...blankTask(), title });
     setQuick('');
   };
+  const hour = now.getHours();
+  const first = String((user && user.displayName) || '').trim().split(/\s+/)[0];
+  const monthName = (add) => new Date(now.getFullYear(), now.getMonth() + add, 1).toLocaleString([], { month: 'long' });
+  const todayKey = dayKey(now);
+  const doneTodayDar = tasks.filter((t) => t.done && !t.binned && !t.purged && t.completedAt && dayKey(t.completedAt) === todayKey && t.dar).length;
+  const need = s.pendingAsOnToday;
+  const dayTotal = need + s.doneToday;
+  const pct = dayTotal ? Math.round((s.doneToday / dayTotal) * 100) : 0;
   return (
     <div className="dash">
-      <div className="dash-head">
-      <h1 className="h1">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}</h1>
+      <PageHead title={`Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}${first ? `, ${first}` : ''}`} sub={now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} onNew={onNew} />
       <form className="quick" onSubmit={addQuick}>
         <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Quick add a task and press Enter..." aria-label="Quick add" />
         <button className="btn primary" disabled={!quick.trim()}>Add</button>
-        <button type="button" className="btn" onClick={onNew}>Full form</button>
       </form>
-      </div>
-      <section className="tiles">
-        <Tile loading={loading} tone="coral" label="Pending as on Today" value={s.pendingAsOnToday} sub="Overdue + due today" onClick={() => go('register', { due: 'pending' })} />
-        <Tile loading={loading} tone="amber" label="Due Today" value={s.dueToday} sub="Still on the clock" onClick={() => go('register', { due: 'today' })} />
-        <Tile loading={loading} tone="pink" label="Overdue" value={s.overdue} sub="Past the due time" onClick={() => go('register', { due: 'overdue' })} />
-        <Tile loading={loading} tone="violet" label="Next 7 Days" value={s.dueSoon} sub="Coming up" onClick={() => go('register', { due: 'next7' })} />
-        <Tile loading={loading} tone="blue" label="This Month" value={s.thisMonth} sub={`Due in ${new Date().toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'month' })} />
-        <Tile loading={loading} tone="violet" label="Next Month" value={s.nextMonth} sub={`Due in ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleString([], { month: 'long' })}`} onClick={() => go('register', { due: 'nextmonth' })} />
-        <Tile loading={loading} tone="teal" label="No Due Date" value={s.noDueDate} sub="Needs a deadline" onClick={() => go('register', { due: 'none' })} />
-        <Tile loading={loading} tone="amber" label="Pending" value={s.pending} sub="Status Pending" onClick={() => go('register', { status: 'Pending' })} />
-        <Tile loading={loading} tone="coral" label="High priority" value={s.high} sub="Open tasks" onClick={() => go('register', { priority: 'High' })} />
-        <Tile loading={loading} tone="blue" label="Open tasks" value={s.open} sub="In the register" onClick={() => go('register')} />
-        <Tile loading={loading} tone="teal" label="Done today" value={s.doneToday} sub="Completed" onClick={() => go('done')} />
+      <section className="tiles" aria-label="Today at a glance">
+        <div className="hero">
+          <span className="hero-k">TODAY</span>
+          <button type="button" className="hero-n" onClick={() => go('register', { due: 'pending' })} title="Overdue plus due today: open them in the Register">
+            <b>{loading ? '–' : need}</b><span>{need === 1 ? 'task needs you' : 'tasks need you'}</span>
+          </button>
+          <div className="bar" role="progressbar" aria-label="Done today" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><i style={{ width: `${pct}%` }} /></div>
+          <div className="hero-f">
+            <button type="button" className="hero-link" onClick={() => go('done')}>{loading ? '–' : `${s.doneToday} of ${dayTotal}`} done today</button>
+            <span>{loading ? '–' : doneTodayDar} in the daily report</span>
+          </div>
+        </div>
+        <Stat loading={loading} tone="danger" label="Overdue" value={s.overdue} onClick={() => go('register', { due: 'overdue' })} />
+        <Stat loading={loading} tone="amber" label="Due today" value={s.dueToday} onClick={() => go('register', { due: 'today' })} />
+        <Stat loading={loading} tone="slate" label="Next 7 days" value={s.dueSoon} onClick={() => go('register', { due: 'next7' })} />
+        <Stat loading={loading} tone="green" label="This month" value={s.thisMonth} onClick={() => go('register', { due: 'month' })} />
       </section>
-      {!loading && <Breakdowns tasks={tasks} go={go} />}
-      {!loading && <WeeklyReview tasks={tasks} now={now} onEdit={onEdit} />}
-      <div className="two">
-        <section>
-          <h2 className="h2 red">Needs attention <span className="muted">({lateAll.length} overdue)</span></h2>
-          {loading && <SkeletonRows count={4} compact />}
-          {!loading && !late.length && <Empty icon="check" title="Nothing overdue" text="Nothing is past its due time. Nice." />}
-          <div className="list">{late.map((t) => <CompactRow key={t.id} t={t} onEdit={onEdit} />)}</div>
-        </section>
-        <section>
-          <h2 className="h2 amb">Due today <span className="muted">({todayAll.length})</span></h2>
-          {loading && <SkeletonRows count={4} compact />}
-          {!loading && !today.length && <Empty icon="calendar" title="Nothing due today" text="Today's list is clear." />}
-          <div className="list">{today.map((t) => <CompactRow key={t.id} t={t} onEdit={onEdit} />)}</div>
-        </section>
+      <section className="more-tiles" aria-label="More counts">
+        {[
+          ['Next month', s.nextMonth, `Due in ${monthName(1)}`, () => go('register', { due: 'nextmonth' })],
+          ['No due date', s.noDueDate, 'Needs a deadline', () => go('register', { due: 'none' })],
+          ['Pending', s.pending, 'Status Pending', () => go('register', { status: 'Pending' })],
+          ['High priority', s.high, 'Open tasks', () => go('register', { priority: 'High' })],
+          ['Open tasks', s.open, 'In the register', () => go('register')],
+        ].map(([label, value, sub, onClick]) => (
+          <button key={label} type="button" className="mt" onClick={onClick} title={sub}><b>{loading ? '–' : value}</b><span>{label}</span></button>
+        ))}
+      </section>
+      <div className="cols">
+        <div className="left">
+          <section>
+            <div className="sec"><h2 className="h2">Needs attention <span className="muted">({lateAll.length} overdue)</span></h2><button type="button" className="link-btn" onClick={() => go('register', { due: 'overdue' })}>Open the register</button></div>
+            {loading && <SkeletonRows count={4} compact />}
+            {!loading && !late.length && <Empty icon="check" title="Nothing overdue" text="Nothing is past its due time. Nice." />}
+            <div className="list">{late.map((t) => <AttentionRow key={t.id} t={t} onEdit={onEdit} />)}</div>
+          </section>
+          <section>
+            <div className="sec"><h2 className="h2">Due today <span className="muted">({todayAll.length})</span></h2></div>
+            {loading && <SkeletonRows count={4} compact />}
+            {!loading && !today.length && <Empty icon="calendar" title="Nothing due today" text="Today's list is clear." />}
+            <div className="list">{today.map((t) => <AttentionRow key={t.id} t={t} onEdit={onEdit} />)}</div>
+          </section>
+        </div>
+        <aside className="right">
+          {!loading && <WeeklyReview tasks={tasks} now={now} onEdit={onEdit} />}
+          {!loading && <Breakdowns tasks={tasks} go={go} part="side" />}
+        </aside>
       </div>
+      {!loading && <Breakdowns tasks={tasks} go={go} part="main" />}
     </div>
   );
 }
@@ -185,13 +220,11 @@ function WeeklyReview({ tasks, now, onEdit }) {
   const r = useMemo(() => weeklyReview(tasks, now, { holidays: calendar.holidays, leaveDays: calendar.leaveDays }), [tasks, now, calendar]);
   if (r.empty) return null;
   return (
-    <section className="wr" aria-label="This week">
+    <section className="card plain wr" aria-label="This week">
       <h2 className="wr-head">This week</h2>
-      <div className="wr-stats">
-        <div><b className="ok">{r.doneThisWeek}</b><span>Done since Monday</span></div>
-        <div><b>{r.dueSoon.count}</b><span>Due in the next 7 days</span></div>
-        <div><b className={r.overdue ? 'bad' : ''}>{r.overdue}</b><span>Overdue</span></div>
-      </div>
+      <div className="li"><span>Done since Monday</span><b className="ok">{r.doneThisWeek}</b></div>
+      <div className="li"><span>Due in the next 7 days</span><b>{r.dueSoon.count}</b></div>
+      <div className="li"><span>Overdue</span><b className={r.overdue ? 'bad' : ''}>{r.overdue}</b></div>
       {!!r.slipping.length && (
         <div className="wr-slip">
           <h3>Slipping <span className="muted">({r.slipping.length})</span></h3>
@@ -207,7 +240,7 @@ function WeeklyReview({ tasks, now, onEdit }) {
   );
 }
 
-/** The Dashboard's four breakdowns of the open tasks: by Category, Status, Pending with and Priority. A Category opens its Sub Category breakdown; the others open the Register filtered. */
+/** The Dashboard's breakdowns of the open tasks: by Category, Status, Pending with and Priority. A Category opens its Sub Category breakdown; the others open the Register filtered. */
 const BREAK_CARDS = [
   { key: 'category', title: 'By category', field: 'category', hint: 'Click a category for its sub categories' },
   { key: 'status', title: 'By status', field: 'status' },
@@ -215,8 +248,11 @@ const BREAK_CARDS = [
   { key: 'priority', title: 'By priority', field: 'priority' },
 ];
 
-/** This month's open tasks by category, status, pending with and priority; next month's by category and priority. A row opens the Register on the same month. */
-function Breakdowns({ tasks, go }) {
+/**
+ * This month's open tasks by category, status, pending with and priority; next month's by category and priority. A row opens the Register on the same month.
+ * part "side" is just this month's "By category" card (the Dashboard's right column); "main" is everything else, under the two columns.
+ */
+function Breakdowns({ tasks, go, part }) {
   const [pop, setPop] = useState(null);
   const monthName = (add) => new Date(new Date().getFullYear(), new Date().getMonth() + add, 1).toLocaleString([], { month: 'long' });
   const thisTasks = useMemo(() => tasks.filter((t) => isDueThisMonth(t)), [tasks]);
@@ -225,37 +261,41 @@ function Breakdowns({ tasks, go }) {
     { due: 'month', name: monthName(0), title: `This month - ${monthName(0)}`, tasks: thisTasks, cards: BREAK_CARDS },
     { due: 'nextmonth', name: monthName(1), title: `Next month - ${monthName(1)}`, tasks: nextTasks, cards: BREAK_CARDS.filter((c) => c.key === 'category' || c.key === 'priority') },
   ];
+  const card = (g, c) => {
+    const rows = breakdown(g.tasks, c.field);
+    const max = Math.max(1, ...rows.map((r) => r.count));
+    const open = (row) => { if (!row.name) return; if (c.key === 'category') setPop({ category: row.name, due: g.due, tasks: g.tasks }); else go('register', { [c.key]: row.name, due: g.due }); };
+    return (
+      <div key={`${g.due}-${c.key}`} className="card plain break-card">
+        <h2 className="h2">{c.title}{part === 'side' && <span className="muted"> - due in {g.name}</span>}</h2>
+        {!rows.length && <p className="muted">No open tasks due in {g.name}.</p>}
+        {rows.slice(0, 7).map((r) => (
+          <button key={r.label} type="button" className={`break-row${r.name ? '' : ' none'}`} onClick={() => open(r)} disabled={!r.name} title={r.name ? (c.key === 'category' ? `Sub categories of ${r.name}` : `Open ${r.name} in the Register`) : ''}>
+            <span className="break-name">{r.label}</span>
+            <span className="break-bar"><i style={{ width: `${Math.max(6, Math.round((r.count / max) * 100))}%` }} /></span>
+            {r.overdue > 0 && <span className="chip coral" title="overdue">{r.overdue}</span>}
+            <b>{r.count}</b>
+          </button>
+        ))}
+        {rows.length > 7 && <p className="muted">+ {rows.length - 7} more</p>}
+        {c.hint && <p className="muted break-hint">{c.hint}</p>}
+      </div>
+    );
+  };
+  const popup = pop && <CategoryPopup category={pop.category} tasks={pop.tasks} due={pop.due} onClose={() => setPop(null)} go={go} />;
+  if (part === 'side') return <>{card(groups[0], BREAK_CARDS[0])}{popup}</>;
   return (
     <>
-      {groups.map((g) => (
-        <section key={g.due} className="break-group">
-          <h2 className="h2 break-title">{g.title} <span className="muted">({g.tasks.length} open)</span></h2>
-          <div className={`breaks${g.cards.length < 4 ? ' two-up' : ''}`}>
-            {g.cards.map((c) => {
-              const rows = breakdown(g.tasks, c.field);
-              const max = Math.max(1, ...rows.map((r) => r.count));
-              const open = (row) => { if (!row.name) return; if (c.key === 'category') setPop({ category: row.name, due: g.due, tasks: g.tasks }); else go('register', { [c.key]: row.name, due: g.due }); };
-              return (
-                <div key={c.key} className="card plain break-card">
-                  <h2 className="h2">{c.title}</h2>
-                  {!rows.length && <p className="muted">No open tasks due in {g.name}.</p>}
-                  {rows.slice(0, 7).map((r) => (
-                    <button key={r.label} type="button" className={`break-row${r.name ? '' : ' none'}`} onClick={() => open(r)} disabled={!r.name} title={r.name ? (c.key === 'category' ? `Sub categories of ${r.name}` : `Open ${r.name} in the Register`) : ''}>
-                      <span className="break-name">{r.label}</span>
-                      <span className="break-bar"><i style={{ width: `${Math.max(6, Math.round((r.count / max) * 100))}%` }} /></span>
-                      {r.overdue > 0 && <span className="chip coral" title="overdue">{r.overdue}</span>}
-                      <b>{r.count}</b>
-                    </button>
-                  ))}
-                  {rows.length > 7 && <p className="muted">+ {rows.length - 7} more</p>}
-                  {c.hint && <p className="muted break-hint">{c.hint}</p>}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ))}
-      {pop && <CategoryPopup category={pop.category} tasks={pop.tasks} due={pop.due} onClose={() => setPop(null)} go={go} />}
+      {groups.map((g) => {
+        const cards = g.cards.filter((c) => !(g.due === 'month' && c.key === 'category'));
+        return (
+          <section key={g.due} className="break-group">
+            <h2 className="h2 break-title">{g.title} <span className="muted">({g.tasks.length} open)</span></h2>
+            <div className={`breaks${cards.length < 3 ? ' two-up' : ''}`}>{cards.map((c) => card(g, c))}</div>
+          </section>
+        );
+      })}
+      {popup}
     </>
   );
 }
@@ -270,7 +310,7 @@ function CategoryPopup({ category, tasks, due, onClose, go }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" role="dialog" aria-modal="true" aria-label={`${category} by sub category`} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><div><h2>{category}</h2><span className="muted">{total} open task{total === 1 ? '' : 's'} by sub category</span></div><button type="button" className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="modal-head"><div><h2>{category}</h2><span className="muted">{total} open task{total === 1 ? '' : 's'} by sub category</span></div><button type="button" className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={18} /></button></div>
         <div className="modal-body">
           {rows.map((r) => (
             <button key={r.label} type="button" className="break-row big" onClick={() => to({ subCategory: r.name || '__none' })}>
@@ -301,9 +341,6 @@ const Empty = (props) => <EmptyState {...props} />;
 /** True until the first server snapshot has arrived (and no error / timeout was shown): lists then draw placeholder rows instead of an empty state. */
 function useLoading() { const { hasLoaded, error, slow } = useStore(); return !hasLoaded && !error && !slow; }
 
-function Chip({ children, tone }) { return <span className={`chip ${tone || ''}`}>{children}</span>; }
-const priTone = (p) => ({ high: 'coral', medium: 'amber', low: 'teal' })[String(p).toLowerCase()] || '';
-
 /** Completing a task from a card or row: a task whose Sub Category has fields needs all of them filled first, so it opens for filling instead. */
 function useCompleter(onEdit) {
   const { actions, lists, notify } = useStore();
@@ -314,18 +351,20 @@ function useCompleter(onEdit) {
   };
 }
 
-/** A task as one compact line with Done and DAR (the Dashboard's Needs attention / Due today). */
-function CompactRow({ t, onEdit }) {
+/** A task as one row with Done and DAR (the Dashboard's Needs attention / Due today). */
+function AttentionRow({ t, onEdit }) {
   const complete = useCompleter(onEdit);
+  const late = isOverdue(t);
+  const parts = [t.priority, t.category, t.pendingWith ? `with ${t.pendingWith}` : ''].filter(Boolean);
   return (
-    <div className={`crow${isOverdue(t) ? ' late' : ''}`}>
-      <button className="crow-main" onClick={() => onEdit(t)} aria-label={`Edit ${t.title}`}>
-        <span className="crow-title">{t.title || '(no description)'}</span>
-        <span className="crow-sub">{[t.category, dueLabel(t)].filter(Boolean).join(' • ')}</span>
+    <div className={`arow${late ? ' late' : ''}`}>
+      <button className="arow-main" onClick={() => onEdit(t)} aria-label={`Edit ${t.title}`}>
+        <span className="arow-title">{t.title || '(no description)'}</span>
+        <span className="meta"><i className={`pdot ${priDot(t.priority)}`} />{parts.join(' · ')}{parts.length ? ' · ' : ''}<span className={late ? 'late' : ''}>{dueLabel(t)}</span></span>
       </button>
-      <span className="crow-btns">
-        <button className="btn ok" onClick={() => complete(t, false)} title="Done - kept out of the daily report">✓ Done</button>
-        <button className="btn ok soft" onClick={() => complete(t, true)} title="Done and included in the daily report">✓ DAR</button>
+      <span className="act">
+        <button className="btn ok" onClick={() => complete(t, false)} title="Done - kept out of the daily report">Done</button>
+        <button className="btn ok soft" onClick={() => complete(t, true)} title="Done and included in the daily report">DAR</button>
       </span>
     </div>
   );
@@ -336,7 +375,7 @@ function TaskCard({ t, onEdit, compact, selected, onSelect, selecting }) {
   const complete = useCompleter(onEdit);
   const late = isOverdue(t);
   return (
-    <article className={`card pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${selecting ? ' selecting' : ''}`}>
+    <article className={`card task pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${selecting ? ' selecting' : ''}`}>
       {onSelect && <input type="checkbox" className="sel-box" checked={!!selected} onChange={() => onSelect(t.id)} aria-label={`Select ${t.title || 'task'}`} />}
       <button className="card-main" onClick={() => onEdit(t)} aria-label={`Edit ${t.title}`}>
         <span className="card-title">{t.title || '(no description)'}</span>
@@ -344,16 +383,16 @@ function TaskCard({ t, onEdit, compact, selected, onSelect, selecting }) {
           {t.priority && <Chip tone={priTone(t.priority)}>{t.priority}</Chip>}
           {t.category && <Chip>{t.category}</Chip>}
           {t.pendingWith && <Chip>with {t.pendingWith}</Chip>}
-          {!t.done && <Chip tone={late ? 'coral' : isDueToday(t) ? 'amber' : ''}>{dueLabel(t)}</Chip>}
+          {!t.done && <Chip tone={late ? 'solid' : isDueToday(t) ? 'amber' : ''}>{dueLabel(t)}</Chip>}
           {t.done && t.completedAt && <Chip tone="teal">Done {t.completedAt.toLocaleDateString([], { day: 'numeric', month: 'short' })}</Chip>}
-          {t.recurrence !== RECURRENCES[0] && <Chip>↻ {t.recurrence}</Chip>}
-          {isOpen(t) && t.nextReminder && <Chip tone={isReminderDue(t) ? 'coral' : ''}>⏰ {reminderLabel(t)}</Chip>}
+          {t.recurrence !== RECURRENCES[0] && <Chip icon="repeat">{t.recurrence}</Chip>}
+          {isOpen(t) && t.nextReminder && <Chip tone={isReminderDue(t) ? 'coral' : ''} icon="clock">{reminderLabel(t)}</Chip>}
         </span>
         {Array.isArray(t.checklist) && t.checklist.length > 0 && (() => {
           const total = t.checklist.length;
           const n = t.checklist.filter((c) => c.done).length;
           return (
-            <span className={`card-checklist${n === total ? ' all' : ''}`} title={t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.text}`).join('\n')}>
+            <span className={`card-checklist${n === total ? ' all' : ''}`} title={t.checklist.map((c) => `${c.done ? '[x]' : '[ ]'} ${c.text}`).join('\n')}>
               <span className="cl-label">Checklist ({n}/{total} done)</span>
               <span className="cl-bar" aria-hidden="true"><span style={{ width: `${Math.round((n / total) * 100)}%` }} /></span>
             </span>
@@ -361,22 +400,22 @@ function TaskCard({ t, onEdit, compact, selected, onSelect, selecting }) {
         })()}
         {!compact && t.reference && (
           <span className="card-note mail-copy" title="Click to copy the mail subject and open the task"
-            onClick={async () => { notify((await copyText(t.reference)) ? 'Mail subject copied' : 'Could not copy the mail subject'); }}>✉ {t.reference}</span>
+            onClick={async () => { notify((await copyText(t.reference)) ? 'Mail subject copied' : 'Could not copy the mail subject'); }}><Icon name="mail" size={13} /> {t.reference}</span>
         )}
       </button>
       {isOpen(t) && (
         <div className="card-actions">
-          <button className="btn ok" onClick={() => complete(t, false)} title="Done - kept out of the daily report">✓ Done</button>
-          <button className="btn ok soft" onClick={() => complete(t, true)} title="Done and included in the daily report">✓ DAR</button>
-          <button className="btn ghost" onClick={() => { saveTemplates(saveTemplate(templates, templateFrom(t))); notify(`Template saved: ${t.title}`); }} title="Save as template" aria-label="Save as template">📋</button>
-          <button className="btn ghost" onClick={() => actions.bin(t)} aria-label="Move to bin">🗑</button>
+          <button className="btn ok" onClick={() => complete(t, false)} title="Done - kept out of the daily report">Done</button>
+          <button className="btn ok soft" onClick={() => complete(t, true)} title="Done and included in the daily report">DAR</button>
+          <button className="icon-btn" onClick={() => { saveTemplates(saveTemplate(templates, templateFrom(t))); notify(`Template saved: ${t.title}`); }} title="Save as template" aria-label="Save as template"><Icon name="template" size={17} /></button>
+          <button className="icon-btn" onClick={() => actions.bin(t)} aria-label="Move to bin" title="Move to bin"><Icon name="trash" size={17} /></button>
         </div>
       )}
     </article>
   );
 }
 
-function Register({ onEdit, preset }) {
+function Register({ onEdit, onNew, preset }) {
   const { tasks, lists, actions, notify } = useStore();
   const loading = useLoading();
   const [selected, setSelected] = useState(() => new Set());
@@ -413,15 +452,14 @@ function Register({ onEdit, preset }) {
   const filtered = Object.entries(f).some(([k, v]) => k !== 'n' && v);
   return (
     <>
-      <h1 className="h1">Register</h1>
-      {f.subCategory && <div className="filters"><span className="chip violet">Sub category: {f.subCategory === '__none' ? 'none chosen' : f.subCategory} <button type="button" className="chip-x" onClick={() => setF({ ...f, subCategory: '' })} aria-label="Clear the sub category filter">✕</button></span></div>}
+      <PageHead title="Register" sub={`${sorted.length} of ${open.length} open entries`} onNew={onNew} />
+      {f.subCategory && <div className="filters"><span className="chip teal">Sub category: {f.subCategory === '__none' ? 'none chosen' : f.subCategory} <button type="button" className="chip-x" onClick={() => setF({ ...f, subCategory: '' })} aria-label="Clear the sub category filter"><Icon name="x" size={12} /></button></span></div>}
       <Filters f={f} setF={setF} lists={lists} onClear={clearFilters} extra={(
         <>
           <select value={by} onChange={(e) => setBy(e.target.value)} aria-label="Sort">{Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>Sort: {v}</option>)}</select>
-          <div className="seg" role="group" aria-label="View"><button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')}>Cards</button><button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>Table</button></div>
+          <div className="seg" role="group" aria-label="View"><button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')} aria-pressed={view === 'cards'}>Cards</button><button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')} aria-pressed={view === 'table'}>Table</button></div>
         </>
       )} />
-      <p className="muted">{sorted.length} of {open.length} open entries</p>
       {loading && <SkeletonRows />}
       {!loading && !sorted.length && (filtered && open.length
         ? <Empty icon="search" title="Nothing matches" text="No open task fits these filters." action={{ label: 'Clear filters', onClick: clearFilters, primary: false }} />
@@ -431,10 +469,10 @@ function Register({ onEdit, preset }) {
       {picked.length > 0 && (
         <div className="bulk-bar" role="toolbar" aria-label="Actions for the selected tasks">
           <b className="bulk-count" role="status">{picked.length} selected</b>
-          <button type="button" className="btn ok" onClick={() => bulkDone(false)} title="Done - kept out of the daily report">✓ Done</button>
-          <button type="button" className="btn ok soft" onClick={() => bulkDone(true)} title="Done and included in the daily report">✓ DAR</button>
+          <button type="button" className="btn ok" onClick={() => bulkDone(false)} title="Done - kept out of the daily report">Done</button>
+          <button type="button" className="btn ok soft" onClick={() => bulkDone(true)} title="Done and included in the daily report">DAR</button>
           <label className="bulk-move">Move date <input type="date" aria-label="Move date" value="" onChange={(e) => bulkMove(e.target.value)} /></label>
-          <button type="button" className="btn danger" onClick={bulkBin}>🗑 Bin</button>
+          <button type="button" className="btn danger" onClick={bulkBin}>Bin</button>
           <button type="button" className="btn ghost" onClick={clearSel}>Clear</button>
         </div>
       )}
@@ -446,14 +484,14 @@ function Filters({ f, setF, lists, extra, onClear }) {
   const active = ['q', 'priority', 'category', 'subCategory', 'pendingWith', 'status', 'due'].some((k) => f[k]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
-    <div className="filters">
+    <div className="filters flt">
       <input className="search" value={f.q} onChange={set('q')} placeholder="Search task, mail chain, notes..." aria-label="Search" />
       <select value={f.priority} onChange={set('priority')} aria-label="Priority"><option value="">All priorities</option>{lists.priorities.map((x) => <option key={x}>{x}</option>)}</select>
       <select value={f.category} onChange={set('category')} aria-label="Category"><option value="">All categories</option>{lists.categories.map((x) => <option key={x}>{x}</option>)}</select>
       {lists.pendingWith.length > 0 && <select value={f.pendingWith} onChange={set('pendingWith')} aria-label="Pending with"><option value="">Anyone</option>{lists.pendingWith.map((x) => <option key={x}>{x}</option>)}</select>}
       {f.due !== undefined && <select value={f.due || ''} onChange={set('due')} aria-label="Due"><option value="">Any due date</option>{DUE_FILTERS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}
       {f.status !== undefined && <select value={f.status || ''} onChange={set('status')} aria-label="Status"><option value="">Any status</option>{lists.statuses.map((x) => <option key={x}>{x}</option>)}</select>}
-      {onClear && <button type="button" className="btn ghost clear-filters" onClick={onClear} disabled={!active} title="Clear all filters" aria-label="Clear all filters">✕</button>}
+      {onClear && <button type="button" className="btn clear-filters" onClick={onClear} disabled={!active} title="Clear all filters" aria-label="Clear all filters"><Icon name="x" size={16} /></button>}
       {extra}
     </div>
   );
@@ -475,7 +513,7 @@ function Table({ rows, onEdit, done, selected, onSelect }) {
               <td>{t.category || '-'}</td>
               <td>{t.pendingWith || '-'}</td>
               <td className={isOverdue(t) ? 'late' : ''}>{done ? (t.completedAt ? t.completedAt.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '-') : dueLabel(t)}</td>
-              <td className="right">{done ? <button className="btn" onClick={() => actions.reopen(t)}>Reopen</button> : <><button className="btn ok" onClick={() => complete(t, false)}>✓</button> <button className="btn ok soft" onClick={() => complete(t, true)}>DAR</button></>}</td>
+              <td className="td-end">{done ? <button className="btn" onClick={() => actions.reopen(t)}>Reopen</button> : <span className="act"><button className="btn ok" onClick={() => complete(t, false)} title="Done - kept out of the daily report">Done</button> <button className="btn ok soft" onClick={() => complete(t, true)}>DAR</button></span>}</td>
             </tr>
           ))}
         </tbody>
@@ -484,7 +522,7 @@ function Table({ rows, onEdit, done, selected, onSelect }) {
   );
 }
 
-function Completed({ onEdit }) {
+function Completed({ onEdit, onNew }) {
   const { tasks, lists, actions } = useStore();
   const loading = useLoading();
   const [f, setF] = useState({ q: '', priority: '', category: '', pendingWith: '' });
@@ -492,14 +530,13 @@ function Completed({ onEdit }) {
   const { shown, more, showMore } = usePaged(rows, JSON.stringify(f));
   return (
     <>
-      <h1 className="h1">Completed</h1>
+      <PageHead title="Completed" sub={`${rows.length} completed`} onNew={onNew} />
       <Filters f={f} setF={setF} lists={lists} />
-      <p className="muted">{rows.length} completed</p>
       {loading && <SkeletonRows />}
       {!loading && !rows.length && <Empty icon="check" title="Nothing completed yet" text="Tasks you mark done will be listed here." />}
       <div className="grid">
         {shown.map((t) => (
-          <article key={t.id} className="card is-done">
+          <article key={t.id} className="card task is-done">
             <button className="card-main" onClick={() => onEdit(t)}>
               <span className="card-title">{t.title}</span>
               <span className="card-meta">
@@ -508,7 +545,7 @@ function Completed({ onEdit }) {
                 <Chip>{t.dar ? 'In daily report' : 'Done only'}</Chip>
               </span>
             </button>
-            <div className="card-actions"><button className="btn" onClick={() => actions.reopen(t)}>Reopen</button><button className="btn ghost" onClick={() => actions.bin(t)} aria-label="Move to bin">🗑</button></div>
+            <div className="card-actions"><button className="btn grow-btn" onClick={() => actions.reopen(t)}>Reopen</button><button className="icon-btn" onClick={() => actions.bin(t)} aria-label="Move to bin" title="Move to bin"><Icon name="trash" size={17} /></button></div>
           </article>
         ))}
       </div>
@@ -517,32 +554,31 @@ function Completed({ onEdit }) {
   );
 }
 
-function Holidays() {
+function Holidays({ onNew }) {
   const { calendar } = useStore();
   const fmt = (d) => { const x = new Date(`${d}T00:00:00`); return Number.isNaN(x.getTime()) ? d : x.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }); };
   const block = (title, list, tone) => (
     <section>
-      <h2 className="h2">{title}</h2>
+      <h2 className="h2">{title} <span className="muted">({list.length})</span></h2>
       {!list.length && <Empty icon="calendar" title={`No ${title.toLowerCase()} yet`} text="Add them on the phone app or the old website." />}
-      <div className="list">{[...list].sort((a, b) => a.date.localeCompare(b.date)).map((h) => <div key={h.date + h.name} className={`card plain ${tone}`}><span className="card-title">{fmt(h.date)}</span>{h.name && <span className="muted">{h.name}</span>}</div>)}</div>
+      <div className="list">{[...list].sort((a, b) => a.date.localeCompare(b.date)).map((h) => <div key={h.date + h.name} className={`card plain day ${tone}`}><span className="card-title">{fmt(h.date)}</span>{h.name && <span className="day-name">{h.name}</span>}</div>)}</div>
     </section>
   );
-  return <><h1 className="h1">Holidays</h1><p className="muted">Set up on the phone app or the old website; shown here as they arrive.</p><div className="two">{block('Holidays', calendar.holidays, 'amber')}{block('Leave days', calendar.leaveDays, 'blue')}</div></>;
+  return <><PageHead title="Holidays" sub="Set up on the phone app or the old website; shown here as they arrive." onNew={onNew} /><div className="two">{block('Holidays', calendar.holidays, 'amber')}{block('Leave days', calendar.leaveDays, 'slate')}</div></>;
 }
 
-function Bin() {
+function Bin({ onNew }) {
   const { tasks, actions } = useStore();
   const rows = tasks.filter((t) => t.binned).sort((a, b) => (b.binnedAt?.getTime() || 0) - (a.binnedAt?.getTime() || 0));
   return (
     <>
-      <h1 className="h1">Bin</h1>
-      <p className="muted">Restore a task, or delete it forever (it then disappears on every device).</p>
+      <PageHead title="Bin" sub="Restore a task, or delete it forever (it then disappears on every device)." onNew={onNew} />
       {!rows.length && <Empty icon="bin" title="The bin is empty" text="Deleted tasks wait here until you restore them." />}
       <div className="grid">
         {rows.map((t) => (
-          <article key={t.id} className="card">
+          <article key={t.id} className="card task">
             <div className="card-main"><span className="card-title">{t.title}</span><span className="card-meta">{t.category && <Chip>{t.category}</Chip>}{t.binnedAt && <Chip>Binned {t.binnedAt.toLocaleDateString([], { day: 'numeric', month: 'short' })}</Chip>}</span></div>
-            <div className="card-actions"><button className="btn" onClick={() => actions.restore(t)}>Restore</button><button className="btn danger" onClick={() => { if (confirm(`Delete "${t.title}" forever?`)) actions.purge(t); }}>Delete forever</button></div>
+            <div className="card-actions"><button className="btn grow-btn" onClick={() => actions.restore(t)}>Restore</button><button className="btn danger grow-btn" onClick={() => { if (confirm(`Delete "${t.title}" forever?`)) actions.purge(t); }}>Delete forever</button></div>
           </article>
         ))}
       </div>
@@ -550,12 +586,12 @@ function Bin() {
   );
 }
 
-function Links() {
+function Links({ onNew }) {
   const { links } = useStore();
   const folders = [...new Set(links.map((l) => l.folder))].sort();
   return (
     <>
-      <h1 className="h1">Links</h1>
+      <PageHead title="Links" sub={`${links.length} saved link${links.length === 1 ? '' : 's'}`} onNew={onNew} />
       {!links.length && <Empty icon="link" title="No links yet" text="Links saved on the old website appear here." />}
       {folders.map((fo) => (
         <section key={fo || '-'}>
