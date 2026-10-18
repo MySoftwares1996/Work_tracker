@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Alert, Pressable } from 'react-native';
-import { Small, P, Row, Field, PickerButton, Choices } from '../ui';
+import { Small, P, Row, SearchField, PickerButton, Choices } from '../ui';
+import Icon from '../icons';
 import { useTheme } from '../theme';
 import { toDateKey, nextWorkingDay, holidayBlocks, isOfficeClosed } from '../workingDashboard';
 import { RoundBtn, CardGrid } from './wdCards';
@@ -39,16 +40,16 @@ export default function WdHolidaysTab({ entries, holidayList, leaveList, openEdi
       {/* The month at a glance: holidays, leave and the tasks due each day. */}
       <View style={{ marginBottom: 12 }}><WdCalendar entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={(e) => openEditEntry(e)} /></View>
       <Row gap={8} style={{ marginBottom: 8 }}>
-        <View style={{ flex: 1 }}><Field style={{ marginBottom: 0 }} value={holQuery} onChangeText={setHolQuery} placeholder="🔍 Search holidays..." /></View>
-        <Pressable onPress={openNewHoliday} accessibilityLabel="Add holiday" style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent }}>
-          <Text style={{ color: t.onAccent, fontSize: t.fs(22), fontWeight: '600' }}>+</Text>
+        <SearchField style={{ flex: 1 }} value={holQuery} onChangeText={setHolQuery} placeholder="Search holidays" />
+        <Pressable onPress={openNewHoliday} accessibilityRole="button" accessibilityLabel="Add holiday" style={{ width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: t.primary }}>
+          <Icon name="plus" size={22} color={t.onAccent} stroke={2.2} />
         </Pressable>
       </Row>
       <Row gap={8} style={{ marginBottom: 12, alignItems: 'center' }}>
         <View style={{ flex: 1 }}><PickerButton text={holCalendar === 'All' ? 'All Holiday Calendars' : holCalendar} onPress={() => setHolCalendarOpen((v) => !v)} /></View>
         <Pressable onPress={() => setHolAlertsOnly((v) => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: holAlertsOnly }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: holAlertsOnly ? t.accent : 'transparent', borderWidth: holAlertsOnly ? 0 : 2, borderColor: t.border }}>
-            {holAlertsOnly && <Text style={{ color: t.onAccent, fontWeight: '900', fontSize: t.fs(11) }}>✓</Text>}
+          <View style={{ width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: holAlertsOnly ? t.primary : 'transparent', borderWidth: holAlertsOnly ? 0 : 2, borderColor: t.textDim }}>
+            {holAlertsOnly && <Icon name="check" size={14} color={t.onAccent} stroke={3} />}
           </View>
           <Text style={{ color: t.text, fontSize: t.fs(13) }}>Alerts-on only</Text>
         </Pressable>
@@ -59,8 +60,8 @@ export default function WdHolidaysTab({ entries, holidayList, leaveList, openEdi
         </View>
       )}
       {blocks.map((b) => (
-        <View key={b.start} style={{ marginBottom: 8, padding: 12, borderRadius: 14, backgroundColor: t.ok + '1F', borderWidth: 1, borderColor: t.ok + '55', opacity: b.end < todayK ? 0.6 : 1 }}>
-          <Text style={{ color: t.ok, fontSize: t.fs(13.5) }}>
+        <View key={b.start} style={{ marginBottom: 8, padding: 12, borderRadius: 14, backgroundColor: t.tint, opacity: b.end < todayK ? 0.6 : 1 }}>
+          <Text style={{ color: t.tintText, fontSize: t.fs(13.5) }}>
             <Text style={{ fontWeight: '800' }}>{b.days}-day continuous holiday</Text>
             {` · ${shortDay(b.start)} – ${shortDay(b.end)}${b.names.length ? ` · ${b.names.join(' + ')}` : ''}`}
           </Text>
@@ -73,10 +74,11 @@ export default function WdHolidaysTab({ entries, holidayList, leaveList, openEdi
         const colour = colourOf(h.tag);
         const next = nextWorkingDay(h.endDate || h.date, holidayList, leaveList);
         return (
-          <View key={h.id} style={{ marginTop: 10, padding: 14, borderRadius: 16, backgroundColor: t.surface, borderWidth: 0.5, borderColor: t.border, ...t.shadow, opacity: past ? 0.6 : 1 }}>
+          <View key={h.id} style={{ marginTop: 10, padding: 16, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: past ? 0.6 : 1 }}>
             <Row style={{ alignItems: 'flex-start', gap: 8 }}>
-              <Text style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(16) }} numberOfLines={2}>
-                {h.alert === false ? '🔕' : '🔔'}{isOfficeClosed(h) ? ' 🏢' : ''} {h.title}
+              <View style={{ marginTop: 2 }}><Icon name={h.alert === false ? 'bellOff' : 'bell'} size={17} color={h.alert === false ? t.textDim : t.primary} stroke={1.9} /></View>
+              <Text style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(15.5) }} numberOfLines={2}>
+                {h.title}{isOfficeClosed(h) ? '  (office closed)' : ''}
               </Text>
               {!!h.tag && (
                 <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: colour + '22', borderWidth: 1, borderColor: colour + '55', maxWidth: '45%' }}>
@@ -89,8 +91,8 @@ export default function WdHolidaysTab({ entries, holidayList, leaveList, openEdi
               {pill(`Next working: ${dayText(next)}`)}
             </Row>
             <Row style={{ justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
-              <RoundBtn icon="✎" a11y="Edit holiday" onPress={() => setHolidaySheet(h)} />
-              <RoundBtn icon="🗑" a11y="Delete holiday" color={t.danger} onPress={() => Alert.alert('Delete this holiday?', h.title, [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => removeHoliday(h.id) }])} />
+              <RoundBtn icon="edit" a11y="Edit holiday" onPress={() => setHolidaySheet(h)} />
+              <RoundBtn icon="trash" a11y="Delete holiday" color={t.danger} onPress={() => Alert.alert('Delete this holiday?', h.title, [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => removeHoliday(h.id) }])} />
             </Row>
           </View>
         );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Alert, Pressable, Linking, Platform } from 'react-native';
-import { Card, Small, Btn, Row, Field } from '../ui';
+import { Card, Small, Btn, Row, Field, Chip, SearchField } from '../ui';
 import { useTheme } from '../theme';
 import { newId } from '../ids';
 import { normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
@@ -12,7 +12,7 @@ export default function WdLinksTab({ wd, setTools, linkDraft, setLinkDraft, link
   return (
     <View>
       <Card>
-        <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(13), marginBottom: 2 }}>USEFUL LINKS</Text>
+        <Text style={{ color: t.primary, fontWeight: '800', fontSize: t.fs(12), letterSpacing: 0.9, marginBottom: 2 }}>USEFUL LINKS</Text>
         <Small style={{ marginBottom: 10 }}>Keep the links you use. A click opens the link in a new tab of your default browser.</Small>
         <Row gap={10} style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <View style={{ flex: 1, minWidth: 180 }}><Field label="NAME" value={linkDraft.title} onChangeText={(v) => setLinkDraft((d) => ({ ...d, title: v }))} placeholder="e.g. ICEGATE" /></View>
@@ -34,7 +34,7 @@ export default function WdLinksTab({ wd, setTools, linkDraft, setLinkDraft, link
         </Row>
       </Card>
       <Row gap={8} style={{ marginTop: 10, flexWrap: 'wrap' }}>
-        <Btn kind="soft" title="⬇ Import bookmarks" style={Platform.OS === 'web' ? undefined : { display: 'none' }} onPress={async () => {
+        <Btn kind="soft" title="Import bookmarks" style={Platform.OS === 'web' ? undefined : { display: 'none' }} onPress={async () => {
           const text = await pickTextFile();
           if (!text) return;
           const found = parseBookmarks(text);
@@ -43,24 +43,22 @@ export default function WdLinksTab({ wd, setTools, linkDraft, setLinkDraft, link
           setTools((w) => ({ ...w, links: addLinks(w.links, found).links }));
           Alert.alert('Imported', `${res.added} new link${res.added === 1 ? '' : 's'} added (${found.length - res.added} already here).`);
         }} />
-        {Platform.OS === 'web' && !!(wd.links || []).length && <Btn kind="soft" title="⬆ Export" onPress={() => downloadText('working-dashboard-links.html', bookmarksHtml(wd.links))} />}
+        {Platform.OS === 'web' && !!(wd.links || []).length && <Btn kind="soft" title="Export" onPress={() => downloadText('working-dashboard-links.html', bookmarksHtml(wd.links))} />}
         {!!linkFolder && <Btn kind="soft" title={`Open all in ${linkFolder}`} onPress={() => (wd.links || []).filter((x) => x.folder === linkFolder).forEach((x) => Linking.openURL(x.url))} />}
       </Row>
       {linkFolders(wd.links).length > 0 && (
         <Row gap={6} style={{ marginTop: 10, flexWrap: 'wrap' }}>
           {['', ...linkFolders(wd.links)].map((f) => (
-            <Pressable key={f || 'all'} onPress={() => setLinkFolder(f)} style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: linkFolder === f ? t.accent : t.surfaceAlt }}>
-              <Text style={{ color: linkFolder === f ? t.onAccent : t.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{f || 'All'}</Text>
-            </Pressable>
+            <Chip key={f || 'all'} label={f || 'All'} on={linkFolder === f} onPress={() => setLinkFolder(f)} />
           ))}
         </Row>
       )}
-      {(wd.links || []).length > 6 && <Field style={{ marginTop: 10 }} value={linkFind} onChangeText={setLinkFind} placeholder="🔍 Search links..." />}
+      {(wd.links || []).length > 6 && <SearchField style={{ marginTop: 10 }} value={linkFind} onChangeText={setLinkFind} placeholder="Search links" />}
       <CardGrid>
         {(wd.links || []).filter((x) => (!linkFolder || x.folder === linkFolder) && (!linkFind.trim() || `${x.title} ${x.url} ${x.folder || ''}`.toLowerCase().includes(linkFind.trim().toLowerCase()))).map((x) => (
           <Card key={x.id}>
             <Pressable onPress={() => Linking.openURL(x.url)} accessibilityRole="link" accessibilityLabel={`Open ${x.title}`}>
-              <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(15) }} numberOfLines={1}>{x.title}</Text>
+              <Text style={{ color: t.primary, fontWeight: '800', fontSize: t.fs(15) }} numberOfLines={1}>{x.title}</Text>
               <Small numberOfLines={1}>{x.folder ? `${x.folder} · ` : ''}{x.url}</Small>
             </Pressable>
             <Row gap={8} style={{ marginTop: 8 }}>

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Card, Small, Row } from '../ui';
+import Icon from '../icons';
 import { useTheme } from '../theme';
 import { calendarWeeks, toDateKey, isNonWorkingDay } from '../workingDashboard';
 import { isBankFollowUpCategory } from '../bankFollowUp';
@@ -22,14 +23,15 @@ export default function WdCalendar({ entries, holidays = [], leaveDays = [], onO
   const today = toDateKey(now);
   const picked = weeks.flat().find((d) => d.key === pick);
   const navBtn = (label, onPress, a11y) => (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: t.surfaceAlt }}>
-      <Text style={{ color: t.text, fontWeight: '700' }}>{label}</Text>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: t.surfaceAlt }}>
+      <Text style={{ color: t.text, fontWeight: '800' }}>{label}</Text>
     </Pressable>
   );
   return (
     <Card style={{ marginTop: 14 }}>
       <Row style={{ alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <Small style={{ flex: 1, fontWeight: '700', textTransform: 'uppercase' }}>🗓 Calendar · {MONTHS[view.getMonth()]} {view.getFullYear()}</Small>
+        <Icon name="calendar" size={17} color={t.textDim} stroke={1.9} />
+        <Small style={{ flex: 1, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>Calendar · {MONTHS[view.getMonth()]} {view.getFullYear()}</Small>
         {navBtn('‹', () => setShift((n) => n - 1), 'Previous month')}
         {shift !== 0 && navBtn('Today', () => { setShift(0); setPick(today); }, 'This month')}
         {navBtn('›', () => setShift((n) => n + 1), 'Next month')}
@@ -48,7 +50,7 @@ export default function WdCalendar({ entries, holidays = [], leaveDays = [], onO
             return (
               <Pressable key={d.key} onPress={() => setPick(d.key)} accessibilityRole="button" accessibilityLabel={`${d.key}: ${n} task${n === 1 ? '' : 's'}`}
                 style={{ flex: 1, minHeight: 56, margin: 2, padding: 6, borderRadius: 10, opacity: d.inMonth ? 1 : 0.4,
-                  backgroundColor: on ? t.accent + '22' : off ? t.surfaceAlt : 'transparent', borderWidth: d.key === today ? 2 : 1, borderColor: d.key === today ? t.accent : t.border }}>
+                  backgroundColor: on ? t.tint : off ? t.surfaceAlt : 'transparent', borderWidth: d.key === today ? 2 : 1, borderColor: d.key === today ? t.primary : t.border }}>
                 <Text style={{ color: off ? t.textDim : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{d.day}</Text>
                 {!!n && (
                   <View style={{ alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 999, backgroundColor: tone + '22' }}>
@@ -70,7 +72,7 @@ export default function WdCalendar({ entries, holidays = [], leaveDays = [], onO
           {picked.tasks.map((e) => (
             <Pressable key={e.id} onPress={() => onOpen(e)} accessibilityRole="button" style={{ flexDirection: 'row', gap: 8, paddingVertical: 6 }}>
               <Text style={{ width: 70, color: t.textDim, fontSize: t.fs(13) }}>{new Date(e.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
-              <Text style={{ flex: 1, color: t.text, fontSize: t.fs(13.5) }} numberOfLines={1}>{isBankFollowUpCategory(e.category) ? '📞 ' : ''}{e.title}</Text>
+              <Text style={{ flex: 1, color: t.text, fontSize: t.fs(13.5) }} numberOfLines={1}>{e.title}</Text>
               <Text style={{ color: t.textDim, fontSize: t.fs(12.5) }} numberOfLines={1}>{e.category || ''}</Text>
             </Pressable>
           ))}

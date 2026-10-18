@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Btn, Row, Field, Sheet, DateTimeField } from '../ui';
+import Icon from '../icons';
 import { useTheme } from '../theme';
 import { holidayDateKey, isOfficeClosed } from '../workingDashboard';
 
@@ -20,8 +21,8 @@ export default function WdHolidaySheet({ holidaySheet, setHolidaySheet, holidayL
           {/* The web app's "Office closed" tick: a closed day moves Daily tasks on and is offered "Postpone"; a market-only (USD) holiday is a working day. */}
           <Pressable onPress={() => setHolidaySheet({ ...holidaySheet, officeClosed: !isOfficeClosed(holidaySheet) })} accessibilityRole="checkbox" accessibilityState={{ checked: isOfficeClosed(holidaySheet) }}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <View style={{ width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: isOfficeClosed(holidaySheet) ? t.accent : 'transparent', borderWidth: isOfficeClosed(holidaySheet) ? 0 : 2, borderColor: t.accent }}>
-              {isOfficeClosed(holidaySheet) && <Text style={{ color: t.onAccent, fontWeight: '900' }}>✓</Text>}
+            <View style={{ width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: isOfficeClosed(holidaySheet) ? t.primary : 'transparent', borderWidth: isOfficeClosed(holidaySheet) ? 0 : 2, borderColor: t.primary }}>
+              {isOfficeClosed(holidaySheet) && <Icon name="check" size={16} color={t.onAccent} stroke={3} />}
             </View>
             <Text style={{ flex: 1, color: t.text, fontSize: t.fs(14) }}><Text style={{ fontWeight: '800' }}>Office closed</Text> - untick for a market-only holiday (a working day here)</Text>
           </Pressable>

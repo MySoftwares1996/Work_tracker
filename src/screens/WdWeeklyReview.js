@@ -1,10 +1,11 @@
 /**
  * "This week" card for the phone Home: three short stat lines and up to three slipping tasks (snoozed 3+ times or 7+ days overdue).
- * The logic is src/weeklyReview.js (shared with the website); this is only the Warm-style presentation.
+ * The logic is src/weeklyReview.js (shared with the website); this is only the Ledger presentation.
  */
 import React, { useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useTheme } from '../theme';
+import { display } from '../fonts';
 import { weeklyReview, slipReason } from '../weeklyReview';
 
 const SHOWN = 3;
@@ -14,15 +15,15 @@ export default function WdWeeklyReview({ entries, holidays, leaveDays, onOpen, n
   const r = useMemo(() => weeklyReview(entries, now || new Date(), { holidays, leaveDays }), [entries, holidays, leaveDays, now]);
   if (r.empty) return null;
   const line = (label, value, tone) => (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingVertical: 2 }}>
-      <Text style={{ color: t.text, fontSize: t.fs(14) }}>{label}</Text>
-      <Text style={{ color: tone && value ? tone : t.text, fontWeight: '800', fontSize: t.fs(15) }}>{value}</Text>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingVertical: 1 }}>
+      <Text style={{ color: t.text, fontWeight: '600', fontSize: t.fs(14) }}>{label}</Text>
+      <Text style={{ color: tone && value ? tone : t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(20) }}>{value}</Text>
     </View>
   );
   return (
-    <View accessibilityLabel="This week" style={{ marginTop: 14, padding: 14, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }}>
-      <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(11.5), letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 }}>This week</Text>
-      {line('Done since Monday', r.doneThisWeek, t.ok)}
+    <View accessibilityLabel="This week" style={{ paddingVertical: 14, paddingHorizontal: 16, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }}>
+      <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>This week</Text>
+      {line('Done since Monday', r.doneThisWeek, t.primary)}
       {line('Due in the next 7 days', r.dueSoon.count)}
       {line('Overdue', r.overdue, t.danger)}
       {!!r.slipping.length && (

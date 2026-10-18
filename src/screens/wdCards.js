@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, Pressable, Platform, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useLayout, FadeInUp, AnimatedNumber, Card, Small, Row, prefersReducedMotion } from '../ui';
-import Icon from '../icons';
+import Icon, { ICON_NAMES } from '../icons';
 import { display } from '../fonts';
 import { useTheme } from '../theme';
 import { checklistText } from '../checklist';
@@ -85,8 +85,8 @@ export function RoundBtn({ icon, label, onPress, color, solid, a11y }) {
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable onPress={onPress} onPressIn={() => to(0.86)} onPressOut={() => to(1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={a11y || label || icon}
         style={({ pressed }) => ({ height: 36, minWidth: 36, paddingHorizontal: label ? 12 : 0, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4, backgroundColor: solid ? c : c + '1A', opacity: pressed ? 0.6 : 1 })}>
-        {!!icon && <Text style={{ color: solid ? '#fff' : c, fontWeight: '800', fontSize: t.fs(15) }}>{icon}</Text>}
-        {!!label && <Text style={{ color: solid ? '#fff' : c, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>}
+        {!!icon && (ICON_NAMES.includes(icon) ? <Icon name={icon} size={17} color={solid ? t.onAccent : c} stroke={2} /> : <Text style={{ color: solid ? t.onAccent : c, fontWeight: '800', fontSize: t.fs(15) }}>{icon}</Text>)}
+        {!!label && <Text style={{ color: solid ? t.onAccent : c, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>}
       </Pressable>
     </Animated.View>
   );
@@ -210,17 +210,17 @@ export function EntryRow({ entry, mode = 'open', onPress, onToggleDar, onAct, ri
             <Row style={{ alignItems: 'center', gap: GRID ? 6 : 8, justifyContent: 'flex-end', flexWrap: GRID ? 'wrap' : 'nowrap' }}>
               {tablet && <View style={{ flex: 1 }}>{dueLine}</View>}
               {!inDone && !!onToggleAlert && (
-                <RoundBtn icon={ring ? '🔔' : '🔕'} a11y={ring ? 'Rings as an alarm - tap for a plain reminder' : 'Plain reminder - tap to ring as an alarm'} color={ring ? t.warn : t.textDim} onPress={onToggleAlert} />
+                <RoundBtn icon={ring ? 'bell' : 'bellOff'} a11y={ring ? 'Rings as an alarm - tap for a plain reminder' : 'Plain reminder - tap to ring as an alarm'} color={ring ? t.warn : t.textDim} onPress={onToggleAlert} />
               )}
-              {Platform.OS === 'web' && <RoundBtn icon="✎" a11y="Edit" onPress={onPress} />}
-              {!inDone && !!onFollowUp && <RoundBtn icon="📞" a11y="Bank follow-up: banker's update and the next follow-up date" color={t.accent} onPress={onFollowUp} />}
+              {Platform.OS === 'web' && <RoundBtn icon="edit" a11y="Edit" onPress={onPress} />}
+              {!inDone && !!onFollowUp && <RoundBtn icon="phone" a11y="Bank follow-up: banker's update and the next follow-up date" color={t.accent} onPress={onFollowUp} />}
               {WEB_DAR && !inDone
                 ? <RoundBtn label="DAR" a11y="Complete, and add to the daily report" color={t.ok} onPress={() => onAct('complete', { dar: true })} />
-                : <RoundBtn label="DAR" icon={entry.dar !== false ? '✓' : ''} a11y={entry.dar !== false ? 'In the daily report - tap for "Done" only' : 'Add to the daily report'} color={t.ok} solid={entry.dar !== false} onPress={onToggleDar} />}
-              {inDone && <RoundBtn icon="🗑" a11y="Move to Bin" color={t.danger} onPress={() => onAct('bin')} />}
+                : <RoundBtn label="DAR" icon={entry.dar !== false ? 'check' : ''} a11y={entry.dar !== false ? 'In the daily report - tap for "Done" only' : 'Add to the daily report'} color={t.ok} solid={entry.dar !== false} onPress={onToggleDar} />}
+              {inDone &&  <RoundBtn icon="trash" a11y="Move to Bin" color={t.danger} onPress={() => onAct('bin')} />}
               {inDone
-                ? <RoundBtn icon="↩" a11y="Reopen" color={t.accent} onPress={() => onAct('reopen')} />
-                : <RoundBtn icon="✓" a11y={WEB_DAR ? 'Complete - not in the daily report' : 'Complete'} color={t.ok} onPress={() => onAct('complete', WEB_DAR ? { dar: false } : undefined)} />}
+                ?  <RoundBtn icon="undo" a11y="Reopen" color={t.accent} onPress={() => onAct('reopen')} />
+                : <RoundBtn icon="check" a11y={WEB_DAR ? 'Complete - not in the daily report' : 'Complete'} color={t.ok} onPress={() => onAct('complete', WEB_DAR ? { dar: false } : undefined)} />}
             </Row>
           </View>
         </Row>
