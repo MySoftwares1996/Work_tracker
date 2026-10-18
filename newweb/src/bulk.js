@@ -1,4 +1,4 @@
-import { subCategoryMissing } from './data';
+import { subCategoryMissing } from './data.js';
 
 /** Toggles one id in a selection (a Set); returns a new Set. */
 export function toggleSelected(selected, id) {

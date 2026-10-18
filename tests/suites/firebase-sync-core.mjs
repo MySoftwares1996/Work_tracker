@@ -357,7 +357,7 @@ export async function runExtra3({ ck, section }) {
   ck('every sync key and recovery copy is listed', all2.length === 5 && !all2.includes('MPT_OTHER') && !all2.includes('MPT_DB_V1'));
   const acct2 = await import('../../src/account.js');
   const st2 = new Map([['MPT_RT_ACK_u1', '{}'], ['MPT_RT_SNAP_u1', '{}'], ['MPT_UNSYNCED_u1', '{}'], ['MPT_RT_SNAP_u2', '{}'], ['MPT_DB_V1', '{}']]);
-  const fake2 = { getAllKeys: async () => [...st2.keys2()], multiRemove: async (ks) => ks.forEach((k) => st2.delete(k)) };
+  const fake2 = { getAllKeys: async () => [...st2.keys()], multiRemove: async (ks) => ks.forEach((k) => st2.delete(k)) };
   const cleared = await acct2.clearSyncState({ uid: 'u1', storage: fake2 });
   ck('a sign-out wipe clears ack and snapshot but keeps the unsent copy and other accounts', cleared.length === 2 && st2.has('MPT_UNSYNCED_u1') && st2.has('MPT_RT_SNAP_u2') && !st2.has('MPT_RT_SNAP_u1'));
   await acct2.clearSyncState({ includeUnsynced: true, storage: fake2 });
