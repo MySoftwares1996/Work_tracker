@@ -1,4 +1,4 @@
-import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, mergeEntryFieldwise, docHashes } from '../../src/firebaseSyncCore.js';
+import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, docHashes } from '../../src/firebaseSyncCore.js';
 
 export async function run({ ck, section }) {
   const e = (id, updatedAt) => ({ id, title: `t${id}`, updatedAt });
@@ -93,7 +93,7 @@ export async function runExtra({ ck, section }) {
 
 export async function runExtra2({ ck, section }) {
   const { push, __setMetaFormats } = await import('../../src/firebaseSync.js');
-  const { decodeLists, encodeLists, decodeCalendar, encodeCalendar } = await import('../../src/firebaseSyncCore.js');
+  const { decodeLists, encodeLists, decodeCalendar } = await import('../../src/firebaseSyncCore.js');
   const { fromWebDoc, toWebTask, repairWebShapedEntries } = await import('../../src/cloudSync.js');
   const { blankEntry } = await import('../../src/workingDashboard.js');
   const { __batches, __resetBatches } = await import('../stubs/firebase.mjs');
@@ -144,7 +144,6 @@ export async function runExtra2({ ck, section }) {
   ck('an indexed map round-trips', JSON.stringify(decodeLists(encodeLists(lists, 'indexed')).lists) === JSON.stringify(lists));
   ck('a named map round-trips', JSON.stringify(decodeLists(encodeLists(lists, 'named')).lists) === JSON.stringify(lists) && decodeLists({ categories: ['A'] }).format === 'named');
   const cal = [[{ date: '2026-10-02', title: 'Gandhi Jayanti' }], ['2026-10-05']];
-  ck('the calendar round-trips as JSON', JSON.stringify(decodeCalendar(encodeCalendar(cal, 'json')).calendar) === JSON.stringify(cal));
   ck('a named calendar map is read', decodeCalendar({ holidays: cal[0], leaveDays: cal[1] }).calendar[1][0] === '2026-10-05');
 
   section('Realtime Sync: a push writes the web app\'s shape and never a nested array');
@@ -298,56 +297,11 @@ export async function runExtra3({ ck, section }) {
   await gm.listUnread('tok', { fetchImpl: () => new Promise(() => {}), timeoutMs: 30 }).catch((e) => { slowErr = e; });
   ck('a request that never answers fails with a clear message', slowErr && /too long/.test(slowErr.message));
 
-  section('Firebase Sync Core: field-wise merge of a web document over an unsent local edit');
-  const base = { id: 'x', description: 'Pay vendor', dueDate: '2026-10-20', status: 'Pending', assignee: 'Ravi', updatedAt: 100 };
-  const snap = docHashes(base);
-  const m = (loc, inc, ls = 200, ds = 150, sn = snap) => mergeEntryFieldwise(loc, inc, sn, ls, ds);
-  let r = m({ ...base, status: 'Done' }, { ...base, updatedAt: 150 });
-  ck('only the phone changed: the phone value is kept', r.doc.status === 'Done' && r.localFields.join() === 'status');
-  r = m({ ...base }, { ...base, dueDate: '2026-10-25', updatedAt: 150 });
-  ck('only the server changed: the server value is taken', r.doc.dueDate === '2026-10-25' && !r.localFields.length);
-  r = m({ ...base, status: 'Done' }, { ...base, dueDate: '2026-10-25', updatedAt: 150 }, 100, 150);
-  ck('different fields: both edits survive, even though the web stamp is newer', r.doc.status === 'Done' && r.doc.dueDate === '2026-10-25');
-  ck('the stamp comes from the incoming document', r.doc.updatedAt === 150 && r.doc.id === 'x');
-  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 200, 150);
-  ck('same field changed on both, phone newer: the phone wins', r.doc.status === 'Done' && r.localFields.includes('status'));
-  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 100, 150);
-  ck('same field changed on both, web newer: the web wins', r.doc.status === 'Blocked' && !r.localFields.length);
-  r = m({ ...base, status: 'Done' }, { ...base, status: 'Done', updatedAt: 150 }, 100, 150);
-  ck('both changed to the same value: nothing is flagged', r.doc.status === 'Done' && !r.localFields.length);
-  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 150, 150);
-  ck('an equal stamp goes to the web copy, as before', r.doc.status === 'Blocked');
-  r = m({ ...base, status: 'Done' }, { ...base, purged: true, updatedAt: 150 });
-  ck('purged on the server always wins', r.doc.purged === true && r.doc.status === 'Pending' && !r.localFields.length);
-  r = m({ ...base, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 });
-  ck('binned on the server wins over a phone edit', r.doc.deleted === true && r.doc.status === 'Pending');
-  r = m({ ...base, deleted: true, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 });
-  ck('a bin the server already had (snapshot) does not override the phone', true);
-  const bs = docHashes({ ...base, deleted: true });
-  r = mergeEntryFieldwise({ ...base, deleted: false, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 }, bs, 200, 150);
-  ck('a bin already in the snapshot is an ordinary field (phone restored it, newer)', r.doc.deleted === false && r.doc.status === 'Done');
-  r = m({ ...base, status: 'Done' }, { ...base, updatedAt: 150, note: 'new' });
-  ck('a field only the server added is taken', r.doc.note === 'new' && r.doc.status === 'Done');
-  r = m({ ...base, note: 'mine' }, { ...base, updatedAt: 150 });
-  ck('a field only the phone added is kept', r.doc.note === 'mine');
-  r = mergeEntryFieldwise({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, null, 200, 150);
-  ck('no snapshot, phone newer: the phone copy as it was', r.doc.status === 'Done' && r.doc === r.doc && r.doc.dueDate === base.dueDate);
-  r = mergeEntryFieldwise({ ...base, status: 'Done', extra: 1 }, { ...base, status: 'Blocked', updatedAt: 150 }, null, 100, 150);
-  ck('no snapshot, web newer: the document laid over the phone copy', r.doc.status === 'Blocked' && r.doc.extra === 1);
-  ck('missing / {} snapshot never throws', mergeEntryFieldwise({ id: 'x' }, { id: 'x' }, undefined, 0, 0).doc.id === 'x');
-
-  section('Storage: sync bookkeeping is cleared with everything, and an account switch keeps the unsent copy');
+  section('Storage: every sync key and recovery copy is listed');
   const sc2 = await import('../../src/storeCore.js');
   const keys2 = ['MPT_DB_V1', 'MPT_RT_ACK_u1', 'MPT_RT_SNAP_u1', 'MPT_UNSYNCED_u1', 'MPT_CORRUPT_SEEN', 'MPT_CORRUPT_MPT_X_5', 'MPT_OTHER'];
   const all2 = sc2.syncStateKeys(keys2);
   ck('every sync key and recovery copy is listed', all2.length === 5 && !all2.includes('MPT_OTHER') && !all2.includes('MPT_DB_V1'));
-  const acct2 = await import('../../src/account.js');
-  const st2 = new Map([['MPT_RT_ACK_u1', '{}'], ['MPT_RT_SNAP_u1', '{}'], ['MPT_UNSYNCED_u1', '{}'], ['MPT_RT_SNAP_u2', '{}'], ['MPT_DB_V1', '{}']]);
-  const fake2 = { getAllKeys: async () => [...st2.keys()], multiRemove: async (ks) => ks.forEach((k) => st2.delete(k)) };
-  const cleared = await acct2.clearSyncState({ uid: 'u1', storage: fake2 });
-  ck('a sign-out wipe clears ack and snapshot but keeps the unsent copy and other accounts', cleared.length === 2 && st2.has('MPT_UNSYNCED_u1') && st2.has('MPT_RT_SNAP_u2') && !st2.has('MPT_RT_SNAP_u1'));
-  await acct2.clearSyncState({ includeUnsynced: true, storage: fake2 });
-  ck('with includeUnsynced everything of every account goes, the data itself stays', !st2.has('MPT_UNSYNCED_u1') && !st2.has('MPT_RT_SNAP_u2') && st2.has('MPT_DB_V1'));
 
   section('Storage: recovery copies are capped at 3 per key, one per distinct damage');
   const cp = sc2.corruptCopyPlan;

@@ -6,7 +6,7 @@
  * must not be shown, and must never be sent into the new account. Pure, so it is unit tested.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DEFAULT_DB, syncStateKeys } from './storeCore';
+import { DEFAULT_DB } from './storeCore';
 import { dirtyEntries, ackKey, raceTimeout } from './firebaseSyncCore';
 
 /*
@@ -126,15 +126,3 @@ export function mergeUnsynced(wd = {}, back = null) {
   return { ...wd, entries: [...have.values()], deletedIds };
 }
 
-/**
- * Sign-out wipe of the sync bookkeeping kept on the device. The ack map and the server snapshot are cleared; the
- * MPT_UNSYNCED_<uid> copy (unsent edits) is cleared only with `includeUnsynced` - an account switch keeps it, it is
- * the safety copy given back when that account signs in again. `uid` limits it to one account (default: all).
- */
-export async function clearSyncState({ uid = null, includeUnsynced = false, storage = AsyncStorage } = {}) {
-  const all = storage.getAllKeys ? await storage.getAllKeys().catch(() => []) : [];
-  const keys = syncStateKeys(all, { withCorrupt: false, withUnsynced: includeUnsynced })
-    .filter((k) => !uid || k.endsWith(`_${uid}`));
-  if (keys.length) await storage.multiRemove(keys);
-  return keys;
-}

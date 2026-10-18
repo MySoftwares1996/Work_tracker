@@ -3,7 +3,7 @@ import { copyText } from '../clipboard';
 import { useStore } from '../store';
 import { buildReport, REPORT_GROUPS, mergeAi, reportPrompt, reportCsvRows, reportHtml } from '../reportEngine';
 import { reportMailUrl } from '../../../src/workingDashboardReport.js';
-import { dayKey, isOpen, sortTasks, stats } from '../data';
+import { dayKey, isOpen, sortTasks } from '../data';
 
 export default function Report() {
   const { tasks, lists, calendar, notify, reportFormats } = useStore();

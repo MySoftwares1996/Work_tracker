@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import ClockPicker from './ClockPicker';
 import Logo from './Logo';
 import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
@@ -11,7 +10,7 @@ import { weeklyReview, slipReason } from '../../src/weeklyReview.js';
 
 import { useStore } from './store';
 
-import { breakdown, subBreakdown, templateFrom, saveTemplate, DUE_FILTERS, isReminderDue, reminderLabel, subCategoryMissing, RECURRENCES, SORTS, blankTask, dueLabel, filterTasks, isDueSoon, isDueNextMonth, isDueThisMonth, isDueToday, isOpen, isOverdue, sortTasks, stats } from './data';
+import { breakdown, subBreakdown, templateFrom, saveTemplate, DUE_FILTERS, isReminderDue, reminderLabel, subCategoryMissing, RECURRENCES, SORTS, blankTask, dueLabel, filterTasks, isDueNextMonth, isDueThisMonth, isDueToday, isOpen, isOverdue, sortTasks, stats } from './data';
 
 // The Report, Config and the entry form load when first opened (and are fetched quietly once the page is idle), so the page starts smaller.
 const loadReport = () => import('./screens/Report');

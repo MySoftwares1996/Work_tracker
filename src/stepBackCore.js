@@ -8,11 +8,3 @@
 export function backTab(current, first) {
   return current !== first ? first : null;
 }
-
-/** While true, Back steps are skipped: the Home button is leaving the tool on purpose. */
-let leaving = false;
-export const isLeaving = () => leaving;
-export function markLeaving(ms = 800) {
-  leaving = true;
-  setTimeout(() => { leaving = false; }, ms);
-}

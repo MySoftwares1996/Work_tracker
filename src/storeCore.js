@@ -217,7 +217,6 @@ export const DEFAULT_DB = {
   },
 };
 
-
 function deepMerge(base, patch) {
   if (Array.isArray(base) || typeof base !== 'object' || base === null) return patch === undefined ? base : patch;
   const out = { ...base };
@@ -476,66 +475,5 @@ export async function loadAll() {
   return { core, slices, migrated, corrupt };
 }
 
-
 export const uid = () => newId();
-export const todayKey = (d = new Date()) => {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-export const monthKey = (d = new Date()) => todayKey(d).slice(0, 7);
 
-/** "₹1,749", and "−₹1,749" for negatives rather than "₹-1,749". */
-export const inr = (n) => {
-  const v = Number(n) || 0;
-  const body = '\u20B9' + Math.abs(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  return v < 0 ? '\u2212' + body : body;
-};
-
-/**
- * A quantity (fund units, shares) exactly as it was entered or imported -
- * never forced to a fixed number of decimals the way a currency figure is.
- * A holding total is a running sum of many rows, so it is rounded to 6
- * places first purely to drop binary floating-point noise (0.1 + 0.2
- * territory), then trailing zeros are trimmed - it never rounds away a real
- * digit the source (a manual entry or an imported file) actually had.
- */
-export const fmtUnits = (n) => {
-  if (n == null || !Number.isFinite(Number(n))) return '-';
-  return Number(Number(n).toFixed(6)).toString();
-};
-
-/**
- * True once the app holds anything actually worth not losing. Gates the
- * backup reminder below so a fresh install with nothing entered yet is never
- * nagged to back up an empty database.
- */
-export function hasAnyData(db) {
-  return (
-    (db.expenses?.txns?.length || 0) > 0 ||
-    (db.tasks?.length || 0) > 0 ||
-    Object.keys(db.attendance?.days || {}).length > 0 ||
-    (db.investments?.txns?.length || 0) > 0 ||
-    (db.workingDashboard?.entries?.length || 0) > 0 ||
-    (db.epfo?.transactions?.length || 0) > 0 ||
-    (db.healthRecords?.patients?.length || 0) > 0 ||
-    (db.healthMeasures?.readings?.length || 0) > 0 ||
-    (db.healthMeasures?.reports?.length || 0) > 0 ||
-    Object.keys(db.water?.log || {}).length > 0 ||
-    Object.keys(db.steps?.daily || {}).length > 0
-  );
-}
-
-/**
- * Everything this app stores lives only on the device - AsyncStorage, no
- * cloud sync - so the one manual JSON export in Settings is the only thing
- * standing between a lost/reset/uninstalled phone and losing it all for
- * good. True when there is real data to protect and either no export has
- * ever been made, or the last one is more than `days` old.
- */
-export function isBackupStale(lastBackupAt, hasData, days = 21) {
-  if (!hasData) return false;
-  if (!lastBackupAt) return true;
-  const last = new Date(lastBackupAt).getTime();
-  if (!last) return true;
-  return Date.now() - last >= days * 24 * 60 * 60 * 1000;
-}

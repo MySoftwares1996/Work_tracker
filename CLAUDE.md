@@ -83,7 +83,7 @@ Split-out tabs of `WorkingDashboard.js` (props only, state stays in the screen):
 The owner wants the APK to look and feel like a real phone app (not the website): `Both` / phone width now uses a new layout in the native screens
 (`WorkingDashboard.js`, `wdCards.js`, `ui.js`): a five-tab bottom bar (Home, Tasks, Report, Done, More; Holidays, Bin and Config are reached from More,
 with a back arrow in the app bar), a compact app bar (logo, title, finder, alerts bell), Home with coloured tiles you swipe sideways and "Needs attention" /
-"Coming up" rows (`PhoneTile`, `PhoneRow`), Tasks with filter chips and rows that slide open to Done / DAR, and the New / Edit Entry form on the phone too
+"Coming up" rows (`PhoneRow`), Tasks with filter chips and rows that slide open to Done / DAR, and the New / Edit Entry form on the phone too
 (every card opens; the old "no form at phone width" rule is gone). The website is not shown inside the app any more (the owner had the "website inside the app" option removed). The previews the owner approved are the model; more screens
 (entry form, Report, Done) are being brought to the same look step by step, each shown to the owner first.
 

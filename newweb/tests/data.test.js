@@ -5,7 +5,7 @@ import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveD
 import { webBackup } from '../src/exportBackup.js';
 import { formatsAfterEdit, removedFormat } from '../src/reportFormats.js';
 import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS, effectiveFormats } from '../src/reportFormats.js';
-import { DEFAULT_LISTS, breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
+import { DEFAULT_LISTS, breakdown, subBreakdown, geminiText, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -123,18 +123,6 @@ test('weekday repeats skip the weekend', () => {
   const fri = task({ recurrence: 'Weekdays', due: new Date(2026, 9, 16, 9) });       // a Friday
   const n = nextOccurrence(fri, [], new Date(2026, 9, 16));
   assert.equal(n.due.getDay(), 1);
-});
-
-test('the daily report lists the day\'s DAR tasks and leaves out "Done only"', () => {
-  const day = new Date(2026, 9, 15, 12);
-  const a = task({ title: 'Paid GST', done: true, completedAt: new Date(2026, 9, 15, 9), category: 'Payments', dar: true });
-  const b = task({ title: 'Private chore', done: true, completedAt: new Date(2026, 9, 15, 9), dar: false });
-  const c = task({ title: 'Other day', done: true, completedAt: new Date(2026, 9, 14, 9), dar: true });
-  const text = reportText([a, b, c], day);
-  assert.match(text, /1\. Paid GST \(Payments\)/);
-  assert.ok(!text.includes('Private chore'));
-  assert.ok(!text.includes('Other day'));
-  assert.match(reportText([], day), /No completed activities/);
 });
 
 test('lists, calendar and links are read from their documents', () => {
@@ -395,18 +383,6 @@ test('snooze, silence and skip are saved with the task in the phone app\'s own f
   assert.equal(toDoc(moved, NOW).snoozeUntil, null);                                                           // cleared, since the document had one
 });
 
-test('the daily report carries the banker\'s reply (a sub category field) and the notes', () => {
-  const day = new Date(2026, 9, 15, 12);
-  const t = task({ title: 'HDFC FD Statement Collation.', category: "Bank Follow-up's", done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, subCategory: "Urgent Bank Follow Up's", subCategoryFields: { "Banker's Reply's:": 'Need to collect on an urgent basis', Empty: ' ' }, notes: 'Called twice.\nStatement due tomorrow.' });
-  const text = reportText([t], day);
-  assert.match(text, /Urgent Bank Follow Up's - Banker's Reply's: Need to collect on an urgent basis/);
-  assert.match(text, /Notes: Called twice\. Statement due tomorrow\./);
-  assert.ok(!text.includes('Empty'));
-  assert.ok(!reportText([t], day, { subFields: false }).includes("Banker's Reply's"));
-  const only = reportText([task({ title: 'Plain', done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, notes: 'n' })], day);
-  assert.ok(!only.includes('undefined') && /Notes: n/.test(only));
-});
-
 const backup = () => ({
   app: 'My_Personal_Tracker', exportedAt: '2026-10-10T08:00:00.000Z',
   data: { workingDashboard: {
@@ -498,31 +474,10 @@ test('a template keeps the usual fields, never the dates, and starts a new task'
   assert.deepEqual(readTemplates({ templates: list }).map((x) => x.name), ['Month-end reconciliation']);
 });
 
-test('the Gemini prompt keeps the draft and the person\'s instructions; lost numbers are found', () => {
-  const p = buildReportPrompt('1. Paid vendor 12500 (Payments)', 'Two lines per task');
-  assert.match(p, /Paid vendor 12500/);
-  assert.match(p, /Two lines per task/);
-  assert.ok(!/MY INSTRUCTIONS/.test(buildReportPrompt('x', '')));
-  assert.deepEqual(numbersLost('Paid 12,500', 'Paid 12500'), []);
-  assert.deepEqual(numbersLost('Paid 12,500 and 4471', 'Paid 12500'), ['4471']);
-});
-
 test('the Gemini API reply text is read from its parts', () => {
   assert.equal(geminiText({ candidates: [{ content: { parts: [{ text: 'Hello ' }, { text: 'world' }] } }] }), 'Hello world');
   assert.equal(geminiText({ candidates: [] }), '');
   assert.equal(geminiText(null), '');
-});
-
-test('the Dashboard bank desk lists open bank follow-ups, longest open first, with the banker\'s update', () => {
-  const now = new Date(2026, 9, 16, 12);
-  const old = task({ title: 'ICICI LC', category: "Bank Follow-up's", bankFollowUps: [{ d: '2026-10-05', at: new Date(2026, 9, 5, 10).toISOString(), remarks: 'Awaiting head office', next: new Date(2026, 9, 18, 10).toISOString() }] });
-  const fresh = task({ title: 'HDFC FD', category: "Urgent Bank Follow Up's", createdAt: new Date(2026, 9, 14), subCategoryFields: { "Banker's Reply's:": 'Will share tomorrow' } });
-  const other = task({ title: 'Not a bank task', category: 'Audit' });
-  const rows = bankFollowUpDesk([fresh, other, old, { ...old, id: 'x', done: true }], now);
-  assert.deepEqual(rows.map((r) => r.t.title), ['ICICI LC', 'HDFC FD']);
-  assert.equal(rows[0].update, 'Awaiting head office');
-  assert.equal(rows[0].days, 12);
-  assert.equal(rows[1].update, 'Will share tomorrow');
 });
 
 test('a report format fills its marks from the Sub Category fields, then Key Points, and shows what is missing', () => {

@@ -182,17 +182,3 @@ export function followUpsByBank(entries = [], now = new Date()) {
   return [...groups.values()].sort((a, b) => (a.bank === 'Bank not named') - (b.bank === 'Bank not named') || b.open - a.open || b.oldestDays - a.oldestDays);
 }
 
-/**
- * A follow-up open LONG_PENDING_DAYS or more, not High priority, and not asked about before: the card offers once to
- * raise it to High and escalate it to the manager.
- */
-export const needsEscalationPrompt = (e, now = new Date()) => isLongPending(e, now) && s(e.priority).toLowerCase() !== 'high' && !e?.escalation?.asked;
-
-/** "Raise to High": High priority, and "Escalated to manager" goes into today's Daily Activity Report. */
-export function escalateFollowUp(e, now = new Date()) {
-  const d = dayKey(now);
-  return { ...noteWork({ ...e, priority: 'High', escalation: { asked: d, escalatedOn: d } }, 'Escalated', now), ...editedNow(now) };
-}
-
-/** "Not now": not asked again for this task. */
-export const declineEscalation = (e, now = new Date()) => ({ ...e, escalation: { ...(e.escalation || {}), asked: dayKey(now) }, ...editedNow(now) });

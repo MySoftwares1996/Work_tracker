@@ -1,5 +1,5 @@
 /**
- * Instant sync to the phone. When a task changes in a person's space (the website, the phone, the sheet), this sends the
+ * Instant sync to the phone. When a task changes in a person's space (the website or the phone), this sends the
  * phone a silent "tasks changed" message; the app wakes, reads the changes and re-books its alarms - seconds later,
  * instead of at the next 15-minute background refresh. See docs/INSTANT_SYNC.md for deploying it.
  *

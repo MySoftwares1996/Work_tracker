@@ -83,7 +83,6 @@ export async function scheduleAt(date, { title, body, data, group = 'attendance'
   });
 }
 
-
 /**
  * Schedules the WHOLE "keep ringing until acknowledged" chain up front, as a
  * batch of independently OS-scheduled notifications (one at `dueAt`, then
@@ -118,21 +117,6 @@ export async function cancelForTask(taskId) {
   await cancelFullScreenAlarm(taskId);
 }
 
-/*
- * Today's "You can head out" alert. It is found by its tag in what the OS has booked rather than by an id
- * kept in the day's record: that id was lost when a day was edited by hand or marked absent (the alert
- * then rang after checkout), and a second re-book straight after a first read the old id before the store
- * caught up, leaving one booked. Calls are queued so overlapping re-books cannot both book one.
- * `at` is epoch ms, or null to cancel it.
- */
-const CHECKOUT_TITLE = 'You can head out';
-let checkoutQueue = Promise.resolve();
-
-export async function cancel(id) {
-  if (id) await Notifications.cancelScheduledNotificationAsync(id).catch(warnQuiet('notify'));
-}
-
-
 export const addResponseListener = (fn) => Notifications.addNotificationResponseReceivedListener(fn);
 
 /**
@@ -148,7 +132,6 @@ export async function dismissEntryNotifications(entryId, identifier) {
   await Promise.all(mine.map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(warnQuiet('notify'))));
 }
 export const addReceivedListener = (fn) => Notifications.addNotificationReceivedListener(fn);
-
 
 /* ------------------------------------------------------------------ */
 /* Background handling: runs even with the app removed from Recents.  */

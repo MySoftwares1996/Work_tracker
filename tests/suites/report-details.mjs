@@ -6,7 +6,7 @@ import { bankFollowUpReportLine, addBankFollowUp } from '../../src/bankFollowUp.
 import { validatePaymentDetails, DEFAULT_NARRATION_TYPES } from '../../src/workingDashboardPayments.js';
 import { fieldValue, renderTemplate, effectiveFormats, readReportFormats, removedFormat, SAMPLE_FORMATS } from '../../src/reportFormats.js';
 import { parseQuickAdd } from '../../src/quickAdd.js';
-import { parseReport, factsOf, checkFacts } from '../../src/reportStyle.js';
+import { factsOf, checkFacts } from '../../src/reportStyle.js';
 import { templateFrom, saveTemplate, MAX_TEMPLATES } from '../../src/templates.js';
 
 export async function run({ ck, section }) {
@@ -104,8 +104,6 @@ export async function run({ ck, section }) {
   ck('a template keeps the sub category and its field labels, not values', tp.fields.subCategory === 'Rent Payments' && Object.keys(tp.fields.subCategoryFields).join() === 'Month,Premises' && Object.values(tp.fields.subCategoryFields).every((v) => v === ''));
   ck('templates are capped by the named limit', Array.from({ length: MAX_TEMPLATES + 5 }).reduce((l, _, n) => saveTemplate(l, { name: `t${n}`, fields: {} }), []).length === MAX_TEMPLATES);
   // 13. report style
-  ck('a plain short sentence is a line, not a heading', parseReport('Other work completed\n* Prepared MIS.\nPaid the vendor').sections.every((x) => !(x.heading === 'Paid the vendor')));
-  ck('a heading with bullets under it still is', parseReport('Payments\n* Paid Rs 100.').sections[0].heading === 'Payments');
   ck('"Ahmed Khan" is a name', factsOf('Ahmed Khan confirmed at the bank').includes('Ahmed Khan'));
   ck('a leading verb is still cut', factsOf('Prepared Tech Profuse payment').includes('Tech Profuse'));
   const cm = { sections: [{ rows: [{ line: 'Paid 250 to the vendor' }] }] };

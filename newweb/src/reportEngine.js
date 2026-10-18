@@ -4,10 +4,9 @@
  * activities, Other activities. Domestic and Urgent payments are left out, as there.
  */
 import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../../src/reportExtras.js';
-import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml, paymentsByVendor, fmtRupees } from '../../src/workingDashboardReport.js';
+import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml } from '../../src/workingDashboardReport.js';
 import { buildStylePrompt } from '../../src/reportStyle.js';
 import { paymentLists, withWebNarrationTypes } from '../../src/workingDashboardPayments.js';
-import { dayKey } from './data.js';
 
 const iso = (d) => (d instanceof Date && !Number.isNaN(d.getTime()) ? d.toISOString() : null);
 
@@ -50,7 +49,7 @@ export function buildReport(tasks, lists, calendar, date, { headings = true, sub
 export const reportMails = (model) => model.sections.flatMap((s) => s.rows.map((r) => (r.entry && r.entry.reference) || '')).filter(Boolean);
 
 /** The instruction sent to Gemini: the engine's own prompt (keep every item and fact, one bullet per item), plus the person's instructions. */
-export const reportPrompt = (model, draft, extra = '') => buildStylePrompt(model, draft, null, extra);
+export const reportPrompt = (model, draft, extra = '') => buildStylePrompt(model, draft, extra);
 
 /** Gemini's reply, merged section by section so nothing is dropped and payment lines stay as they are. { text, note } or { error }. */
 export function mergeAi(model, aiText, { headings = true } = {}) {
@@ -61,8 +60,4 @@ export function mergeAi(model, aiText, { headings = true } = {}) {
   return { text: String(aiText).trim(), note: 'Gemini wrote the report.' };
 }
 
-export { applyFormats, applyMoves, REPORT_GROUPS, reportCsvRows, reportHtml, dayKey };
-
-/** This month's payments by vendor, from the amounts written in each payment task's Key Points: { total, count, withAmount, rows: [{ vendor, total, count }] }. */
-export const vendorTotals = (tasks, lists, monthKey) => paymentsByVendor((tasks || []).map(toEntry), reportLists(lists), monthKey);
-export { fmtRupees };
+export { REPORT_GROUPS, reportCsvRows, reportHtml };

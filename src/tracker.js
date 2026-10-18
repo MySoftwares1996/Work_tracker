@@ -10,11 +10,6 @@ import NativeTools from '../modules/native-tools';
  */
 export const trackerAvailable = () => !!NativeTools;
 
-export async function isTracking() {
-  if (!NativeTools) return false;
-  try { return await NativeTools.isTracking(); } catch { return false; }
-}
-
 /**
  * True when Android is still applying battery optimisation to this app, which
  * is the usual reason a foreground service stops on its own.
@@ -28,11 +23,6 @@ export async function isBatteryOptimised() {
 export async function requestBatteryExemption() {
   if (!NativeTools) return false;
   try { return await NativeTools.requestIgnoreBatteryOptimisations(); } catch { return false; }
-}
-
-export async function openAppSettings() {
-  if (!NativeTools) return false;
-  try { return await NativeTools.openAppSettings(); } catch { return false; }
 }
 
 /**
@@ -199,46 +189,3 @@ export async function consumeInitialAlarmAction() {
   if (!NativeTools) return null;
   try { return await NativeTools.consumeInitialAlarmAction(); } catch { return null; }
 }
-
-/** Mirrors shouldWarnExactAlarmOnce() above, for the separate full-screen-intent nudge. */
-let warnedFullScreenIntentThisSession = false;
-
-export async function startTracking(pollSeconds = 15) {
-  if (!NativeTools) return false;
-  // The native side takes a whole number of seconds; "7.5" typed in Settings must not fail the start.
-  const secs = Math.round(Number(pollSeconds)) || 15;
-  try { return await NativeTools.startTracking(secs); } catch { return false; }
-}
-
-export async function stopTracking() {
-  if (!NativeTools) return false;
-  try { return await NativeTools.stopTracking(); } catch { return false; }
-}
-
-/**
- * Ongoing entry in the Android notification shade. Survives the app closing,
- * which an expo-notifications banner does not.
- */
-export async function showOngoing(title, body) {
-  if (!NativeTools) return false;
-  try { return await NativeTools.showOngoing(String(title), String(body)); } catch { return false; }
-}
-
-export async function clearOngoing() {
-  if (!NativeTools) return false;
-  try { return await NativeTools.clearOngoing(); } catch { return false; }
-}
-
-/* ---------- office presence ---------- */
-
-export async function drainPresence() {
-  if (!NativeTools?.drainPresence) return [];
-  try { return (await NativeTools.drainPresence()) || []; } catch { return []; }
-}
-
-/** { state, dist, acc, fixAt, running } - the last reading, for Setup. */
-export async function getPresence() {
-  if (!NativeTools?.getPresence) return null;
-  try { return await NativeTools.getPresence(); } catch { return null; }
-}
-

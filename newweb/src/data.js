@@ -255,30 +255,6 @@ export function nextOccurrence(t, existing = [], now = new Date()) {
   return { ...t, nextReminder: null, snoozeUntil: 0, lastAckDate: '', skippedDates: [], checklist: (t.checklist || []).map((c) => ({ ...c, done: false })), id: newId(), status: 'Not Yet Started', due: d, done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: t.seriesId || t.id, createdAt: now };
 }
 
-/** The Daily Activity Report text for one day: what was completed (with DAR on), then what is still open and due. */
-export function reportText(tasks, date = new Date(), { subFields = true } = {}) {
-  const day = dayKey(date);
-  const done = tasks.filter((t) => t.done && !t.binned && !t.purged && t.dar && t.completedAt && dayKey(t.completedAt) === day);
-  const heading = date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const lines = [`Daily Activity Report - ${heading}`, ''];
-  if (!done.length) lines.push('No completed activities recorded.');
-  done.forEach((t, i) => {
-    const bits = [t.category, t.pendingWith && `with ${t.pendingWith}`].filter(Boolean).join(', ');
-    lines.push(`${i + 1}. ${t.title}${bits ? ` (${bits})` : ''}`);
-    // The Sub Category's fields (the banker's reply among them) and the notes both go into the report.
-    const fields = !subFields ? [] : Object.entries(t.subCategoryFields || {}).filter(([, v]) => String(v || '').trim()).map(([k, v]) => `${String(k).replace(/[\s:]+$/, '')}: ${String(v).trim().replace(/\n+/g, ' ')}`);
-    if (t.subCategory && fields.length) lines.push(`   ${t.subCategory} - ${fields.join('; ')}`);
-    else if (fields.length) lines.push(`   ${fields.join('; ')}`);
-    if (t.notes) lines.push(`   Notes: ${t.notes.replace(/\n+/g, ' ')}`);
-  });
-  const pending = tasks.filter((t) => isOpen(t) && t.due && dayKey(t.due) <= day);
-  if (pending.length) {
-    lines.push('', 'Pending:');
-    sortTasks(pending, 'priority').forEach((t, i) => lines.push(`${i + 1}. ${t.title}${t.priority ? ` [${t.priority}]` : ''}`));
-  }
-  return lines.join('\n');
-}
-
 /** meta/lists holds { lists: {categories, priorities, statuses, pendingWith} } as an object or a JSON string. */
 export function readLists(v) {
   let obj = v;
@@ -486,30 +462,6 @@ export function readTemplates(d = {}) {
   return (Array.isArray(d.templates) ? d.templates : []).filter((x) => x && x.name && x.fields && typeof x.fields === 'object').map((x) => ({ id: String(x.id || x.name), name: String(x.name), fields: x.fields }));
 }
 
-/* ---- AI rewrite of the daily report (Gemini, src/gemini.js). The prompt keeps every fact; numbersLost checks nothing was dropped. ---- */
-export function buildReportPrompt(draft, extra = '') {
-  return [
-    'You rewrite my Daily Activity Report so it reads as professional sentences.',
-    'Rules - follow every one:',
-    '1. Keep every item, numbered as in the draft, in the same section and order. Do not merge, split, add or drop items.',
-    '2. Keep every fact exactly: amounts, numbers, dates, names, party and vendor names, references, invoice and ticket numbers. Never invent anything that is not in the draft.',
-    '3. Keep the title line and the section headings (for example "Pending:") as they are.',
-    '4. Where an item carries a Sub Category line (for example "Banker\'s Reply\'s: ...") or Notes, put that content into the sentence for that item.',
-    '5. Reply with the report text only - no preface, no notes.',
-    extra && String(extra).trim() ? `6. MY INSTRUCTIONS (they decide tone, length and layout; rules 1-3 win if they clash):\n${String(extra).trim()}` : '',
-    '',
-    'DRAFT TO REWRITE:',
-    draft,
-  ].filter((x) => x !== '').join('\n');
-}
-
-/** Numbers of 2+ digits in the draft that the rewrite lost - an empty list means it is safe to use. */
-export function numbersLost(draft, ai) {
-  const hay = String(ai || '').replace(/,(?=\d{2,3}\b)/g, '');
-  const want = String(draft || '').replace(/,(?=\d{2,3}\b)/g, '').match(/\d{2,}(?:\.\d+)?/g) || [];
-  return [...new Set(want)].filter((n) => !hay.includes(n));
-}
-
 /** The text of a Gemini API (generateContent) reply, or ''; a blocked or empty reply gives ''. */
 export function geminiText(json) {
   const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
@@ -532,19 +484,6 @@ export function addFollowUp(t, { remarks, next } = {}, now = new Date()) {
   const item = { d: dayKey(now), at: now.toISOString(), remarks: text, next: next instanceof Date && !Number.isNaN(next.getTime()) ? next.toISOString() : null };
   const status = !String(t.status || '').trim() || isUnstartedStatus(t.status) ? 'In Progress' : t.status;
   return logWork({ ...t, status, bankFollowUps: [...(t.bankFollowUps || []), item], _bf: true }, 'Followed up', now);
-}
-
-/** The Dashboard's bank follow-up list: open tasks in a Bank Follow-up category, longest open first, with the banker's last update and the next follow-up. */
-export function bankFollowUpDesk(tasks, now = new Date()) {
-  return (tasks || []).filter((t) => isOpen(t) && isBankFollowUp(t.category)).map((t) => {
-    const fu = Array.isArray(t.bankFollowUps) ? t.bankFollowUps : [];
-    const last = fu.length ? fu[fu.length - 1] : null;
-    const reply = Object.entries(t.subCategoryFields || {}).find(([k, v]) => /banker|reply|update/i.test(k) && String(v || '').trim());
-    const start = (fu[0] && fu[0].at && new Date(fu[0].at)) || t.createdAt || t.due || now;
-    const days = Math.max(1, Math.floor((now.getTime() - new Date(start).getTime()) / 86400000) + 1);
-    const nextAt = last && last.next ? new Date(last.next) : t.due;
-    return { t, days, update: (last && String(last.remarks || '').trim()) || (reply ? String(reply[1]).trim() : ''), next: nextAt instanceof Date && !Number.isNaN(nextAt.getTime()) ? nextAt : null };
-  }).sort((a, b) => b.days - a.days);
 }
 
 /** Open tasks counted by a field (category, status, pendingWith, priority): [{ name, count, overdue }], most first; a task with no value is counted as "Not set". */

@@ -21,8 +21,6 @@ import { warnQuiet } from './quietCatch';
 /** Room left at the foot of a screen for the floating bottom tab bar, so the last card is never under it. */
 export const BOTTOM_BAR_SPACE = 80;
 
-export { TABLET_MIN, WIDE_MIN, SIDE_BAR_WIDTH, CONTENT_MAX_WIDTH, layoutFor } from './layout';
-
 /** The current window's layout (see layout.js): re-renders when the window is resized or rotated. */
 export function useLayout() {
   const { width } = useWindowDimensions();
@@ -285,15 +283,10 @@ export function Card({ children, style, onPress, tone }) {
   return <View style={[base, style]}>{children}</View>;
 }
 
-export function H1({ children, style }) {
-  const t = useTheme();
-  return <Text style={[{ fontSize: t.fs(24), fontWeight: '700', color: t.text, letterSpacing: -0.4 }, style]}>{children}</Text>;
-}
 export function H2({ children, style, numberOfLines }) {
   const t = useTheme();
   return <Text numberOfLines={numberOfLines} style={[{ fontSize: t.fs(17), fontWeight: '600', color: t.text, marginBottom: 8 }, style]}>{children}</Text>;
 }
-
 
 export function P({ children, dim, style, numberOfLines }) {
   const t = useTheme();
@@ -403,7 +396,6 @@ export function Field({ label, value, onChangeText, placeholder, keyboardType, m
     </View>
   );
 }
-
 
 /** Height of the on-screen keyboard, 0 when hidden. */
 function useKeyboardHeight() {
@@ -516,7 +508,6 @@ export function Row({ children, style, gap = 10 }) {
   return <View style={[{ flexDirection: 'row', alignItems: 'center', gap }, style]}>{children}</View>;
 }
 
-
 /* ---------- v2 additions ---------- */
 
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -602,7 +593,6 @@ export function DateTimeField({ label, value, onChange, mode = 'datetime', minim
   );
 }
 
-
 export function Segmented({ options, value, onChange, style }) {
   const t = useTheme();
   return (
@@ -629,7 +619,6 @@ export function Segmented({ options, value, onChange, style }) {
     </Row>
   );
 }
-
 
 /* ---------- ringtone picker ---------- */
 
@@ -725,8 +714,6 @@ export function RingtonePicker({ label = 'Ringtone', value = 'default', onChange
 
 import { useStore as useStoreForPicker } from './store';
 
-const ACCOUNT_KINDS = ['bank', 'credit card', 'cash', 'wallet'];
-
 /**
  * Replaces every dropdown and chip-selector in the app.
  *
@@ -736,7 +723,7 @@ const ACCOUNT_KINDS = ['bank', 'credit card', 'cash', 'wallet'];
  * uses the same source. Each row can be deleted in place, with a warning that
  * says how many records use it.
  *
- * @param source   an entry from SOURCES, or fixedSource(...)
+ * @param source   an entry from SOURCES
  * @param multi    select several (tags)
  * @param allowAny show an "Any" row that clears the value (filters)
  */
@@ -748,7 +735,6 @@ export function OptionPicker({
   const { data, update } = useStoreForPicker();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
-  const [kind, setKind] = React.useState('bank');
   const [editing, setEditing] = React.useState(false);     // iOS Edit mode: delete buttons on the rows
 
   const options = React.useMemo(() => (source ? source.read(data) : []), [source, data]);
@@ -756,12 +742,11 @@ export function OptionPicker({
   const labelOf = (v) => options.find((o) => o.value === v)?.label ?? v;
 
   const q = query.trim().toLowerCase();
-  // Matched on the name as well as the label: a label may carry a symbol the stored name does not ("🥛 Milk"),
-  // and typing the plain name must find the existing one, not offer to add a duplicate.
+  // Matched on the stored value as well as the label, so typing a name finds the existing one instead of offering to add a duplicate.
   const named = (o) => [String(o.label).toLowerCase(), String(o.value ?? '').toLowerCase()];
   const visible = q ? options.filter((o) => named(o).some((n) => n.includes(q))) : options;
   const exact = options.some((o) => named(o).includes(q));
-  const canCreate = !!q && !exact && !source?.fixed;
+  const canCreate = !!q && !exact;
 
   const close = () => { setOpen(false); setQuery(''); setEditing(false); };
 
@@ -786,11 +771,9 @@ export function OptionPicker({
 
   const create = () => {
     const name = query.trim();
-    const extra = source.id === 'account' ? { kind } : {};
-    const probe = source.add(data, name, extra);
+    const probe = source.add(data, name);
     if (probe.error) { Alert.alert('Cannot add', probe.error); return; }
-    const fixed = source.id === 'account' ? { ...extra, id: probe.value } : extra;
-    update((db) => source.add(db, name, fixed).db);
+    update((db) => source.add(db, name).db);
     setQuery('');
     pick(probe.value);
   };
@@ -849,7 +832,7 @@ export function OptionPicker({
       {!!label && (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
           <Small numberOfLines={dense ? 1 : undefined} style={dense ? { flex: 1 } : undefined}>{label}</Small>
-          {editChip && !source?.fixed && (
+          {editChip && (
             <Pressable onPress={() => openPicker(true)} hitSlop={6} style={{ backgroundColor: t.accent + '22', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 }}>
               <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(12) }}>Edit</Text>
             </Pressable>
@@ -867,7 +850,7 @@ export function OptionPicker({
               <TextInput
                 value={query}
                 onChangeText={setQuery}
-                placeholder={source?.fixed ? 'Search' : 'Search or add new'}
+                placeholder="Search or add new"
                 placeholderTextColor={t.textDim}
                 autoCapitalize="words"
                 returnKeyType="done"
@@ -877,42 +860,28 @@ export function OptionPicker({
               />
               {!!query && <Pressable onPress={() => setQuery('')} hitSlop={8}><Text style={{ color: t.textDim, fontSize: t.fs(14) }}>✕</Text></Pressable>}
             </View>
-            {!source?.fixed && !!options.length && (
+            {!!options.length && (
               <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
                 <Text style={{ color: t.accent, fontSize: t.fs(16), fontWeight: editing ? '700' : '400' }}>{editing ? 'Done' : 'Edit'}</Text>
               </Pressable>
             )}
           </View>
 
-          {canCreate && source.id === 'account' && (
-            <Row style={{ flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-              {ACCOUNT_KINDS.map((k) => (
-                <Pressable
-                  key={k}
-                  onPress={() => setKind(k)}
-                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: kind === k ? t.accent : t.surfaceAlt }}
-                >
-                  <Text style={{ color: kind === k ? '#fff' : t.text, fontSize: t.fs(12), textTransform: 'capitalize' }}>{k}</Text>
-                </Pressable>
-              ))}
-            </Row>
-          )}
-
           <View style={{ backgroundColor: t.surfaceAlt, borderRadius: 12, overflow: 'hidden' }}>
             {canCreate && row('__create', `+ Add "${query.trim()}"`, { onPress: create, first: true, tone: t.accent })}
             {allowAny && !q && row('__any', anyLabel, { onPress: () => { onChange?.(multi ? [] : null); close(); }, checked: anySelected, first: !canCreate, italic: true })}
             {visible.map((o, i) => {
               const on = multi ? selected.includes(o.value) : selected === o.value;
-              return row(String(o.value), `${o.label}${o.kind ? `  ·  ${o.kind}` : ''}`, {
+              return row(String(o.value), o.label, {
                 onPress: editing ? undefined : () => pick(o.value),
                 checked: on && !editing,
                 first: i === 0 && !canCreate && !(allowAny && !q),
-                onDelete: source?.fixed ? undefined : () => remove(o),
+                onDelete: () => remove(o),
               });
             })}
             {!options.length && !q && (
               <Small style={{ textAlign: 'center', paddingVertical: 16 }}>
-                {source?.fixed ? 'Nothing to choose.' : 'Nothing here yet. Type a name above to add the first one.'}
+                Nothing here yet. Type a name above to add the first one.
               </Small>
             )}
             {!!options.length && !visible.length && !canCreate && (
@@ -950,7 +919,6 @@ export function PickerButton({ text, dim, onPress, style, dense }) {
 }
 
 /* ---------- large time tile ---------- */
-
 
 /* ---------- swipeable tabs ---------- */
 
@@ -998,7 +966,6 @@ export function SwipeTabs({ tabs, value, onChange, children, style, swipe = true
     </Animated.View>
   );
 }
-
 
 /* ---------- motion helpers ---------- */
 

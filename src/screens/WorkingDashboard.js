@@ -32,7 +32,7 @@ import EntryTable from '../EntryTable';
 import { monthEndOptions } from '../monthEnd';
 import { effectiveFormats, finalNarration } from '../reportFormats';
 import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../reportExtras';
-import { stampChanges, toolsValue, downloadText } from '../links';
+import { stampChanges, toolsValue } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
 import { PaymentFields, NarrationForm } from './WdPaymentFields';
@@ -53,7 +53,7 @@ import { shareReportPdf } from '../reportPdf';
 
 // The app's built-in Gemini (aiBuiltin.js), loaded only when the button is pressed.
 const rewriteReportWithAi = async (prompt) => (await (await import('../aiBuiltin')).rewriteWithGemini(prompt)).text;
-import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, holidaysWithinDays, normalizeHolidays, normalizeLeaveDays, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isOfficeClosed } from '../workingDashboard';
+import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, holidaysWithinDays, normalizeHolidays, normalizeLeaveDays, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
 import WdWeeklyReview from './WdWeeklyReview';
 import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow } from './wdCards';
@@ -767,7 +767,7 @@ export default function WorkingDashboard() {
     setAiBusy(true);
     try {
       const draft = reportModelToText(model, { headings: true });
-      const prompt = buildStylePrompt(model, draft, null, wd.reportAiNotes || '');
+      const prompt = buildStylePrompt(model, draft, wd.reportAiNotes || '');
       let ai = await rewriteReportWithAi(prompt);
       // As on the web app: merged section by section - payments, duty and import lines stay word for word, and a
       // section the AI shortened keeps the standard wording. Mail chains it copied in are taken out.

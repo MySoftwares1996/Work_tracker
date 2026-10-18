@@ -12,15 +12,7 @@ export async function run({ ck, section }) {
   ck('garbage never produces NaN', !/NaN/.test(blend('nonsense', 0.5)));
 }
 
-import { inr } from '../../src/storeCore.js';
-
 export async function runExtra({ ck, section }) {
-  section('Money formatting');
-  ck('positive', inr(1749) === '₹1,749');
-  ck('Indian grouping', inr(125000) === '₹1,25,000');
-  ck('negative uses a real minus before the symbol', inr(-1749) === '−₹1,749', inr(-1749));
-  ck('zero', inr(0) === '₹0');
-  ck('null and garbage are ₹0', inr(null) === '₹0' && inr('abc') === '₹0');
   await runExtra2({ ck, section });
 }
 

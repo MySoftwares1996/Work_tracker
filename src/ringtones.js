@@ -24,7 +24,6 @@ export const RINGTONES = [
   { id: 'silent',  label: 'Silent',         file: null,         asset: null, silent: true },
 ];
 
-export const RINGTONE_IDS = RINGTONES.map((r) => r.id);
 export const ringtoneById = (id) => RINGTONES.find((r) => r.id === id) || RINGTONES[0];
 export const ringtoneLabel = (id) => ringtoneById(id).label;
 

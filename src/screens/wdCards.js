@@ -324,19 +324,6 @@ export function CountList({ title, total, rows, activeLabel, onPress }) {
  * slides open to Done / DAR.
  */
 
-/** A coloured count tile for the Home carousel. `tone`: a theme colour; `dark` puts dark text on a light tone (amber). */
-export function PhoneTile({ label, value, tone, dark, onPress }) {
-  const t = useTheme();
-  const ink = dark ? t.text : t.onAccent;
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={({ pressed }) => ({ width: 118, height: 84, borderRadius: 18, padding: 12, backgroundColor: tone, overflow: 'hidden', transform: [{ scale: pressed ? 0.97 : 1 }], ...t.shadow })}>
-      <View style={{ position: 'absolute', right: -16, top: -16, width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.22)' }} />
-      <Text style={{ color: ink, fontWeight: '700', fontSize: t.fs(12), opacity: 0.95 }} numberOfLines={2}>{label}</Text>
-      <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(30), letterSpacing: -1, marginTop: 'auto' }}>{value}</Text>
-    </Pressable>
-  );
-}
-
 /** The Warm look's count tile: a plain bordered card, a small muted label over a big number (red for the alarming ones). */
 export function PhoneKpi({ label, value, tone, onPress }) {
   const t = useTheme();

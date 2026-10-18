@@ -18,7 +18,6 @@ import { warnQuiet } from '../quietCatch';
 
 const SNOOZES = [15, 30, 45, 60, 120, 180, 240, 300];      // 15, 30, 45 min, 1, 2, 3, 4, 5 hr
 const snoozeShort = (m) => (m >= 60 ? `${m / 60}h` : `${m}m`);
-const snoozeLabel = (m) => (m >= 1440 ? '1 day' : m >= 60 ? `${m / 60} hr` : `${m} min`);
 const fmtDue = (iso) => {
   const d = new Date(iso);
   return `${d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`;
@@ -69,14 +68,11 @@ export default function PastDueAlert() {
   const ring = wd.alarmRingtone || 'chime';
   const [gone, setGone] = useState(() => new Set());          // handled here: hidden at once
   const [remarks, setRemarks] = useState({});
-  const [mins, setMins] = useState({});
   const [moves, setMoves] = useState({});
   const [repeatFor, setRepeatFor] = useState(null);
-  const [snoozeFor, setSnoozeFor] = useState(null);
   const [nextRem, setNextRem] = useState({});      // the next reminder being picked, per card
   const [statusFor, setStatusFor] = useState(null);
   const [samplePrio, setSamplePrio] = useState('High');      // preview only: the background colour follows the priority
-  const [more, setMore] = useState({});            // cards with Move and the dropdowns opened out
 
   // Opened from an alert that is not overdue yet (a warning before the due time): go to the dashboard instead of an empty list.
   // Leaving the screen silences a ringing alarm: it was answered (or dismissed) here.
@@ -173,7 +169,7 @@ export default function PastDueAlert() {
     hide(e.id);
   };
   const snooze = (shown, minutes) => {
-    const n = Number(minutes) || Number(mins[shown.id]) || 15;
+    const n = Number(minutes) || 15;
     const e = live(shown);
     // snoozeUntil is the web app's own field: the web app stops alarming until then too.
     edit(e.id, (x) => ({ ...snoozeEntry(withRemark(x, remarks[e.id]), Date.now() + n * 60000), audit: addAudit(x.audit, `Snoozed for ${n >= 60 ? `${n / 60} h` : `${n} min`} (alert)`, 'phone') }));
@@ -209,8 +205,6 @@ export default function PastDueAlert() {
   const postpone = (shown) => move(shown, postponeDue(live(shown), wd.holidays, wd.leaveDays));
   const postponeAll = () => closedList.forEach(({ e }) => postpone(e));
   const setRepeat = (e, r) => edit(e.id, (x) => ({ ...x, recurrence: r, recurrenceEveryMin: r === 'custom' ? (x.recurrenceEveryMin || 15) : null, ...editedNow() }));
-
-  const small = (title, onPress, kind = 'soft', disabled) => <Btn kind={kind} title={title} onPress={onPress} disabled={disabled} style={{ paddingVertical: 6, paddingHorizontal: 12, marginRight: 8, marginBottom: 6 }} />;
 
   const G = ALARM_COLORS.glass;
   const lead = closed[0] ? closed[0].e : null;
