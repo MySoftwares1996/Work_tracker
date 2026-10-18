@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AnimatedLogo from '../AnimatedLogo';
 import * as Clipboard from 'expo-clipboard';
-import { BottomTabs, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
+import { EmptyState, BottomTabs, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
 import { SOURCES } from '../optionSources';
 import { useTheme, blend, THEMES } from '../theme';
 import { useStore, uid } from '../store';
@@ -13,6 +13,7 @@ import { shareCsv } from '../csv';
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
 import { newId } from '../ids';
 import { refreshWdAlerts } from '../workingDashboardActions';
+import WdAlarmIntro from './WdAlarmIntro';
 import { warnQuiet } from '../quietCatch';
 import { seenWebFields } from '../cloudSync';
 import { useRealtimeStatus, setRealtimeStatus } from '../realtimeStatus';
@@ -151,17 +152,25 @@ export default function WorkingDashboard() {
   const tableView = (Platform.OS !== 'web' || wide) && !!wd.tableView;      // web.app: Register / Completed as a table
   // APK: without "Open over other apps" (or full-screen alarms) Android shows an alarm only as a stacked notification to tap.
   // A banner on the dashboard says so and fixes it in one tap; it checks again whenever the app comes back to the front.
-  const [alarmBlock, setAlarmBlock] = useState('');      // '' = fine; 'overlay' | 'fullscreen' = what to allow
+  const [alarmBlock, setAlarmBlock] = useState('');
+  const [alarmChecked, setAlarmChecked] = useState(false);      // '' = fine; 'overlay' | 'fullscreen' = what to allow
   useEffect(() => {
     if (Platform.OS === 'web' || !trackerAvailable()) return undefined;
     const look = async () => {
       const [overlay, fsi] = await Promise.all([canDrawOverlays(), isFullScreenIntentAllowed()]);
       setAlarmBlock(!overlay ? 'overlay' : !fsi ? 'fullscreen' : '');
+      setAlarmChecked(true);
     };
     look();
     const sub = AppState.addEventListener('change', (st) => { if (st === 'active') look(); });
     return () => sub.remove();
   }, []);
+  // First run on the phone: one screen about the alarm permission (see WdAlarmIntro); nothing when it is already allowed.
+  const introNeeded = Platform.OS !== 'web' && !wd.alarmIntroSeen && !!alarmBlock;
+  useEffect(() => {
+    if (Platform.OS !== 'web' && !wd.alarmIntroSeen && alarmChecked && !alarmBlock) updateWd((w) => ({ ...w, alarmIntroSeen: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the permission check has answered.
+  }, [alarmChecked, alarmBlock, wd.alarmIntroSeen]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);      // web.app: press ? for the keyboard shortcuts
   const [paletteOpen, setPaletteOpen] = useState(false);      // web.app's Cmd/Ctrl+K finder
   const [linkFind, setLinkFind] = useState('');
@@ -1573,7 +1582,9 @@ export default function WorkingDashboard() {
             {(Platform.OS !== 'web' || wide) && (!phoneLayout || showFilters) && <Segmented options={[{ key: 'cards', label: '▦ Cards' }, { key: 'table', label: '☰ Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
             {(!phoneLayout || showFilters) && <Segmented options={SORTS} value={sortBy} onChange={setSortBy} style={{ marginBottom: 10 }} />}
             {!phoneLayout && <Small style={{ marginBottom: 12, textAlign: 'center' }}>{formOn ? 'Tap a card to edit · ' : ''}✓ completes it{WEB_DAR ? ' · DAR completes it into the daily report' : ''}{Platform.OS === 'web' && !phoneLayout ? ' · Keys: N new entry, / search, ⌘K finder, ? all shortcuts' : ''}</Small>}
-            {!boardRows.length && <P dim>Nothing matches.</P>}
+            {!boardRows.length && (openEntries.length
+              ? <EmptyState icon="🔍" title="Nothing matches" text="No task fits this filter or search." action="Show all tasks" onAction={() => { setFilters(EMPTY_WD_FILTER); setQuickView(''); }} />
+              : <EmptyState title="All clear" text="No open tasks. Enjoy the quiet - or add the next one." action={formOn ? '+ New task' : undefined} onAction={openNewEntry} />)}
             {phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}
             {phoneLayout && !tableView && visibleRegister.map((entry) => (
               <PhoneRow card key={entry.id} entry={entry} onPress={() => openEditEntry(entry)} onDone={() => act(entry, 'complete', { dar: false })} onDar={() => act(entry, 'complete', { dar: true })}
@@ -1653,8 +1664,8 @@ export default function WorkingDashboard() {
                 <PickerButton style={{ flex: 1 }} text={`${(DONE_SORTS.find((x) => x.key === doneSort) || DONE_SORTS[0]).label}  ▾`} onPress={() => setDoneSortOpen(true)} />
               </Row>
             )}
-            {!allDone.length && <P dim>Nothing completed yet.</P>}
-            {!!allDone.length && !doneEntries.length && <P dim>Nothing matches.</P>}
+            {!allDone.length && <EmptyState icon="🏁" title="Nothing completed yet" text="Tasks you tick off with Done or DAR show up here, grouped by day." />}
+            {!!allDone.length && !doneEntries.length && <EmptyState icon="🔍" title="Nothing matches" text="No completed task fits this search." />}
             {phoneLayout && tableView && <EntryTable mode="done" completedAt={completedTime} entries={visibleDone} onOpen={(e) => openEditEntry(e)} />}
             {phoneLayout && !tableView && visibleDone.map((entry, i) => {
               // Grouped by the day it was completed: Today, Yesterday, then the date.
@@ -2205,6 +2216,11 @@ export default function WorkingDashboard() {
       badges={{ dashboard: stats.pendingAsOnToday, register: openEntries.length, done: allDone.length, bin: binnedEntries.length }}
       onChange={goTab}
     />
+    {introNeeded && (
+      <WdAlarmIntro kind={alarmBlock}
+        onAllow={() => { (alarmBlock === 'overlay' ? requestOverlayPermission() : requestFullScreenIntentPermission()); updateWd((w) => ({ ...w, alarmIntroSeen: true })); }}
+        onSkip={() => updateWd((w) => ({ ...w, alarmIntroSeen: true }))} />
+    )}
     </View>
   );
 }

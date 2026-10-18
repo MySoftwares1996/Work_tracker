@@ -244,6 +244,21 @@ export function Screen({ children, scroll = true, padded = true, headerless = fa
   );
 }
 
+/** A friendly empty screen: a round icon, a title, one line of help and (optionally) the one action that fills it. */
+export function EmptyState({ icon = '✅', title, text, action, onAction }) {
+  const t = useTheme();
+  return (
+    <View accessibilityRole="summary" style={{ alignItems: 'center', paddingVertical: 36, paddingHorizontal: 24, gap: 10 }}>
+      <View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: t.accent + '1F', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: t.fs(38) }}>{icon}</Text>
+      </View>
+      <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(20), textAlign: 'center', marginTop: 4 }}>{title}</Text>
+      {!!text && <Text style={{ color: t.textDim, fontSize: t.fs(14), lineHeight: t.fs(21), textAlign: 'center' }}>{text}</Text>}
+      {!!action && <Btn style={{ marginTop: 8, alignSelf: 'center', paddingHorizontal: 24 }} title={action} onPress={onAction} />}
+    </View>
+  );
+}
+
 export function Card({ children, style, onPress, tone }) {
   const t = useTheme();
   // A card has an elevation shadow; a translucent background lets that shadow
