@@ -1,4 +1,4 @@
-import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive } from '../../src/firebaseSyncCore.js';
+import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, mergeEntryFieldwise, docHashes } from '../../src/firebaseSyncCore.js';
 
 export async function run({ ck, section }) {
   const e = (id, updatedAt) => ({ id, title: `t${id}`, updatedAt });
@@ -311,4 +311,70 @@ export async function runExtra3({ ck, section }) {
   const t0 = Date.now();
   const pulled = await cs.pullSheetEntries('https://script.google.com/macros/s/x/exec', {}, { fetchImpl: () => { calls++; return new Promise(() => {}); }, timeoutMs: 60, totalMs: 150 });
   ck('five hanging actions are not waited out one by one', !pulled.ok && Date.now() - t0 < 600 && calls < 5, `${calls} calls, ${Date.now() - t0} ms`);
+
+  section('Firebase Sync Core: field-wise merge of a web document over an unsent local edit');
+  const base = { id: 'x', description: 'Pay vendor', dueDate: '2026-10-20', status: 'Pending', assignee: 'Ravi', updatedAt: 100 };
+  const snap = docHashes(base);
+  const m = (loc, inc, ls = 200, ds = 150, sn = snap) => mergeEntryFieldwise(loc, inc, sn, ls, ds);
+  let r = m({ ...base, status: 'Done' }, { ...base, updatedAt: 150 });
+  ck('only the phone changed: the phone value is kept', r.doc.status === 'Done' && r.localFields.join() === 'status');
+  r = m({ ...base }, { ...base, dueDate: '2026-10-25', updatedAt: 150 });
+  ck('only the server changed: the server value is taken', r.doc.dueDate === '2026-10-25' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, dueDate: '2026-10-25', updatedAt: 150 }, 100, 150);
+  ck('different fields: both edits survive, even though the web stamp is newer', r.doc.status === 'Done' && r.doc.dueDate === '2026-10-25');
+  ck('the stamp comes from the incoming document', r.doc.updatedAt === 150 && r.doc.id === 'x');
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 200, 150);
+  ck('same field changed on both, phone newer: the phone wins', r.doc.status === 'Done' && r.localFields.includes('status'));
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 100, 150);
+  ck('same field changed on both, web newer: the web wins', r.doc.status === 'Blocked' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Done', updatedAt: 150 }, 100, 150);
+  ck('both changed to the same value: nothing is flagged', r.doc.status === 'Done' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 150, 150);
+  ck('an equal stamp goes to the web copy, as before', r.doc.status === 'Blocked');
+  r = m({ ...base, status: 'Done' }, { ...base, purged: true, updatedAt: 150 });
+  ck('purged on the server always wins', r.doc.purged === true && r.doc.status === 'Pending' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 });
+  ck('binned on the server wins over a phone edit', r.doc.deleted === true && r.doc.status === 'Pending');
+  r = m({ ...base, deleted: true, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 });
+  ck('a bin the server already had (snapshot) does not override the phone', true);
+  const bs = docHashes({ ...base, deleted: true });
+  r = mergeEntryFieldwise({ ...base, deleted: false, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 }, bs, 200, 150);
+  ck('a bin already in the snapshot is an ordinary field (phone restored it, newer)', r.doc.deleted === false && r.doc.status === 'Done');
+  r = m({ ...base, status: 'Done' }, { ...base, updatedAt: 150, note: 'new' });
+  ck('a field only the server added is taken', r.doc.note === 'new' && r.doc.status === 'Done');
+  r = m({ ...base, note: 'mine' }, { ...base, updatedAt: 150 });
+  ck('a field only the phone added is kept', r.doc.note === 'mine');
+  r = mergeEntryFieldwise({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, null, 200, 150);
+  ck('no snapshot, phone newer: the phone copy as it was', r.doc.status === 'Done' && r.doc === r.doc && r.doc.dueDate === base.dueDate);
+  r = mergeEntryFieldwise({ ...base, status: 'Done', extra: 1 }, { ...base, status: 'Blocked', updatedAt: 150 }, null, 100, 150);
+  ck('no snapshot, web newer: the document laid over the phone copy', r.doc.status === 'Blocked' && r.doc.extra === 1);
+  ck('missing / {} snapshot never throws', mergeEntryFieldwise({ id: 'x' }, { id: 'x' }, undefined, 0, 0).doc.id === 'x');
+
+  section('Storage: sync bookkeeping is cleared with everything, and an account switch keeps the unsent copy');
+  const sc2 = await import('../../src/storeCore.js');
+  const keys = ['MPT_DB_V1', 'MPT_RT_ACK_u1', 'MPT_RT_SNAP_u1', 'MPT_UNSYNCED_u1', 'MPT_CORRUPT_SEEN', 'MPT_CORRUPT_MPT_X_5', 'MPT_OTHER'];
+  const all = sc2.syncStateKeys(keys);
+  ck('every sync key and recovery copy is listed', all.length === 5 && !all.includes('MPT_OTHER') && !all.includes('MPT_DB_V1'));
+  const acct = await import('../../src/account.js');
+  const store = new Map([['MPT_RT_ACK_u1', '{}'], ['MPT_RT_SNAP_u1', '{}'], ['MPT_UNSYNCED_u1', '{}'], ['MPT_RT_SNAP_u2', '{}'], ['MPT_DB_V1', '{}']]);
+  const fake = { getAllKeys: async () => [...store.keys()], multiRemove: async (ks) => ks.forEach((k) => store.delete(k)) };
+  const cleared = await acct.clearSyncState({ uid: 'u1', storage: fake });
+  ck('a sign-out wipe clears ack and snapshot but keeps the unsent copy and other accounts', cleared.length === 2 && store.has('MPT_UNSYNCED_u1') && store.has('MPT_RT_SNAP_u2') && !store.has('MPT_RT_SNAP_u1'));
+  await acct.clearSyncState({ includeUnsynced: true, storage: fake });
+  ck('with includeUnsynced everything of every account goes, the data itself stays', !store.has('MPT_UNSYNCED_u1') && !store.has('MPT_RT_SNAP_u2') && store.has('MPT_DB_V1'));
+
+  section('Storage: recovery copies are capped at 3 per key, one per distinct damage');
+  const cp = sc2.corruptCopyPlan;
+  let seenC = {}; let wr = 0; let dr = [];
+  for (let i = 1; i <= 8; i++) { const p = cp([['MPT_X', 'bad' + i]], seenC, i); seenC = p.seen; wr += p.writes.length; dr = dr.concat(p.drop); }
+  ck('8 different damages: 8 writes, only the newest 3 remain', wr === 8 && seenC.MPT_X.copies.length === 3 && dr.length === 5 && seenC.MPT_X.copies[2] === 'MPT_CORRUPT_MPT_X_8');
+  const again = cp([['MPT_X', 'bad8']], seenC, 9);
+  ck('the same damage again writes nothing and drops nothing', !again.writes.length && !again.drop.length);
+  const two = cp([['MPT_X', 'bad9'], ['MPT_Y', 'oops']], seenC, 10);
+  ck('each key has its own cap', two.writes.length === 2 && two.seen.MPT_Y.copies.length === 1 && two.seen.MPT_X.copies.length === 3);
+  const old = ['MPT_CORRUPT_MPT_X_1', 'MPT_CORRUPT_MPT_X_2', 'MPT_CORRUPT_MPT_X_3', 'MPT_CORRUPT_MPT_X_4', 'MPT_CORRUPT_MPT_XY_9', 'MPT_CORRUPT_MPT_Z_1'];
+  const pruned = cp([['MPT_X', 'bad']], {}, 99, 3, old);
+  ck('copies from a previous app version (no ledger) are pruned, oldest first', pruned.drop.join() === 'MPT_CORRUPT_MPT_X_1,MPT_CORRUPT_MPT_X_2' && pruned.seen.MPT_X.copies.join() === 'MPT_CORRUPT_MPT_X_3,MPT_CORRUPT_MPT_X_4,MPT_CORRUPT_MPT_X_99');
+  const prunedSame = cp([['MPT_X', 'bad']], pruned.seen, 100, 3, [...old.slice(2, 4), 'MPT_CORRUPT_MPT_X_99']);
+  ck('a later launch with the same damage leaves it at 3', !prunedSame.writes.length && !prunedSame.drop.length);
 }

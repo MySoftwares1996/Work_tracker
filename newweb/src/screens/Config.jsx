@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { planImport } from '../importBackup';
 import { exportBackupFile } from '../exportBackup';
-import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from '../alerts';
+import NotifyExplainer from '../NotifyExplainer';
+import { loadAlertSettings, saveAlertSettings } from '../alerts';
 import { THEMES, applyTheme, savedTheme } from '../themes';
 import { useStore } from '../store';
 import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
@@ -231,7 +232,9 @@ function AlertSettings() {
   const [s, setS] = useState(loadAlertSettings);
   const [perm, setPerm] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
   const set = (patch) => { const next = { ...s, ...patch }; setS(next); saveAlertSettings(next); window.dispatchEvent(new Event('wd-alert-settings')); };
-  const enableNotify = async () => { const r = await askNotificationPermission(); setPerm(r); set({ notify: r === 'granted' }); };
+  const [explain, setExplain] = useState(false);       // the in-page explainer shown before the browser's own permission prompt
+  const answered = (r) => { setExplain(false); if (r === 'later') return; setPerm(r); set({ notify: r === 'granted' }); };
+  const enableNotify = () => { if (perm === 'granted') set({ notify: true }); else setExplain(true); };
   return (
     <section className="card plain">
       <h2 className="h2">Alerts</h2>
@@ -242,6 +245,7 @@ function AlertSettings() {
         <label className="field check"><input type="checkbox" checked={s.notify && perm === 'granted'} disabled={perm === 'unsupported' || perm === 'denied'} onChange={(e) => (e.target.checked ? enableNotify() : set({ notify: false }))} /> Desktop notification when this tab is in the background{perm === 'denied' ? ' (blocked in the browser settings)' : ''}</label>
       </div>
       <div><button type="button" className="btn" onClick={() => window.dispatchEvent(new Event('wd-test-alert'))}>Show a test alert</button></div>
+      {explain && <NotifyExplainer onDone={answered} />}
     </section>
   );
 }

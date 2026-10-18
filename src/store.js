@@ -53,12 +53,11 @@ export function StoreProvider({ children }) {
         try {
           let seen = {};
           try { seen = JSON.parse(await AsyncStorage.getItem(SEEN_KEY)) || {}; } catch { seen = {}; }
-          const plan = corruptCopyPlan(damaged, seen);
-          if (plan.writes.length) {
-            await writeStored(plan.writes);
-            await AsyncStorage.setItem(SEEN_KEY, JSON.stringify(plan.seen));
-            if (plan.drop.length) await AsyncStorage.multiRemove(await storedKeysOf(plan.drop)).catch(warnQuiet('store'));
-          }
+          const existing = AsyncStorage.getAllKeys ? await AsyncStorage.getAllKeys().catch(() => []) : [];
+          const plan = corruptCopyPlan(damaged, seen, Date.now(), 3, existing);
+          if (plan.writes.length) await writeStored(plan.writes);
+          if (plan.writes.length || plan.drop.length) await AsyncStorage.setItem(SEEN_KEY, JSON.stringify(plan.seen));
+          if (plan.drop.length) await AsyncStorage.multiRemove(await storedKeysOf(plan.drop)).catch(warnQuiet('store'));
         } catch (e) { warnQuiet('store')(e); }
       }
       // Repairs older data onto the single-list model; a no-op once done.

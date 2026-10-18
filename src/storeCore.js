@@ -340,19 +340,26 @@ export function rawSig(raw) {
  * stays damaged is copied once, not at every launch; at most `max` copies per key are kept (`drop` lists the older
  * ones to remove). `seen` is { key: { sig, copies } } as saved last time; the new one is returned.
  */
-export function corruptCopyPlan(damaged = [], seen = {}, stamp = Date.now(), max = 3) {
+export function corruptCopyPlan(damaged = [], seen = {}, stamp = Date.now(), max = 3, existingKeys = []) {
   const writes = [];
   const drop = [];
   const next = { ...(seen || {}) };
   damaged.forEach(([k, raw]) => {
     const cur = (seen && seen[k]) || { sig: '', copies: [] };
+    // Copies a previous app version left (no ledger entry) count too, so they are pruned as well: <prefix><digits>, oldest first.
+    const prefix = `MPT_CORRUPT_${k}_`;
+    const known = new Set(cur.copies || []);
+    const adopted = (existingKeys || []).filter((n) => typeof n === 'string' && n.startsWith(prefix) && /^\d+$/.test(n.slice(prefix.length)) && !known.has(n))
+      .sort((x, y) => Number(x.slice(prefix.length)) - Number(y.slice(prefix.length)));
+    const copies = [...adopted, ...(cur.copies || [])];
     const sig = rawSig(raw);
-    if (cur.sig === sig) return;
-    const name = `MPT_CORRUPT_${k}_${stamp}`;
-    writes.push([name, raw]);
-    const copies = [...(cur.copies || []), name];
+    if (cur.sig !== sig) {
+      const name = `${prefix}${stamp}`;
+      writes.push([name, raw]);
+      copies.push(name);
+    }
     while (copies.length > max) drop.push(copies.shift());
-    next[k] = { sig, copies };
+    if (cur.sig !== sig || adopted.length || drop.length) next[k] = { sig, copies };
   });
   return { writes, drop, seen: next };
 }

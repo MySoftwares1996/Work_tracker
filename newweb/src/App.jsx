@@ -332,12 +332,13 @@ function CompactRow({ t, onEdit }) {
   );
 }
 
-function TaskCard({ t, onEdit, compact }) {
+function TaskCard({ t, onEdit, compact, selected, onSelect, selecting }) {
   const { actions, notify, templates, saveTemplates } = useStore();
   const complete = useCompleter(onEdit);
   const late = isOverdue(t);
   return (
-    <article className={`card pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}`}>
+    <article className={`card pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${selecting ? ' selecting' : ''}`}>
+      {onSelect && <input type="checkbox" className="sel-box" checked={!!selected} onChange={() => onSelect(t.id)} aria-label={`Select ${t.title || 'task'}`} />}
       <button className="card-main" onClick={() => onEdit(t)} aria-label={`Edit ${t.title}`}>
         <span className="card-title">{t.title || '(no description)'}</span>
         <span className="card-meta">
@@ -377,7 +378,9 @@ function TaskCard({ t, onEdit, compact }) {
 }
 
 function Register({ onEdit, preset }) {
-  const { tasks, lists } = useStore();
+  const { tasks, lists, actions, notify } = useStore();
+  const loading = useLoading();
+  const [selected, setSelected] = useState(() => new Set());
   const [f, setF] = useState(() => ({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...(preset || {}) }));
   useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
   const [by, setBy] = useState('due');
@@ -385,20 +388,57 @@ function Register({ onEdit, preset }) {
   const open = tasks.filter(isOpen);
   const sorted = sortTasks(filterTasks(open, f), by);
   const { shown, more, showMore } = usePaged(sorted, JSON.stringify(f) + by);
+  const picked = selectedRows(sorted, selected);
+  const select = (id) => setSelected((s) => toggleSelected(s, id));
+  const clearSel = () => setSelected(new Set());
+  useEffect(() => {
+    if (!selected.size) return undefined;
+    const k = (e) => { if (e.key === 'Escape' && !document.querySelector('[role="dialog"], [role="alertdialog"]')) clearSel(); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [selected.size]);
+  const clearFilters = () => setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '' });
+  const bulkDone = (dar) => {
+    const { doable, skipped } = planBulkComplete(picked, lists);
+    doable.forEach((t) => actions.complete(t, dar));
+    notify(bulkCompleteNote(doable.length, skipped.length, dar));
+    setSelected(new Set(skipped.map((t) => t.id)));       // the skipped ones stay selected, so they can be opened and filled in
+  };
+  const bulkBin = () => { picked.forEach((t) => actions.bin(t)); notify(`${picked.length} task${picked.length === 1 ? '' : 's'} moved to the bin`); clearSel(); };
+  const bulkMove = (date) => {
+    if (!date) return;
+    picked.forEach((t) => actions.save(moveDueDate(t, date)));
+    notify(`${picked.length} task${picked.length === 1 ? '' : 's'} moved to ${date}`);
+    clearSel();
+  };
+  const filtered = Object.entries(f).some(([k, v]) => k !== 'n' && v);
   return (
     <>
       <h1 className="h1">Register</h1>
       {f.subCategory && <div className="filters"><span className="chip violet">Sub category: {f.subCategory === '__none' ? 'none chosen' : f.subCategory} <button type="button" className="chip-x" onClick={() => setF({ ...f, subCategory: '' })} aria-label="Clear the sub category filter">✕</button></span></div>}
-      <Filters f={f} setF={setF} lists={lists} onClear={() => setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '' })} extra={(
+      <Filters f={f} setF={setF} lists={lists} onClear={clearFilters} extra={(
         <>
           <select value={by} onChange={(e) => setBy(e.target.value)} aria-label="Sort">{Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>Sort: {v}</option>)}</select>
           <div className="seg" role="group" aria-label="View"><button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')}>Cards</button><button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>Table</button></div>
         </>
       )} />
       <p className="muted">{sorted.length} of {open.length} open entries</p>
-      {!sorted.length && <Empty text="Nothing matches." />}
-      {view === 'cards' ? <div className="grid">{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div> : <Table rows={shown} onEdit={onEdit} />}
+      {loading && <SkeletonRows />}
+      {!loading && !sorted.length && (filtered && open.length
+        ? <Empty icon="search" title="Nothing matches" text="No open task fits these filters." action={{ label: 'Clear filters', onClick: clearFilters, primary: false }} />
+        : <Empty icon="check" title="All clear" text="No open tasks. Enjoy the quiet - or add the next one." action={{ label: 'New entry', onClick: () => onEdit() }} />)}
+      {view === 'cards' ? <div className="grid">{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} selected={selected.has(t.id)} onSelect={select} selecting={selected.size > 0} />)}</div> : <Table rows={shown} onEdit={onEdit} selected={selected} onSelect={select} />}
       <MoreButton more={more} onClick={showMore} />
+      {picked.length > 0 && (
+        <div className="bulk-bar" role="toolbar" aria-label="Actions for the selected tasks">
+          <b className="bulk-count" role="status">{picked.length} selected</b>
+          <button type="button" className="btn ok" onClick={() => bulkDone(false)} title="Done - kept out of the daily report">✓ Done</button>
+          <button type="button" className="btn ok soft" onClick={() => bulkDone(true)} title="Done and included in the daily report">✓ DAR</button>
+          <label className="bulk-move">Move date <input type="date" aria-label="Move date" value="" onChange={(e) => bulkMove(e.target.value)} /></label>
+          <button type="button" className="btn danger" onClick={bulkBin}>🗑 Bin</button>
+          <button type="button" className="btn ghost" onClick={clearSel}>Clear</button>
+        </div>
+      )}
     </>
   );
 }
@@ -420,16 +460,17 @@ function Filters({ f, setF, lists, extra, onClear }) {
   );
 }
 
-function Table({ rows, onEdit, done }) {
+function Table({ rows, onEdit, done, selected, onSelect }) {
   const { actions } = useStore();
   const complete = useCompleter(onEdit);
   return (
     <div className="table-wrap">
       <table>
-        <thead><tr><th>Task</th><th>Priority</th><th>Category</th><th>With</th><th>{done ? 'Completed' : 'Due'}</th><th /></tr></thead>
+        <thead><tr>{onSelect && <th className="sel-col"><span className="sr-only">Select</span></th>}<th>Task</th><th>Priority</th><th>Category</th><th>With</th><th>{done ? 'Completed' : 'Due'}</th><th /></tr></thead>
         <tbody>
           {rows.map((t) => (
-            <tr key={t.id}>
+            <tr key={t.id} className={selected && selected.has(t.id) ? 'is-selected' : ''}>
+              {onSelect && <td className="sel-col"><input type="checkbox" className="sel-box" checked={selected.has(t.id)} onChange={() => onSelect(t.id)} aria-label={`Select ${t.title || 'task'}`} /></td>}
               <td><button className="link" onClick={() => onEdit(t)}>{t.title || '(no description)'}</button></td>
               <td><Chip tone={priTone(t.priority)}>{t.priority || '-'}</Chip></td>
               <td>{t.category || '-'}</td>
@@ -446,6 +487,7 @@ function Table({ rows, onEdit, done }) {
 
 function Completed({ onEdit }) {
   const { tasks, lists, actions } = useStore();
+  const loading = useLoading();
   const [f, setF] = useState({ q: '', priority: '', category: '', pendingWith: '' });
   const rows = filterTasks(tasks.filter((t) => t.done && !t.binned), f).sort((a, b) => (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0));
   const { shown, more, showMore } = usePaged(rows, JSON.stringify(f));
@@ -454,7 +496,8 @@ function Completed({ onEdit }) {
       <h1 className="h1">Completed</h1>
       <Filters f={f} setF={setF} lists={lists} />
       <p className="muted">{rows.length} completed</p>
-      {!rows.length && <Empty text="No completed tasks yet." />}
+      {loading && <SkeletonRows />}
+      {!loading && !rows.length && <Empty icon="check" title="Nothing completed yet" text="Tasks you mark done will be listed here." />}
       <div className="grid">
         {shown.map((t) => (
           <article key={t.id} className="card is-done">
@@ -481,7 +524,7 @@ function Holidays() {
   const block = (title, list, tone) => (
     <section>
       <h2 className="h2">{title}</h2>
-      {!list.length && <Empty text={`No ${title.toLowerCase()} yet.`} />}
+      {!list.length && <Empty icon="calendar" title={`No ${title.toLowerCase()} yet`} text="Add them on the phone app or the old website." />}
       <div className="list">{[...list].sort((a, b) => a.date.localeCompare(b.date)).map((h) => <div key={h.date + h.name} className={`card plain ${tone}`}><span className="card-title">{fmt(h.date)}</span>{h.name && <span className="muted">{h.name}</span>}</div>)}</div>
     </section>
   );
@@ -495,7 +538,7 @@ function Bin() {
     <>
       <h1 className="h1">Bin</h1>
       <p className="muted">Restore a task, or delete it forever (it then disappears on every device).</p>
-      {!rows.length && <Empty text="The bin is empty." />}
+      {!rows.length && <Empty icon="bin" title="The bin is empty" text="Deleted tasks wait here until you restore them." />}
       <div className="grid">
         {rows.map((t) => (
           <article key={t.id} className="card">
@@ -514,7 +557,7 @@ function Links() {
   return (
     <>
       <h1 className="h1">Links</h1>
-      {!links.length && <Empty text="No links yet. Links saved on the old website appear here." />}
+      {!links.length && <Empty icon="link" title="No links yet" text="Links saved on the old website appear here." />}
       {folders.map((fo) => (
         <section key={fo || '-'}>
           {fo && <h2 className="h2">{fo}</h2>}

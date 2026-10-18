@@ -260,7 +260,7 @@ export function LiveStore({ children }) {
 }
 
 export function DemoStore({ children }) {
-  const [tasks, setTasks] = useState(demoTasks);
+  const [tasks, setTasks] = useState(() => (location.search.includes('empty') ? [] : demoTasks));      // ?demo&empty previews a user with no tasks
   const [lists, setLists] = useState({
     ...DEFAULT_LISTS,
     subCategories: [
@@ -293,7 +293,7 @@ export function DemoStore({ children }) {
   const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, savedFormats: formats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: true, actions,
+    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, savedFormats: formats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: !location.search.includes('skeleton'), actions,      // ?demo&skeleton previews the placeholder rows
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
   }), [visible, lists, calendar, links, templates, formats, actions]);

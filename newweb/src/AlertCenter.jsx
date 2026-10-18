@@ -4,7 +4,8 @@ import Logo from './Logo';
 import ClockPicker from './ClockPicker';
 import { SNOOZES, followUpPicks, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel, DONE_STATUS } from './data';
 import { finalNarration } from './reportFormats';
-import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
+import NotifyExplainer from './NotifyExplainer';
+import { loadAlertSettings, saveAlertSettings, loadHandled, playAlertSound, saveHandled, shouldOfferExplainer, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
 const withRemark = (t, text) => {
@@ -20,6 +21,7 @@ export default function AlertCenter({ onOpen }) {
   const { tasks, lists, actions, notify } = useStore();
   const [settings, setSettings] = useState(loadAlertSettings);
   const [queue, setQueue] = useState([]);
+  const [explain, setExplain] = useState(false);       // the notification explainer, offered once when a due alert first pops up (not again for 7 days after "Not now")
   const handled = useRef(loadHandled());
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
@@ -56,6 +58,7 @@ export default function AlertCenter({ onOpen }) {
       });
       if (!popups.length) return;
       setQueue((q) => [...q, ...popups]);
+      if (shouldOfferExplainer()) setExplain(true);
       if (ring) playAlertSound();
       if (settings.notify && document.hidden) showNotification(alertHeading(popups[0]), popups[0].task.title);
     };
