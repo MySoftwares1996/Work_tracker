@@ -59,6 +59,7 @@ try {
   // The demo has tasks due now, so "Task due now" alerts may cover the page: dismiss them first.
   await page.waitForTimeout(1500);
   for (let i = 0; i < 10 && await page.getByRole('alertdialog').count(); i += 1) { await page.getByRole('button', { name: 'Dismiss this alert' }).first().click(); await page.waitForTimeout(300); }
+  if (await page.getByRole('dialog', { name: 'Allow alerts?' }).count()) await page.getByRole('button', { name: 'Not now' }).click();
   await page.getByRole('button', { name: 'New entry' }).first().click();
   const form = page.getByRole('dialog', { name: 'New entry' });
   await form.waitFor();
