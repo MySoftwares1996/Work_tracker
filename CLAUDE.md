@@ -60,7 +60,8 @@ Several sessions have changed the alert code; check this list before changing it
 - APK and phone width: the same tiles, cards, finder (search button in the header, `src/CommandPalette.js`) and Register / Completed
   table switch (`src/EntryTable.js`); the APK tab bar is `AppTabs` in `src/ui.js`.
 
-- Glass theme (APK only; Config > Appearance > Glass, hidden on the website): frosted panels over a soft colour backdrop and glossy
+- Glass theme (APK: Config > Appearance > Glass, hidden on the Expo website; the new website has its own Glass in `newweb/src/themes.js` +
+  the `[data-theme="glass"]` block at the end of `newweb/src/styles.css`, with real backdrop blur): frosted panels over a soft colour backdrop and glossy
   app-icon tiles (Home hero and counts, Done / DAR, the + button, the tab pill). Drawn with react-native-svg in `src/glass.js`, no new
   native library; tokens in `themeTokens.js` (`GLASS`, `GLOSS_TILES`), contrast checked in `tests/suites/ledger-theme.mjs`. Real blur
   (expo-blur) is not used: it would need a native build and Android's BlurTargetView around every screen.

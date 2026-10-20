@@ -1,5 +1,5 @@
 /**
- * The "Ledger" look: six colour themes (Config > Appearance), each with a light and a dark twin. This file is the single source of the
+ * The "Ledger" look: six colour themes and Glass (Config > Appearance), each with a light and a dark twin. This file is the single source of the
  * colours: `themeVars(id, mode)` gives the CSS variables, `applyTheme` / `applyScheme` write them on <html>, and styles.css only
  * keeps the Forest / light values as the starting point before the script runs. The choice is kept on this device (localStorage).
  * Every text / background pair here is checked for 4.5:1 contrast in tests/data.test.js.
@@ -23,6 +23,13 @@ const BASE = {
   },
 };
 
+// Glass's own ground (the same values as the APK's Glass, src/themeTokens.js): cool blue-white, or near-black. The frosted panels, glows
+// and glossy tiles are in styles.css under [data-theme="glass"]; tests/data.test.js checks their contrast.
+const GLASS_BASE = {
+  light: { ground: '#E6EDFB', card: '#F7F9FE', soft: '#EBF0FA', line: '#D6DFEE', line2: '#C9D4E6', ink: '#0F172A', muted: '#475569', off: '#B4C0D3', scrim: 'rgba(15, 23, 42, 0.5)' },
+  dark: { ground: '#07090F', card: '#121725', soft: '#1A2133', line: '#273149', line2: '#34405C', ink: '#F1F5F9', muted: '#B9C5D6', off: '#3E4A63', danger: '#FFA39A', onDanger: '#3A0F0B', scrim: 'rgba(0, 0, 0, 0.65)' },
+};
+
 // Per theme: primary (buttons, links), dark (hero panels, selected chips, bulk bar), tint (+ its text) and mint (accent on the dark panels).
 export const THEMES = [
   { id: 'forest', name: 'Forest', light: { primary: '#0B6B52', dark: '#123A2F', tint: '#E3F1EC', tintInk: '#0B5A45', mint: '#9BD3BF' }, night: { primary: '#4CC9A4', dark: '#14443A', tint: '#183B31', tintInk: '#9FE0C8', mint: '#9BD3BF' } },
@@ -31,6 +38,7 @@ export const THEMES = [
   { id: 'ember', name: 'Ember', light: { primary: '#C2410C', dark: '#5A200A', tint: '#FBE9DF', tintInk: '#99330A', mint: '#F5B896' }, night: { primary: '#F28F5E', dark: '#6E2D10', tint: '#43271A', tintInk: '#F6C3A6', mint: '#F5B896' } },
   { id: 'ink', name: 'Ink', light: { primary: '#16231F', dark: '#0E1513', tint: '#E9ECEB', tintInk: '#16231F', mint: '#B9C7C1' }, night: { primary: '#CFDCD6', dark: '#2A3832', tint: '#26312D', tintInk: '#D2DDD8', mint: '#B9C7C1' } },
   { id: 'rose', name: 'Rose', light: { primary: '#B42318', dark: '#5C1A14', tint: '#FBE7E4', tintInk: '#8E1F15', mint: '#F2A9A0' }, night: { primary: '#F58A7F', dark: '#6E2019', tint: '#43211E', tintInk: '#F6BDB7', mint: '#F2A9A0' } },
+  { id: 'glass', name: 'Glass', glass: true, light: { primary: '#1752C9', dark: '#0E347E', tint: '#E2ECFE', tintInk: '#1A4FB8', mint: '#EEF4FF' }, night: { primary: '#7EC0FF', dark: '#1C3D7A', tint: '#18263F', tintInk: '#BFDDFF', mint: '#DCEBFF' } },
 ];
 
 export const DEFAULT_THEME = 'forest';
@@ -52,7 +60,8 @@ export const savedTextSize = () => { const v = read(SIZE_KEY); return TEXT_SIZES
 /** The CSS variables of a theme in 'light' or 'dark' mode, as { '--name': value }. */
 export function themeVars(id, mode = 'light') {
   const t = THEMES.find((x) => x.id === normalizeTheme(id));
-  const b = BASE[mode === 'dark' ? 'dark' : 'light'];
+  const m = mode === 'dark' ? 'dark' : 'light';
+  const b = t.glass ? { ...BASE[m], ...GLASS_BASE[m] } : BASE[m];
   const p = t[mode === 'dark' ? 'night' : 'light'];
   return {
     '--ground': b.ground, '--card': b.card, '--soft': b.soft, '--line': b.line, '--line2': b.line2, '--ink': b.ink, '--muted': b.muted, '--off': b.off,

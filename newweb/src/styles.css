@@ -590,3 +590,46 @@ tr.is-selected td { background: var(--primary-tint); }
   .wd-logo, .wd-logo * { animation: none !important; stroke-dashoffset: 0 !important; }
   .ls-logo { transform: none !important; }
 }
+
+/* ---- Glass (Config > Appearance > Glass): frosted panels over soft colour glows, glossy app-icon tiles - the APK's Glass look
+   (src/glass.js there), with the browser's real blur behind the panels. The tile colours are deep enough for white text, and the
+   panel fill / sheen keep the theme's text at 4.5:1 (tests/data.test.js reads the values below). ---- */
+:root[data-theme="glass"] {
+  --g-fill: rgba(255, 255, 255, 0.55); --g-fill-strong: rgba(255, 255, 255, 0.74); --g-rim: rgba(255, 255, 255, 0.9); --g-sheen: rgba(255, 255, 255, 0.5);
+  --g-shadow: 0 12px 30px rgba(40, 60, 140, 0.14); --g-tile-rim: rgba(255, 255, 255, 0.5); --g-tile-sheen: rgba(255, 255, 255, 0.18);
+  --g-blue: linear-gradient(180deg, #3C6ED2, #1752C9); --g-red: linear-gradient(180deg, #B33F3F, #A51A1A); --g-amber: linear-gradient(180deg, #A16329, #8F4500);
+  --g-green: linear-gradient(180deg, #35824C, #0F6A2A); --g-purple: linear-gradient(180deg, #7C51BA, #6330AD); --g-hero: linear-gradient(180deg, #2C4A8A, #0E347E);
+  --g-glow: radial-gradient(circle at 8% 4%, rgba(127, 182, 255, 0.9), transparent 42%), radial-gradient(circle at 96% 28%, rgba(196, 163, 255, 0.9), transparent 40%),
+    radial-gradient(circle at 10% 82%, rgba(142, 232, 208, 0.9), transparent 40%), radial-gradient(circle at 94% 98%, rgba(255, 201, 168, 0.9), transparent 38%);
+}
+:root[data-theme="glass"][data-mode="dark"] {
+  --g-fill: rgba(255, 255, 255, 0.07); --g-fill-strong: rgba(255, 255, 255, 0.12); --g-rim: rgba(255, 255, 255, 0.18); --g-sheen: rgba(255, 255, 255, 0.08);
+  --g-shadow: 0 14px 32px rgba(0, 0, 0, 0.45); --g-tile-rim: rgba(255, 255, 255, 0.3); --g-tile-sheen: rgba(255, 255, 255, 0.14);
+  --g-glow: radial-gradient(circle at 8% 4%, rgba(59, 130, 246, 0.2), transparent 42%), radial-gradient(circle at 96% 32%, rgba(139, 92, 246, 0.2), transparent 40%),
+    radial-gradient(circle at 6% 88%, rgba(20, 184, 166, 0.2), transparent 40%);
+}
+:root[data-theme="glass"] body, :root[data-theme="glass"] .overlay { background: var(--g-glow), var(--ground); background-attachment: fixed; }
+/* Frosted panels: the fill, a shine on the top half, a bright rim and the real blur. */
+:root[data-theme="glass"] :is(.card:not(.day), .arow, .mt, .table-wrap, .fcard, .seg, .icon-btn, .sq-btn, .me, .sw-card, .chip.toggle, .x-btn, .tpl-chip, .alert-icons) {
+  background: linear-gradient(180deg, var(--g-sheen), transparent 55%), var(--g-fill); border-color: var(--g-rim);
+  -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%); box-shadow: inset 0 1px 0 var(--g-rim), var(--g-shadow);
+}
+:root[data-theme="glass"] :is(.top, .sheet-head) { background: var(--g-fill-strong); border-bottom-color: var(--g-rim); -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%); }
+:root[data-theme="glass"] .modal-card { background: var(--g-fill-strong); border-color: var(--g-rim); -webkit-backdrop-filter: blur(28px) saturate(160%); backdrop-filter: blur(28px) saturate(160%); }
+:root[data-theme="glass"][data-mode="dark"] .modal-card { background: rgba(22, 28, 44, 0.92); }
+:root[data-theme="glass"] .card.is-selected { box-shadow: 0 0 0 2px var(--primary), var(--g-shadow); }
+/* Glossy tiles: a deep gradient, a soft shine and a bright rim, white text. */
+:root[data-theme="glass"] :is(.hero, .st, .btn.primary, .btn.ok, .tab.on, .chip.toggle.on, .seg button.on) {
+  color: #fff; border-color: transparent; box-shadow: inset 0 0 0 2px var(--g-tile-rim), 0 8px 18px rgba(20, 50, 120, 0.22);
+}
+:root[data-theme="glass"] .hero { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-hero); }
+:root[data-theme="glass"] :is(.btn.primary, .btn.ok.soft, .tab.on, .chip.toggle.on, .seg button.on) { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-blue); }
+:root[data-theme="glass"] .btn.ok:not(.soft) { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-green); }
+:root[data-theme="glass"] .st.danger { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-red); }
+:root[data-theme="glass"] .st.amber { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-amber); }
+:root[data-theme="glass"] .st.slate { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-purple); }
+:root[data-theme="glass"] .st.green { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-green); }
+/* On a tile the number comes first and the small label sits at the foot, where the tile is deepest. */
+:root[data-theme="glass"] .st { flex-direction: column-reverse; }
+:root[data-theme="glass"] .tab.on .count { background: rgba(255, 255, 255, 0.22); color: #fff; }
+:root[data-theme="glass"] .pn .seg button.on { color: #fff; }
