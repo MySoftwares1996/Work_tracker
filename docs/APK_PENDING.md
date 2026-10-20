@@ -59,3 +59,4 @@ Last APK build the owner asked for: 2026-10-16 (merge of PR 6). Included: the ph
 
 - APK: phone updates (over the air) are set up in code (`app.config.js`, `src/PhoneUpdate.js`, the manual "Publish phone update" workflow). They start working after the owner adds `EXPO_TOKEN` / `EAS_PROJECT_ID` (docs/PHONE_UPDATES.md) and asks for one more full APK build.
 - APK: the Edit Entry form (Done / DAR / Save bar, folded checklist / mail chain / notes / attachments rows), Report (day strip, section cards, bottom Copy / AI / Send bar), Done (grouped by day) and Holidays (month calendar) restyled to the approved previews. A JavaScript-only change: can go as a phone update once the update settings are in the installed build.
+- New web: fixed a build break in Config (an apostrophe in "phone's" ended the confirm text early, so the website could not build). Web only, nothing to port.

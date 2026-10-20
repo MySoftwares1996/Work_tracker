@@ -16,7 +16,7 @@ export default function Config() {
     ...(inApp() ? [{ key: 'phone', icon: '📱', title: 'Phone app', hint: 'Alarms, app lock, backups, text size', body: () => (
       <section className="card plain"><span className="card-title">Phone app</span>
         <span className="muted">Alarms, app lock, backups and text size are set in the phone's own settings.</span>
-        <div className="row-gap"><button className="btn" onClick={() => askNative('settings')}>Open phone settings</button><button className="btn ghost" onClick={() => { if (window.confirm('Switch to the phone's own screens? You can switch back in the phone settings.')) askNative('classic'); }}>Use the phone screens</button></div>
+        <div className="row-gap"><button className="btn" onClick={() => askNative('settings')}>Open phone settings</button><button className="btn ghost" onClick={() => { if (window.confirm("Switch to the phone's own screens? You can switch back in the phone settings.")) askNative('classic'); }}>Use the phone screens</button></div>
       </section>
     ) }] : []),
     { key: 'alerts', icon: '🔔', title: 'Alerts', hint: 'When and how a due task alerts you', body: () => <AlertSettings /> },
