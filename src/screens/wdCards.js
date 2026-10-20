@@ -8,6 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useLayout, FadeInUp, AnimatedNumber, Card, Small, Row, prefersReducedMotion } from '../ui';
 import Icon, { ICON_NAMES } from '../icons';
 import { display } from '../fonts';
+import { Sheen, GlossFill, glassPanel, glossTile } from '../glass';
 import { useTheme } from '../theme';
 import { checklistText } from '../checklist';
 import { recordNarration } from '../narrationHistory';
@@ -319,8 +320,9 @@ const initialOf = (name) => String(name || '?').trim().charAt(0).toUpperCase() |
 export function CircleBtn({ icon, label, onPress, active }) {
   const t = useTheme();
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? t.warnTint : t.surface, borderWidth: 1, borderColor: active ? t.amber : t.border, opacity: pressed ? 0.8 : 1 })}>
-      <Icon name={icon} size={20} color={active ? t.warnText : t.text} stroke={2} />
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? t.warnTint : t.surface, borderWidth: 1, borderColor: active ? t.amber : t.border, opacity: pressed ? 0.8 : 1, ...(!active ? glassPanel(t, true) : null) })}>
+      {!active && <Sheen radius={22} />}
+      <View><Icon name={icon} size={20} color={active ? t.warnText : t.text} stroke={2} /></View>
     </Pressable>
   );
 }
@@ -336,9 +338,11 @@ export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bell
       <Row gap={8} style={{ justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
         <CircleBtn icon="search" label="Search" onPress={onSearch} />
         <CircleBtn icon={bellOn ? 'bellOff' : 'bell'} label={bellOn ? 'Meeting mode is on' : 'Meeting mode'} onPress={onBell} active={bellOn} />
-        <Pressable onPress={onUser} accessibilityRole="button" accessibilityLabel={`Signed in as ${userLabel}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: 150, height: 44, paddingLeft: 7, paddingRight: 14, borderRadius: 22, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.8 : 1 })}>
-          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: t.fs(13) }}>{initialOf(userLabel)}</Text>
+        <Pressable onPress={onUser} accessibilityRole="button" accessibilityLabel={`Signed in as ${userLabel}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: 150, height: 44, paddingLeft: 7, paddingRight: 14, borderRadius: 22, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.8 : 1, ...glassPanel(t, true) })}>
+          <Sheen radius={22} />
+          <View style={[{ width: 30, height: 30, borderRadius: 15, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center' }, glossTile(t)]}>
+            <GlossFill tone="blue" radius={15} />
+            <Text style={{ color: t.glass ? t.glass.tileInk : t.onAccent, fontWeight: '700', fontSize: t.fs(13) }}>{initialOf(userLabel)}</Text>
           </View>
           <Text numberOfLines={1} style={{ flexShrink: 1, color: t.text, fontWeight: '700', fontSize: t.fs(13) }}>{userLabel}</Text>
         </Pressable>
@@ -359,8 +363,9 @@ export function Fab({ onPress, bottom, right = 20, label = 'New entry' }) {
   const t = useTheme();
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
-      style={({ pressed }) => ({ position: 'absolute', right, bottom, width: 56, height: 56, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.primary, opacity: pressed ? 0.9 : 1, ...t.fabShadow })}>
-      <Icon name="plus" size={26} color={t.onAccent} stroke={2.2} />
+      style={({ pressed }) => ({ position: 'absolute', right, bottom, width: 56, height: 56, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.primary, opacity: pressed ? 0.9 : 1, ...t.fabShadow, ...glossTile(t) })}>
+      <GlossFill tone="blue" radius={20} />
+      <View><Icon name="plus" size={26} color={t.glass ? t.glass.tileInk : t.onAccent} stroke={2.4} /></View>
     </Pressable>
   );
 }
@@ -384,12 +389,18 @@ export function PhoneKpi({ label, value, tone, onPress, wide }) {
   const t = useTheme();
   const colours = { red: [t.dangerTint, t.dangerText], amber: [t.warnTint, t.warnText], slate: [t.slateTint, t.slateText] }[tone];
   const bg = colours ? colours[0] : t.surface;
-  const fg = colours ? colours[1] : t.text;
+  // Glass: a toned tile is a glossy app-icon tile (Overdue red, Due today amber, Next 7 days purple) with white text.
+  const gloss = t.glass && colours ? { red: 'red', amber: 'amber', slate: 'purple' }[tone] : null;
+  const fg = gloss ? t.glass.tileInk : colours ? colours[1] : t.text;
+  const glassStyle = gloss ? glossTile(t) : !colours ? glassPanel(t) : null;
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}
-      style={({ pressed }) => ({ width: wide ? '31.5%' : undefined, flex: wide ? undefined : 1, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, gap: 4, backgroundColor: bg, borderWidth: colours ? 0 : 1, borderColor: t.border, opacity: pressed ? 0.85 : 1 })}>
-      <Text style={{ color: colours ? fg : t.textDim, fontWeight: '700', fontSize: t.fs(11) }} numberOfLines={1}>{label}</Text>
+      style={({ pressed }) => ({ width: wide ? '31.5%' : undefined, flex: wide ? undefined : 1, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, gap: 4, backgroundColor: bg, borderWidth: colours ? 0 : 1, borderColor: t.border, opacity: pressed ? 0.85 : 1, ...glassStyle })}>
+      {gloss ? <GlossFill tone={gloss} radius={18} /> : !colours && <Sheen radius={18} />}
+      {/* On a glossy tile the number comes first and the small label sits at the foot, where the tile is deepest. */}
+      {!gloss && <Text style={{ color: colours ? fg : t.textDim, fontWeight: '700', fontSize: t.fs(11) }} numberOfLines={1}>{label}</Text>}
       <Text style={{ color: fg, fontFamily: display(), fontWeight: '600', fontSize: t.fs(28), lineHeight: t.fs(30) }}>{value}</Text>
+      {!!gloss && <Text style={{ color: fg, fontWeight: '700', fontSize: t.fs(11) }} numberOfLines={1}>{label}</Text>}
     </Pressable>
   );
 }
@@ -412,13 +423,19 @@ export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
   const late = overdue && due ? daysLate(due) : 0;
   const dueText = due ? (late >= 2 ? `Overdue ${late} d` : relativeDue(due)) : 'No date';
   const facts = [entry.priority, entry.category, entry.pendingWith, entry.recurrence && entry.recurrence !== 'none' ? `↻ ${recurrenceLabel(entry)}` : '', checklistText(entry) ? `☑ ${checklistText(entry)}` : ''].filter(Boolean).join(' · ');
-  const btn = (label, bg, ink, fn) => (
-    <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 11, borderRadius: 14, alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
-      <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(14) }}>{label}</Text>
-    </Pressable>
-  );
+  // Glass: Done is a glossy green tile, DAR a glossy blue one.
+  const btn = (label, bg, ink, fn) => {
+    const gloss = t.glass ? (label === 'DAR' ? 'blue' : 'green') : null;
+    return (
+      <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 11, borderRadius: 14, alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1, ...(gloss ? glossTile(t) : null) })}>
+        {!!gloss && <GlossFill tone={gloss} radius={14} />}
+        <Text style={{ color: gloss ? t.glass.tileInk : ink, fontWeight: '800', fontSize: t.fs(14) }}>{label}</Text>
+      </Pressable>
+    );
+  };
   return (
-    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 14, paddingHorizontal: 16, gap: 10 }}>
+    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 14, paddingHorizontal: 16, gap: 10, ...glassPanel(t) }}>
+      <Sheen radius={t.radius} />
       <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 7 }}>
         <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
         <Row style={{ alignItems: 'center', gap: 7 }}>
@@ -448,7 +465,8 @@ export function PhoneDoneRow({ entry, onPress, onReopen }) {
   const time = ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
   const facts = [time || 'Done', entry.dar !== false ? 'In report' : 'Done only', entry.category].filter(Boolean).join(' · ');
   return (
-    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 13, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 13, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, ...glassPanel(t) }}>
+      <Sheen radius={t.radius} />
       <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="check" size={18} color={t.primary} stroke={2.4} />
       </View>

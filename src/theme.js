@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Platform } from 'react-native';
 import { useStore } from './store';
-import { THEMES, FONT_LEVELS, themeKeyOf, build } from './themeTokens';
+import { THEMES, FONT_LEVELS, themeKeyOf, build, DEFAULT_THEME } from './themeTokens';
 
 // Everything below is re-exported, so screens keep importing from './theme'.
 export * from './themeTokens';
@@ -10,7 +10,9 @@ const ThemeCtx = createContext(null);
 
 export function ThemeProvider({ children }) {
   const { data } = useStore();
-  const themeKey = themeKeyOf(data?.settings?.theme);
+  const stored = themeKeyOf(data?.settings?.theme);
+  // Glass is the APK's own look: the website keeps the default if the setting comes along.
+  const themeKey = stored === 'glass' && Platform.OS === 'web' ? DEFAULT_THEME : stored;
   const fontLevel = data?.settings?.fontLevel || 2;
   // "Follow the phone's dark mode" (Config > Appearance): on unless switched off.
   const followDark = data?.settings?.followDark !== false;

@@ -60,6 +60,7 @@ import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LA
 import { useTabHistory } from '../useStepBack';
 import WdWeeklyReview from './WdWeeklyReview';
 import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow, PhoneHeader, Fab, SectionHead } from './wdCards';
+import { GlossFill, glossTile } from '../glass';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
 const NO_LIST = [];
@@ -1349,7 +1350,8 @@ export default function WorkingDashboard() {
                   const pct = total ? Math.round((doneTodayCount / total) * 100) : 0;
                   return (
                     <Pressable onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} accessibilityRole="button" accessibilityLabel={`Today: ${need} ${need === 1 ? 'task needs' : 'tasks need'} you. Open them in Tasks`}
-                      style={({ pressed }) => ({ backgroundColor: t.primaryDark, borderRadius: t.heroRadius, paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 14, opacity: pressed ? 0.94 : 1 })}>
+                      style={({ pressed }) => ({ backgroundColor: t.primaryDark, borderRadius: t.heroRadius, paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 14, opacity: pressed ? 0.94 : 1, ...glossTile(t) })}>
+                      <GlossFill tone="hero" radius={t.heroRadius} />
                       <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.4 }}>TODAY</Text>
                       <Row gap={10} style={{ alignItems: 'baseline' }}>
                         <Text style={{ color: '#fff', fontFamily: display(), fontWeight: '600', fontSize: t.fs(64), lineHeight: t.fs(62), letterSpacing: -2 }}>{need}</Text>
@@ -1926,7 +1928,7 @@ export default function WorkingDashboard() {
               <View>
                 <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), marginBottom: 12 }}>Colour theme</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                  {THEME_SWATCHES.map((sw) => {
+                  {THEME_SWATCHES.filter((sw) => sw.key !== 'glass' || Platform.OS !== 'web').map((sw) => {
                     const on = themeNow === sw.key;
                     return (
                       <Pressable key={sw.key} onPress={() => update({ settings: { theme: sw.key } })} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${sw.label} theme`}
