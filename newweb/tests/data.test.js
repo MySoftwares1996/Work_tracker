@@ -206,8 +206,8 @@ import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.
 const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
 const contrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-test('the six Ledger themes: Forest is the default and an old saved theme key becomes Forest', () => {
-  assert.deepEqual(THEMES.map((t) => t.id), ['forest', 'harbour', 'plum', 'ember', 'ink', 'rose']);
+test('the six Ledger themes and Glass: Forest is the default and an old saved theme key becomes Forest', () => {
+  assert.deepEqual(THEMES.map((t) => t.id), ['forest', 'harbour', 'plum', 'ember', 'ink', 'rose', 'glass']);
   assert.equal(DEFAULT_THEME, 'forest');
   ['violet', 'aqua', 'ocean', 'sunset', 'lilac', 'night', '', null, undefined].forEach((old) => assert.equal(normalizeTheme(old), 'forest'));
   THEMES.forEach((t) => assert.equal(normalizeTheme(t.id), t.id));
@@ -226,9 +226,45 @@ test('every theme has a dark twin with the same tokens, and the CSS starts from 
   Object.entries(light).forEach(([k, v]) => assert.ok(new RegExp(`${k}:\\s*${v.replace(/[()]/g, '\\$&')}`, 'i').test(root), `styles.css :root has ${k}: ${v}`));
   THEMES.forEach((t) => {
     assert.deepEqual(Object.keys(themeVars(t.id, 'dark')).sort(), Object.keys(light).sort(), t.id);
+    if (t.glass) return;                                           // Glass has its own ground
     assert.equal(themeVars(t.id, 'dark')['--ground'], '#0F1714');
     assert.equal(themeVars(t.id, 'dark')['--card'], '#17211D');
   });
+});
+
+test('Glass: white text reads on every glossy tile, and the theme text on every frosted panel over every glow', () => {
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const block = (sel) => { const i = css.indexOf(`${sel} {`); assert.ok(i >= 0, sel); return css.slice(i, css.indexOf('}', i)); };
+  const light = block(':root[data-theme="glass"]');
+  const dark = block(':root[data-theme="glass"][data-mode="dark"]');
+  const hex = (r, g, b) => '#' + [r, g, b].map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const mix = (a, b, k) => { const x = rgb(a); const y = rgb(b); return hex(...x.map((v, i) => v * (1 - k) + y[i] * k)); };
+  const alpha = (src, name) => Number(new RegExp(`${name}:\\s*rgba\\([^)]*,\\s*([\\d.]+)\\)`).exec(src)[1]);
+  const glows = (src) => [...src.slice(src.indexOf('--g-glow')).matchAll(/rgba\((\d+), (\d+), (\d+), ([\d.]+)\)/g)].map((m) => [hex(+m[1], +m[2], +m[3]), +m[4]]);
+  const tiles = [...light.matchAll(/--g-(\w+): linear-gradient\(180deg, (#\w{6}), (#\w{6})\)/g)].map((m) => [m[1], m[2], m[3]]);
+  assert.equal(tiles.length, 6);
+  assert.ok([light, dark].every((src) => [alpha(src, '--g-fill'), alpha(src, '--g-sheen'), alpha(src, '--g-tile-sheen')].every(Number.isFinite) && glows(src).length >= 3));
+  const bad = [];
+  for (const [mode, src] of [['light', light], ['dark', dark]]) {
+    const v = themeVars('glass', mode);
+    const tileSheen = alpha(src, '--g-tile-sheen');
+    for (const [name, top, bottom] of tiles) {
+      const mid = mix(mix(top, bottom, 0.5), '#ffffff', tileSheen / 2);
+      const lit = mix(top, '#ffffff', tileSheen);
+      if (contrast('#ffffff', mid) < 4.5) bad.push(`${mode} ${name} button text`);
+      if (contrast('#ffffff', bottom) < 4.5) bad.push(`${mode} ${name} label`);
+      if (contrast('#ffffff', lit) < 3) bad.push(`${mode} ${name} big number`);
+      if (name === 'hero' && contrast(v['--mint'], lit) < 4.5) bad.push(`${mode} hero mint`);
+    }
+    const fill = alpha(src, '--g-fill'); const sheen = alpha(src, '--g-sheen');
+    for (const under of [v['--ground'], ...glows(src).map(([c, a]) => mix(v['--ground'], c, a))]) {
+      for (const ground of [mix(under, '#ffffff', fill), mix(mix(under, '#ffffff', fill), '#ffffff', sheen)]) {
+        for (const k of ['--ink', '--muted', '--primary', '--danger']) if (contrast(v[k], ground) < 4.5) bad.push(`${mode} ${k} on ${ground} ${contrast(v[k], ground).toFixed(2)}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, []);
 });
 
 test('all text passes 4.5:1 in every theme, light and dark', () => {
