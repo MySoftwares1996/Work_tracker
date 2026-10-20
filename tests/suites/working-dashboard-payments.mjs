@@ -3,7 +3,7 @@ import {
   payeeFromMail, stripPayeeFromMail, buildNarrationText, makeNarration, narrationFor, taskPayee, paymentSections, validatePaymentDetails, PAYEE_RX,
   withWebNarrationTypes, narrationStyle, narrationOffersPo,
 } from '../../src/workingDashboardPayments.js';
-import { blankEntry, completeEntry, withStatus, isNonWorkingDay, isOfficeClosed, nextWorkingDay, autoSkipDailyOnNonWorking, normalizeHolidays, skipEntryToday, isSkippedToday, holidayBlocks, filterEntries, csvRowsToEntries } from '../../src/workingDashboard.js';
+import { blankEntry, completeEntry, withStatus, isNonWorkingDay, isOfficeClosed, nextWorkingDay, autoSkipDailyOnNonWorking, normalizeHolidays, skipEntryToday, isSkippedToday, holidayBlocks, filterEntries } from '../../src/workingDashboard.js';
 import { closedOn } from '../../src/pastDue.js';
 import { toWebTask, fromWebDoc, fromWebDocOver, normalizeSheetTask } from '../../src/cloudSync.js';
 import { decodeLists, encodeLists } from '../../src/firebaseSyncCore.js';
@@ -31,7 +31,6 @@ export async function run({ ck, section }) {
   section('Working Dashboard payments: found again later');
   const kpEntry = e({ title: 'Pay vendor', keyPoints: [{ key: 'Amount', value: '₹50,000' }] });
   ck('Register search finds a Key Point\'s value and key', filterEntries([kpEntry], { query: '50,000' }).length === 1 && filterEntries([kpEntry], { query: 'amount' }).length === 1);
-  ck('a CSV with no DAR column puts the tasks in the report; "No" leaves them out', csvRowsToEntries([{ Title: 'A' }])[0].dar === true && csvRowsToEntries([{ Title: 'B', DAR: 'No' }])[0].dar === false && csvRowsToEntries([{ Title: 'C', DAR: 'Yes' }])[0].dar === true);
   const noSubs = paymentLists({}, ['Domestic Payment']);
   ck('with no Sub Categories to pick (lists not synced yet), a payment can still be completed', !categoryHasSubCategory(noSubs, 'Domestic Payment') && subCategoryComplete(e({ category: 'Domestic Payment' }), noSubs) && validatePaymentDetails(e({ category: 'Domestic Payment', status: 'Completed' }), noSubs) === '');
 

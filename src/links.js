@@ -1,3 +1,5 @@
+import { readReportFormats } from './reportFormats';
+
 /** A typed web address as a full link: https:// added when missing; '' when it is not an address. */
 export function normalizeLink(raw) {
   const v = String(raw || '').trim();
@@ -66,15 +68,18 @@ export function addLinks(links, incoming, idPrefix = 'lnk') {
  * the website at the same time keeps both: per item, the newer copy wins. An older document with only `ts` counts as one
  * stamp for every item.
  */
-export const TOOL_KEYS = ['links', 'templates', 'reportAiNotes', 'reportAiNotesSummary', 'holdUntil'];
+export const TOOL_KEYS = ['links', 'templates', 'reportAiNotes', 'reportAiNotesSummary', 'reportFormats', 'holdUntil'];
 
 /** The synced tool values of a Working Dashboard record. */
 export const toolsValue = (wd = {}) => ({
   links: Array.isArray(wd.links) ? wd.links : [],
   templates: Array.isArray(wd.templates) ? wd.templates : [],
   reportAiNotes: wd.reportAiNotes || '',
+  reportFormats: Array.isArray(wd.reportFormats) ? wd.reportFormats : [],
   reportAiNotesSummary: wd.reportAiNotesSummary || '',
   holdUntil: Number((wd.alerts || {}).holdUntil) || 0,
+  // When the report formats' categories were set up automatically (once per account; the website writes it too). Sent only once set, so it never clears the website's.
+  ...(wd.formatSetupAt ? { formatSetupAt: Number(wd.formatSetupAt) } : null),
 });
 
 /** The stamps after an edit: every item whose value changed gets `now`; the rest keep theirs. */
@@ -90,7 +95,7 @@ const cleanLink = (x) => ({ id: String(x.id || x.url), title: String(x.title || 
  * What to take from the account's copy: { patch: { links?, templates?, ... }, stamps } - only the items whose remote stamp is
  * newer than this device's - or null when nothing is newer. `localStamps` is this device's { item: ms }.
  */
-export function toolsFromRemote(remote, localStamps = {}) {
+export function toolsFromRemote(remote, localStamps = {}, local = {}) {
   if (!remote) return null;
   const rs = remote.stamps && typeof remote.stamps === 'object' ? remote.stamps : {};
   const ts = Number(remote.ts) || 0;
@@ -101,10 +106,12 @@ export function toolsFromRemote(remote, localStamps = {}) {
     if (!at || at <= (Number(stamps[k]) || 0)) return;
     if (k === 'links') patch.links = Array.isArray(remote.links) ? remote.links.filter((x) => x && x.url).map(cleanLink) : [];
     else if (k === 'templates') patch.templates = Array.isArray(remote.templates) ? remote.templates.filter((x) => x && x.id && x.name) : [];
+    else if (k === 'reportFormats') patch.reportFormats = readReportFormats(remote);
     else if (k === 'holdUntil') patch.holdUntil = Number(remote.holdUntil) || 0;
     else patch[k] = typeof remote[k] === 'string' ? remote[k] : '';
     stamps[k] = at;
   });
+  if (Number(remote.formatSetupAt) && !Number(local.formatSetupAt)) patch.formatSetupAt = Number(remote.formatSetupAt);
   return Object.keys(patch).length ? { patch, stamps } : null;
 }
 

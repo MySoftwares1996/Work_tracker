@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { copyText } from '../clipboard';
-import { inApp, askNative } from '../nativeBridge';
 import { useStore } from '../store';
+import Icon from '../icons';
+import { PageHead } from '../ui';
 import { buildReport, REPORT_GROUPS, mergeAi, reportPrompt, reportCsvRows, reportHtml } from '../reportEngine';
 import { reportMailUrl } from '../../../src/workingDashboardReport.js';
-import { dayKey, isOpen, sortTasks, stats } from '../data';
+import { dayKey, isOpen, sortTasks } from '../data';
 
 export default function Report() {
   const { tasks, lists, calendar, notify, reportFormats } = useStore();
@@ -49,76 +50,93 @@ export default function Report() {
   };
   const copy = async () => { if (await copyText(text)) { setCopied(true); setTimeout(() => setCopied(false), 1800); } else notify('Could not copy - select the text and copy it'); };
   const title = `Daily Activity Report - ${day}`;
-  const print = () => { if (inApp()) { askNative('print', { html: reportHtml(title, text) }); return; } const w = window.open('', '_blank'); if (!w) { notify('Allow pop-ups to print'); return; } w.document.write(reportHtml(title, text)); w.document.close(); w.focus(); w.print(); };
+  const print = () => { const w = window.open('', '_blank'); if (!w) { notify('Allow pop-ups to print'); return; } w.document.write(reportHtml(title, text)); w.document.close(); w.focus(); w.print(); };
   const csv = () => {
     const { rows, columns } = reportCsvRows(aiOn ? null : report.model, text);
     const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const body = [columns.map(q).join(','), ...rows.map((r) => columns.map((c) => q(r[c])).join(','))].join('\r\n');
-    if (inApp()) { askNative('file', { name: `daily-report-${day}.csv`, mime: 'text/csv', text: `\ufeff${body}` }); return; }
     const url = URL.createObjectURL(new Blob(['\ufeff', body], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `daily-report-${day}.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
   const d = report.model.data;
+  const niceDay = new Date(`${day}T12:00:00`).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const box = (n, label, group, tip) => <button type="button" className="cnt-box" onClick={() => setPeek(group)} title={tip}><b>{n}</b><span>{label}</span></button>;
   return (
     <>
-      <h1 className="h1">Daily report</h1>
-      <div className="filters report-bar">
-        <button className="btn ghost" onClick={() => shift(-1)} aria-label="Previous day">‹</button>
-        <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Report date" />
-        <button className="btn ghost" onClick={() => shift(1)} aria-label="Next day">›</button>
-        <button className="btn ghost" onClick={() => setDay(dayKey(new Date()))}>Today</button>
-        <span className="grow" />
-        <button className="btn" onClick={rewrite} disabled={busy} title="Rewrites the report as professional sentences with Gemini (free); every item and fact is kept">{busy ? 'Gemini is writing…' : '✨ Rewrite with Gemini'}</button>
-        {ai.text && ai.base === report.text && <button className="btn ghost" onClick={() => setShowOriginal(!showOriginal)}>{showOriginal ? 'Show the Gemini version' : 'Show the original'}</button>}
-        <button className="btn primary" onClick={copy}>{copied ? 'Copied ✓' : 'Copy report'}</button>
-        <button className="btn" onClick={print}>Print / PDF</button>
-        <button className="btn" onClick={csv}>Excel (CSV)</button>
-        <a className="btn" href={reportMailUrl(title, text)}>Email</a>
-      </div>
-      <div className="report-opts">
-        <label className="check-row"><input type="checkbox" checked={opts.headings} onChange={(e) => setOpt('headings', 'report-headings')(e.target.checked)} /> Section headings</label>
-        <label className="check-row"><input type="checkbox" checked={opts.subFields} onChange={(e) => setOpt('subFields', 'report-sub-fields')(e.target.checked)} /> Include Sub Category fields (field name: value)</label>
-        <label className="check-row"><input type="checkbox" checked={opts.pending} onChange={(e) => setOpt('pending', 'report-pending')(e.target.checked)} /> Add the pending list ({pending.length})</label>
+      <PageHead title="Daily report" sub="What was done, paid and followed up on the day - ready to send.">
+        <div className="dt">
+          <button className="sq-btn" onClick={() => shift(-1)} aria-label="Previous day"><Icon name="chevL" size={18} strokeWidth={2.2} /></button>
+          <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Report date" />
+          <button className="sq-btn" onClick={() => shift(1)} aria-label="Next day"><Icon name="chevR" size={18} strokeWidth={2.2} /></button>
+          <button className="btn" onClick={() => setDay(dayKey(new Date()))}>Today</button>
+        </div>
+      </PageHead>
+      <div className="cnt" role="group" aria-label="The report's groups">
+        {box(d.others, 'Other work', 'oth', 'See the lines and move them')}
+        {box(d.payments, d.payments === 1 ? 'Payment' : 'Payments', 'pay', 'See the lines and move them')}
+        {box(d.followed, 'Followed up', 'fol', 'See the lines and move them')}
+        {box(d.excluded, 'Left out', 'out', 'Completed with Done (not DAR): kept out of the report. Click to see them and move them in')}
       </div>
       <div className="report-stats">
-        <button className="chip teal" onClick={() => setPeek('oth')} title="See the lines and move them">{d.others} other work</button>
-        <button className="chip" onClick={() => setPeek('pay')} title="See the lines and move them">{d.payments} payment{d.payments === 1 ? '' : 's'}</button>
-        <button className="chip amber" onClick={() => setPeek('fol')} title="See the lines and move them">{d.followed} followed up</button>
-        <button className="chip" onClick={() => setPeek('out')} title="Completed with Done (not DAR): kept out of the report. Click to see them and move them in">{d.excluded} left out (Done, not DAR)</button>
         {d.skippedPayments > 0 && <span className="chip" title="Domestic and Urgent payments are not listed in the report">{d.skippedPayments} domestic / urgent payment(s) not listed</span>}
         {(report.model.missing || []).length > 0 && <span className="chip coral" title={report.model.missing.map((m) => `${m.title}: ${m.marks.join(', ')}`).join('\n')}>{report.model.missing.length} line(s) with a missing field [in brackets]</span>}
         {report.model.dupes > 0 && <button className="chip" onClick={() => setPeek('dup')} title="The same line twice is listed once. Click to see them and move them into a group">{report.model.dupes} duplicate line(s) merged</button>}
-        {Object.keys(moves).length > 0 && <button className="chip ghost" onClick={resetMoves} title="Put every line back where the report placed it">Undo my moves ({Object.keys(moves).length})</button>}
+        {Object.keys(moves).length > 0 && <button className="chip" onClick={resetMoves} title="Put every line back where the report placed it">Undo my moves ({Object.keys(moves).length})</button>}
       </div>
       {peek && <GroupPeek group={peek} groups={report.model.groups} onMove={moveTo} onClose={() => setPeek('')} />}
-      <details className="muted ai-extra"><summary>Instructions for Gemini (optional, remembered on this computer)</summary>
-        <textarea rows={3} value={extra} onChange={(e) => saveExtra(e.target.value)} placeholder="e.g. Two lines per task, formal tone, start with the bank's name" aria-label="Instructions for Gemini" />
-      </details>
       {aiError && <div className="banner err" role="alert">{aiError}</div>}
-      {aiOn ? (
-        <>
-          <textarea className="report report-edit" value={edited || ai.text} onChange={(e) => setEdited(e.target.value)} rows={Math.min(30, (edited || ai.text).split('\n').length + 2)} aria-label="The report, written by Gemini - you can edit it" />
-          <p className="muted">{ai.note} Written by Gemini{ai.via === 'key' ? ' with your own API key (the free route was busy)' : ' (free)'}. Check it, and edit it here if you want, before you send it.</p>
-        </>
-      ) : (
-        <div className="report-view">
-          <div className="report-title">Daily Activity Report - {new Date(`${day}T12:00:00`).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-          {report.model.sections.every((s) => !s.rows.length) && <p className="empty-note">No completed or updated entries for this date.</p>}
-          {report.model.sections.filter((s) => s.rows.length).map((s) => (
-            <section key={s.key} className="report-sec">
-              {opts.headings && <h2 className="h2">{s.title}{s.key === 'pay' ? ` (${s.rows.length})` : ''}</h2>}
-              <ul>
-                {(s.intro || []).map((l, i) => <li key={`i${i}`}>{l}</li>)}
-                {s.rows.map((r, i) => <li key={i}>{r.line}</li>)}
-              </ul>
-            </section>
-          ))}
-          {opts.pending && pending.length > 0 && (
-            <section className="report-sec"><h2 className="h2">Pending</h2><ul>{pending.map((t) => <li key={t.id}>{t.title}{t.priority ? ` [${t.priority}]` : ''}</li>)}</ul></section>
+      <div className="cols">
+        <div className="doc">
+          {aiOn ? (
+            <>
+              <textarea className="report report-edit" value={edited || ai.text} onChange={(e) => setEdited(e.target.value)} rows={Math.min(30, (edited || ai.text).split('\n').length + 2)} aria-label="The report, written by Gemini - you can edit it" />
+              <p className="muted">{ai.note} Written by Gemini{ai.via === 'key' ? ' with your own API key (the free route was busy)' : ' (free)'}. Check it, and edit it here if you want, before you send it.</p>
+            </>
+          ) : (
+            <div className="report-view">
+              <h2 className="report-title">Daily Activity Report - {niceDay}</h2>
+              {report.model.sections.every((s) => !s.rows.length) && <p className="empty-note">No completed or updated entries for this date.</p>}
+              {report.model.sections.filter((s) => s.rows.length).map((s) => (
+                <section key={s.key} className="report-sec">
+                  {opts.headings && <h3 className="doc-sec">{s.title}{s.key === 'pay' ? ` (${s.rows.length})` : ''}</h3>}
+                  <ul>
+                    {(s.intro || []).map((l, i) => <li key={`i${i}`}>{l}</li>)}
+                    {s.rows.map((r, i) => <li key={i}>{r.line}</li>)}
+                  </ul>
+                </section>
+              ))}
+              {opts.pending && pending.length > 0 && (
+                <section className="report-sec"><h3 className="doc-sec">Pending</h3><ul>{pending.map((t) => <li key={t.id}>{t.title}{t.priority ? ` [${t.priority}]` : ''}</li>)}</ul></section>
+              )}
+            </div>
           )}
         </div>
-      )}
-      <p className="muted">Built the way the phone app and the old website write it: tasks completed that day with "✓ DAR", the Payments lines from their Tally narration, bank follow-ups with the banker's update, then the tasks followed up that day. Domestic and Urgent payments are left out.</p>
+        <div className="side">
+          <div className="card plain">
+            <h3 className="card-h">Send it</h3>
+            <button className="btn primary wide" onClick={copy}>{copied ? 'Copied' : 'Copy report'}</button>
+            <button className="btn tint wide" onClick={rewrite} disabled={busy} title="Rewrites the report as professional sentences with Gemini (free); every item and fact is kept"><Icon name="sparkle" size={16} />{busy ? 'Gemini is writing…' : 'Rewrite with Gemini'}</button>
+            {ai.text && ai.base === report.text && <button className="btn wide" onClick={() => setShowOriginal(!showOriginal)}>{showOriginal ? 'Show the Gemini version' : 'Show the original'}</button>}
+            <a className="btn wide" href={reportMailUrl(title, text)}>Email</a>
+            <button className="btn wide" onClick={csv}>Excel (CSV)</button>
+            <button className="btn wide" onClick={print}>Print / PDF</button>
+          </div>
+          <div className="card plain">
+            <h3 className="card-h">Include</h3>
+            <label className="check-row"><input type="checkbox" checked={opts.headings} onChange={(e) => setOpt('headings', 'report-headings')(e.target.checked)} /> Section headings</label>
+            <label className="check-row"><input type="checkbox" checked={opts.subFields} onChange={(e) => setOpt('subFields', 'report-sub-fields')(e.target.checked)} /> Sub Category fields (field name: value)</label>
+            <label className="check-row"><input type="checkbox" checked={opts.pending} onChange={(e) => setOpt('pending', 'report-pending')(e.target.checked)} /> The pending list ({pending.length})</label>
+            <details className="ai-extra"><summary>Instructions for Gemini (optional, remembered on this computer)</summary>
+              <textarea rows={3} value={extra} onChange={(e) => saveExtra(e.target.value)} placeholder="e.g. Two lines per task, formal tone, start with the bank's name" aria-label="Instructions for Gemini" />
+            </details>
+          </div>
+          <div className="card plain">
+            <h3 className="card-h">Tidy the lines</h3>
+            <p className="muted">Open any count above to see its lines. Each one has a Move to choice, so a payment can be listed under other work, or the other way round. Moves are kept for this day.</p>
+            <p className="muted">Built the way the phone app and the old website write it: tasks completed that day with DAR, the Payments lines from their Tally narration, bank follow-ups with the banker's update, then the tasks followed up that day. Domestic and Urgent payments are left out.</p>
+          </div>
+        </div>
+      </div>
     </>
   );
 }
@@ -131,7 +149,7 @@ function GroupPeek({ group, groups, onMove, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" role="dialog" aria-modal="true" aria-label={GROUP_TITLES[group]} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><h2 className="h2">{GROUP_TITLES[group]} ({items.length})</h2><button className="btn ghost" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="modal-head"><h2>{GROUP_TITLES[group]} ({items.length})</h2><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={18} /></button></div>
         {!items.length && <p className="muted">Nothing here.</p>}
         <ul className="peek-list">
           {items.map((it, i) => (

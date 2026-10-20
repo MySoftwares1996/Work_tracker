@@ -1,4 +1,4 @@
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform } from 'react-native';
 import NativeTools from '../modules/native-tools';
 
 /**
@@ -9,35 +9,6 @@ import NativeTools from '../modules/native-tools';
  * or an older build), so callers never need to branch.
  */
 export const trackerAvailable = () => !!NativeTools;
-
-export async function isTracking() {
-  if (!NativeTools) return false;
-  try { return await NativeTools.isTracking(); } catch { return false; }
-}
-
-/**
- * Android 13+ needs POST_NOTIFICATIONS before the ongoing notification (and
- * therefore the service) can show. Android 10+ needs ACTIVITY_RECOGNITION for
- * the step counter. READ_SMS is asked for separately, only if SMS capture is on.
- */
-export async function requestTrackingPermissions({ sms = false } = {}) {
-  if (Platform.OS !== 'android') return { notifications: false, activity: false, sms: false };
-  const ask = async (perm) => {
-    if (!perm) return false;
-    try { return (await PermissionsAndroid.request(perm)) === PermissionsAndroid.RESULTS.GRANTED; }
-    catch { return false; }
-  };
-
-  const notifications = Platform.Version >= 33
-    ? await ask(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS)
-    : true;
-  const activity = Platform.Version >= 29
-    ? await ask(PermissionsAndroid.PERMISSIONS.ACTIVITY_RECOGNITION)
-    : true;
-  const smsGranted = sms ? await ask(PermissionsAndroid.PERMISSIONS.READ_SMS) : false;
-
-  return { notifications, activity, sms: smsGranted };
-}
 
 /**
  * True when Android is still applying battery optimisation to this app, which
@@ -52,11 +23,6 @@ export async function isBatteryOptimised() {
 export async function requestBatteryExemption() {
   if (!NativeTools) return false;
   try { return await NativeTools.requestIgnoreBatteryOptimisations(); } catch { return false; }
-}
-
-export async function openAppSettings() {
-  if (!NativeTools) return false;
-  try { return await NativeTools.openAppSettings(); } catch { return false; }
 }
 
 /**
@@ -222,85 +188,4 @@ export async function consumeSharedText() {
 export async function consumeInitialAlarmAction() {
   if (!NativeTools) return null;
   try { return await NativeTools.consumeInitialAlarmAction(); } catch { return null; }
-}
-
-/** Mirrors shouldWarnExactAlarmOnce() above, for the separate full-screen-intent nudge. */
-let warnedFullScreenIntentThisSession = false;
-export function shouldWarnFullScreenIntentOnce() {
-  if (warnedFullScreenIntentThisSession) return false;
-  warnedFullScreenIntentThisSession = true;
-  return true;
-}
-
-export async function startTracking(pollSeconds = 15) {
-  if (!NativeTools) return false;
-  // The native side takes a whole number of seconds; "7.5" typed in Settings must not fail the start.
-  const secs = Math.round(Number(pollSeconds)) || 15;
-  try { return await NativeTools.startTracking(secs); } catch { return false; }
-}
-
-export async function stopTracking() {
-  if (!NativeTools) return false;
-  try { return await NativeTools.stopTracking(); } catch { return false; }
-}
-
-/**
- * Ongoing entry in the Android notification shade. Survives the app closing,
- * which an expo-notifications banner does not.
- */
-export async function showOngoing(title, body) {
-  if (!NativeTools) return false;
-  try { return await NativeTools.showOngoing(String(title), String(body)); } catch { return false; }
-}
-
-export async function clearOngoing() {
-  if (!NativeTools) return false;
-  try { return await NativeTools.clearOngoing(); } catch { return false; }
-}
-
-/** Messages the service captured while we were away. Clears as it reads. */
-export async function drainServiceSms() {
-  if (!NativeTools) return [];
-  try { return (await NativeTools.drainSmsQueue()) || []; } catch { return []; }
-}
-
-/* ---------- office presence ---------- */
-
-/**
- * Sends the office, radius and shift to the service. Called on every launch
- * and whenever any of them changes, so the radius you set is the radius used
- * and a reboot or APK update cannot leave tracking silently switched off.
- */
-export async function syncOffice(office = {}, cfg = {}) {
-  if (!NativeTools?.setOffice) return false;
-  const has = office.lat != null && office.lng != null;
-  try {
-    return await NativeTools.setOffice(has ? {
-      lat: Number(office.lat),
-      lng: Number(office.lng),
-      radius: Number(office.radius) || 150,
-      label: office.label || '',
-      shiftStart: cfg.shiftStart || '09:30',
-      shiftEnd: cfg.shiftEnd || '19:00',
-      breakMinutes: Number(cfg.breakMinutes ?? 60),
-      lunchStart: cfg.lunchStart || '',     // empty: centred in the shift
-    } : {});
-  } catch { return false; }
-}
-
-export async function drainPresence() {
-  if (!NativeTools?.drainPresence) return [];
-  try { return (await NativeTools.drainPresence()) || []; } catch { return []; }
-}
-
-/** { state, dist, acc, fixAt, running } - the last reading, for Setup. */
-export async function getPresence() {
-  if (!NativeTools?.getPresence) return null;
-  try { return await NativeTools.getPresence(); } catch { return null; }
-}
-
-/** Sends the app's record of today to the service (see toServiceDay). */
-export async function syncDay(serviceDay) {
-  if (!NativeTools?.setDay) return false;
-  try { return await NativeTools.setDay(serviceDay); } catch { return false; }
 }

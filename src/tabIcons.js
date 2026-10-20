@@ -165,7 +165,6 @@ const SHAPES = {
   ),
 };
 
-export const TAB_ICON_NAMES = Object.keys(SHAPES);
 
 export default function TabIcon({ name, color, size = 26, active = false }) {
   const shape = SHAPES[name];

@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, TextInput, Alert, ScrollView } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Screen, Card, Small, P, Btn, Row, Sheet, Choices, DateTimeField, PickerButton } from '../ui';
-import { useTheme, blend, ALARM_COLORS } from '../theme';
+import { Btn, Row, Sheet, Choices, DateTimeField, PickerButton } from '../ui';
+import Icon from '../icons';
+import { display } from '../fonts';
+import { useTheme, ALARM_COLORS } from '../theme';
 import { useStore } from '../store';
+import { effectiveFormats, finalNarration } from '../reportFormats';
 import { isSnoozed, isSilencedToday, RECURRENCES, RECURRENCE_LABELS, recurrenceLabel, completeEntry, nextRecurringEntry, editedNow, DEFAULT_ALERTS, snoozeEntry, silenceEntryToday, alertModeOf, normalizeHolidays, normalizeLeaveDays } from '../workingDashboard';
 import { paymentLists, subCategoryComplete } from '../workingDashboardPayments';
 import { snoozeSuggestions, pastDueEntries, ringingEntries, closedOn, postponeDue, withRemark, moveEntry, skipOccurrence, silenceMinutes } from '../pastDue';
@@ -13,37 +15,26 @@ import { scheduleEntryAlert, cancelEntryAlert, snoozeEntryAlert, entryIdOfAlarm 
 import { stopAlarmRinging } from '../tracker';
 import { blankEntry, withStatus } from '../workingDashboard';
 import { addAudit } from '../audit';
+import { warnQuiet } from '../quietCatch';
 
 const SNOOZES = [15, 30, 45, 60, 120, 180, 240, 300];      // 15, 30, 45 min, 1, 2, 3, 4, 5 hr
-const snoozeShort = (m) => (m >= 60 ? `${m / 60}h` : `${m}m`);
-const snoozeLabel = (m) => (m >= 1440 ? '1 day' : m >= 60 ? `${m / 60} hr` : `${m} min`);
+const snoozeShort = (m) => (m >= 60 ? `${m / 60} h` : `${m} m`);
 const fmtDue = (iso) => {
   const d = new Date(iso);
   return `${d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`;
 };
 
-// One button on the coloured background: white for the main answer, glass for the rest.
-function AB({ pal, title, onPress, main, style }) {
+// One button on the coloured background: white for the main answer, translucent for the rest. size: 'big' (the two answers), 'mini' (the rest).
+function AB({ pal, title, onPress, main, style, big }) {
   const t = useTheme();
   const G = ALARM_COLORS.glass;
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}
-      style={({ pressed }) => [{ paddingVertical: 12, paddingHorizontal: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: main ? G.paper : G.fill, borderWidth: main ? 0 : 1, borderColor: G.line, opacity: pressed ? 0.8 : 1 }, style]}>
-      <Text numberOfLines={1} style={{ color: main ? pal.bottom : G.text, fontWeight: '800', fontSize: t.fs(15) }}>{title}</Text>
+      style={({ pressed }) => [{ paddingVertical: big ? 17 : 12, paddingHorizontal: 12, borderRadius: big ? 18 : 14, alignItems: 'center', justifyContent: 'center', backgroundColor: main ? '#fff' : big ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.1)', borderWidth: main || big ? 0 : 1, borderColor: 'rgba(255,255,255,0.22)', opacity: pressed ? 0.8 : 1 }, style]}>
+      <Text numberOfLines={1} style={{ color: main ? pal.bottom : G.text, fontWeight: '800', fontSize: t.fs(big ? 16 : 13) }}>{title}</Text>
     </Pressable>
   );
 }
-function Chip({ text }) {
-  const t = useTheme();
-  const G = ALARM_COLORS.glass;
-  if (!text) return null;
-  return (
-    <View style={{ paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999, backgroundColor: G.fill, borderWidth: 1, borderColor: G.line, marginRight: 6, marginBottom: 6 }}>
-      <Text numberOfLines={1} style={{ color: G.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{text}</Text>
-    </View>
-  );
-}
-
 
 /**
  * Past Due Alert: every open entry past its due time, with what the web app's alert offers on each - a remark,
@@ -68,13 +59,12 @@ export default function PastDueAlert() {
   const ring = wd.alarmRingtone || 'chime';
   const [gone, setGone] = useState(() => new Set());          // handled here: hidden at once
   const [remarks, setRemarks] = useState({});
-  const [mins, setMins] = useState({});
   const [moves, setMoves] = useState({});
   const [repeatFor, setRepeatFor] = useState(null);
-  const [snoozeFor, setSnoozeFor] = useState(null);
+  const [nextRem, setNextRem] = useState({});      // the next reminder being picked, per card
   const [statusFor, setStatusFor] = useState(null);
+  const [moveFor, setMoveFor] = useState(null);      // the card whose Move popup is open
   const [samplePrio, setSamplePrio] = useState('High');      // preview only: the background colour follows the priority
-  const [more, setMore] = useState({});            // cards with Move and the dropdowns opened out
 
   // Opened from an alert that is not overdue yet (a warning before the due time): go to the dashboard instead of an empty list.
   // Leaving the screen silences a ringing alarm: it was answered (or dismissed) here.
@@ -82,7 +72,7 @@ export default function PastDueAlert() {
   // Back to the Working Dashboard already underneath (it is the first screen), not a second copy on top of it:
   // replace() stacked one, so Back from it went through the dashboard twice. popTo() adds one only if none is there.
   const toDashboard = (params) => { redirected.current = true; nav.popTo('WorkingDashboard', params); };
-  useEffect(() => () => { if (!redirected.current) fx.stopAlarmRinging('wd:').catch(() => {}); }, []);
+  useEffect(() => () => { if (!redirected.current) fx.stopAlarmRinging('wd:').catch(warnQuiet('PastDueAlert')); }, []);
 
   const ringing = useMemo(
     () => (focusAlarm ? new Set(ringingEntries(wd.entries || [], focusAlarm, new Date(), alerts).map((e) => String(e.id))) : null),
@@ -159,23 +149,23 @@ export default function PastDueAlert() {
     }
     const rolled = nextRecurringEntry(marked, wd.entries || [], new Date(), { holidays: normalizeHolidays(wd.holidays), leaveDays: normalizeLeaveDays(wd.leaveDays) });
     update((db) => ({ ...db, workingDashboard: { ...db.workingDashboard, entries: [...(rolled ? [rolled] : []), ...db.workingDashboard.entries.map((x) => (x.id === e.id ? { ...completeEntry(marked), audit: addAudit(e.audit, dar ? 'Marked done + DAR (alert)' : 'Marked done (alert)', 'phone') } : x))] } }));
-    fx.cancelEntryAlert(e.id).catch(() => {});
-    if (rolled) fx.scheduleEntryAlert(rolled, ring, wd.alerts).catch(() => {});
+    fx.cancelEntryAlert(e.id).catch(warnQuiet('PastDueAlert'));
+    if (rolled) fx.scheduleEntryAlert(rolled, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     hide(e.id);
   };
   const silence = (shown) => {
     const e = live(shown);
     // Quiet for the rest of today: its alerts are held back until tomorrow's morning time, then it rings as usual.
     // Saved on the entry in the web app's own field (lastAckDate), so the web app stops alarming too.
-    fx.snoozeEntryAlert(e, ring, silenceMinutes(new Date(), alerts.morning), wd.alerts).catch(() => {}).then(() => edit(e.id, (x) => silenceEntryToday(withRemark(x, remarks[e.id]))));
+    fx.snoozeEntryAlert(e, ring, silenceMinutes(new Date(), alerts.morning), wd.alerts).catch(warnQuiet('snoozeEntryAlert')).then(() => edit(e.id, (x) => silenceEntryToday(withRemark(x, remarks[e.id]))));
     hide(e.id);
   };
   const snooze = (shown, minutes) => {
-    const n = Number(minutes) || Number(mins[shown.id]) || 15;
+    const n = Number(minutes) || 15;
     const e = live(shown);
     // snoozeUntil is the web app's own field: the web app stops alarming until then too.
     edit(e.id, (x) => ({ ...snoozeEntry(withRemark(x, remarks[e.id]), Date.now() + n * 60000), audit: addAudit(x.audit, `Snoozed for ${n >= 60 ? `${n / 60} h` : `${n} min`} (alert)`, 'phone') }));
-    fx.snoozeEntryAlert(e, ring, n, wd.alerts).catch(() => {});
+    fx.snoozeEntryAlert(e, ring, n, wd.alerts).catch(warnQuiet('snoozeEntryAlert'));
     hide(e.id);
   };
   const skip = (shown) => {
@@ -184,15 +174,15 @@ export default function PastDueAlert() {
     if (!r) return;
     update((db) => ({ ...db, workingDashboard: { ...db.workingDashboard, entries: db.workingDashboard.entries.map((x) => (x.id === e.id ? { ...r.skipped, audit: addAudit(x.audit, 'Skipped today (alert)', 'phone') } : x)) } }));
     // Still open: silenced for today, its alerts carry on from tomorrow.
-    fx.scheduleEntryAlert(r.skipped, ring, wd.alerts).catch(() => {});
+    fx.scheduleEntryAlert(r.skipped, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     hide(e.id);
   };
   const move = (shown, iso) => {
     const e = live(shown);
     const next = { ...moveEntry(withRemark(e, remarks[e.id]), iso), audit: addAudit(e.audit, 'Moved to a new date (alert)', 'phone') };
     edit(e.id, () => next);
-    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(() => {});
-    fx.stopAlarmRinging(`wd:${e.id}:`).catch(() => {});
+    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    fx.stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('PastDueAlert'));
     if (new Date(iso) > new Date()) hide(e.id);
   };
   // 🔔 Alarm / 🔕 Reminder for this task, as on its card: a Reminder stops ringing and is not nagged again.
@@ -201,14 +191,12 @@ export default function PastDueAlert() {
     const mode = alertModeOf(e, wd.alerts) === 'alarm' ? 'gentle' : 'alarm';
     const next = { ...e, alertMode: mode, ...editedNow() };
     edit(e.id, (x) => ({ ...x, alertMode: mode, ...editedNow() }));
-    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(() => {});
-    if (mode === 'gentle') fx.stopAlarmRinging(`wd:${e.id}:`).catch(() => {});
+    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    if (mode === 'gentle') fx.stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('PastDueAlert'));
   };
   const postpone = (shown) => move(shown, postponeDue(live(shown), wd.holidays, wd.leaveDays));
   const postponeAll = () => closedList.forEach(({ e }) => postpone(e));
   const setRepeat = (e, r) => edit(e.id, (x) => ({ ...x, recurrence: r, recurrenceEveryMin: r === 'custom' ? (x.recurrenceEveryMin || 15) : null, ...editedNow() }));
-
-  const small = (title, onPress, kind = 'soft', disabled) => <Btn kind={kind} title={title} onPress={onPress} disabled={disabled} style={{ paddingVertical: 6, paddingHorizontal: 12, marginRight: 8, marginBottom: 6 }} />;
 
   const G = ALARM_COLORS.glass;
   const lead = closed[0] ? closed[0].e : null;
@@ -217,41 +205,47 @@ export default function PastDueAlert() {
   const early = lead && lead.dueAt && new Date(lead.dueAt).getTime() > Date.now();
   const toGo = early ? Math.round((new Date(lead.dueAt).getTime() - Date.now()) / 60000) : 0;
   const when = early ? `DUE IN ${toGo >= 60 ? `${Math.round(toGo / 60)} HR` : `${Math.max(toGo, 1)} MIN`}` : lateMin <= 30 ? 'DUE NOW' : 'PAST DUE';
+  const clock = lead && lead.dueAt ? new Date(lead.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  const lab = { color: pal.dim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.2, marginTop: 4 };
+  const panel = { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 12 };
   return (
+    // Ledger: one flat deep colour that follows the priority of the task that rang - red High, amber-brown Medium, green Low, slate otherwise.
     <View style={{ flex: 1, backgroundColor: pal.bottom }}>
-      {/* The background follows the priority of the task that rang: red High, amber Medium, green Low, blue otherwise. */}
-      <Svg style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} width="100%" height="100%" preserveAspectRatio="none">
-        <Defs><LinearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={pal.top} /><Stop offset="1" stopColor={pal.bottom} /></LinearGradient></Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#bg)" />
-      </Svg>
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right', 'bottom']}>
-        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: 20, paddingHorizontal: 24, paddingBottom: 28, gap: 18 }} keyboardShouldPersistTaps="handled">
           <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{ fontSize: 64 }}>{pal.icon}</Text>
-              <Text style={{ color: G.dim, fontWeight: '700', letterSpacing: 0.6, fontSize: t.fs(13) }}>{lead ? `${pal.label} ${when}` : 'ALERT'}</Text>
+            <View style={{ backgroundColor: G.fill, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexShrink: 1 }}>
+              <Text numberOfLines={1} style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.3 }}>{lead ? `${pal.label} · ${when}` : 'ALERT'}</Text>
             </View>
+            <Row gap={10} style={{ alignItems: 'center' }}>
+              {!!clock && <Text style={{ color: pal.dim, fontWeight: '700', fontSize: t.fs(13) }}>{clock}</Text>}
+              <Pressable onPress={() => nav.goBack()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close" style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: G.fill, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="close" size={18} color="#fff" stroke={2.2} />
+              </Pressable>
+            </Row>
           </Row>
-          <Pressable onPress={() => nav.goBack()} hitSlop={12} accessibilityLabel="Close" style={{ position: 'absolute', right: 12, top: 4 }}><Text style={{ color: G.dim, fontSize: 28 }}>✕</Text></Pressable>
-          {preview && <View style={{ backgroundColor: G.fillStrong, borderRadius: 12, padding: 10, marginTop: 12 }}><Text style={{ color: G.text, fontWeight: '700', fontSize: t.fs(12.5) }}>PREVIEW - how an alarm opens full screen. A sample task; nothing here is saved or changed.</Text>
-            <Row gap={6} style={{ marginTop: 8 }}>{['High', 'Medium', 'Low', 'None'].map((pr) => <Pressable key={pr} onPress={() => setSamplePrio(pr)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: samplePrio === pr ? G.paper : G.fill }}><Text style={{ color: samplePrio === pr ? pal.bottom : G.text, fontWeight: '800' }}>{pr}</Text></Pressable>)}</Row></View>}
+          <View style={{ width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
+            <Icon name="bell" size={38} color="#fff" stroke={1.8} />
+          </View>
+          {preview && <View style={{ backgroundColor: G.fillStrong, borderRadius: 12, padding: 10 }}><Text style={{ color: G.text, fontWeight: '700', fontSize: t.fs(12.5) }}>PREVIEW - how an alarm opens full screen. A sample task; nothing here is saved or changed.</Text>
+            <Row gap={6} style={{ marginTop: 8 }}>{['High', 'Medium', 'Low', 'None'].map((pr) => <Pressable key={pr} onPress={() => setSamplePrio(pr)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: samplePrio === pr ? '#fff' : G.fill }}><Text style={{ color: samplePrio === pr ? pal.bottom : G.text, fontWeight: '800' }}>{pr}</Text></Pressable>)}</Row></View>}
 
           {!!ringing && !showAll && overdueAll.filter((e) => !ringing.has(String(e.id)) && !gone.has(e.id)).length > 0 && (
-            <Pressable onPress={() => setShowAll(true)} hitSlop={8} style={{ marginTop: 10 }}>
-              <Text style={{ color: G.text, fontWeight: '700', textAlign: 'center' }}>Showing the task that rang · Show all {overdueAll.filter((e) => !gone.has(e.id)).length} overdue ›</Text>
+            <Pressable onPress={() => setShowAll(true)} hitSlop={8}>
+              <Text style={{ color: G.text, fontWeight: '700' }}>Showing the task that rang · Show all {overdueAll.filter((e) => !gone.has(e.id)).length} overdue</Text>
             </Pressable>
           )}
 
           {!list.length && (
-            <View style={{ alignItems: 'center', padding: 28 }}>
-              <Text style={{ fontSize: 40 }}>✅</Text>
-              <Text style={{ color: G.text, fontWeight: '800', fontSize: t.fs(18), marginTop: 8 }}>Nothing past due</Text>
-              <AB pal={pal} main title="Open Working Dashboard" onPress={() => toDashboard()} style={{ marginTop: 14 }} />
+            <View style={{ alignItems: 'center', padding: 28, gap: 10 }}>
+              <Icon name="done" size={44} color="#fff" stroke={1.8} />
+              <Text style={{ color: G.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(24) }}>Nothing past due</Text>
+              <AB pal={pal} main title="Open Working Dashboard" onPress={() => toDashboard()} style={{ marginTop: 6, alignSelf: 'stretch' }} />
             </View>
           )}
 
           {closedList.length > 0 && (
-            <View style={{ backgroundColor: G.fillStrong, borderRadius: 14, padding: 12, marginTop: 12 }}>
+            <View style={panel}>
               <Text style={{ color: G.text, fontWeight: '800' }}>{closedList.length} task{closedList.length === 1 ? '' : 's'} fall on {[...new Set(closedList.map((x) => x.c.name))].join(', ')} (office closed)</Text>
               <AB pal={pal} title="Postpone all" onPress={postponeAll} style={{ marginTop: 8 }} />
             </View>
@@ -260,51 +254,55 @@ export default function PastDueAlert() {
           {closed.map(({ e, c }) => {
             const entry = live(e);
             const moveTo = moves[e.id] || e.dueAt;
-            const prio = ALARM_COLORS.priority[entry.priority] || ALARM_COLORS.priority.None;
+            const meta1 = [entry.category, entry.pendingWith ? `with ${entry.pendingWith}` : ''].filter(Boolean);
+            const meta2 = [entry.subCategory, entry.status, entry.recurrence && entry.recurrence !== 'none' ? `Repeats ${recurrenceLabel(entry).toLowerCase()}` : ''].filter(Boolean).join(' · ');
             return (
-              <View key={e.id} style={{ marginTop: 18 }}>
-                <Text style={{ color: G.text, fontWeight: '800', fontSize: t.fs(26), lineHeight: t.fs(32), textAlign: 'center' }}>{entry.title}</Text>
-                <Text style={{ color: G.dim, fontWeight: '600', textAlign: 'center', marginTop: 4, marginBottom: 12 }}>Due {fmtDue(entry.dueAt)}</Text>
-                {/* Everything about the task: priority, category, who it is with, status, repeat. */}
-                <Row style={{ flexWrap: 'wrap', justifyContent: 'center', gap: 0 }}>
-                  <Chip text={`${prio.icon} ${entry.priority || 'No priority'}`} />
-                  <Chip text={entry.category ? `📁 ${entry.category}` : ''} />
-                  <Chip text={entry.pendingWith ? `👤 Pending with: ${entry.pendingWith}` : ''} />
-                  <Chip text={`🔁 ${recurrenceLabel(entry)}`} />
-                  <Chip text={entry.status ? `◔ ${entry.status}` : ''} />
-                </Row>
-                {!!entry.reference && <Text numberOfLines={2} style={{ color: G.dim, textAlign: 'center', fontSize: t.fs(12.5), marginTop: 2 }}>✉ {entry.reference}</Text>}
+              <View key={e.id} style={{ flexGrow: 1, gap: 18 }}>
+                <Text style={{ color: '#fff', fontFamily: display(), fontWeight: '600', fontSize: t.fs(34), lineHeight: t.fs(37), letterSpacing: -0.8 }}>{entry.title}</Text>
+                {/* Everything about the task: category, who it is with, sub category, status, repeat, the mail chain. */}
+                <View style={{ gap: 6 }}>
+                  {!!meta1.length && <Text style={{ color: pal.dim, fontWeight: '600', fontSize: t.fs(14) }}><Text style={{ color: '#fff', fontWeight: '800' }}>{meta1[0]}</Text>{meta1[1] ? ` · ${meta1[1]}` : ''}</Text>}
+                  <Text style={{ color: pal.dim, fontWeight: '600', fontSize: t.fs(14) }}>Due {fmtDue(entry.dueAt)}</Text>
+                  {!!meta2 && <Text style={{ color: pal.dim, fontWeight: '600', fontSize: t.fs(14) }}>{meta2}</Text>}
+                  {!!entry.reference && <Text numberOfLines={2} style={{ color: pal.dim, fontWeight: '600', fontSize: t.fs(14) }}>Mail: {entry.reference}</Text>}
+                </View>
 
                 {!!c && (
-                  <View style={{ backgroundColor: G.fillStrong, borderRadius: 12, padding: 10, marginTop: 10 }}>
+                  <View style={panel}>
                     <Text style={{ color: G.text, fontWeight: '700', fontSize: t.fs(12.5) }}>Due on {c.name} - office closed. Postpone to the next working day?</Text>
                     <AB pal={pal} title="Postpone" onPress={() => postpone(entry)} style={{ marginTop: 6 }} />
                   </View>
                 )}
 
+                <View style={{ flex: 1, minHeight: 4 }} />
+
                 <TextInput
                   value={remarks[e.id] || ''} onChangeText={(v) => setRemarks((r) => ({ ...r, [e.id]: v }))}
-                  placeholder="Remarks (optional)" placeholderTextColor={t.textDim}
-                  style={{ backgroundColor: G.paper, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: G.ink, fontSize: t.fs(14), marginTop: 12, marginBottom: 12 }}
+                  placeholder="Remarks (optional)" placeholderTextColor={pal.dim}
+                  style={{ backgroundColor: G.fill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: t.fs(14), fontWeight: '600' }}
                 />
-                <AB pal={pal} main title="✓ Mark done" onPress={() => done(entry)} />
-                <AB pal={pal} title="✓ Done + DAR (into the daily report)" onPress={() => done(entry, { dar: true })} style={{ marginTop: 8 }} />
-                <Row gap={8} style={{ marginTop: 8 }}>
-                  <AB pal={pal} title="Silence today" onPress={() => silence(entry)} style={{ flex: 1 }} />
-                  <AB pal={pal} title="Skip" onPress={() => skip(entry)} style={{ flex: 1 }} />
+                <Row gap={10}>
+                  <AB big main pal={pal} title="Mark done" onPress={() => done(entry)} style={{ flex: 1 }} />
+                  <AB big pal={pal} title="Done + DAR" onPress={() => done(entry, { dar: true })} style={{ flex: 1 }} />
                 </Row>
 
-                <Text style={{ color: G.dim, fontWeight: '700', fontSize: t.fs(12), letterSpacing: 0.5, marginTop: 16, marginBottom: 6 }}>SNOOZE FOR</Text>
-                <Row style={{ flexWrap: 'wrap', gap: 8 }}>
-                  {SNOOZES.map((m) => <AB pal={pal} key={m} title={`💤 ${snoozeShort(m)}`} onPress={() => snooze(entry, m)} style={{ minWidth: 72, paddingVertical: 10 }} />)}
+                <Text style={lab}>SNOOZE</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {SNOOZES.map((m) => <AB pal={pal} key={m} title={snoozeShort(m)} onPress={() => snooze(entry, m)} style={{ width: '23%', flexGrow: 1 }} />)}
+                </View>
+
+                <Row gap={8}>
+                  <AB pal={pal} title="Move" onPress={() => setMoveFor(entry.id)} style={{ flex: 1 }} />
+                  <AB pal={pal} title="Skip" onPress={() => skip(entry)} style={{ flex: 1 }} />
+                  <AB pal={pal} title="Silence today" onPress={() => silence(entry)} style={{ flex: 1.3 }} />
                 </Row>
 
                 {(() => {
                   const tips = snoozeSuggestions(entry, { holidays: wd.holidays, leaveDays: wd.leaveDays, assignees: wd.assignees, morning: alerts.morning, bankWord: (wd.quickAdd || {}).bankWord });
                   if (!tips.length) return null;
                   return (
-                    <View style={{ backgroundColor: G.fillStrong, borderRadius: 14, padding: 12, marginTop: 14 }}>
-                      <Text style={{ color: G.text, fontWeight: '800' }}>💡 Snoozed {Number(entry.snoozeCount)} times - try:</Text>
+                    <View style={panel}>
+                      <Text style={{ color: G.text, fontWeight: '800' }}>Snoozed {Number(entry.snoozeCount)} times - try:</Text>
                       <Row style={{ flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                         {tips.map((tp) => <AB key={tp.key} pal={pal} title={tp.label} onPress={() => (tp.dueAt ? move(entry, tp.dueAt) : (edit(entry.id, (x) => ({ ...x, ...tp.patch, snoozeCount: 0, ...editedNow() })), hide(entry.id)))} />)}
                       </Row>
@@ -312,30 +310,61 @@ export default function PastDueAlert() {
                   );
                 })()}
 
-                <Text style={{ color: G.dim, fontWeight: '700', fontSize: t.fs(12), letterSpacing: 0.5, marginTop: 16, marginBottom: 6 }}>MOVE TO DATE & TIME</Text>
-                <View style={{ backgroundColor: G.paper, borderRadius: 12, padding: 10 }}>
-                  <DateTimeField value={moveTo} onChange={(v) => v && setMoves((m) => ({ ...m, [e.id]: v }))} />
-                  <Btn title="Move" onPress={() => move(entry, moveTo)} />
-                </View>
+                {Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(entry.category) && (
+                  <View style={{ gap: 6 }}>
+                    <Text style={lab}>NEXT REMINDER</Text>
+                    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 10 }}>
+                      <DateTimeField clearable value={nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt} onChange={(v) => setNextRem((m) => ({ ...m, [e.id]: v || '' }))} />
+                      <Btn title="Set reminder" onPress={() => { const iso = nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt; const next = { ...live(entry), nextReminderAt: iso || null }; edit(e.id, () => next); fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert')); }} />
+                    </View>
+                  </View>
+                )}
+                {(() => {
+                  // "Final Narration": the narration of the task's report line (Payments with a report format).
+                  const n = finalNarration(entry, effectiveFormats(wd.reportFormats));
+                  return n ? (
+                    <View style={panel}>
+                      <Text style={{ color: G.text, fontWeight: '800' }}>Final Narration</Text>
+                      <Text selectable style={{ color: G.text, marginTop: 4 }}>{n.text}</Text>
+                      {n.missing.length > 0 && <Text style={{ color: pal.dim, marginTop: 4 }}>Still to fill: {n.missing.join(', ')}</Text>}
+                    </View>
+                  ) : null;
+                })()}
 
-                <Row gap={10} style={{ marginTop: 14 }}>
+                <Row gap={10}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: G.dim, fontWeight: '700', fontSize: t.fs(12), letterSpacing: 0.5, marginBottom: 6 }}>STATUS</Text>
-                    <PickerButton text={`${entry.status || 'Set status'}  ▾`} onPress={() => setStatusFor(entry.id)} />
+                    <Text style={[lab, { marginTop: 0, marginBottom: 6 }]}>STATUS</Text>
+                    <PickerButton text={entry.status || 'Set status'} onPress={() => setStatusFor(entry.id)} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: G.dim, fontWeight: '700', fontSize: t.fs(12), letterSpacing: 0.5, marginBottom: 6 }}>RECURRING</Text>
-                    <PickerButton text={`${recurrenceLabel(entry)}  ▾`} onPress={() => setRepeatFor(entry.id)} />
+                    <Text style={[lab, { marginTop: 0, marginBottom: 6 }]}>RECURRING</Text>
+                    <PickerButton text={recurrenceLabel(entry)} onPress={() => setRepeatFor(entry.id)} />
                   </View>
                 </Row>
-                <Pressable onPress={() => switchMode(entry)} hitSlop={8} style={{ alignSelf: 'center', marginTop: 14 }}>
-                  <Text style={{ color: G.dim, fontWeight: '700' }}>{alertModeOf(entry, wd.alerts) === 'alarm' ? '🔕 Reminder only (stop ringing for this task)' : '🔔 Ring as alarm'}</Text>
+                <Pressable onPress={() => switchMode(entry)} hitSlop={8} accessibilityRole="button" style={{ alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Icon name={alertModeOf(entry, wd.alerts) === 'alarm' ? 'bellOff' : 'bell'} size={18} color={pal.dim} stroke={1.9} />
+                  <Text style={{ color: pal.dim, fontWeight: '700' }}>{alertModeOf(entry, wd.alerts) === 'alarm' ? 'Reminder only (stop ringing for this task)' : 'Ring as alarm'}</Text>
                 </Pressable>
               </View>
             );
           })}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Move to another date and time. */}
+      <Sheet visible={!!moveFor} onClose={() => setMoveFor(null)} title="Move to date & time">
+        {!!moveFor && (() => {
+          const entry = (wd.entries || []).find((x) => x.id === moveFor) || (preview ? sample : null);
+          if (!entry) return null;
+          const moveTo = moves[entry.id] || entry.dueAt;
+          return (
+            <View>
+              <DateTimeField value={moveTo} onChange={(v) => v && setMoves((m) => ({ ...m, [entry.id]: v }))} />
+              <Btn title="Move" onPress={() => { setMoveFor(null); move(entry, moveTo); }} />
+            </View>
+          );
+        })()}
+      </Sheet>
 
       <Sheet visible={!!statusFor} onClose={() => setStatusFor(null)} title="Status">
         <Choices

@@ -32,7 +32,7 @@ logic, so every change reaches the phone and the web together.
 
 Either:
 - **Realtime Sync**: in the new app, Working Dashboard → Config → Realtime Sync → sign in with the same Google
-  account. Every entry comes down from the web app. Or Config → Cloud Sync with the same sheet URL.
+  account. Every entry comes down from the web app.
 - **Backup**: in My Personal Tracker, Settings → Back up everything. In Working Dashboard, ⚙ → Restore from a
   backup → pick that file. Only its Working Dashboard (entries, lists, config, activity log) and the theme /
   app-lock settings are taken.
@@ -77,7 +77,7 @@ API key is not allowed, put the project's own *Web* app keys (Firebase → Proje
 
 What a browser cannot do, so only the Android app does it: the full-screen alarm and alerts with the app closed
 (the web shows a browser notification while the tab is open), home-screen widgets, and the phone's fingerprint
-unlock (the web uses the PIN). Data on the web is kept in that browser; Realtime Sync / Cloud Sync keep it the
+unlock (the web uses the PIN). Data on the web is kept in that browser; Realtime Sync keeps it the
 same as the phone.
 
 **How it is built:** `metro.config.js` swaps each phone-only package for a small browser version in `web/shims/`

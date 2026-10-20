@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Field, Small, Row, PickerButton, Choices, useLayout } from '../ui';
+import { Field, Small, Label, Row, Btn, Sheet, PickerButton, Choices, useLayout } from '../ui';
+import Icon from '../icons';
 import { useTheme } from '../theme';
 import { useStore } from '../store';
 import { recordNarration, toggleFav, removeHistory } from '../narrationHistory';
-import {
-  paymentSections, findSubCategory, PAYMENT_TYPES, PAYMENT_AGAINST, buildNarrationText, narrationStyle, narrationOffersPo, subCategoryText, narrationNeedsDoc, narrationMissing, normalizeKeyPoints,
-} from '../workingDashboardPayments';
+import { paymentSections, findSubCategory, PAYMENT_TYPES, PAYMENT_AGAINST, buildNarrationText, narrationStyle, narrationOffersPo, subCategoryText, narrationNeedsDoc, narrationMissing } from '../workingDashboardPayments';
 
 /**
  * A pick-one list that opens in place under its button (no second sheet over the entry form).
@@ -18,7 +17,7 @@ function InlinePick({ label, value, placeholder = 'Select', options, onChange })
   const shown = (options.find(([k]) => k === value) || [])[1] || value;
   return (
     <View style={{ marginBottom: 12 }}>
-      <Small style={{ marginBottom: 5 }}>{label}</Small>
+      <Label>{label}</Label>
       <PickerButton text={shown || placeholder} dim={!shown} onPress={() => setOpen((v) => !v)} />
       {open && (
         <View style={{ marginTop: 6 }}>
@@ -129,19 +128,19 @@ export function NarrationForm({ nd, setNd, lists, subText = '', mailChain = '', 
         <Pressable onPress={() => setNd({ includeMail: !nd.includeMail })} accessibilityRole="checkbox" accessibilityState={{ checked: !!nd.includeMail }}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <View style={{ width: 22, height: 22, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: nd.includeMail ? t.accent : 'transparent', borderWidth: nd.includeMail ? 0 : 2, borderColor: t.accent }}>
-            {!!nd.includeMail && <Text style={{ color: '#fff', fontWeight: '900', fontSize: t.fs(12) }}>✓</Text>}
+            {!!nd.includeMail && <Icon name="check" size={14} color={t.onAccent} stroke={3} />}
           </View>
           <Text style={{ color: t.text, fontSize: t.fs(14) }}>Include mail chain</Text>
         </Pressable>
-        <Small style={{ marginBottom: 5 }}>GENERATED NARRATION</Small>
+        <Label>GENERATED NARRATION</Label>
         <Row gap={6} style={{ alignItems: 'flex-start' }}>
           <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: t.surfaceAlt }}>
             <Text style={{ color: t.text, fontSize: t.fs(13.5) }} selectable>{preview}</Text>
             {!!missing.length && <Text style={{ color: t.warn, fontSize: t.fs(12), marginTop: 6, fontWeight: '700' }}>Still blank: {missing.join(', ')}</Text>}
           </View>
           <Pressable accessibilityLabel="Copy narration" onPress={onCopy}
-            style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent + '1F' }}>
-            <Text style={{ color: t.accent, fontSize: t.fs(16) }}>⧉</Text>
+            style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.tint }}>
+            <Icon name="copy" size={19} color={t.tintText} stroke={1.9} />
           </Pressable>
         </Row>
       </View>
@@ -181,6 +180,17 @@ export function PaymentFields({ draft, setDraft, lists, rememberedType = '' }) {
   const sc = findSubCategory(lists, draft.subCategory);
   const scVals = draft.subCategoryFields || {};
   const nd = draft.narrationDraft || {};
+  // The Sub Category's fields are in a popup (the form does not grow): opened when one is picked, by the button, or when a Completed task still lacks some.
+  const [subOpen, setSubOpen] = useState(false);
+  const subSnap = useRef({});
+  const openSub = () => { subSnap.current = draft.subCategoryFields || {}; setSubOpen(true); };
+  const subFilled = (sc?.fields || []).filter((f) => String(scVals[f.label] || '').trim()).length;
+  const autoOpened = useRef('');
+  useEffect(() => {
+    const need = sc && sc.fields.length > subFilled && /^completed$/i.test(String(draft.status || ''));
+    if (need && autoOpened.current !== `${draft.id}|${draft.subCategory}`) { autoOpened.current = `${draft.id}|${draft.subCategory}`; openSub(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per task and Sub Category.
+  }, [draft.status, draft.subCategory, sec.subCategory]);
   const setNd = (patch) => setDraft((d) => ({ ...d, narrationDraft: { ...(d.narrationDraft || {}), ...patch } }));
   // The narration type last used for this category starts picked (once per category, so clearing it sticks).
   const filledFor = useRef(null);
@@ -204,11 +214,20 @@ export function PaymentFields({ draft, setDraft, lists, rememberedType = '' }) {
       {sec.subCategory && (
         <Section title="SUB CATEGORY" hint="This category needs a Sub Category (and its fields) before it is completed.">
           <InlinePick label="SUB CATEGORY" value={draft.subCategory || ''} options={(lists.subCategories || []).map((x) => [x.name, x.name])}
-            onChange={(v) => set({ subCategory: v || null, subCategoryFields: v === draft.subCategory ? scVals : {} })} />
+            onChange={(v) => { set({ subCategory: v || null, subCategoryFields: v === draft.subCategory ? scVals : {} }); const next = findSubCategory(lists, v); if (v && v !== draft.subCategory && next && next.fields.length) { subSnap.current = {}; setSubOpen(true); } }} />
           {!(lists.subCategories || []).length && <Small style={{ marginBottom: 8 }}>No Sub Categories yet - they are set up on the web app (Config) and arrive with Realtime Sync.</Small>}
-          {(sc?.fields || []).map((f) => (
-            <RuleField key={f.label} field={f} value={scVals[f.label]} onChange={(v) => set({ subCategoryFields: { ...scVals, [f.label]: v } })} />
-          ))}
+          {!!sc && sc.fields.length > 0 && (
+            <Pressable onPress={openSub} accessibilityRole="button" accessibilityLabel="Sub category details" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: t.accent, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start' }}>
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(13.5) }}>Sub category details</Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: t.fs(11.5), backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 10, paddingHorizontal: 8 }}>{subFilled} of {sc.fields.length}</Text>
+            </Pressable>
+          )}
+          <Sheet visible={subOpen && !!sc} onClose={() => { set({ subCategoryFields: subSnap.current }); setSubOpen(false); }} title={sc ? `${sc.name} - details` : ''}>
+            {!!sc && sc.fields.map((f) => (
+              <RuleField key={f.label} field={f} value={scVals[f.label]} onChange={(v) => set({ subCategoryFields: { ...scVals, [f.label]: v } })} />
+            ))}
+            <Btn title="Done" onPress={() => setSubOpen(false)} />
+          </Sheet>
         </Section>
       )}
 
@@ -221,32 +240,3 @@ export function PaymentFields({ draft, setDraft, lists, rememberedType = '' }) {
   );
 }
 
-/** Key Points as the web app keeps them: a key and a value per row (e.g. Amount - ₹50,000). */
-export function KeyPointsEditor({ points, onChange }) {
-  const t = useTheme();
-  // Blank rows stay while editing (a row just added is blank); they are dropped when the entry is saved.
-  const rows = Array.isArray(points)
-    ? points.map((p) => (p && typeof p === 'object' ? { key: String(p.key ?? ''), value: String(p.value ?? '') } : { key: '', value: String(p ?? '') }))
-    : normalizeKeyPoints(points);
-  const setRow = (i, patch) => onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  return (
-    <View style={{ marginBottom: 14 }}>
-      <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 6 }}>
-        <Small style={{ flex: 1 }}>KEY POINTS (feeds AI report)</Small>
-        <Pressable onPress={() => onChange([...rows, { key: '', value: '' }])} style={{ backgroundColor: t.surfaceAlt, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 7 }}>
-          <Text style={{ color: t.text, fontWeight: '800' }}>+ Add</Text>
-        </Pressable>
-      </Row>
-      {rows.map((kp, i) => (
-        // eslint-disable-next-line react/no-array-index-key
-        <Row key={i} gap={6} style={{ alignItems: 'flex-start' }}>
-          <View style={{ flex: 2 }}><Field style={{ marginBottom: 6 }} value={kp.key} onChangeText={(v) => setRow(i, { key: v })} placeholder="Key (e.g. Amount)" /></View>
-          <View style={{ flex: 3 }}><Field style={{ marginBottom: 6 }} value={kp.value} onChangeText={(v) => setRow(i, { value: v })} placeholder="Value (e.g. ₹50,000)" /></View>
-          <Pressable onPress={() => onChange(rows.filter((_, idx) => idx !== i))} hitSlop={8} accessibilityLabel="Remove key point" style={{ paddingTop: 12 }}>
-            <Text style={{ color: t.danger, fontSize: t.fs(16) }}>✕</Text>
-          </Pressable>
-        </Row>
-      ))}
-    </View>
-  );
-}

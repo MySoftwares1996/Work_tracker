@@ -1,4 +1,7 @@
+import { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, findSubCategory, subCategoryMissing, addSubCategory, parseSubCategoryLines, addSubCategories, withCarrying, validateSubCategory, applySubCategoryEdit, removeSubCategory, addOption, removeOption } from '../../src/listsCore.js';
+export { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, findSubCategory, subCategoryMissing, addSubCategory, parseSubCategoryLines, addSubCategories, withCarrying, validateSubCategory, applySubCategoryEdit, removeSubCategory, addOption, removeOption } from '../../src/listsCore.js';
 import { noteWork, isUnstartedStatus } from '../../src/workingDashboardPayments.js';
+import { followUpPicks as followUpPicksCore } from '../../src/followUpPicks.js';
 /**
  * The task data, in the shape the phone app and the old website already share (users/<uid>/tasks, the "web app's task
  * document"): description, dueDate + dueTime, mailChain, status "Completed", deleted... Nothing here touches Firebase, so
@@ -72,6 +75,7 @@ export function fromDoc(id, d = {}) {
     attachments: (Array.isArray(d.attachments) ? d.attachments : []).filter((a) => a && /^https?:\/\//i.test(String(a.url || ''))).map((a) => ({ id: String(a.id || newId()), title: String(a.title || a.url), url: String(a.url) })),
     nextReminder: asDate(d.nextReminderAt),
     snoozeUntil: Number(d.snoozeUntil) || 0,
+    snoozeCount: Number(d.snoozeCount) || 0, // read only (the phone counts snoozes; the Weekly review uses it)
     lastAckDate: d.lastAckDate ? String(d.lastAckDate) : '',
     skippedDates: Array.isArray(d.skippedDates) ? d.skippedDates.map(String) : [],
     subCategory: d.subCategory ? String(d.subCategory) : '',
@@ -206,13 +210,14 @@ export function sortTasks(list, by = 'due') {
 export function filterTasks(list, { q = '', priority = '', category = '', subCategory = '', pendingWith = '', status = '', due = '' } = {}, now = new Date()) {
   const needle = q.trim().toLowerCase();
   const dueTest = DUE_TESTS[due];
+  const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
   return list.filter((t) => {
-    if (status && t.status !== status) return false;
+    if (status && !same(t.status, status)) return false;
     if (dueTest && !dueTest(t, now)) return false;
-    if (priority && t.priority !== priority) return false;
-    if (category && t.category !== category) return false;
+    if (priority && !same(t.priority, priority)) return false;
+    if (category && !same(t.category, category)) return false;
     if (subCategory && (subCategory === '__none' ? !!t.subCategory : t.subCategory !== subCategory)) return false;
-    if (pendingWith && t.pendingWith !== pendingWith) return false;
+    if (pendingWith && !same(t.pendingWith, pendingWith)) return false;
     if (!needle) return true;
     return `${t.title} ${t.reference} ${t.notes} ${t.category} ${t.pendingWith}`.toLowerCase().includes(needle);
   });
@@ -246,100 +251,9 @@ export function nextOccurrence(t, existing = [], now = new Date()) {
   for (let i = 0; i < 400 && startOfDay(d) < startOfDay(now); i++) step();     // never in the past
   const dupe = existing.some((x) => isOpen(x) && x.id !== t.id && x.title === t.title && x.recurrence === rec && x.due && dayKey(x.due) === dayKey(d));
   if (dupe) return null;
-  return { ...t, id: newId(), status: 'Not Yet Started', due: d, done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: t.seriesId || t.id, createdAt: now };
+  // Per-occurrence state (reminder, snooze, silence, skips, ticked steps) is not carried to the next one.
+  return { ...t, nextReminder: null, snoozeUntil: 0, lastAckDate: '', skippedDates: [], checklist: (t.checklist || []).map((c) => ({ ...c, done: false })), id: newId(), status: 'Not Yet Started', due: d, done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: t.seriesId || t.id, createdAt: now };
 }
-
-/** The Daily Activity Report text for one day: what was completed (with DAR on), then what is still open and due. */
-export function reportText(tasks, date = new Date(), { subFields = true } = {}) {
-  const day = dayKey(date);
-  const done = tasks.filter((t) => t.done && !t.binned && !t.purged && t.dar && t.completedAt && dayKey(t.completedAt) === day);
-  const heading = date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const lines = [`Daily Activity Report - ${heading}`, ''];
-  if (!done.length) lines.push('No completed activities recorded.');
-  done.forEach((t, i) => {
-    const bits = [t.category, t.pendingWith && `with ${t.pendingWith}`].filter(Boolean).join(', ');
-    lines.push(`${i + 1}. ${t.title}${bits ? ` (${bits})` : ''}`);
-    // The Sub Category's fields (the banker's reply among them) and the notes both go into the report.
-    const fields = !subFields ? [] : Object.entries(t.subCategoryFields || {}).filter(([, v]) => String(v || '').trim()).map(([k, v]) => `${String(k).replace(/[\s:]+$/, '')}: ${String(v).trim().replace(/\n+/g, ' ')}`);
-    if (t.subCategory && fields.length) lines.push(`   ${t.subCategory} - ${fields.join('; ')}`);
-    else if (fields.length) lines.push(`   ${fields.join('; ')}`);
-    if (t.notes) lines.push(`   Notes: ${t.notes.replace(/\n+/g, ' ')}`);
-  });
-  const pending = tasks.filter((t) => isOpen(t) && t.due && dayKey(t.due) <= day);
-  if (pending.length) {
-    lines.push('', 'Pending:');
-    sortTasks(pending, 'priority').forEach((t, i) => lines.push(`${i + 1}. ${t.title}${t.priority ? ` [${t.priority}]` : ''}`));
-  }
-  return lines.join('\n');
-}
-
-/** Sub Categories as the lists document keeps them: [{ id, name, fields: [{ label, options? }] }]; plain names are accepted too. */
-export function normalizeSubCategories(list) {
-  return (Array.isArray(list) ? list : [])
-    .map((sc, i) => (typeof sc === 'string' ? { id: `sc-${i}-${sc}`, name: sc, fields: [] } : sc))
-    .filter((sc) => sc && String(sc.name || '').trim())
-    .map((sc) => ({
-      ...sc, id: String(sc.id || `sc-${sc.name}`), name: String(sc.name), category: String(sc.category || ''),
-      fields: (Array.isArray(sc.fields) ? sc.fields : []).filter((f) => f && String(f.label || '').trim()).map((f) => ({ ...f, label: String(f.label), options: Array.isArray(f.options) ? f.options.map(String) : undefined })),
-    }));
-}
-// Without a list of its own, the phone app carries a Sub Category on duty, demand draft and the domestic / urgent / import payment categories.
-const defaultCarries = (c) => /duty/i.test(c) || /demand\s*draft/i.test(c) || (/payment/i.test(c) && /(domestic|urgent|import)/i.test(c));
-/** The Sub Categories offered under a category: its own, plus any with no category of their own (made before they were grouped). */
-export const subCategoriesFor = (lists, cat) => (lists.subCategories || []).filter((x) => !x.category || x.category === cat);
-/** A category carries a Sub Category when it has some of its own, or the lists name it (or, with no such list, the phone's default). */
-export const categoryCarriesSubCategory = (lists, cat) => !!cat && subCategoriesFor(lists, cat).length > 0 && ((lists.subCategories || []).some((x) => x.category === cat) || (Array.isArray(lists.subCategoryCategories) ? lists.subCategoryCategories.includes(cat) : defaultCarries(String(cat))));
-export const findSubCategory = (lists, name) => (lists.subCategories || []).find((x) => x.name === name) || null;
-/** The message to show before a task is marked Completed without its Sub Category, or ''. */
-export function subCategoryMissing(t, lists) {
-  if (!categoryCarriesSubCategory(lists, t.category)) return '';
-  if (!t.subCategory) return 'Select a Sub Category before marking this Completed.';
-  const sc = findSubCategory(lists, t.subCategory);
-  const missing = sc ? sc.fields.filter((f) => !String((t.subCategoryFields || {})[f.label] || '').trim()) : [];
-  return missing.length ? `Fill all the Sub Category fields before marking this Completed - missing: ${missing.map((f) => String(f.label).replace(/[\s:]+$/, '')).join(', ')}.` : '';
-}
-/** Adds one Sub Category under a category. A name is kept once across all categories, because a task stores only the name. */
-export function addSubCategory(list, name, labels = [], category = '') {
-  const n = String(name || '').trim();
-  if (!n || list.some((x) => x.name.toLowerCase() === n.toLowerCase())) return list;
-  const fields = labels.map((l) => String(l).trim()).filter(Boolean).map((label) => ({ label }));
-  return [...list, { id: `sc-${Date.now().toString(36)}-${list.length}`, name: n, category: String(category || ''), fields }];
-}
-/** Pasted lines -> [{ name, labels }]. A line is "Name" or "Name: Field A, Field B". */
-export function parseSubCategoryLines(text) {
-  return String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
-    const at = line.indexOf(':');
-    return at < 0 ? { name: line, labels: [] } : { name: line.slice(0, at).trim(), labels: line.slice(at + 1).split(',') };
-  }).filter((x) => x.name);
-}
-/** Adds many at once; returns the new list and how many were new. */
-export function addSubCategories(list, items, category = '') {
-  let out = list;
-  items.forEach((it) => { out = addSubCategory(out, it.name, it.labels, category); });
-  return { list: out, added: out.length - list.length };
-}
-/** The list of categories the lists name as carrying a Sub Category, with this one added. */
-export const withCarrying = (lists, cat) => {
-  const now = Array.isArray(lists.subCategoryCategories) ? lists.subCategoryCategories : (lists.categories || []).filter((c) => defaultCarries(String(c)));
-  return now.includes(cat) ? now : [...now, cat];
-};
-/** The text of a field's choices ("TT, DD") -> ["TT", "DD"], or undefined when there are none. */
-const parseOptions = (text) => { const o = String(text || '').split(',').map((x) => x.trim()).filter(Boolean); return o.length ? o : undefined; };
-/** The message to show before saving an edited Sub Category, or ''. `rows` are [{ label, options: "TT, DD" }]. */
-export function validateSubCategory(list, id, name, rows) {
-  const n = String(name || '').trim();
-  if (!n) return 'Give the Sub Category a name.';
-  if (list.some((x) => x.id !== id && x.name.toLowerCase() === n.toLowerCase())) return `"${n}" already exists. A Sub Category name can be used once.`;
-  const labels = rows.map((r) => String(r.label || '').trim()).filter(Boolean);
-  if (new Set(labels.map((l) => l.toLowerCase())).size !== labels.length) return 'Two fields have the same name.';
-  return '';
-}
-/** The list with one Sub Category's name and fields replaced (blank fields dropped). */
-export function applySubCategoryEdit(list, id, name, rows) {
-  const fields = rows.filter((r) => String(r.label || '').trim()).map((r) => { const options = parseOptions(r.options); return options ? { label: String(r.label).trim(), options } : { label: String(r.label).trim() }; });
-  return list.map((x) => (x.id === id ? { ...x, name: String(name).trim(), fields } : x));
-}
-export const removeSubCategory = (list, id) => list.filter((x) => x.id !== id);
 
 /** meta/lists holds { lists: {categories, priorities, statuses, pendingWith} } as an object or a JSON string. */
 export function readLists(v) {
@@ -394,13 +308,6 @@ export function writeListsValue(raw, lists) {
   }
   return asString ? JSON.stringify(out) : out;
 }
-
-/** An option list after adding / removing a value (trimmed, no case-insensitive duplicates). */
-export const addOption = (list, value) => {
-  const v = String(value || '').trim();
-  return v && !list.some((x) => x.toLowerCase() === v.toLowerCase()) ? [...list, v] : list;
-};
-export const removeOption = (list, value) => list.filter((x) => x !== value);
 
 /* ---- the round clock (Android style) time picker: pure helpers ---- */
 /** 24-hour "17:30" -> { h12: 5, minute: 30, pm: true }; "" -> null. */
@@ -555,30 +462,6 @@ export function readTemplates(d = {}) {
   return (Array.isArray(d.templates) ? d.templates : []).filter((x) => x && x.name && x.fields && typeof x.fields === 'object').map((x) => ({ id: String(x.id || x.name), name: String(x.name), fields: x.fields }));
 }
 
-/* ---- AI rewrite of the daily report (Gemini, src/gemini.js). The prompt keeps every fact; numbersLost checks nothing was dropped. ---- */
-export function buildReportPrompt(draft, extra = '') {
-  return [
-    'You rewrite my Daily Activity Report so it reads as professional sentences.',
-    'Rules - follow every one:',
-    '1. Keep every item, numbered as in the draft, in the same section and order. Do not merge, split, add or drop items.',
-    '2. Keep every fact exactly: amounts, numbers, dates, names, party and vendor names, references, invoice and ticket numbers. Never invent anything that is not in the draft.',
-    '3. Keep the title line and the section headings (for example "Pending:") as they are.',
-    '4. Where an item carries a Sub Category line (for example "Banker\'s Reply\'s: ...") or Notes, put that content into the sentence for that item.',
-    '5. Reply with the report text only - no preface, no notes.',
-    extra && String(extra).trim() ? `6. MY INSTRUCTIONS (they decide tone, length and layout; rules 1-3 win if they clash):\n${String(extra).trim()}` : '',
-    '',
-    'DRAFT TO REWRITE:',
-    draft,
-  ].filter((x) => x !== '').join('\n');
-}
-
-/** Numbers of 2+ digits in the draft that the rewrite lost - an empty list means it is safe to use. */
-export function numbersLost(draft, ai) {
-  const hay = String(ai || '').replace(/,(?=\d{2,3}\b)/g, '');
-  const want = String(draft || '').replace(/,(?=\d{2,3}\b)/g, '').match(/\d{2,}(?:\.\d+)?/g) || [];
-  return [...new Set(want)].filter((n) => !hay.includes(n));
-}
-
 /** The text of a Gemini API (generateContent) reply, or ''; a blocked or empty reply gives ''. */
 export function geminiText(json) {
   const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
@@ -603,19 +486,6 @@ export function addFollowUp(t, { remarks, next } = {}, now = new Date()) {
   return logWork({ ...t, status, bankFollowUps: [...(t.bankFollowUps || []), item], _bf: true }, 'Followed up', now);
 }
 
-/** The Dashboard's bank follow-up list: open tasks in a Bank Follow-up category, longest open first, with the banker's last update and the next follow-up. */
-export function bankFollowUpDesk(tasks, now = new Date()) {
-  return (tasks || []).filter((t) => isOpen(t) && isBankFollowUp(t.category)).map((t) => {
-    const fu = Array.isArray(t.bankFollowUps) ? t.bankFollowUps : [];
-    const last = fu.length ? fu[fu.length - 1] : null;
-    const reply = Object.entries(t.subCategoryFields || {}).find(([k, v]) => /banker|reply|update/i.test(k) && String(v || '').trim());
-    const start = (fu[0] && fu[0].at && new Date(fu[0].at)) || t.createdAt || t.due || now;
-    const days = Math.max(1, Math.floor((now.getTime() - new Date(start).getTime()) / 86400000) + 1);
-    const nextAt = last && last.next ? new Date(last.next) : t.due;
-    return { t, days, update: (last && String(last.remarks || '').trim()) || (reply ? String(reply[1]).trim() : ''), next: nextAt instanceof Date && !Number.isNaN(nextAt.getTime()) ? nextAt : null };
-  }).sort((a, b) => b.days - a.days);
-}
-
 /** Open tasks counted by a field (category, status, pendingWith, priority): [{ name, count, overdue }], most first; a task with no value is counted as "Not set". */
 export function breakdown(tasks, field, now = new Date()) {
   const map = new Map();
@@ -633,3 +503,9 @@ export function breakdown(tasks, field, now = new Date()) {
 export function subBreakdown(tasks, category, now = new Date()) {
   return breakdown((tasks || []).filter((t) => t.category === category), 'subCategory', now).map((r) => ({ ...r, label: r.name || 'No sub category' }));
 }
+
+/** A day that is not a working day: a holiday or leave day of the calendar ({ holidays, leaveDays }). Sundays are left to the caller. */
+export const isOffDay = (key, calendar = {}) => [...(calendar.holidays || []), ...(calendar.leaveDays || [])].some((x) => String(x && x.date).slice(0, 10) === key);
+
+/** Quick picks for the next follow-up date (Tomorrow / In 2 days / In 3 days / Next week), skipping Sundays, holidays and leave days: [{ label, key }]. */
+export const followUpPicks = (now = new Date(), calendar = {}) => followUpPicksCore(now, (k) => new Date(`${k}T12:00:00`).getDay() === 0 || isOffDay(k, calendar));

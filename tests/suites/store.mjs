@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SLICES, coreOf, assemble, loadAll, KEY, DEFAULT_DB, fmtUnits, hasAnyData, isBackupStale, writeStored, readStored, chunkPairs, CHUNK_CHARS, storedKeysOf } from '../../src/storeCore.js';
+import { SLICES, coreOf, assemble, loadAll, KEY, DEFAULT_DB, writeStored, readStored, chunkPairs, CHUNK_CHARS, storedKeysOf } from '../../src/storeCore.js';
 
 export async function run({ ck, section }) {
   const legacy = {
@@ -56,33 +56,6 @@ export async function run({ ck, section }) {
   const hurtCore = await loadAll();
   ck('a damaged core is reported, not thrown', hurtCore.core === null && hurtCore.corrupt[KEY] === 'also {broken');
   await AsyncStorage.multiSet([[KEY, JSON.stringify(core2)], ...SLICES.map((s2) => [s2.key, JSON.stringify(s2.read(asm) ?? s2.empty)])]);
-
-  section('fmtUnits: a quantity is shown exactly, never forced to a fixed number of decimals');
-  ck('an already-clean 2-decimal value is unchanged', fmtUnits(71.01) === '71.01');
-  ck('a whole number shows no decimals at all', fmtUnits(10) === '10');
-  ck('a 4-decimal quantity keeps all four digits, not rounded to 2', fmtUnits(12.3456) === '12.3456');
-  ck('trailing zeros are trimmed, not padded on', fmtUnits(5.5) === '5.5' && fmtUnits(5.500000) === '5.5');
-  ck('binary floating-point noise from summing rows is dropped, not shown as extra digits', fmtUnits(71.01 + 74.14) === '145.15');
-  ck('null/undefined/non-numeric show a dash rather than crashing', fmtUnits(null) === '-' && fmtUnits(undefined) === '-' && fmtUnits(NaN) === '-');
-
-  section('hasAnyData: whether the app holds anything worth backing up');
-  ck('an empty, freshly-installed db has nothing', hasAnyData(DEFAULT_DB) === false);
-  ck('one expense transaction counts', hasAnyData({ ...DEFAULT_DB, expenses: { ...DEFAULT_DB.expenses, txns: [{ id: 'a' }] } }));
-  ck('Working Dashboard entries count as data worth backing up', hasAnyData({ ...DEFAULT_DB, workingDashboard: { ...DEFAULT_DB.workingDashboard, entries: [{ id: 'w1' }] } }));
-  ck('one open task counts', hasAnyData({ ...DEFAULT_DB, tasks: [{ id: 't1' }] }));
-  ck('one attendance day counts', hasAnyData({ ...DEFAULT_DB, attendance: { ...DEFAULT_DB.attendance, days: { '2026-09-19': {} } } }));
-  ck('one investment transaction counts', hasAnyData({ ...DEFAULT_DB, investments: { ...DEFAULT_DB.investments, txns: [{ id: 'i1' }] } }));
-  ck('one EPFO transaction counts', hasAnyData({ ...DEFAULT_DB, epfo: { ...DEFAULT_DB.epfo, transactions: [{ id: 'e1' }] } }));
-  ck('one health-records patient counts', hasAnyData({ ...DEFAULT_DB, healthRecords: { patients: [{ id: 'p1' }] } }));
-
-  section('isBackupStale: the one manual export is all this app has - no cloud sync');
-  ck('never warns with nothing to protect, export or not', isBackupStale(null, false) === false && isBackupStale('2020-01-01', false) === false);
-  ck('real data, never exported: stale from day one', isBackupStale(null, true) === true);
-  ck('an unparsable export date is treated the same as never exported', isBackupStale('not-a-date', true) === true);
-  ck('exported an hour ago: not stale yet', isBackupStale(new Date(Date.now() - 3600_000).toISOString(), true) === false);
-  ck('exported 20 days ago, 21-day window: not stale yet', isBackupStale(new Date(Date.now() - 20 * 86400_000).toISOString(), true) === false);
-  ck('exported 22 days ago, 21-day window: stale', isBackupStale(new Date(Date.now() - 22 * 86400_000).toISOString(), true) === true);
-  ck('a shorter custom window is honoured', isBackupStale(new Date(Date.now() - 2 * 86400_000).toISOString(), true, 1) === true);
 }
 
 export async function runExtra({ ck, section }) {

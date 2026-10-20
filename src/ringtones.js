@@ -12,6 +12,7 @@
  */
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { warnQuiet } from './quietCatch';
 
 export const RINGTONES = [
   { id: 'default', label: 'System default', file: null,         asset: null },
@@ -23,7 +24,6 @@ export const RINGTONES = [
   { id: 'silent',  label: 'Silent',         file: null,         asset: null, silent: true },
 ];
 
-export const RINGTONE_IDS = RINGTONES.map((r) => r.id);
 export const ringtoneById = (id) => RINGTONES.find((r) => r.id === id) || RINGTONES[0];
 export const ringtoneLabel = (id) => ringtoneById(id).label;
 
@@ -93,7 +93,7 @@ export async function previewRingtone(ringtoneId, { loop = false } = {}) {
   if (!tone.asset) return false;               // system default / silent: nothing to preview
   try {
     const { createAudioPlayer, setAudioModeAsync } = require('expo-audio');
-    await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false }).catch(() => {});
+    await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false }).catch(warnQuiet('ringtones'));
     player = createAudioPlayer(tone.asset);
     player.loop = loop;
     player.play();

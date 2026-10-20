@@ -1,72 +1,82 @@
 import { useMemo, useState } from 'react';
 import { planImport } from '../importBackup';
-import { askNotificationPermission, loadAlertSettings, saveAlertSettings } from '../alerts';
-import { inApp, askNative } from '../nativeBridge';
-import { THEMES, applyTheme, savedTheme } from '../themes';
+import { exportBackupFile } from '../exportBackup';
+import NotifyExplainer from '../NotifyExplainer';
+import { loadAlertSettings, saveAlertSettings } from '../alerts';
+import { THEMES, TEXT_SIZES, applyTheme, applyScheme, applyTextSize, savedTheme, savedScheme, savedTextSize } from '../themes';
+import { PageHead } from '../ui';
 import { useStore } from '../store';
-import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS } from '../reportFormats';
+import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
 import { categoryAsksReminder, toggleReminderCategory } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
 
-/** Config is a short menu of topics; a topic opens on its own page with a back arrow, so each page is about one thing. */
+/** Config: a side menu of topics, and the chosen topic's panels beside it. */
 export default function Config() {
   const { lists, user, signOut, demo, saveLists } = useStore();
-  const [topic, setTopic] = useState('');
+  const [topic, setTopic] = useState('look');
   const topics = [
-    ...(inApp() ? [{ key: 'phone', icon: '📱', title: 'Phone app', hint: 'Alarms, app lock, backups, text size', body: () => (
-      <section className="card plain"><span className="card-title">Phone app</span>
-        <span className="muted">Alarms, app lock, backups and text size are set in the phone's own settings.</span>
-        <div className="row-gap"><button className="btn" onClick={() => askNative('settings')}>Open phone settings</button><button className="btn ghost" onClick={() => { if (window.confirm('Switch to the phone's own screens? You can switch back in the phone settings.')) askNative('classic'); }}>Use the phone screens</button></div>
-      </section>
-    ) }] : []),
-    { key: 'alerts', icon: '🔔', title: 'Alerts', hint: 'When and how a due task alerts you', body: () => <AlertSettings /> },
-    { key: 'look', icon: '🎨', title: 'Appearance', hint: 'Colour theme', body: () => <Appearance /> },
-    { key: 'entry', icon: '📝', title: 'Entry form options', hint: 'Categories, priorities, statuses, pending with', body: () => (
+    { key: 'alerts', title: 'Alerts', body: () => <AlertSettings /> },
+    { key: 'look', title: 'Appearance', body: () => <Appearance /> },
+    { key: 'entry', title: 'Entry form options', body: () => (
       <>
-        <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+        <section className="card plain">
+          <h2 className="h2">Entry form options</h2>
+          <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+        </section>
         <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
       </>
     ) },
-    { key: 'subs', icon: '🗂️', title: 'Sub categories', hint: 'Sub categories and their fields, under each category', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><SubCategoryManager lists={lists} /></section> },
-    { key: 'reminder', icon: '⏰', title: 'Next reminder', hint: 'Which categories ask for a next reminder', body: () => (
+    { key: 'subs', title: 'Sub categories', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><p className="muted">Sub categories and their fields, kept under each category.</p><SubCategoryManager lists={lists} /></section> },
+    { key: 'reminder', title: 'Next reminder', body: () => (
       <section className="card plain">
         <h2 className="h2">Next reminder date &amp; time</h2>
         <p className="muted">Choose the categories that ask for a next reminder date and time in the entry form. The other categories do not show it.</p>
         <div className="chips">{lists.categories.map((c) => { const on = categoryAsksReminder(lists, c); return <button type="button" key={c} className={`chip toggle${on ? ' on' : ''}`} aria-pressed={on} onClick={() => saveLists(toggleReminderCategory(lists, c))}>{c}</button>; })}</div>
       </section>
     ) },
-    { key: 'formats', icon: '🧾', title: 'Report formats', hint: 'The sentence each sub category writes in the report', body: () => <ReportFormats /> },
-    { key: 'gemini', icon: '✨', title: 'Gemini (AI) key', hint: 'Your own key, used only when the free route is busy', body: () => <GeminiKey /> },
-    { key: 'import', icon: '📥', title: 'Import from an older version', hint: 'Bring in a backup file', body: () => <ImportBackup /> },
+    { key: 'formats', title: 'Report formats', body: () => <ReportFormats /> },
+    { key: 'gemini', title: 'Gemini key', body: () => <GeminiKey /> },
+    { sep: true, key: 'export', title: 'Export a backup', body: () => <ExportBackup /> },
+    { key: 'import', title: 'Import', body: () => <ImportBackup /> },
   ];
-  const open = topics.find((x) => x.key === topic);
-  if (open) {
-    return (
-      <>
-        <button type="button" className="back-link" onClick={() => setTopic('')}>‹ Config</button>
-        <h1 className="h1">{open.title}</h1>
-        <div className="cfg-page">{open.body()}</div>
-      </>
-    );
-  }
+  const open = topics.find((x) => x.key === topic) || topics[1];
   return (
     <>
-      <h1 className="h1">Config</h1>
-      <section className="card plain cfg-account">
-        <span className="cfg-avatar" aria-hidden="true">{(user.displayName || user.email || '?').trim().charAt(0).toUpperCase()}</span>
-        <span className="cfg-who"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span></span>
-        <button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
-      </section>
-      <nav className="cfg-menu" aria-label="Config topics">
-        {topics.map((x) => (
-          <button key={x.key} type="button" className="cfg-row" onClick={() => setTopic(x.key)}>
-            <span className="cfg-icon" aria-hidden="true">{x.icon}</span>
-            <span className="cfg-text"><b>{x.title}</b><small>{x.hint}</small></span>
-            <span className="cfg-chev" aria-hidden="true">›</span>
-          </button>
-        ))}
-      </nav>
+      <PageHead title="Config" sub="Alerts, colours and the lists the entry form uses." />
+      <div className="cols cfg">
+        <div className="cfg-side">
+          <section className="card plain cfg-account">
+            <span className="cfg-avatar" aria-hidden="true">{(user.displayName || user.email || '?').trim().charAt(0).toUpperCase()}</span>
+            <span className="cfg-who"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span></span>
+            <button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
+          </section>
+          <nav className="menu" aria-label="Config topics">
+            {topics.map((x) => (
+              <span key={x.key} className="menu-item">
+                {x.sep && <hr />}
+                <button type="button" className={open.key === x.key ? 'on' : ''} aria-current={open.key === x.key ? 'page' : undefined} onClick={() => setTopic(x.key)}>{x.title}</button>
+              </span>
+            ))}
+          </nav>
+        </div>
+        <div className="pn cfg-page">{open.body()}</div>
+      </div>
     </>
+  );
+}
+
+/** Config > Export a backup: every task (done and binned too) with the lists, links, templates and report formats, as one JSON file the Import below reads back. */
+function ExportBackup() {
+  const { tasks, lists, calendar, links, templates, savedFormats } = useStore();
+  const [msg, setMsg] = useState('');
+  const run = () => { const n = exportBackupFile({ tasks, lists, calendar, links, templates, savedFormats }); setMsg(`Saved ${n} task${n === 1 ? '' : 's'} to your downloads.`); };
+  return (
+    <section className="card plain">
+      <h2 className="h2">Export a backup</h2>
+      <p className="muted">Downloads every task (open, done and in the Bin) with your categories, sub categories, links, templates and report formats as one file. Keep it somewhere safe; Import (below) reads it back.</p>
+      <div><button type="button" className="btn primary" onClick={run}>Export a backup</button></div>
+      {msg && <p className="banner ok" role="status">{msg}</p>}
+    </section>
   );
 }
 
@@ -115,7 +125,7 @@ function ImportBackup() {
 
 /** Config > Report formats: the line the Daily report writes for a task, per Sub Category, with {Field name} marks filled from the task. */
 function ReportFormats() {
-  const { lists, saveLists, tasks, reportFormats, reportFormatsCustom, saveReportFormats } = useStore();
+  const { lists, saveLists, tasks, reportFormats, savedFormats, reportFormatsCustom, saveReportFormats } = useStore();
   const [open, setOpen] = useState('');
   const [draft, setDraft] = useState('');
   const subs = lists.subCategories || [];
@@ -123,15 +133,11 @@ function ReportFormats() {
     ...subs.map((sc) => ({ key: `s-${sc.id || sc.name}`, sc, name: sc.name, category: sc.category || '', format: findFormat(reportFormats, sc.name) })),
     ...reportFormats.filter((f) => !subs.some((sc) => findFormat([f], sc.name))).map((f) => ({ key: `f-${f.id}`, sc: null, name: f.subCategory, category: f.category, format: f })),
   ];
-  const everyFormat = () => (reportFormatsCustom ? reportFormats : SAMPLE_FORMATS);
   const setup = planFormatSetup(lists, reportFormats);
   const missingCount = setup.categories.length + setup.subCategories.length;
   const startEdit = (row) => { setOpen(open === row.key ? '' : row.key); setDraft(row.format ? row.format.template : ''); };
-  const save = (row, template) => {
-    const list = everyFormat().filter((f) => !(row.format && f.id === row.format.id));
-    const text = template.trim();
-    saveReportFormats(text ? [...list, { id: row.format ? row.format.id : `rf-${Date.now().toString(36)}`, category: row.category || (row.format && row.format.category) || '', subCategory: row.format ? row.format.subCategory : row.name, template: text }] : list);
-  };
+  // Saving or removing writes into the raw saved list (removal markers kept), not the effective list, so a removed sample stays removed.
+  const save = (row, template) => saveReportFormats(formatsAfterEdit(savedFormats, { id: row.format ? row.format.id : '', subCategory: row.format ? row.format.subCategory : row.name, category: row.category || (row.format && row.format.category) || '' }, template));
   const addFields = (row, marks) => saveLists({ ...lists, subCategories: subs.map((sc) => (sc === row.sc ? { ...sc, fields: [...sc.fields, ...marks.map((label) => ({ label }))] } : sc)) });
   const sample = (row) => { const mine = tasks.filter((t) => t.subCategory && row.sc && t.subCategory === row.sc.name && Object.keys(t.subCategoryFields || {}).length); return mine.length ? mine[0] : { subCategoryFields: {} }; };
   return (
@@ -146,7 +152,7 @@ function ReportFormats() {
               <div className="muted">Only what is missing is created, each new Sub Category with a field for every {'{'}mark{'}'} of its format. Nothing you already have is changed.</div></div>
             <button type="button" className="btn primary" onClick={() => saveLists(setup.lists)}>Create the missing ones</button>
           </>
-        ) : <span className="muted">✓ Every category and sub category in the formats is already in your lists.</span>}
+        ) : <span className="muted">Every category and sub category in the formats is already in your lists.</span>}
       </div>
       <div className="fmt-list">
         {rows.map((row) => {
@@ -215,7 +221,7 @@ function GeminiKey() {
         <button type="button" className="btn" onClick={test} disabled={state.busy || (!value.trim() && !saved)}>{state.busy ? 'Testing…' : 'Test key'}</button>
         {saved && <button type="button" className="btn ghost" onClick={async () => { const { saveGeminiKey } = await import('../gemini'); saveGeminiKey(''); setSaved(false); setState({ busy: false, msg: 'Removed.', bad: false }); }}>Remove key</button>}
       </div>
-      {saved && <p className="muted">✓ A key is saved on this computer.</p>}
+      {saved && <p className="muted">A key is saved on this computer.</p>}
       {state.msg && <p className={state.bad ? 'banner err' : 'muted'} role="status">{state.msg}</p>}
     </section>
   );
@@ -225,39 +231,46 @@ function AlertSettings() {
   const [s, setS] = useState(loadAlertSettings);
   const [perm, setPerm] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'));
   const set = (patch) => { const next = { ...s, ...patch }; setS(next); saveAlertSettings(next); window.dispatchEvent(new Event('wd-alert-settings')); };
-  const enableNotify = async () => { const r = await askNotificationPermission(); setPerm(r); set({ notify: r === 'granted' }); };
+  const [explain, setExplain] = useState(false);       // the in-page explainer shown before the browser's own permission prompt
+  const answered = (r) => { setExplain(false); if (r === 'later') return; setPerm(r); set({ notify: r === 'granted' }); };
+  const enableNotify = () => { if (perm === 'granted') set({ notify: true }); else setExplain(true); };
   return (
     <section className="card plain">
       <h2 className="h2">Alerts</h2>
-      <p className="muted">When a task is due (or its next reminder time comes) while this page is open, an alert appears with the task's details and the choices to mark it done, snooze, skip or move it. Keep this page open to get alerts; the phone app rings by itself.</p>
-      <label className="field check"><input type="checkbox" checked={s.popup} onChange={(e) => set({ popup: e.target.checked })} /> Show an alert when a task is due</label>
-      <label className="field check"><input type="checkbox" checked={s.sound} onChange={(e) => set({ sound: e.target.checked })} /> Play a sound (needs one click or key press on the page first)</label>
-      <div>
-        <label className="field check"><input type="checkbox" checked={s.notify && perm === 'granted'} disabled={perm === 'unsupported' || perm === 'denied'} onChange={(e) => (e.target.checked ? enableNotify() : set({ notify: false }))} /> Desktop notification when this tab is in the background{perm === 'denied' ? ' (blocked in the browser settings)' : ''}</label>
-      </div>
+      <p className="muted">How a due task reaches you while this tab is open. When a task is due (or its next reminder time comes), an alert appears with the task's details and the choices to mark it done, snooze, skip or move it. Keep this page open to get alerts; the phone app rings by itself.</p>
+      <label className="row tg-row"><span>Pop up a due alert<small>A window with Done, DAR, Snooze, Move and Skip.</small></span><input type="checkbox" role="switch" className="tg" checked={s.popup} onChange={(e) => set({ popup: e.target.checked })} /></label>
+      <label className="row tg-row"><span>Play a sound<small>Starts after your first click or key press on the page.</small></span><input type="checkbox" role="switch" className="tg" checked={s.sound} onChange={(e) => set({ sound: e.target.checked })} /></label>
+      <label className="row tg-row"><span>Desktop notification when this tab is in the background<small>{perm === 'denied' ? 'Blocked in the browser settings.' : 'Shows even when this tab is in the background.'}</small></span><input type="checkbox" role="switch" className="tg" checked={s.notify && perm === 'granted'} disabled={perm === 'unsupported' || perm === 'denied'} onChange={(e) => (e.target.checked ? enableNotify() : set({ notify: false }))} /></label>
       <div><button type="button" className="btn" onClick={() => window.dispatchEvent(new Event('wd-test-alert'))}>Show a test alert</button></div>
+      {explain && <NotifyExplainer onDone={answered} />}
     </section>
   );
 }
 
-/** Config > Appearance: pick a colour theme; it applies at once and is remembered on this device. */
+/** Config > Appearance: the colour theme (applies at once, remembered on this device), dark mode and the text size. */
 function Appearance() {
   const [theme, setTheme] = useState(savedTheme);
+  const [scheme, setScheme] = useState(savedScheme);
+  const [size, setSize] = useState(savedTextSize);
   return (
     <section className="card plain">
-      <h2 className="h2">Appearance</h2>
+      <h2 className="h2">Colour theme</h2>
       <p className="muted">Pick a colour theme. It applies at once and is kept on this device.</p>
-      <div className="themes">
+      <div className="sw" role="group" aria-label="Colour theme">
         {THEMES.map((t) => (
-          <button key={t.id} type="button" className="theme-card" aria-pressed={theme === t.id} onClick={() => setTheme(applyTheme(t.id))}>
-            <span className="swatch" style={{ background: t.swatch.bg }}>
-              <span className="sw-pill" style={{ background: t.swatch.card }}><i style={{ background: t.swatch.accent }} /><i style={{ background: t.swatch.tileInk[0], opacity: 0.25 }} /><i style={{ background: t.swatch.tileInk[3], opacity: 0.25 }} /></span>
-              <span className="sw-tiles">{t.swatch.tiles.map((c, i) => <i key={i} style={{ background: c }} />)}</span>
-              <span className="sw-card" style={{ background: t.swatch.card }} />
-            </span>
-            <span className="theme-name"><span>{t.name}<br /><small>{t.note}</small></span><i className="tick" /></span>
+          <button key={t.id} type="button" className="sw-card" aria-pressed={theme === t.id} onClick={() => setTheme(applyTheme(t.id))}>
+            <i style={{ background: t.light.primary }}><b style={{ background: t.light.dark }} /></i>{t.name}
           </button>
         ))}
+      </div>
+      <label className="row tg-row"><span>Follow the computer's dark mode<small>{scheme === 'auto' ? 'Switches automatically with your computer.' : 'Off: the colours stay as chosen below.'}</small></span><input type="checkbox" role="switch" className="tg" checked={scheme === 'auto'} onChange={(e) => setScheme(applyScheme(e.target.checked ? 'auto' : 'light'))} /></label>
+      {scheme !== 'auto' && (
+        <div><div className="row"><span>Colours</span></div>
+          <div className="seg" role="group" aria-label="Colours">{[['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => <button key={k} type="button" className={scheme === k ? 'on' : ''} aria-pressed={scheme === k} onClick={() => setScheme(applyScheme(k))}>{l}</button>)}</div>
+        </div>
+      )}
+      <div><div className="row"><span>Text size</span></div>
+        <div className="seg" role="group" aria-label="Text size">{TEXT_SIZES.map(([k, l]) => <button key={k} type="button" className={size === k ? 'on' : ''} aria-pressed={size === k} onClick={() => setSize(applyTextSize(k))}>{l}</button>)}</div>
       </div>
     </section>
   );

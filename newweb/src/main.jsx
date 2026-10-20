@@ -3,9 +3,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { DEMO, DemoStore, LiveStore } from './store';
 import './styles.css';
-import { applyTheme, savedTheme } from './themes';
+import { startTheme } from './themes';
 
-applyTheme(savedTheme());       // before the first paint, so there is no flash of the other look
+startTheme();       // the saved colours and text size, before the first paint, so there is no flash of the other look
 
 const Store = DEMO ? DemoStore : LiveStore;
 // Offline start and quicker repeat opens (public/sw.js); not in the demo or while developing.

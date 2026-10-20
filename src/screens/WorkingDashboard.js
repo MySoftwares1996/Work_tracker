@@ -1,19 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Pressable, ScrollView, Linking, Platform, Animated, Easing, AppState } from 'react-native';
+import { View, Text, StyleSheet, Alert, Pressable, ScrollView, Linking, Platform, AppState, Vibration } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AnimatedLogo from '../AnimatedLogo';
 import * as Clipboard from 'expo-clipboard';
-import { BottomTabs, Group, Item, useLayout, useAboveBottomBar, FadeInUp, AnimatedNumber, Screen, Card, H2, P, Small, Btn, Row, Field, Sheet, Segmented, DateTimeField, OptionPicker, PickerButton, Choices, SwipeTabs, RingtonePicker, prefersReducedMotion } from '../ui';
-import WdAlertSettings from './WdAlertSettings';
+import { EmptyState, BottomTabs, SearchField, Toggle, Group, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Label, Btn, Row, Field, Sheet, Segmented, Chip, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
+import Icon from '../icons';
+import { display } from '../fonts';
 import { SOURCES } from '../optionSources';
-import { useTheme, blend, THEMES, FONT_LEVELS } from '../theme';
-import AppLockSettings from './AppLockSettings';
+import { useTheme, blend, THEME_SWATCHES, themeKeyOf } from '../theme';
 import { useStore, uid } from '../store';
-import { shareCsv, pickCsv } from '../csv';
-import { previewRingtone } from '../ringtones';
-import { scheduleEntryAlert, cancelEntryAlert, armTodaysReminders } from '../workingDashboardNotify';
-import { isValidScriptUrl, testConnection, pullSheetEntries, mergeSheetPull, pullSheetHolidays, mergeHolidays, seenWebFields } from '../cloudSync';
+import { shareCsv } from '../csv';
+
+import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
+import { newId } from '../ids';
+import { refreshWdAlerts } from '../workingDashboardActions';
+import WdAlarmIntro from './WdAlarmIntro';
+import { warnQuiet } from '../quietCatch';
+import { seenWebFields } from '../cloudSync';
 import { useRealtimeStatus, setRealtimeStatus } from '../realtimeStatus';
 import { signInWithGoogle, signOutOfGoogle } from '../firebaseSync';
 import { fetchUnreadEmails, markEmailRead, fetchEmailBody, filterEmails, emailToEntryDraft } from '../workingDashboardMail';
@@ -23,31 +27,39 @@ import { addAudit, auditDiff, ACTION_AUDIT } from '../audit';
 import { WHATS_NEW } from '../whatsNew';
 import { checklistText, checklistOpen, checklistOf, addStep, toggleStep, removeStep } from '../checklist';
 import { setNarrationSink, addHistory } from '../narrationHistory';
-import { recordNarration } from '../narrationHistory';
+
 import { templateFrom, applyTemplate, saveTemplate } from '../templates';
 import { trackerAvailable, canDrawOverlays, requestOverlayPermission, isFullScreenIntentAllowed, requestFullScreenIntentPermission } from '../tracker';
 import EntryTable from '../EntryTable';
-import { stampChanges, toolsValue, normalizeLink, linkFolders, parseBookmarks, bookmarksHtml, addLinks, downloadText, pickTextFile } from '../links';
-import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, DEFAULT_PAYMENT_INTRO, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
+import { monthEndOptions } from '../monthEnd';
+import { effectiveFormats, finalNarration } from '../reportFormats';
+import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../reportExtras';
+import { stampChanges, toolsValue } from '../links';
+import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
-import { PaymentFields, KeyPointsEditor, NarrationForm } from './WdPaymentFields';
+import { PaymentFields, NarrationForm } from './WdPaymentFields';
+import { PrioritySegment, DetailChip } from './WdFormBits';
+import WdAlertSettings from './WdAlertSettings';
+import WdReportFormats from './WdReportFormats';
+import { ListsEditor, SubCategories, ReminderCategories } from './WdLists';
+import WdGeminiKey from './WdGeminiKey';
 import WdCalendar from './WdCalendar';
+import WdBinTab from './WdBinTab';
+import WdLinksTab from './WdLinksTab';
+import WdMoreTab from './WdMoreTab';
+import WdHolidaysTab from './WdHolidaysTab';
+import WdHolidaySheet from './WdHolidaySheet';
 import { BankFollowUpForm } from './WdBankFollowUp';
-import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, isLongPending, LONG_PENDING_DAYS, followUpWho, followUpsByBank, needsEscalationPrompt, escalateFollowUp, declineEscalation } from '../bankFollowUp';
-import { learnStyle, buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, examplesFor, checkFacts } from '../reportStyle';
-import { getAdvice } from '../sheets';
-import { listReportSamples, saveReportSample, deleteReportSample, rewriteReportWithAi } from '../workingDashboardReportCloud';
+import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, followUpWho, followUpsByBank } from '../bankFollowUp';
+import { buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, checkFacts } from '../reportStyle';
 import { shareReportPdf } from '../reportPdf';
-import {
-  blankEntry, listsWithEntryValues, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey,
-  quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, DUE_TILL_TODAY, isWdFilterActive, filterEntries, SORTS, sortEntries,
-  completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow,
-  completedTime, DONE_SORTS,
-  nextWorkingDay, holidaysWithinDays, holidayBlocks, normalizeHolidays, normalizeLeaveDays, holidayDateKey, entriesToCsvRows, csvRowsToEntries, findDuplicateEntries, WD_CSV_COLUMNS,
-  nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking, isSkippedToday, isOfficeClosed,
-} from '../workingDashboard';
+
+// The app's built-in Gemini (aiBuiltin.js), loaded only when the button is pressed.
+const rewriteReportWithAi = async (prompt) => (await (await import('../aiBuiltin')).rewriteWithGemini(prompt)).text;
+import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LABELS, RECURRENCE_PRESETS, recurrenceLabel, nextRecurringEntry, dashboardStats, groupCounts, toDateKey, quickDueOptions, EMPTY_WD_FILTER, ANY, DUE_WITHIN_OPTIONS, isDueInNext7Days, DUE_TILL_TODAY, isDueThisMonth, isDueNextMonth, isWdFilterActive, filterEntries, SORTS, sortEntries, completeEntry, reopenEntry, binEntry, restoreEntry, isOpen, isOverdue, editedNow, completedTime, DONE_SORTS, holidaysWithinDays, normalizeHolidays, normalizeLeaveDays, nextFreeSlot, ALERT_MODES, alertModeOf, autoSkipDailyOnNonWorking } from '../workingDashboard';
 import { useTabHistory } from '../useStepBack';
-import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, HHMM, fmtDue, RoundBtn, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, OpenCard, DoneCard, UndoBar, ShowMore, CountList, PhoneTile, PhoneRow, PhoneDoneRow } from './wdCards';
+import WdWeeklyReview from './WdWeeklyReview';
+import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow, PhoneHeader, Fab, SectionHead } from './wdCards';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
 const NO_LIST = [];
@@ -61,7 +73,7 @@ const REPORT_PRESETS = [
 ];
 
 // web.app only, and not on phone-width screens: a Narration tab after the Bin - the Tally narration builder, whatever an entry's status.
-const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', ...(narration ? ['narration'] : []), ...(Platform.OS === 'web' ? ['links'] : []), 'report'];
+const makeTabKeys = (narration) => ['dashboard', 'register', 'done', 'holidays', 'config', 'bin', 'more', ...(narration ? ['narration'] : []), 'links', 'report'];
 // Bottom bar, same order as the web app (Report is reached from the Dashboard).
 const makeBarTabs = (narration) => [
   { key: 'dashboard', label: 'Dashboard' },
@@ -71,7 +83,7 @@ const makeBarTabs = (narration) => [
   { key: 'config', label: 'Config' },
   { key: 'bin', label: 'Bin' },
   ...(narration ? [{ key: 'narration', label: 'Narration', icon: 'list' }] : []),
-  ...(Platform.OS === 'web' ? [{ key: 'links', label: 'Links', icon: 'links' }] : []),
+  { key: 'links', label: 'Links', icon: 'links' },
 ];
 // The phone's bottom bar: five tabs; Holidays, Bin and Config are reached from More.
 const PHONE_TABS = [
@@ -83,6 +95,8 @@ const PHONE_TABS = [
 ];
 const MORE_PAGES = ['holidays', 'bin', 'config', 'links'];      // pages opened from More: the header shows a back arrow to it
 const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', report: 'Daily Report' };
+// The phone's own screen titles (Ledger): the serif title at the top of each screen.
+const PHONE_TITLES = { more: 'More', register: 'Tasks', done: 'Completed', holidays: 'Holidays & leave', config: 'Config', bin: 'Bin', links: 'Links', report: 'Daily report' };
 export default function WorkingDashboard() {
   const insets = useSafeAreaInsets();
   const { wide, tablet: tabletWidth, sideBar } = useLayout();
@@ -106,10 +120,10 @@ export default function WorkingDashboard() {
   const wd = data.workingDashboard;
   // The web app's Sub Categories, which categories carry one, and its Tally narration types.
   // The Imports Payments narration type is offered on web.app only.
-  const plists = useMemo(() => { const l = paymentLists(wd, wd.categories); return Platform.OS === 'web' ? withWebNarrationTypes(l) : l; }, [wd.subCategories, wd.subCategoryCategories, wd.narrationTypes, wd.categories]); // eslint-disable-line react-hooks/exhaustive-deps
+  const plists = useMemo(() => { const l = paymentLists(wd, wd.categories); return withWebNarrationTypes(l); }, [wd.subCategories, wd.subCategoryCategories, wd.narrationTypes, wd.categories]); // eslint-disable-line react-hooks/exhaustive-deps
   const entries = wd.entries || NO_LIST;
   const followToday = useMemo(() => followUpsDueToday(entries), [entries]);
-  const byBank = useMemo(() => (Platform.OS === 'web' ? followUpsByBank(entries) : []), [entries]);
+  const byBank = useMemo(() => followUpsByBank(entries), [entries]);
   // The newest stored copy of each entry, for handlers whose card may have drawn an older one.
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
@@ -117,7 +131,7 @@ export default function WorkingDashboard() {
 
   // Back steps through the tabs you visited (a card opens Register; Back returns to Dashboard).
   // Back to the Dashboard also drops the filter a card applied, so Register opens unfiltered next time.
-  const [tab, setTab] = useTabHistory('dashboard', (to) => { setVisibleCount(5); if (to === 'dashboard') setFilters(EMPTY_WD_FILTER); });
+  const [tab, setTab] = useTabHistory('dashboard', (to) => { setVisibleCount(5); if (to === 'dashboard') { setFilters(EMPTY_WD_FILTER); setQuickView(''); } });
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState(EMPTY_WD_FILTER);
   const [sortBy, setSortBy] = useState('dueAsc');
@@ -131,12 +145,10 @@ export default function WorkingDashboard() {
 
   const [entrySheet, setEntrySheet] = useState(null); // draft entry, or null
   const [accOpen, setAccOpen] = useState({});           // phone form: which folded rows (checklist, mail chain, notes...) the person opened
-  const [entryMore, setEntryMore] = useState(false);   // phone form: mail chain, notes and key points opened out
   const [recurrenceOpen, setRecurrenceOpen] = useState(false);
   const [holidaySheet, setHolidaySheet] = useState(null);
   const [checklistSheet, setChecklistSheet] = useState(null);  // web.app: { id, opts } - the checklist shown before ✓ / DAR completes a task
   const [followSheet, setFollowSheet] = useState(null);     // a bank follow-up from a card's 📞: { id, remarks, next }
-  const [configSection, setConfigSection] = useState(null);
   const [narrationPage, setNarrationPage] = useState({ typeName: '', includeMail: false });      // web.app's Narration tab
   const [narrationMail, setNarrationMail] = useState('');
   const [narrationEntry, setNarrationEntry] = useState(null);      // an entry picked on the Narration tab, or null
@@ -146,17 +158,25 @@ export default function WorkingDashboard() {
   const tableView = (Platform.OS !== 'web' || wide) && !!wd.tableView;      // web.app: Register / Completed as a table
   // APK: without "Open over other apps" (or full-screen alarms) Android shows an alarm only as a stacked notification to tap.
   // A banner on the dashboard says so and fixes it in one tap; it checks again whenever the app comes back to the front.
-  const [alarmBlock, setAlarmBlock] = useState('');      // '' = fine; 'overlay' | 'fullscreen' = what to allow
+  const [alarmBlock, setAlarmBlock] = useState('');
+  const [alarmChecked, setAlarmChecked] = useState(false);      // '' = fine; 'overlay' | 'fullscreen' = what to allow
   useEffect(() => {
     if (Platform.OS === 'web' || !trackerAvailable()) return undefined;
     const look = async () => {
       const [overlay, fsi] = await Promise.all([canDrawOverlays(), isFullScreenIntentAllowed()]);
       setAlarmBlock(!overlay ? 'overlay' : !fsi ? 'fullscreen' : '');
+      setAlarmChecked(true);
     };
     look();
     const sub = AppState.addEventListener('change', (st) => { if (st === 'active') look(); });
     return () => sub.remove();
   }, []);
+  // First run on the phone: one screen about the alarm permission (see WdAlarmIntro); nothing when it is already allowed.
+  const introNeeded = Platform.OS !== 'web' && !wd.alarmIntroSeen && !!alarmBlock;
+  useEffect(() => {
+    if (Platform.OS !== 'web' && !wd.alarmIntroSeen && alarmChecked && !alarmBlock) updateWd((w) => ({ ...w, alarmIntroSeen: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the permission check has answered.
+  }, [alarmChecked, alarmBlock, wd.alarmIntroSeen]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);      // web.app: press ? for the keyboard shortcuts
   const [paletteOpen, setPaletteOpen] = useState(false);      // web.app's Cmd/Ctrl+K finder
   const [linkFind, setLinkFind] = useState('');
@@ -168,40 +188,32 @@ export default function WorkingDashboard() {
   const [holCalendar, setHolCalendar] = useState('All');
   const [holCalendarOpen, setHolCalendarOpen] = useState(false);
   const [holAlertsOnly, setHolAlertsOnly] = useState(false);
-  const [doneCatOpen, setDoneCatOpen] = useState(false);       // the phone Completed tab's category list
-  const [actDraft, setActDraft] = useState('');
-  const [logDraft, setLogDraft] = useState({ title: '', details: '' });
-  const [newListDraft, setNewListDraft] = useState({}); // throwaway selection per Lists picker - one shared value showed a Category as the Priority and Status too
-  const [testingAlarm, setTestingAlarm] = useState(false);
-  const [csvBusy, setCsvBusy] = useState(false);
 
   // Cloud Sync / Gmail / AI Daily Report
-  const [urlDraft, setUrlDraft] = useState(wd.cloudSyncUrl || '');
-  const [testResult, setTestResult] = useState(null); // { ok, message } | null
-  const [testing, setTesting] = useState(false);
-  const [pulling, setPulling] = useState(false);
-  const [pullInfo, setPullInfo] = useState(null);
   const [mailBusy, setMailBusy] = useState(false);
   const [mailQuery, setMailQuery] = useState('');
   const [emails, setEmails] = useState([]);
+  const [moreCounts, setMoreCounts] = useState(false);
   const [reportDate, setReportDate] = useState(toDateKey(new Date()));
   const [shareOpen, setShareOpen] = useState(false);     // phone Report: the Email / PDF / Excel sheet
   const [aiOpen, setAiOpen] = useState(false);       // phone Report: the AI instructions row, folded until opened
   const [reportText, setReportText] = useState('');
   const [reportKind, setReportKind] = useState('day');      // 'day' (the Daily Activity Report), 'week' or 'month' (a summary)
   const [reportModel, setReportModel] = useState(null);
+  const [narrOpen, setNarrOpen] = useState(false);       // the form's Final Narration popup
+  const [stepsOpen, setStepsOpen] = useState(false);       // the form's Checklist popup
+  const [detailSheet, setDetailSheet] = useState(null);      // the form's MORE DETAILS popup: 'alert' | 'deadline' | 'reminder' | 'mail' | 'history'
+  const [monthEndOpen, setMonthEndOpen] = useState(false);   // the form's Month end -1 ... -5 drop-down
+  const [subPop, setSubPop] = useState(null);       // Home: a category's Sub Categories ({ category, due, list })
+  const [groupOpen, setGroupOpen] = useState('');   // the Report box whose tasks are shown (oth / pay / fol / out)
   const [reportNote, setReportNote] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
-  const [samples, setSamples] = useState([]);
-  const [samplesBusy, setSamplesBusy] = useState(false);
-  const [sampleDraft, setSampleDraft] = useState('');
-  const [introDraft, setIntroDraft] = useState(wd.paymentIntro && wd.paymentIntro.length ? wd.paymentIntro : DEFAULT_PAYMENT_INTRO);
   const [mailSheet, setMailSheet] = useState(false);
 
   // Realtime Sync (Firestore + Google Sign-In)
   const { user: googleUser, listenError, pushError } = useRealtimeStatus();      // the sync itself runs app-wide (RealtimeSync.js)
-  // Fetch Mail works with the person's own Apps Script if they added one, else straight from Gmail once signed in.
-  const mailAvailable = !!wd.cloudSyncUrl || !!googleUser;
+  // Fetch Mail reads Gmail with the person's own Google sign-in.
+  const mailAvailable = !!googleUser;
   const [realtimeBusy, setRealtimeBusy] = useState(false);
   const realtimeError = listenError || pushError;
   // Offline: the browser says so (web), or the last send failed (phone). Edits are kept here and sent when the connection returns.
@@ -214,46 +226,20 @@ export default function WorkingDashboard() {
     globalThis.addEventListener('online', on);
     return () => { globalThis.removeEventListener('offline', off); globalThis.removeEventListener('online', on); };
   }, []);
+  const userLabel = String(googleUser?.displayName || googleUser?.email || 'Local').trim().split(/[\s@]/)[0] || 'Local';
   const waiting = !!googleUser && (browserOffline || !!pushError);
   const wdRef = useRef(wd);
   wdRef.current = wd;
 
   /* ---------- derived ---------- */
   const stats = useMemo(() => dashboardStats(entries), [entries]);
-  const byCategory = useMemo(() => groupCounts(openEntries, (e) => e.category), [openEntries]);
-  const byStatus = useMemo(() => groupCounts(openEntries, (e) => e.status), [openEntries]);
-  const byPriority = useMemo(() => groupCounts(openEntries, (e) => e.priority), [openEntries]);
-  const byAssignee = useMemo(() => groupCounts(openEntries, (e) => e.pendingWith, 'Unassigned'), [openEntries]);
+  const thisMonthEntries = useMemo(() => openEntries.filter((e) => isDueThisMonth(e)), [openEntries]);
+  const nextMonthEntries = useMemo(() => openEntries.filter((e) => isDueNextMonth(e)), [openEntries]);
   // Whatever shape the web app stored (names, date formats) is read into one clean shape here.
   const holidayList = useMemo(() => normalizeHolidays(wd.holidays), [wd.holidays]);
   const leaveList = useMemo(() => normalizeLeaveDays(wd.leaveDays), [wd.leaveDays]);
   const offDays = useMemo(() => ({ holidays: holidayList, leaveDays: leaveList }), [holidayList, leaveList]);
   const upcomingHolidays = useMemo(() => holidaysWithinDays(holidayList, new Date(), 7), [holidayList]);
-  const holidayGroups = useMemo(() => {
-    const today = toDateKey(new Date());
-    const rank = (h) => ((h.endDate || h.date) >= today ? 0 : 1);       // upcoming first, past ones last
-    const sorted = [...holidayList].sort((a, b) => rank(a) - rank(b) || (rank(a) ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)));
-    const groups = [];
-    sorted.forEach((h) => {
-      const key = `${rank(h)}-${h.date.slice(0, 7)}`;
-      let g = groups.find((x) => x.key === key);
-      if (!g) {
-        const label = new Date(`${h.date.slice(0, 7)}-01T12:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-        g = { key, label: rank(h) ? `${label} · past` : label, items: [] };
-        groups.push(g);
-      }
-      g.items.push(h);
-    });
-    return groups;
-  }, [holidayList]);
-  const holidayRelative = (h) => {
-    const todayKey = toDateKey(new Date());
-    const end = h.endDate || h.date;
-    if (h.date <= todayKey && end >= todayKey) return { today: true, past: false, text: 'Today' };
-    const days = Math.round((new Date(`${h.date}T12:00:00`) - new Date(`${todayKey}T12:00:00`)) / 86400000);
-    if (days < 0) return { past: true, text: `${-days}d ago` };
-    return { past: false, text: days === 1 ? 'Tomorrow' : `In ${days}d` };
-  };
 
   // "Both" (phone-width screens): search also finds banker remarks and the narration.
   const filteredOpen = useMemo(() => sortEntries(filterEntries(openEntries, filters, new Date(), { deep: phoneLayout }), sortBy), [openEntries, filters, sortBy, phoneLayout]);
@@ -279,9 +265,15 @@ export default function WorkingDashboard() {
     const id = setTimeout(() => setWebBatch((n) => n + 60), 120);
     return () => clearTimeout(id);
   }, [webBatch, filteredOpen.length, doneEntries.length]);
-  const shownCount = Platform.OS === 'web' ? webBatch : tabletWidth ? gridCount(visibleCount) : visibleCount;      // whole rows of two where the web shows a grid
-  const binGrid = GRID && tabletWidth;      // the Bin's grid card layout, where the web shows a grid
-  const visibleRegister = filteredOpen.slice(0, shownCount);
+  const shownCount = Platform.OS === 'web' ? webBatch : tabletWidth ? gridCount(visibleCount) : visibleCount;      // the Bin's grid card layout, where the web shows a grid
+  const doneTodayCount = useMemo(() => entries.filter((e) => e.done && !e.binned && completedTime(e) && toDateKey(new Date(completedTime(e))) === toDateKey(new Date())).length, [entries]);
+  const darTodayCount = useMemo(() => entries.filter((e) => e.done && !e.binned && e.dar !== false && completedTime(e) && toDateKey(new Date(completedTime(e))) === toDateKey(new Date())).length, [entries]);
+  // The phone's Register chips: All / Overdue / Today / Week.
+  const [quickView, setQuickView] = useState('');
+  const todayKey = toDateKey(new Date());
+  const quickCounts = useMemo(() => ({ late: filteredOpen.filter((e) => isOverdue(e)).length, today: filteredOpen.filter((e) => e.dueAt && toDateKey(new Date(e.dueAt)) === todayKey).length, week: filteredOpen.filter((e) => isDueInNext7Days(e)).length }), [filteredOpen, todayKey]);
+  const boardRows = quickView && phoneLayout ? filteredOpen.filter((e) => (quickView === 'late' ? isOverdue(e) : quickView === 'week' ? isDueInNext7Days(e) : e.dueAt && toDateKey(new Date(e.dueAt)) === todayKey)) : filteredOpen;
+  const visibleRegister = boardRows.slice(0, shownCount);
   // The Completed tab (web.app and the APK) opens on the last five days (today and the four before); the older ones are under "Show more".
   const [showOlderDone, setShowOlderDone] = useState(false);
   const [darNote, setDarNote] = useState(null);      // web.app: { entry, text } - the notes asked for when DAR is pressed
@@ -297,13 +289,20 @@ export default function WorkingDashboard() {
   // Links and the AI instructions follow the account: stamped so the newer copy wins on every device.
   const setTools = (fn) => updateWd((w) => { const next = fn(w); const now = Date.now(); return { ...next, toolsStamps: stampChanges(toolsValue(w), toolsValue(next), w.toolsStamps, now), toolsUpdatedAt: now }; });
 
+  // The Category / Priority / Status / Pending with lists and the Sub Category / reminder lists: stamped, so they are sent to the account.
+  const saveLists = (patch) => updateWd((w) => ({ ...w, ...patch, listsUpdatedAt: Date.now() }));
+
   const pushLog = (w, title, details = '', auto = true) => ({
     ...w,
     activityLog: [{ id: uid(), at: new Date().toISOString(), title, details, auto }, ...(w.activityLog || [])].slice(0, 500),
   });
 
   /* ---------- entry CRUD ---------- */
-  const goTab = (k) => { setTab(k); setVisibleCount(5); if (k === 'report' && !reportModel) buildReport(); };
+  /** A Home tile: the Tasks list with ONLY that filter (no leftover filter or chip). */
+  const openRegister = (patch = {}) => { setFilters({ ...EMPTY_WD_FILTER, ...patch }); setQuickView(''); setVisibleCount(5); setTab('register'); };
+  // Pull down on any tab: read the website's edits now and rebook the alerts (the same job the background refresh does).
+  const pullRefresh = () => refreshWdAlerts({ pull: true, wd });
+  const goTab = (k) => { setTab(k); setVisibleCount(5); if (k === 'report' && (!reportModel || reportKind === 'day')) buildReport(); };
   // The narration form starts from the entry's saved narration ("Include mail chain" off for a new one; an older
   // narration, saved before the tick existed, keeps the mail chain - as on the web app).
   const withDrafts = (entry) => {
@@ -315,7 +314,7 @@ export default function WorkingDashboard() {
       narrationDraft: n ? { typeName: n.typeName || '', percent: n.percent || '', docNo: n.docNo || '', poNo: n.poNo || '', purpose: n.purpose || '', fieldsValues: { ...(n.fieldsValues || {}) }, includeMail: n.includeMail !== false } : { typeName: '', includeMail: false },
     };
   };
-  const openNewEntry = () => { if (!formOn) return; setEntryMore(false); setAccOpen({}); setEntrySheet(withDrafts(blankEntry())); };
+  const openNewEntry = () => { if (!formOn) return; setAccOpen({}); setEntrySheet(withDrafts(blankEntry())); };
   // Narrations copied anywhere are kept (the last 30, stars stay) - shown under the narration form.
   useEffect(() => { setNarrationSink((text, typeName) => updateWd((w) => ({ ...w, narrationHistory: addHistory(w.narrationHistory || [], text, typeName) }))); return () => setNarrationSink(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Quick add: a typed sentence opens the New Entry form pre-filled (title, due date and time, priority, category, person).
@@ -345,7 +344,6 @@ export default function WorkingDashboard() {
       r.start();
     } catch { setListening(false); }
   };
-  const [attDraft, setAttDraft] = useState({ title: '', url: '' });      // an attachment link being typed in the entry form
   const [showAudit, setShowAudit] = useState(false);      // the task's history, opened in the entry form
   const [stepDraft, setStepDraft] = useState('');      // the checklist step being typed in the entry form
   const payMonthKey = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - payMonth); return toDateKey(d).slice(0, 7); })();
@@ -356,11 +354,11 @@ export default function WorkingDashboard() {
     const p = parseQuickAdd(text, { categories: wd.categories || [], assignees: wd.assignees || [], ...qa });
     if (!formOn || (!p.title && !p.dueAt)) return;
     const base = blankEntry();
-    setEntryMore(false);
     setEntrySheet(withDrafts({ ...base, title: p.title || String(text).trim(), ...(p.priority ? { priority: p.priority } : null), ...(p.category ? { category: p.category } : null), ...(p.pendingWith ? { pendingWith: p.pendingWith } : null), ...(p.dueAt ? { dueAt: p.dueAt } : null), ...(p.reference ? { reference: p.reference } : null) }));
     setQuickText('');
   };
-  const openEditEntry = (entry, patch = {}) => { if (!formOn) return; setEntryMore(false); setAccOpen({}); setEntrySheet({ ...withDrafts(entry), ...patch }); };
+  const formBase = useRef(null);      // the entry as the form opened it, so Save writes only what the person changed
+  const openEditEntry = (entry, patch = {}) => { if (!formOn) return; setAccOpen({}); const opened = { ...withDrafts(entry), ...patch }; formBase.current = opened; setEntrySheet(opened); };
   const closeEntrySheet = () => setEntrySheet(null);
 
   /**
@@ -389,7 +387,7 @@ export default function WorkingDashboard() {
     // A bank follow-up written in the form (phone width): logged for today, due again on the next date.
     if (isBankFollowUpCategory(row.category) && String(followUpDraft?.remarks || '').trim()) {
       const was = lastWho(prev || row);
-      row = addBankFollowUp(row, { remarks: followUpDraft.remarks, bank: followUpDraft.bank ?? was.bank, banker: followUpDraft.banker ?? was.banker, next: row.done ? null : (followUpDraft.next || defaultNextFollowUp(prev || row, now, offDays)) }, now);
+      row = addBankFollowUp(row, { statuses: wd.statuses, remarks: followUpDraft.remarks, bank: followUpDraft.bank ?? was.bank, banker: followUpDraft.banker ?? was.banker, next: row.done ? null : (followUpDraft.next || defaultNextFollowUp(prev || row, now, offDays)) }, now);
     }
     // Audit trail: what this save changed, and from which device.
     row = { ...row, audit: addAudit(prev ? prev.audit : [], auditDiff(prev || null, row), Platform.OS === 'web' ? 'web' : 'phone', now.getTime()) };
@@ -439,9 +437,19 @@ export default function WorkingDashboard() {
   };
 
   const commitEntry = (d) => {
-    const row = { ...finalizeDraft(d), ...editedNow() };
+    let row = { ...finalizeDraft(d), ...editedNow() };
     const isNew = !entries.some((x) => x.id === row.id);
     const prev = entries.find((x) => x.id === row.id);
+    // Only the fields the person changed in the form are written onto the newest copy, so an edit made on the website
+    // (or an alert action) while the form was open is not wiped by Save.
+    if (prev && formBase.current && formBase.current.id === row.id) {
+      try {
+        const was = finalizeDraft(formBase.current);
+        const changed = {};
+        Object.keys(row).forEach((k) => { if (k !== 'updatedAt' && JSON.stringify(row[k]) !== JSON.stringify(was[k])) changed[k] = row[k]; });
+        row = { ...prev, ...changed, ...editedNow() };
+      } catch { /* keep the whole draft */ }
+    }
     // Completed from the form (status set to Completed - also the way a payment that needs its Sub Category is
     // completed): a repeating entry rolls on to its next occurrence, as ✓ on its card does.
     const rolled = row.done && !prev?.done ? nextRecurringEntry(row, entries, new Date(), { holidays: holidayList, leaveDays: leaveList }) : null;
@@ -453,8 +461,9 @@ export default function WorkingDashboard() {
       const memory = row.narration?.typeName && row.category ? { narrationByCategory: { ...(w.narrationByCategory || {}), [row.category]: row.narration.typeName } } : {};
       return pushLog({ ...w, ...memory, entries: rolled ? [rolled, ...next] : next }, isNew ? 'Logged' : 'Edited', row.title);
     });
-    scheduleEntryAlert(row, wd.alarmRingtone, wd.alerts).catch(() => {});
-    if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(() => {});
+    scheduleEntryAlert(row, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    if (row.emailId && isNew) markEmailRead(row.emailId).catch(warnQuiet('markEmailRead'));      // the mail the task came from is marked read once the task exists
     closeEntrySheet();
   };
 
@@ -462,7 +471,7 @@ export default function WorkingDashboard() {
   const [undo, setUndo] = useState(null);       // { message, before: [entries as they were], addedIds }
   // Every undoable change is also kept (the last 25, with the task as it was) for Config > Recent Changes.
   const offerUndo = (message, before, addedIds = []) => {
-    const item = { id: `u-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e4)}`, message, before, addedIds, at: Date.now() };
+    const item = { id: newId('u-'), message, before, addedIds, at: Date.now() };
     setUndo(item);
     updateWd((w) => ({ ...w, undoHistory: [item, ...(w.undoHistory || [])].slice(0, 25) }));
   };
@@ -479,18 +488,20 @@ export default function WorkingDashboard() {
       // A rolled-on repeat that is taken back must also go from the cloud.
       deletedIds: [...new Set([...(w.deletedIds || []), ...u.addedIds])],
     }, 'Undone', u.message));
-    u.addedIds.forEach((id) => cancelEntryAlert(id).catch(() => {}));
-    u.before.forEach((e) => { if (isOpen(e)) scheduleEntryAlert(e, wd.alarmRingtone, wd.alerts).catch(() => {}); else cancelEntryAlert(e.id).catch(() => {}); });
+    u.addedIds.forEach((id) => cancelEntryAlert(id).catch(warnQuiet('WorkingDashboard')));
+    u.before.forEach((e) => { if (isOpen(e)) scheduleEntryAlert(e, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert')); else cancelEntryAlert(e.id).catch(warnQuiet('WorkingDashboard')); });
   };
 
   const act = (shown, kind, opts = {}) => {
+    // A short tap-buzz on the phone when a task is completed (the built-in vibrator: no extra library).
+    if (Platform.OS !== 'web' && kind === 'complete') { try { Vibration.vibrate(12); } catch { /* no vibrator */ } }
     // web.app: ✓ or DAR on a task with a checklist opens the checklist first, to tick the steps before it is completed.
-    if (kind === 'complete' && Platform.OS === 'web' && !opts.checklistOk) {
+    if (Platform.OS === 'web' && kind === 'complete' && !opts.checklistOk) {
       const live = entriesRef.current.find((x) => x.id === shown.id) || shown;
       if (checklistOf(live).length) { setChecklistSheet({ id: live.id, opts }); return; }
     }
     // web.app: DAR on a card first asks for the notes that go into the daily report.
-    if (kind === 'complete' && opts.dar === true && opts.notes === undefined && Platform.OS === 'web') {
+    if (Platform.OS === 'web' && kind === 'complete' && opts.dar === true && opts.notes === undefined) {
       setDarNote({ entry: entriesRef.current.find((x) => x.id === shown.id) || shown, text: '' });
       return;
     }
@@ -519,9 +530,9 @@ export default function WorkingDashboard() {
     const rolled = kind === 'complete' ? nextRecurringEntry(entry, entriesRef.current, new Date(), { holidays: holidayList, leaveDays: leaveList }) : null;
     updateWd((w) => pushLog({ ...w, entries: [...(rolled ? [rolled] : []), ...w.entries.map((x) => (x.id === entry.id ? (() => { const r = pick(x); return { ...r, audit: addAudit(x.audit, ACTION_AUDIT[kind] || label, Platform.OS === 'web' ? 'web' : 'phone') }; })() : x))] }, label, entry.title));
     offerUndo(`${label} “${entry.title}”`, [entry], rolled ? [rolled.id] : []);
-    if (kind === 'complete' || kind === 'bin') cancelEntryAlert(entry.id).catch(() => {});
-    if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(() => {});
-    else if (kind === 'reopen') scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(() => {});
+    if (kind === 'complete' || kind === 'bin') cancelEntryAlert(entry.id).catch(warnQuiet('WorkingDashboard'));
+    if (rolled) scheduleEntryAlert(rolled, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    else if (kind === 'reopen') scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
   };
 
   /** A card's 📞 (bank follow-ups, phone width): today's banker update and the next follow-up date. */
@@ -533,45 +544,20 @@ export default function WorkingDashboard() {
     const entry = entriesRef.current.find((x) => x.id === f.id);
     if (!entry) { setFollowSheet(null); return; }
     if (!String(f.remarks || '').trim()) { Alert.alert("Enter the banker's remarks / update"); return; }
-    const item = { remarks: f.remarks, next: f.next, bank: f.bank, banker: f.banker };
+    const item = { remarks: f.remarks, next: f.next, bank: f.bank, banker: f.banker, statuses: wd.statuses };
     const applied = addBankFollowUp(entry, item, new Date());
     updateWd((w) => pushLog({ ...w, entries: w.entries.map((x) => (x.id === entry.id ? addBankFollowUp(x, item, new Date()) : x)) }, 'Followed up', entry.title));
-    scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(() => {});
+    scheduleEntryAlert(applied, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     setFollowSheet(null);
   };
 
-  const deleteForever = (entry) => {
-    Alert.alert('Delete forever?', 'This cannot be undone.', [
-      { text: 'Cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => {
-        // Remembered as a tombstone so Realtime Sync deletes the cloud copy too, and cannot bring it back.
-        // purgedIds is never trimmed by a Firestore push, so a later sheet pull cannot bring it back either.
-        updateWd((w) => ({
-          ...w,
-          entries: (w.entries || []).filter((x) => x.id !== entry.id),
-          deletedIds: [...new Set([...(w.deletedIds || []), String(entry.id)])].slice(-500),
-          purgedIds: [...new Set([...(w.purgedIds || []), String(entry.id)])].slice(-2000),
-        }));
-        cancelEntryAlert(entry.id).catch(() => {});
-      } },
-    ]);
-  };
-
   /** 🔔 / 🔕 on a card: this task rings as an alarm, or is a plain reminder - its alerts are booked again at once. */
-  // "Both" (phone-width cards): the long pending follow-up's escalation offer, answered once.
-  const answerEscalation = (entry, yes) => {
-    const now = new Date();
-    updateWd((w) => {
-      const next = { ...w, entries: w.entries.map((x) => (x.id === entry.id ? (yes ? escalateFollowUp(x, now) : declineEscalation(x, now)) : x)) };
-      return yes ? pushLog(next, 'Escalated', entry.title) : next;
-    });
-    if (yes) Alert.alert('Escalated', 'Now High priority. "Escalated to manager" is in today\'s Daily Activity Report.');
-  };
+
   const toggleAlert = (shown) => {
     const entry = entriesRef.current.find((x) => x.id === shown.id) || shown;
     const next = { ...entry, alertMode: alertModeOf(entry, wd.alerts) === 'alarm' ? 'gentle' : 'alarm', ...editedNow() };
     updateWd((w) => ({ ...w, entries: w.entries.map((x) => (x.id === entry.id ? { ...x, alertMode: next.alertMode, ...editedNow() } : x)) }));
-    scheduleEntryAlert(next, wd.alarmRingtone, wd.alerts).catch(() => {});
+    scheduleEntryAlert(next, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
   };
 
   const toggleDar = (shown) => {
@@ -581,7 +567,6 @@ export default function WorkingDashboard() {
   };
 
   // The phone Config page shows Report Style Samples open: load them when it is opened.
-  useEffect(() => { if (tab === 'config') loadSamples(true); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // web.app keyboard shortcuts: N a new entry, / search Register, Esc closes the open form. Not while typing.
   const keysRef = useRef({});
@@ -646,7 +631,7 @@ export default function WorkingDashboard() {
     const byId = new Map(res.moved.map((m) => [m.entry.id, m.entry]));
     const before = entriesRef.current.filter((x) => byId.has(x.id));
     updateWd((w) => ({ ...w, entries: (w.entries || []).map((x) => byId.get(x.id) || x) }));
-    res.moved.forEach((m) => scheduleEntryAlert(m.entry, wd.alarmRingtone, wd.alerts).catch(() => {}));
+    res.moved.forEach((m) => scheduleEntryAlert(m.entry, wd.alarmRingtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert')));
     const m = res.moved[0];
     offerUndo(res.moved.length === 1 ? `“${m.entry.title}” (daily) skipped for ${fmtDate(m.off)} - next on ${fmtDate(m.next)}` : `${res.moved.length} daily tasks skipped for ${fmtDate(m.off)} - next on ${fmtDate(m.next)}`, before);
   }, [holidayList, leaveList]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -656,6 +641,7 @@ export default function WorkingDashboard() {
   const saveHoliday = () => {
     const h = holidaySheet;
     if (!h.title.trim() || !h.date) return Alert.alert('A name and date are needed');
+    if (h.endDate && h.endDate < h.date) return Alert.alert('The end date is before the start date');
     const row = { ...h, title: h.title.trim(), endDate: h.endDate || h.date };
     updateWd((w) => {
       const cur = normalizeHolidays(w.holidays);
@@ -667,131 +653,26 @@ export default function WorkingDashboard() {
   const removeHoliday = (id) => updateWd((w) => ({ ...w, holidays: normalizeHolidays(w.holidays).filter((x) => x.id !== id) }));
 
   /* ---------- config: fixed activities / leave days / activity log ---------- */
-  const addFixedActivity = () => {
-    const v = actDraft.trim();
-    if (!v) return;
-    updateWd((w) => ({ ...w, fixedActivities: [...(w.fixedActivities || []), { id: uid(), text: v, active: true }] }));
-    setActDraft('');
-  };
-  const toggleFixedActivity = (id) => updateWd((w) => ({ ...w, fixedActivities: w.fixedActivities.map((x) => (x.id === id ? { ...x, active: !x.active } : x)) }));
-  const removeFixedActivity = (id) => updateWd((w) => ({ ...w, fixedActivities: w.fixedActivities.filter((x) => x.id !== id) }));
-
-  const todayKey = toDateKey(new Date());               // local day: toISOString() is UTC and names yesterday before ~5:30 am in India
-  // Leave days can arrive from the web app as ranges or an object map, not just date strings.
-  const markTodayLeave = () => updateWd((w) => { const cur = normalizeLeaveDays(w.leaveDays); return cur.includes(todayKey) ? w : { ...w, leaveDays: [...cur, todayKey] }; });
-  const removeLeaveDay = (day) => updateWd((w) => ({ ...w, leaveDays: normalizeLeaveDays(w.leaveDays).filter((x) => x !== day) }));
-
-  const addLogEntry = () => {
-    if (!logDraft.title.trim()) return;
-    updateWd((w) => pushLog(w, logDraft.title.trim(), logDraft.details.trim(), false));
-    setLogDraft({ title: '', details: '' });
-  };
 
   /* ---------- reminders / time slots / alarm ---------- */
-  const saveReminder = (kind, patch) => {
-    const next = { ...wd.reminders, [kind]: { ...wd.reminders[kind], ...patch } };
-    updateWd((w) => ({ ...w, reminders: next }));
-    // Each keystroke saves; only a complete pair of times is booked ("1" on the way to "10:00" would book from 1 am).
-    const valid = (r) => !r?.enabled || (HHMM.test(String(r.start || '')) && HHMM.test(String(r.end || '')));
-    if (valid(next.walk) && valid(next.water)) armTodaysReminders(next, wd.alarmRingtone, wd.alerts).catch(() => {});
-  };
 
   /* ---------- data backup ---------- */
-  const exportCsv = async () => {
-    setCsvBusy(true);
-    try {
-      await shareCsv(entriesToCsvRows(entries), `working-dashboard-${todayKey}.csv`, WD_CSV_COLUMNS);
-    } catch (e) { Alert.alert('Export failed', e.message); }
-    finally { setCsvBusy(false); }
-  };
-  const importCsv = async () => {
-    setCsvBusy(true);
-    try {
-      const rows = await pickCsv();
-      if (!rows) return;
-      const added = csvRowsToEntries(rows, { existing: entries });
-      if (!added.length) return Alert.alert('Nothing new', 'Every row already matches something in the register.');
-      updateWd((w) => {
-        const have = new Set((w.entries || []).map((x) => x.id));
-        return { ...w, entries: [...added.filter((x) => !have.has(x.id)), ...(w.entries || [])] };
-      });
-      Alert.alert('Imported', `${added.length} new entr${added.length === 1 ? 'y' : 'ies'} added.`);
-    } catch (e) { Alert.alert('Import failed', e.message); }
-    finally { setCsvBusy(false); }
-  };
-  const duplicateGroups = useMemo(() => findDuplicateEntries(entries), [entries]);
-
-  const testAlarm = async () => {
-    setTestingAlarm(true);
-    await previewRingtone(wd.alarmRingtone);
-    setTimeout(() => setTestingAlarm(false), 2000);
-  };
 
   /* ---------- Cloud Sync ---------- */
-  const pullFromSheet = async (url) => {
-    setPulling(true);
-    // Whatever goes wrong, "Pulling..." must end: an error thrown here used to leave the button disabled.
-    try { await pullFromSheetInner(url); }
-    catch (e) { setTestResult({ ok: false, message: e?.message || 'The sheet could not be read.' }); }
-    finally { setPulling(false); }
-  };
-  const pullFromSheetInner = async (url) => {
-    const res = await pullSheetEntries(url, blankEntry());
-    if (res.ok) {
-      const pulledAt = Date.now();
-      updateWd((w) => {
-        const merged = mergeSheetPull(w.entries || [], res.tasks, w.lastSheetPullAt || 0, w.purgedIds || [], { addOnly: !!googleUser });
-        // Only values from entries new to this device join the lists, so a deleted option is not brought back.
-        const had = new Set((w.entries || []).map((x) => String(x.id)));
-        return { ...w, ...listsWithEntryValues(w, merged.entries.filter((x) => !had.has(String(x.id)))), entries: merged.entries, lastSheetPullAt: pulledAt };
-      });
-      pullSheetHolidays(url).then((h) => {
-        if (!h.ok) return;
-        const found = normalizeHolidays(h.holidays);
-        if (found.length) updateWd((w) => ({ ...w, holidays: mergeHolidays(normalizeHolidays(w.holidays), found).holidays }));
-      }).catch(() => {});
-      setPullInfo({ action: res.action, columns: res.columns, sample: res.sample, statuses: res.statuses });
-      const live = res.tasks.filter((e) => !e.purged);
-      const open = live.filter((e) => !e.done && !e.binned).length;
-      const dated = live.filter((e) => e.dueAt).length;
-      setTestResult({
-        ok: true,
-        message: `Loaded ${live.length} entries - ${open} open, ${dated} with a due date.${dated === 0 ? ` No due-date column recognised. Sheet columns: ${res.columns.join(', ')}` : ''}`,
-      });
-    } else {
-      setTestResult({ ok: false, message: res.message });
-    }
-  };
-  const saveCloudUrl = () => {
-    const url = urlDraft.trim();
-    updateWd((w) => ({ ...w, cloudSyncUrl: url }));
-    setTestResult(null);
-    if (isValidScriptUrl(url)) pullFromSheet(url);
-  };
-  const runTestConnection = async () => {
-    setTesting(true);
-    setTestResult(null);
-    const url = urlDraft.trim();
-    const res = await testConnection(url);
-    setTestResult(res);
-    if (res.ok) updateWd((w) => ({ ...w, cloudSyncUrl: url }));
-    setTesting(false);
-  };
 
   /* ---------- Gmail Fetch Mail ---------- */
   const closeMail = () => { setMailSheet(false); setMailQuery(''); };
   const openMail = async () => {
-    setConfigSection(null);
     setMailSheet(true);
     if (!mailAvailable) return;
     setMailBusy(true);
-    try { setEmails(await fetchUnreadEmails(wd.cloudSyncUrl)); }
+    try { setEmails(await fetchUnreadEmails()); }
     catch (e) { Alert.alert('Could not fetch mail', e.message); }
     finally { setMailBusy(false); }
   };
   const ignoreEmail = (email) => {
     setEmails((list) => list.filter((e) => e.id !== email.id));
-    markEmailRead(wd.cloudSyncUrl, email.id).catch(() => {});
+    markEmailRead(email.id).catch(warnQuiet('markEmailRead'));
   };
   const addTaskFromEmail = async (email) => {
     closeMail();
@@ -799,29 +680,50 @@ export default function WorkingDashboard() {
     const draft = emailToEntryDraft(email);
     // The web app keeps the mail's id on the task (emailId), so it can open the original mail.
     setEntrySheet({ ...withDrafts(draft), emailId: email.id });
-    ignoreEmail(email);
+    setEmails((list) => list.filter((e) => e.id !== email.id));      // marked read in Gmail only when the task is saved (commitEntry)
     if (!email.body) {
       try {
-        const body = (await fetchEmailBody(wd.cloudSyncUrl, email.id)).slice(0, 500);
-        setEntrySheet((s) => ({ ...s, notes: `From: ${email.sender || ''}\n\n${body}` }));
+        const body = (await fetchEmailBody(email.id)).slice(0, 500);
+        setEntrySheet((s) => (s && s.emailId === email.id && !String(s.notes || '').trim() ? { ...s, notes: `From: ${email.sender || ''}\n\n${body}` } : s));
       } catch { /* keep the placeholder note */ }
     }
   };
   const visibleEmails = useMemo(() => filterEmails(emails, mailQuery), [emails, mailQuery]);
-  const openEmailInGmail = (email) => Linking.openURL(`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(email.id)}`).catch(() => {});
+  const openEmailInGmail = (email) => Linking.openURL(`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(email.id)}`).catch(warnQuiet('WorkingDashboard'));
 
   /* ---------- AI Daily Report ---------- */
   const buildReport = (date = reportDate) => {
     const model = buildReportModel({ entries, fixedActivities: wd.fixedActivities, activityLog: wd.activityLog, date, paymentIntro: wd.paymentIntro, leaveDays: leaveList, holidays: holidayList, lists: plists,
-      // web.app only: every line is written from the entry's notes and Tally narration too (the owner's choice).
-      details: Platform.OS === 'web' });
+      // Every line is written from the entry's notes and Tally narration too - the same report as the website (the owner's choice).
+      details: true });
+    const formats = effectiveFormats(wd.reportFormats);
+    applyFormats(model, formats, { darPaymentIntro: wd.paymentIntro });
+    applyMoves(model, (wd.reportMoves || {})[date] || {}, { lists: { darPaymentIntro: wd.paymentIntro }, payLists: plists, formats, date, details: true });
+    if (reportOpts.subFields) addSubFields(model);
     setReportModel(model);
-    setReportAlt(null);
-    setReportText(reportModelToText(model));
-    setReportNote('');
+    // The AI rewrite is kept when this is the same date and the report's facts did not change (compared on the full-heading draft the AI was given).
+    const draftNow = reportModelToText(model, { headings: true });
+    const keepAi = !!reportAlt && reportAlt.date === date && reportAlt.draft === draftNow;
+    if (!keepAi) setReportAlt(null);
+    // The pending list ("Pending:" - open tasks due by this day, by priority) is added when switched on, as on the website.
+    const pend = reportOpts.pending ? entries.filter((e) => isOpen(e) && e.dueAt && toDateKey(new Date(e.dueAt)) <= date).sort((a, b) => ({ High: 0, Medium: 1, Low: 2 }[a.priority] ?? 3) - ({ High: 0, Medium: 1, Low: 2 }[b.priority] ?? 3)) : [];
+    const standardText = reportModelToText(model, { headings: reportOpts.headings }) + (pend.length ? `\n\nPending:\n${pend.map((e) => `* ${e.title}${e.priority ? ` [${e.priority}]` : ''}`).join('\n')}` : '');
+    if (keepAi) {
+      setReportAlt({ ...reportAlt, standard: standardText });      // only a display switch changed: the AI text stays
+      setReportText(reportAlt.showing === 'ai' ? reportAlt.ai : standardText);
+    } else {
+      setReportText(standardText);
+      setReportNote(reportAlt ? 'The report changed - rewrite with AI again' : '');
+    }
     setReportKind('day');
     return model;
   };
+  const reportOpts = { headings: true, subFields: true, pending: false, ...(wd.reportOpts || {}) };      // the Report's three switches (the website's), this device only
+  const setReportOpt = (k) => updateWd((w) => ({ ...w, reportOpts: { ...reportOpts, [k]: !reportOpts[k] } }));
+  const dayMoves = (wd.reportMoves || {})[reportDate] || {};
+  const moveTask = (id, group) => updateWd((w) => ({ ...w, reportMoves: { ...(w.reportMoves || {}), [reportDate]: { ...((w.reportMoves || {})[reportDate] || {}), [id]: group } } }));
+  const undoMoves = () => updateWd((w) => { const all = { ...(w.reportMoves || {}) }; delete all[reportDate]; return { ...w, reportMoves: all }; });
+  useEffect(() => { if (tab === 'report' && reportKind === 'day' && reportModel) buildReport(); }, [wd.reportMoves, wd.reportOpts]); // eslint-disable-line react-hooks/exhaustive-deps
   // A week's or month's totals up to the picked date (workingDashboardReport.buildPeriodSummary).
   const buildSummary = (kind) => {
     const sum = buildPeriodSummary({ entries, kind, date: reportDate, lists: plists });
@@ -855,17 +757,12 @@ export default function WorkingDashboard() {
     setAiBusy(true);
     try {
       const prompt = buildSummaryPrompt(draft, wd.reportAiNotesSummary || '', reportKind);
-      const advisor = data.settings?.aiAdvisor || {};
-      let ai = '';
-      if (advisor.enabled && advisor.endpoint) {
-        try { const res = await getAdvice(advisor.endpoint, prompt, { task: `${reportKind}-summary`, date: reportDate, draft }); ai = (res && (res.advice || res.reply)) || ''; } catch { ai = ''; }
-      }
-      if (!ai.trim()) ai = await rewriteReportWithAi(wd.cloudSyncUrl, { date: reportDate, draft, itemCount: 0, prompt, examples: [] });
+      const ai = await rewriteReportWithAi(prompt);
       const lost = summaryNumbersLost(draft, ai);
       if (!ai.trim() || lost.length) { setReportNote(`AI version was not used${lost.length ? ` - it lost ${lost.length} number(s) such as ${lost[0]}` : ''}. Showing the standard summary.`); return; }
       setReportAlt({ standard: draft, ai: ai.trim(), showing: 'ai' });
       setReportText(ai.trim());
-      setReportNote('✨ Rewritten with AI - every number is kept. Use "Show the standard version" to compare.');
+      setReportNote('Rewritten with AI - every number is kept. Use "Show the standard version" to compare.');
     } catch (e) {
       setReportNote(`AI not available right now (${e.message}) - showing the standard summary.`);
     } finally { setAiBusy(false); }
@@ -877,23 +774,8 @@ export default function WorkingDashboard() {
     setAiBusy(true);
     try {
       const draft = reportModelToText(model, { headings: true });
-      // Your past reports (saved here and on the sheet) teach the wording; the facts come only from the draft.
-      let pool = samples;
-      if (!pool.length && wd.cloudSyncUrl) { try { pool = await listReportSamples(wd.cloudSyncUrl); setSamples(pool); } catch { pool = []; } }
-      const style = learnStyle([...(wd.reportSamplesLocal || []), ...pool.map((x) => x.sampleText)].filter((x, i, a) => a.indexOf(x) === i));
-      const prompt = buildStylePrompt(model, draft, style, wd.reportAiNotes || '');
-      const examples = model.sections.flatMap((sec) => sec.rows.map((r) => ({ line: r.line, like: examplesFor({ section: sec.title, category: r.entry && r.entry.category, text: r.line }, style, 2) })));
-      const advisor = data.settings?.aiAdvisor || {};
-      let ai = '';
-      if (advisor.enabled && advisor.endpoint) {
-        // The Apps Script AI endpoint takes the whole prompt as its instructions, so the style is followed exactly.
-        // If it fails, fall through to the Cloud Sync rewrite below rather than giving up.
-        try {
-          const res = await getAdvice(advisor.endpoint, prompt, { task: 'daily-activity-report', date: model.date, draft });
-          ai = (res && (res.advice || res.reply)) || '';
-        } catch { ai = ''; }
-      }
-      if (!ai.trim()) ai = await rewriteReportWithAi(wd.cloudSyncUrl, { date: model.date, draft, itemCount: model.data.bullets, prompt, examples });
+      const prompt = buildStylePrompt(model, draft, wd.reportAiNotes || '');
+      let ai = await rewriteReportWithAi(prompt);
       // As on the web app: merged section by section - payments, duty and import lines stay word for word, and a
       // section the AI shortened keeps the standard wording. Mail chains it copied in are taken out.
       const mails = entries.map((x) => String(x.reference || '').trim()).filter((x) => x.length > 6);
@@ -903,43 +785,14 @@ export default function WorkingDashboard() {
       if (!verdict.ok) { setReportNote(`AI version was not used (it ${merged ? 'shortened every section' : verdict.reason}) — showing the complete standard report.`); return; }
       const facts = checkFacts(model, ai);
       if (!facts.ok) { setReportNote(`AI version was not used — it lost ${facts.missing.length} fact(s) such as "${facts.missing[0].fact}". Showing the complete standard report.`); return; }
-      setReportAlt({ standard: reportModelToText(model), ai, showing: 'ai' });
+      setReportAlt({ standard: reportModelToText(model), ai, showing: 'ai', date: model.date, draft });
       setReportText(ai);
-      setReportNote(`✨ Written in your style${style.samples ? ` (learned from ${style.samples} past report${style.samples === 1 ? '' : 's'})` : ' (add past reports in Config → Report Style Samples to teach it)'} — every item, amount, name and reference checked present.`);
+      setReportNote(`Rewritten with AI — every item, amount, name and reference checked present.`);
     } catch (e) {
       setReportNote(`AI not available right now (${e.message}) — showing the complete standard report.`);
     } finally { setAiBusy(false); }
   };
   const copyReport = async () => { await Clipboard.setStringAsync(reportText); Alert.alert('Copied', 'Report copied to the clipboard.'); };
-
-  // `quiet`: loaded by itself (the phone Config page opening) - a failure is not worth an alert there.
-  const loadSamples = async (quiet = false) => {
-    if (!wd.cloudSyncUrl) return;
-    setSamplesBusy(true);
-    try { setSamples(await listReportSamples(wd.cloudSyncUrl)); }
-    catch (e) { if (!quiet) Alert.alert('Could not load samples', e.message); }
-    finally { setSamplesBusy(false); }
-  };
-  const addSample = async () => {
-    const text = sampleDraft.trim();
-    if (!text) return;
-    if (!wd.cloudSyncUrl) { updateWd((w) => ({ ...w, reportSamplesLocal: [...(w.reportSamplesLocal || []).filter((x) => x !== text), text].slice(-30) })); setSampleDraft(''); return; }
-    setSamplesBusy(true);
-    updateWd((w) => ({ ...w, reportSamplesLocal: [...(w.reportSamplesLocal || []).filter((x) => x !== text), text].slice(-30) }));
-    try { await saveReportSample(wd.cloudSyncUrl, text); setSampleDraft(''); await loadSamples(); }
-    catch (e) { Alert.alert('Could not save sample', e.message); }
-    finally { setSamplesBusy(false); }
-  };
-  const removeSample = async (id) => {
-    const gone = samples.find((x) => x.id === id);
-    if (gone) updateWd((w) => ({ ...w, reportSamplesLocal: (w.reportSamplesLocal || []).filter((x) => x !== gone.sampleText) }));
-    setSamplesBusy(true);
-    try { await deleteReportSample(wd.cloudSyncUrl, id); await loadSamples(); }
-    catch (e) { Alert.alert('Could not delete sample', e.message); }
-    finally { setSamplesBusy(false); }
-  };
-
-  const savePaymentIntro = (lines) => { setIntroDraft(lines); updateWd((w) => ({ ...w, paymentIntro: lines })); };
 
   /* ---------- Realtime Sync (Firestore + Google Sign-In) ---------- */
   const doGoogleSignIn = async () => {
@@ -969,14 +822,14 @@ export default function WorkingDashboard() {
   const completableForm = !!entrySheet && phoneLayout && entries.some((x) => x.id === entrySheet.id && isOpen(x));
   const entryButtons = completableForm ? (
     <Row gap={8}>
-      <Btn style={{ flex: 1 }} kind="soft" title="✓ Done" onPress={() => saveEntry({ status: 'Completed', dar: false })} />
-      <Btn style={{ flex: 1 }} kind="ok" title="✓ DAR" onPress={() => saveEntry({ status: 'Completed', dar: true })} />
-      <Btn style={{ flex: 1.2 }} title="Save" onPress={() => saveEntry()} />
+      <Btn style={{ flex: 1 }} kind="neutral" title="Done" onPress={() => saveEntry({ status: 'Completed', dar: false })} />
+      <Btn style={{ flex: 1 }} kind="soft" title="DAR" onPress={() => saveEntry({ status: 'Completed', dar: true })} />
+      <Btn style={{ flex: 1.4 }} title="Save" onPress={() => saveEntry()} />
     </Row>
   ) : (
     <Row gap={10}>
-      <Btn style={{ flex: 1 }} kind="soft" title="Cancel" onPress={closeEntrySheet} />
-      <Btn style={{ flex: 2 }} title="Save Entry" onPress={() => saveEntry()} />
+      <Btn style={{ flex: 1 }} kind="neutral" title="Cancel" onPress={closeEntrySheet} />
+      <Btn style={{ flex: 2 }} title="Save entry" onPress={() => saveEntry()} />
     </Row>
   );
   const renderEntryForm = () => {
@@ -986,15 +839,15 @@ export default function WorkingDashboard() {
       // A new task can start from a saved template; any task can be saved as one.
       templates: isNew && (wd.templates || []).length ? (
         <View style={{ marginBottom: 12 }}>
-          <Small style={{ marginBottom: 5 }}>START FROM A TEMPLATE</Small>
+          <Label>START FROM A TEMPLATE</Label>
           <Row style={{ flexWrap: 'wrap', gap: 6 }}>
             {(wd.templates || []).map((tp) => (
-              <View key={tp.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: t.accent + '14', borderRadius: 999, borderWidth: 1, borderColor: t.accent + '40' }}>
-                <Pressable onPress={() => setEntrySheet((d) => withDrafts(applyTemplate(d, tp)))} accessibilityRole="button" accessibilityLabel={`Use template ${tp.name}`} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
-                  <Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(12.5) }} numberOfLines={1}>📋 {tp.name}</Text>
+              <View key={tp.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: t.tint, borderRadius: 999 }}>
+                <Pressable onPress={() => setEntrySheet((d) => withDrafts(applyTemplate(d, tp)))} accessibilityRole="button" accessibilityLabel={`Use template ${tp.name}`} style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <Text style={{ color: t.tintText, fontWeight: '700', fontSize: t.fs(12.5) }} numberOfLines={1}>{tp.name}</Text>
                 </Pressable>
                 <Pressable onPress={() => setTools((w) => ({ ...w, templates: (w.templates || []).filter((x) => x.id !== tp.id) }))} hitSlop={6} accessibilityLabel={`Delete template ${tp.name}`} style={{ paddingRight: 10 }}>
-                  <Text style={{ color: t.textDim, fontSize: t.fs(12) }}>✕</Text>
+                  <Icon name="close" size={13} color={t.tintText} stroke={2.4} />
                 </Pressable>
               </View>
             ))}
@@ -1003,41 +856,46 @@ export default function WorkingDashboard() {
       ) : null,
       saveTemplate: String(entrySheet.title || '').trim() ? (
         <Pressable onPress={() => { setTools((w) => ({ ...w, templates: saveTemplate(w.templates || [], templateFrom(entrySheet)) })); Alert.alert('Template saved', `"${String(entrySheet.title).trim()}" is now a template - start a new task from it in the New Entry form.`); }} hitSlop={6} style={{ alignSelf: 'flex-start', marginTop: -6, marginBottom: 12 }}>
-          <Small style={{ color: t.accent, fontWeight: '700' }}>📋 Save as template</Small>
+          <Small style={{ color: t.primary, fontWeight: '800' }}>Save as template</Small>
         </Pressable>
       ) : null,
       title: (
-            <Field label="TASK DESCRIPTION" value={entrySheet.title} onChangeText={(v) => setEntrySheet({ ...entrySheet, title: v })} placeholder="e.g. Follow up on LC opening" />
+            <Field label="TASK DESCRIPTION" multiline compact value={entrySheet.title} onChangeText={(v) => setEntrySheet({ ...entrySheet, title: v })} placeholder={phoneLayout ? 'What needs doing?' : 'e.g. Follow up on LC opening'} />
       ),
       category: (
-              <View style={{ flex: 1 }}><OptionPicker editChip label="CATEGORY" source={SOURCES.wdCategory} value={entrySheet.category} onChange={(v) => setEntrySheet({ ...entrySheet, category: v })} placeholder="Select category" /></View>
+              <View style={{ flex: 1 }}><OptionPicker editChip={!phoneLayout} label="CATEGORY" source={SOURCES.wdCategory} value={entrySheet.category} onChange={(v) => setEntrySheet({ ...entrySheet, category: v })} placeholder={phoneLayout ? 'Select' : 'Select category'} /></View>
       ),
       priority: (
-              <View style={{ flex: 1 }}><OptionPicker editChip label="PRIORITY" source={SOURCES.wdPriority} value={entrySheet.priority} onChange={(v) => setEntrySheet({ ...entrySheet, priority: v })} /></View>
+              phoneLayout
+        ? <PrioritySegment options={SOURCES.wdPriority.read(data).map((o) => o.value)} value={entrySheet.priority} onChange={(v) => setEntrySheet({ ...entrySheet, priority: v })} />
+        : <View style={{ flex: 1 }}><OptionPicker editChip label="PRIORITY" source={SOURCES.wdPriority} value={entrySheet.priority} onChange={(v) => setEntrySheet({ ...entrySheet, priority: v })} /></View>
       ),
       status: (
-              <View style={{ flex: 1 }}><OptionPicker editChip label="STATUS" source={SOURCES.wdStatus} value={entrySheet.status} onChange={(v) => setEntrySheet({ ...entrySheet, status: v })} /></View>
+              phoneLayout
+        // Phone: Status is a pill under MORE DETAILS that opens the list straight away.
+        ? <OptionPicker source={SOURCES.wdStatus} value={entrySheet.status} onChange={(v) => setEntrySheet({ ...entrySheet, status: v })} trigger={({ open, text }) => <DetailChip icon="refresh" label={text ? `Status · ${text}` : 'Status'} filled={!!text} onPress={open} />} />
+        : <View style={{ flex: 1 }}><OptionPicker editChip label="STATUS" source={SOURCES.wdStatus} value={entrySheet.status} onChange={(v) => setEntrySheet({ ...entrySheet, status: v })} /></View>
       ),
       pendingWith: (
-              <View style={{ flex: 1 }}><OptionPicker editChip label="PENDING WITH" source={SOURCES.wdAssignee} value={entrySheet.pendingWith} onChange={(v) => setEntrySheet({ ...entrySheet, pendingWith: v })} placeholder="Select person" /></View>
+              <View style={{ flex: 1 }}><OptionPicker editChip={!phoneLayout} label="PENDING WITH" source={SOURCES.wdAssignee} value={entrySheet.pendingWith} onChange={(v) => setEntrySheet({ ...entrySheet, pendingWith: v })} placeholder={phoneLayout ? 'Select' : 'Select person'} /></View>
       ),
       mail: (
               <View style={{ flex: 1 }}>
-                <Small style={{ marginBottom: 5 }}>MAIL CHAIN / REFERENCE</Small>
+                <Label>MAIL CHAIN / REFERENCE</Label>
                 <Row gap={6} style={{ alignItems: 'flex-start' }}>
                   <View style={{ flex: 1 }}><Field style={{ marginBottom: 0 }} value={entrySheet.reference} onChangeText={(v) => setEntrySheet({ ...entrySheet, reference: v })} placeholder="e.g. Ticket #1234" /></View>
                   <Pressable
                     accessibilityLabel="Copy mail chain"
                     disabled={!entrySheet.reference}
                     onPress={async () => { await Clipboard.setStringAsync(entrySheet.reference); Alert.alert('Copied', 'Mail chain copied.'); }}
-                    style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent + '1F', opacity: entrySheet.reference ? 1 : 0.4 }}
-                  ><Text style={{ color: t.accent, fontSize: t.fs(16) }}>⧉</Text></Pressable>
+                    style={{ width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.tint, opacity: entrySheet.reference ? 1 : 0.4 }}
+                  ><Icon name="copy" size={19} color={t.tintText} stroke={1.9} /></Pressable>
                 </Row>
               </View>
       ),
       recurrence: (
               <View style={{ flex: 1 }}>
-                <Small style={{ marginBottom: 5 }}>RECURRENCE</Small>
+                <Label>RECURRENCE</Label>
                 <PickerButton text={recurrenceLabel(entrySheet)} onPress={() => setRecurrenceOpen(true)} />
               </View>
       ),
@@ -1046,8 +904,28 @@ export default function WorkingDashboard() {
             {/* The web app's payment sections: Import details, Sub Category, Tally Narration - each only when it applies. */}
             {/* "Both" (phone-width screens): the narration type used last time for this category starts picked. */}
             <PaymentFields draft={entrySheet} setDraft={setEntrySheet} lists={plists} rememberedType={phoneLayout ? (wd.narrationByCategory || {})[entrySheet.category] || '' : ''} />
+            {(() => {
+              // "Final Narration": the narration of this task's report line (a Payments category whose Sub Category has a report format), in a popup.
+              const n = finalNarration(entrySheet, effectiveFormats(wd.reportFormats));
+              if (!n) return null;
+              return (
+                <>
+                  <Pressable onPress={() => setNarrOpen(true)} accessibilityRole="button" style={{ alignSelf: 'flex-start', backgroundColor: t.surfaceAlt, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 12 }}>
+                    <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(13.5) }}>Final Narration{n.missing.length ? ` · ${n.missing.length} to fill` : ''}</Text>
+                  </Pressable>
+                  <Sheet visible={narrOpen} onClose={() => setNarrOpen(false)} title="Final Narration">
+                    <Text selectable style={{ color: t.text, fontSize: t.fs(14.5), marginBottom: 8 }}>{n.text}</Text>
+                    {n.missing.length > 0 && <Small style={{ marginBottom: 8 }}>Still to fill: {n.missing.join(', ')}</Small>}
+                    <Row gap={8}>
+                      <Btn kind="soft" title="Copy" onPress={async () => { await Clipboard.setStringAsync(n.text); Alert.alert('Copied', 'Narration copied.'); }} />
+                      <Btn title="Done" onPress={() => setNarrOpen(false)} />
+                    </Row>
+                  </Sheet>
+                </>
+              );
+            })()}
             {followUpHere && isBankFollowUpCategory(entrySheet.category) && entries.some((x) => x.id === entrySheet.id) && (
-              <BankFollowUpForm quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={entrySheet} draft={{ ...lastWho(entrySheet), ...(entrySheet.followUpDraft || {}), next: entrySheet.followUpDraft?.next || defaultNextFollowUp(entrySheet, new Date(), offDays) }}
+              <BankFollowUpForm holidays={holidayList} leaveDays={leaveList} quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={entrySheet} draft={{ ...lastWho(entrySheet), ...(entrySheet.followUpDraft || {}), next: entrySheet.followUpDraft?.next || defaultNextFollowUp(entrySheet, new Date(), offDays) }}
                 onChange={(patch) => setEntrySheet((d) => ({ ...d, followUpDraft: { ...(d.followUpDraft || {}), ...patch } }))} />
             )}
             </>
@@ -1056,13 +934,13 @@ export default function WorkingDashboard() {
             <>
             {entrySheet.recurrence === 'custom' && (
               <View style={{ marginBottom: 12 }}>
-                <Small style={{ marginBottom: 6 }}>REPEAT EVERY (MINUTES)</Small>
+                <Label>REPEAT EVERY (MINUTES)</Label>
                 <Row style={{ flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                   {RECURRENCE_PRESETS.map((m) => {
                     const on = Number(entrySheet.recurrenceEveryMin) === m;
                     return (
                       <Pressable key={m} onPress={() => setEntrySheet({ ...entrySheet, recurrenceEveryMin: m })} style={{ paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, backgroundColor: on ? t.accent : t.surfaceAlt, borderWidth: 1, borderColor: on ? t.accent : t.border }}>
-                        <Text style={{ color: on ? '#fff' : t.text, fontSize: t.fs(13) }}>{m >= 60 && m % 60 === 0 ? `${m / 60} h` : `${m} min`}</Text>
+                        <Text style={{ color: on ? t.onAccent : t.text, fontSize: t.fs(13) }}>{m >= 60 && m % 60 === 0 ? `${m / 60} h` : `${m} min`}</Text>
                       </Pressable>
                     );
                   })}
@@ -1074,19 +952,44 @@ export default function WorkingDashboard() {
       ),
       due: (
             <>
-            <DateTimeField labelColor={t.accent} label="DUE DATE & TIME" clearable value={entrySheet.dueAt} onChange={(v) => setEntrySheet({ ...entrySheet, dueAt: v })} />
+            {phoneLayout ? (
+              // Phone: Due date, Month end, Due time and Repeats on ONE line.
+              (() => {
+                const opts = monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 5);
+                const cur = entrySheet.dueAt ? opts.find((m) => m.key === toDateKey(new Date(entrySheet.dueAt))) : null;
+                return (
+                  <Row gap={6} style={{ alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1.5 }}><DateTimeField dense mode="date" label="DUE DATE" value={entrySheet.dueAt} onChange={(v) => setEntrySheet({ ...entrySheet, dueAt: v })} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Label dense numberOfLines={1}>MONTH END</Label>
+                      <PickerButton dense text={cur ? `-${cur.n}` : '-'} dim={!cur} onPress={() => setMonthEndOpen(true)} />
+                    </View>
+                    <View style={{ flex: 1 }}><DateTimeField dense mode="time" label="TIME" value={entrySheet.dueAt} onChange={(v) => v && setEntrySheet({ ...entrySheet, dueAt: v })} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Label dense numberOfLines={1}>REPEATS</Label>
+                      <PickerButton dense noChevron text={entrySheet.recurrence && entrySheet.recurrence !== 'none' ? recurrenceLabel(entrySheet) : 'None'} dim={!entrySheet.recurrence || entrySheet.recurrence === 'none'} onPress={() => setRecurrenceOpen(true)} />
+                    </View>
+                  </Row>
+                );
+              })()
+            ) : <DateTimeField label="DUE DATE & TIME" clearable value={entrySheet.dueAt} onChange={(v) => setEntrySheet({ ...entrySheet, dueAt: v })} />}
             {/* "Both" (phone-width screens): one tap for the usual due times instead of the two pickers. */}
             {phoneLayout && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -4, marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2, marginBottom: 14 }}>
                 {quickDueOptions(new Date(), holidayList, leaveList).map(([label, iso]) => {
                   const on = entrySheet.dueAt && Math.abs(new Date(entrySheet.dueAt) - new Date(iso)) < 60000;
                   return (
                     <Pressable key={label} onPress={() => setEntrySheet({ ...entrySheet, dueAt: iso })} accessibilityRole="button" accessibilityLabel={`Due ${label}`}
-                      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: on ? t.accent : t.accent + '14', borderWidth: 1, borderColor: t.accent + '40' }}>
-                      <Text style={{ color: on ? '#fff' : t.accent, fontSize: t.fs(12.5), fontWeight: '700' }}>{label}</Text>
+                      style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999, backgroundColor: on ? t.primaryDark : t.tint }}>
+                      <Text style={{ color: on ? '#fff' : t.tintText, fontSize: t.fs(12.5), fontWeight: '700' }}>{label}</Text>
                     </Pressable>
                   );
                 })}
+                {!!entrySheet.dueAt && (
+                  <Pressable onPress={() => setEntrySheet({ ...entrySheet, dueAt: null })} accessibilityRole="button" accessibilityLabel="Clear the due date" style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999, backgroundColor: t.surfaceAlt }}>
+                    <Text style={{ color: t.text, fontSize: t.fs(12.5), fontWeight: '700' }}>No date</Text>
+                  </Pressable>
+                )}
               </View>
             )}
             </>
@@ -1114,10 +1017,13 @@ export default function WorkingDashboard() {
       deadline: (
             <DateTimeField label="DEADLINE (optional)" clearable value={entrySheet.deadlineAt} onChange={(v) => setEntrySheet({ ...entrySheet, deadlineAt: v })} />
       ),
+      reminder: (Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(entrySheet.category)) ? (
+            <DateTimeField label="NEXT REMINDER (date and time)" clearable value={entrySheet.nextReminderAt} onChange={(v) => setEntrySheet({ ...entrySheet, nextReminderAt: v })} />
+      ) : null,
       alert: (
             <>
             {/* This task's own alert: a ringing alarm for urgent work, a plain notification for the rest. */}
-            <Small style={{ marginBottom: 6 }}>ALERT</Small>
+            <Label>ALERT</Label>
             <Segmented options={ALERT_MODES.map((m) => ({ key: m.key, label: m.label }))} value={alertModeOf(entrySheet, wd.alerts)}
               onChange={(v) => setEntrySheet({ ...entrySheet, alertMode: v })} style={{ marginBottom: 4 }} />
             <Small style={{ marginBottom: 12 }}>{(ALERT_MODES.find((m) => m.key === alertModeOf(entrySheet, wd.alerts)) || ALERT_MODES[0]).hint}.</Small>
@@ -1125,44 +1031,20 @@ export default function WorkingDashboard() {
       ),
       checklist: (
         <View style={{ marginBottom: 12 }}>
-          <Small style={{ marginBottom: 5 }}>CHECKLIST (optional){checklistText(entrySheet) ? ` · ${checklistText(entrySheet)} done` : ''}</Small>
+          <Label>CHECKLIST (optional){checklistText(entrySheet) ? ` · ${checklistText(entrySheet)} done` : ''}</Label>
           {(entrySheet.checklist || []).map((c) => (
             <Row key={c.id} gap={8} style={{ alignItems: 'center', marginBottom: 6 }}>
               <Pressable onPress={() => setEntrySheet((d) => ({ ...d, checklist: toggleStep(d.checklist, c.id) }))} accessibilityRole="checkbox" accessibilityState={{ checked: !!c.done }} accessibilityLabel={c.text}
-                style={{ width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: c.done ? t.ok : 'transparent', borderWidth: c.done ? 0 : 1.5, borderColor: t.textDim }}>
-                {!!c.done && <Text style={{ color: '#fff', fontWeight: '900' }}>✓</Text>}
+                style={{ width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: c.done ? t.primary : 'transparent', borderWidth: c.done ? 0 : 1.5, borderColor: t.textDim }}>
+                {!!c.done && <Icon name="check" size={15} color={t.onAccent} stroke={2.8} />}
               </Pressable>
               <Text style={{ flex: 1, color: c.done ? t.textDim : t.text, textDecorationLine: c.done ? 'line-through' : 'none', fontSize: t.fs(14.5) }}>{c.text}</Text>
-              <Pressable onPress={() => setEntrySheet((d) => ({ ...d, checklist: removeStep(d.checklist, c.id) }))} hitSlop={8} accessibilityLabel="Remove step"><Text style={{ color: t.textDim, fontSize: t.fs(16) }}>✕</Text></Pressable>
+              <Pressable onPress={() => setEntrySheet((d) => ({ ...d, checklist: removeStep(d.checklist, c.id) }))} hitSlop={8} accessibilityLabel="Remove step"><Icon name="close" size={16} color={t.textDim} stroke={2.2} /></Pressable>
             </Row>
           ))}
           <Row gap={8}>
             <View style={{ flex: 1 }}><Field style={{ marginBottom: 0 }} value={stepDraft} onChangeText={setStepDraft} placeholder="Add a step..." onSubmitEditing={() => { setEntrySheet((d) => ({ ...d, checklist: addStep(d.checklist, stepDraft) })); setStepDraft(''); }} /></View>
             <Btn kind="soft" title="Add" onPress={() => { setEntrySheet((d) => ({ ...d, checklist: addStep(d.checklist, stepDraft) })); setStepDraft(''); }} />
-          </Row>
-        </View>
-      ),
-      attachments: (
-        <View style={{ marginBottom: 12 }}>
-          <Small style={{ marginBottom: 5 }}>ATTACHMENTS (links to the invoice, bank advice, Drive file...)</Small>
-          {(entrySheet.attachments || []).map((a) => (
-            <Row key={a.id} gap={8} style={{ alignItems: 'center', marginBottom: 6 }}>
-              <Pressable onPress={() => Linking.openURL(a.url)} accessibilityRole="link" style={{ flex: 1 }}>
-                <Text numberOfLines={1} style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(14) }}>📎 {a.title}</Text>
-                <Small numberOfLines={1}>{a.url}</Small>
-              </Pressable>
-              <Pressable onPress={() => setEntrySheet((d) => ({ ...d, attachments: (d.attachments || []).filter((x) => x.id !== a.id) }))} hitSlop={8} accessibilityLabel="Remove attachment"><Text style={{ color: t.textDim, fontSize: t.fs(16) }}>✕</Text></Pressable>
-            </Row>
-          ))}
-          <Row gap={8} style={{ alignItems: 'flex-end' }}>
-            <View style={{ flex: 1 }}><Field style={{ marginBottom: 0 }} value={attDraft.title} onChangeText={(v) => setAttDraft((d) => ({ ...d, title: v }))} placeholder="Name" /></View>
-            <View style={{ flex: 2 }}><Field style={{ marginBottom: 0 }} value={attDraft.url} onChangeText={(v) => setAttDraft((d) => ({ ...d, url: v }))} placeholder="https://..." autoCapitalize="none" /></View>
-            <Btn kind="soft" title="Add" onPress={() => {
-              const url = normalizeLink(attDraft.url);
-              if (!url) return Alert.alert('Enter a link', 'Paste the web address of the file, such as a Drive or SharePoint link.');
-              setEntrySheet((d) => ({ ...d, attachments: [...(d.attachments || []), { id: `att-${Date.now().toString(36)}`, title: attDraft.title.trim() || url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, ''), url }] }));
-              setAttDraft({ title: '', url: '' });
-            }} />
           </Row>
         </View>
       ),
@@ -1174,29 +1056,26 @@ export default function WorkingDashboard() {
           {showAudit && (entrySheet.audit || []).slice(0, 15).map((a, i) => (
             <Row key={`${a.at}-${i}`} gap={8} style={{ paddingVertical: 4 }}>
               <Small style={{ width: 96 }}>{new Date(a.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</Small>
-              <Small style={{ width: 44, fontWeight: '700' }}>{a.by === 'web' ? '🌐 web' : '📱 phone'}</Small>
+              <Small style={{ width: 44, fontWeight: '700' }}>{a.by === 'web' ? 'web' : 'phone'}</Small>
               <Text style={{ flex: 1, color: t.text, fontSize: t.fs(12.5) }}>{a.what}</Text>
             </Row>
           ))}
         </View>
       ) : null,
       notes: (
-            <Field label="NOTES" multiline value={entrySheet.notes} onChangeText={(v) => setEntrySheet({ ...entrySheet, notes: v })} placeholder="Additional notes or context..." />
-      ),
-      keyPoints: (
-            <KeyPointsEditor points={entrySheet.keyPoints} onChange={(kp) => setEntrySheet((d) => ({ ...d, keyPoints: kp }))} />
+            <Field label="NOTES" multiline compact value={entrySheet.notes} onChangeText={(v) => setEntrySheet({ ...entrySheet, notes: v })} placeholder="Additional notes or context..." />
       ),
       dar: (
             <Pressable
               onPress={() => setEntrySheet({ ...entrySheet, dar: entrySheet.dar === false })}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: entrySheet.dar !== false }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, marginBottom: 14, backgroundColor: t.ok + '1A', borderWidth: 1, borderColor: t.ok + '55' }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, marginBottom: 14, backgroundColor: t.tint }}
             >
-              <View style={{ width: 26, height: 26, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: entrySheet.dar !== false ? t.ok : 'transparent', borderWidth: entrySheet.dar !== false ? 0 : 2, borderColor: t.ok }}>
-                {entrySheet.dar !== false && <Text style={{ color: '#fff', fontWeight: '900' }}>✓</Text>}
+              <View style={{ width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: entrySheet.dar !== false ? t.primary : t.surface, borderWidth: entrySheet.dar !== false ? 0 : 2, borderColor: t.primary }}>
+                {entrySheet.dar !== false && <Icon name="check" size={16} color={t.onAccent} stroke={2.8} />}
               </View>
-              <Text style={{ flex: 1, color: t.text, fontSize: t.fs(14) }}>
+              <Text style={{ flex: 1, color: t.tintText, fontSize: t.fs(13.5), fontWeight: '500', lineHeight: t.fs(19) }}>
                 <Text style={{ fontWeight: '800' }}>Include in Daily Activity Report</Text> ("Done + DAR") - untick for "Done" only (completed, but left out of the report)
               </Text>
             </Pressable>
@@ -1205,59 +1084,51 @@ export default function WorkingDashboard() {
     const isSaved = entries.some((x) => x.id === entrySheet.id);
     const binBtn = isSaved && <Btn kind="danger" title="Bin" onPress={() => { act(entries.find((x) => x.id === entrySheet.id) || entrySheet, 'bin'); closeEntrySheet(); }} />;
     if (!deskForm) {
-      // Phone (the APK, and the website below 900px): one column - a small heading per group, and the extras (checklist, mail chain,
-      // notes, attachments, key points, history) fold into rows that open when tapped (open at once when the entry has something there).
-      const section = (title, children) => (
-        <View style={{ marginBottom: 6 }}>
-          <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11.5), letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8, marginLeft: 2 }}>{title}</Text>
-          {children}
-        </View>
-      );
-      const acc = (key, icon, title, summary, node, filled) => {
-        if (!node) return null;
-        const open = accOpen[key] !== undefined ? accOpen[key] : !!filled;
-        return (
-          <View key={key} style={{ marginBottom: 10 }}>
-            <Pressable onPress={() => setAccOpen((m) => ({ ...m, [key]: !open }))} accessibilityRole="button" accessibilityState={{ expanded: open }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14, ...t.shadow }}>
-              <Text style={{ fontSize: t.fs(16) }}>{icon}</Text>
-              <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14.5) }}>{title}</Text>
-              <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', color: t.textDim, fontSize: t.fs(12.5), fontWeight: '600' }}>{summary}</Text>
-              <Text style={{ color: t.textDim, fontSize: t.fs(16) }}>{open ? '⌃' : '⌄'}</Text>
-            </Pressable>
-            {open && <View style={{ paddingTop: 10 }}>{node}</View>}
-          </View>
-        );
-      };
+      // Phone (the APK, and the website below 900px): one column, laid out like the Ledger artboard - description, category and
+      // person side by side, priority as three buttons, the due row, notes, then the MORE DETAILS pills that open popups.
       const steps = checklistOf(entrySheet);
       const stepsDone = steps.filter((c) => c.done).length;
+      const showReminder = Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(entrySheet.category);
+      const alertMode = ALERT_MODES.find((m) => m.key === alertModeOf(entrySheet, wd.alerts)) || ALERT_MODES[0];
+      const dateShort = (iso) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
+      const detailTitle = { alert: 'Alert', deadline: 'Deadline', reminder: 'Next reminder', mail: 'Mail chain', history: 'History' }[detailSheet] || '';
       return (
         <View>
           {f.templates}
           {f.title}
           {f.saveTemplate}
-          <Row gap={10}>{f.category}{f.priority}</Row>
-          <Row gap={10}>{f.status}{f.pendingWith}</Row>
-          {section('When', (
-            <>
-              {f.due}
-              {f.slot}
-              {f.alert}
-              {f.deadline}
-              <Row>{f.recurrence}</Row>
-              {f.custom}
-            </>
-          ))}
+          <Row gap={10} style={{ alignItems: 'flex-start' }}>{f.category}{f.pendingWith}</Row>
+          {f.priority}
+          {f.due}
+          {f.slot}
+          {f.custom}
+          {f.notes}
+          <Label>MORE DETAILS</Label>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            {f.status}
+            <DetailChip icon="bell" label={`Alert · ${alertMode.key === 'alarm' ? 'Alarm' : 'Reminder'}`} filled={alertModeOf(entrySheet, wd.alerts) === 'alarm'} onPress={() => setDetailSheet('alert')} />
+            <DetailChip icon="calendar" label={entrySheet.deadlineAt ? `Deadline · ${dateShort(entrySheet.deadlineAt)}` : 'Deadline'} filled={!!entrySheet.deadlineAt} onPress={() => setDetailSheet('deadline')} />
+            {showReminder && <DetailChip icon="clock" label={entrySheet.nextReminderAt ? `Next reminder · ${dateShort(entrySheet.nextReminderAt)}` : 'Next reminder'} filled={!!entrySheet.nextReminderAt} onPress={() => setDetailSheet('reminder')} />}
+            <DetailChip icon="checklist" label={steps.length ? `Checklist · ${stepsDone} of ${steps.length}` : 'Checklist'} filled={!!steps.length} onPress={() => setStepsOpen(true)} />
+            <DetailChip icon="mail" label="Mail chain" filled={!!String(entrySheet.reference || '').trim()} onPress={() => setDetailSheet('mail')} />
+            {!!f.history && <DetailChip icon="list" label={`History · ${(entrySheet.audit || []).length}`} onPress={() => setDetailSheet('history')} />}
+          </View>
           {f.payment}
-          {acc('checklist', '☑️', 'Checklist', steps.length ? `${stepsDone} of ${steps.length}` : 'Add steps', f.checklist, steps.length > 0)}
-          {acc('mail', '✉', 'Mail chain', String(entrySheet.reference || '').trim() || 'Add', f.mail, !!String(entrySheet.reference || '').trim())}
-          {acc('notes', '📝', 'Notes & remarks', String(entrySheet.notes || '').trim() ? 'Added' : 'Add', f.notes, !!String(entrySheet.notes || '').trim())}
-          {acc('attach', '📎', 'Attachments', (entrySheet.attachments || []).length ? `${(entrySheet.attachments || []).length}` : 'Add', f.attachments, (entrySheet.attachments || []).length > 0)}
-          {acc('points', '🔑', 'Key points', (entrySheet.keyPoints || []).length ? `${(entrySheet.keyPoints || []).length}` : 'Add', f.keyPoints, (entrySheet.keyPoints || []).length > 0)}
-          {acc('history', '🕘', 'History', '', f.history, false)}
           {f.dar}
           {!pinSave && entryButtons}
           {!!binBtn && <View style={{ marginTop: 8 }}>{binBtn}</View>}
+          <Sheet visible={stepsOpen} onClose={() => setStepsOpen(false)} title="Checklist">
+            {f.checklist}
+            <Btn style={{ marginTop: 14 }} title="Done" onPress={() => setStepsOpen(false)} />
+          </Sheet>
+          <Sheet visible={!!detailSheet} onClose={() => setDetailSheet(null)} title={detailTitle}>
+            {detailSheet === 'alert' && f.alert}
+            {detailSheet === 'deadline' && f.deadline}
+            {detailSheet === 'reminder' && f.reminder}
+            {detailSheet === 'mail' && f.mail}
+            {detailSheet === 'history' && f.history}
+            <Btn style={{ marginTop: 14 }} title="Done" onPress={() => setDetailSheet(null)} />
+          </Sheet>
         </View>
       );
     }
@@ -1279,13 +1150,12 @@ export default function WorkingDashboard() {
           {f.saveTemplate}
           {gridRow(cell(1, f.category, 'c'), cell(1, f.priority, 'p'), cell(1, f.status, 's'))}
           {gridRow(cell(1, f.pendingWith, 'w'), cell(1, block(<>{f.due}{f.slot}</>), 'd'), cell(1, block(f.deadline), 'l'))}
+          {!!f.reminder && gridRow(cell(1, f.reminder, 'n'))}
           {gridRow(cell(1, f.recurrence, 'r'), cell(2, f.mail, 'm'))}
           {f.custom}
           {f.payment}
           {f.checklist}
-          {f.attachments}
           {f.notes}
-          {f.keyPoints}
           {f.history}
         </View>
         <View style={{ flex: 1 }}>
@@ -1315,253 +1185,30 @@ export default function WorkingDashboard() {
    * What each Config section holds. Shown in its own sheet from the Config list (tablets and desktop browsers), or
    * open on the Config page itself on a phone-width screen ("Both": the APK and the website on a phone).
    */
-  const configBodies = {
-    lists: (
-      <>
-      <P dim>Manage the options offered for Category, Priority, Status and Pending With. Search a new name and tap it to add; open an existing one to remove it.</P>
-      <OptionPicker label="Category" source={SOURCES.wdCategory} value={newListDraft.category} onChange={(v) => setNewListDraft((d) => ({ ...d, category: v }))} />
-      <OptionPicker label="Priority" source={SOURCES.wdPriority} value={newListDraft.priority} onChange={(v) => setNewListDraft((d) => ({ ...d, priority: v }))} />
-      <OptionPicker label="Status" source={SOURCES.wdStatus} value={newListDraft.status} onChange={(v) => setNewListDraft((d) => ({ ...d, status: v }))} />
-      <OptionPicker label="Pending with" source={SOURCES.wdAssignee} value={newListDraft.pendingWith} onChange={(v) => setNewListDraft((d) => ({ ...d, pendingWith: v }))} />
-      </>
-    ),
-    fixed: (
-      <>
-      <P dim>Standing tasks you do every working day. Described once, included in every daily report automatically. Uncheck to pause one without losing it.</P>
-      <Row gap={8}>
-        <Field style={{ flex: 1 }} value={actDraft} onChangeText={setActDraft} placeholder="e.g. Daily NOSTRO account reconciliation" />
-        <Btn title="Add" onPress={addFixedActivity} style={{ paddingHorizontal: 16 }} />
-      </Row>
-      {!(wd.fixedActivities || []).length && <P dim>No fixed activities yet.</P>}
-      {(wd.fixedActivities || []).map((a) => (
-        <Row key={a.id} style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: t.border }}>
-          <Pressable onPress={() => toggleFixedActivity(a.id)} style={{ flex: 1 }}>
-            <Text style={{ color: a.active ? t.text : t.textDim, textDecorationLine: a.active ? 'none' : 'line-through' }}>{a.text}</Text>
-          </Pressable>
-          <Pressable onPress={() => removeFixedActivity(a.id)} hitSlop={8}><Text style={{ color: t.danger }}>✕</Text></Pressable>
-        </Row>
-      ))}
-      </>
-    ),
-    leave: (
-      <>
-      <P dim>Mark a day where there's genuinely nothing to do. Leave days count as non-working, and never show up in the activity report.</P>
-      <Btn title="Mark Today as Leave" onPress={markTodayLeave} />
-      {!leaveList.length && <P dim style={{ marginTop: 10 }}>No leave days marked.</P>}
-      {[...leaveList].reverse().map((d) => (
-        <Row key={d} style={{ justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: t.border }}>
-          <Text style={{ color: t.text }}>{fmtDate(d)}</Text>
-          <Pressable onPress={() => removeLeaveDay(d)} hitSlop={8}><Text style={{ color: t.danger }}>✕</Text></Pressable>
-        </Row>
-      ))}
-      </>
-    ),
-    log: (
-      <>
-      <P dim>Fills itself in automatically - every entry you log, edit, complete, bin or restore is recorded here. Use the box below only for something worth reporting that never became an entry at all.</P>
-      <Field value={logDraft.title} onChangeText={(v) => setLogDraft({ ...logDraft, title: v })} placeholder="Something NOT already an entry (e.g. Team standup)" />
-      <Field value={logDraft.details} onChangeText={(v) => setLogDraft({ ...logDraft, details: v })} placeholder="Details (optional)" />
-      <Btn title="Log this activity" onPress={addLogEntry} />
-      {(wd.activityLog || []).slice(0, 100).map((l) => (
-        <View key={l.id} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: t.border }}>
-          <Text style={{ color: t.text, fontWeight: '600' }}>{l.title}{l.auto ? '' : ' (manual)'}</Text>
-          {!!l.details && <Small>{l.details}</Small>}
-          <Small>{fmtDateTime(l.at)}</Small>
-        </View>
-      ))}
-      </>
-    ),
-    alarm: (
-      <>
-      <WdAlertSettings alerts={wd.alerts} priorities={wd.priorities || []} onChange={(v) => updateWd((w) => ({ ...w, alerts: v }))} />
-      <Text style={{ color: t.text, fontWeight: '700', marginTop: 16, marginBottom: 4 }}>Alarm sound</Text>
-      <P dim>Plays for every Working Dashboard alert. Tap a name to use it.</P>
-      <RingtonePicker value={wd.alarmRingtone} onChange={(v) => updateWd((w) => ({ ...w, alarmRingtone: v }))} />
-      <Btn title={testingAlarm ? 'Playing...' : 'Test Alarm'} kind="soft" disabled={testingAlarm} onPress={testAlarm} style={{ marginTop: 10 }} />
-      </>
-    ),
-    slots: (
-      <>
-      <P dim>Keeps two entries off the same time. A scheduled entry holds the clock for the minutes below; anything booked inside that window is pushed to the next free time.</P>
-      <Field label="Hold for (min)" keyboardType="numeric" value={String(wd.timeSlotHoldMin)} onChangeText={(v) => updateWd((w) => ({ ...w, timeSlotHoldMin: Number(v) || 0 }))} />
-      </>
-    ),
-    backup: (
-      <>
-      <H2>CSV</H2>
-      <Row gap={10}>
-        <Btn style={{ flex: 1 }} title={csvBusy ? 'Working...' : 'Export CSV'} disabled={csvBusy} onPress={exportCsv} />
-        <Btn style={{ flex: 1 }} kind="soft" title={csvBusy ? 'Working...' : 'Import CSV'} disabled={csvBusy} onPress={importCsv} />
-      </Row>
-      <H2 style={{ marginTop: 16 }}>Duplicates</H2>
-      {!duplicateGroups.length ? <P dim>No likely duplicates found.</P> : duplicateGroups.map((group, i) => (
-        <Card key={i} style={{ marginBottom: 10 }}>
-          <Text style={{ color: t.text, fontWeight: '700' }} numberOfLines={1}>{group[0].title}</Text>
-          <Small>{group.length} entries look the same ({group[0].category || 'Uncategorised'})</Small>
-          {group.slice(1).map((dup) => (
-            <Row key={dup.id} style={{ justifyContent: 'space-between', marginTop: 6 }}>
-              <Small>{fmtDate(dup.createdAt)}</Small>
-              <Pressable onPress={() => deleteForever(dup)}><Small style={{ color: t.danger }}>Delete this one</Small></Pressable>
-            </Row>
-          ))}
-        </Card>
-      ))}
-      </>
-    ),
-    realtime: (
-      <>
-      <P dim>Signs into the same Firebase project your web app uses, so entries, lists and holidays appear on every signed-in device within a second - the Apps Script Cloud Sync below stays on as a backup copy either way.</P>
-      {!googleUser ? (
-        <Btn title={realtimeBusy ? 'Signing in...' : 'Sign in with Google'} disabled={realtimeBusy} onPress={doGoogleSignIn} />
-      ) : (
-        <>
-          <Card>
-            <Text style={{ color: t.text, fontWeight: '700' }}>{googleUser.email}</Text>
-            <Small style={{ marginTop: 2, color: t.ok }}>🟢 Live</Small>
-          </Card>
-          <Btn style={{ marginTop: 10 }} kind="danger" title={realtimeBusy ? 'Working...' : 'Sign out'} disabled={realtimeBusy} onPress={doGoogleSignOut} />
-        </>
-      )}
-      {!!realtimeError && <Small style={{ color: t.danger, marginTop: 10 }}>{realtimeError}</Small>}
-      </>
-    ),
-    cloudSync: (
-      <>
-      <P dim>Not needed: your tasks sync through your Google sign-in, Fetch Mail reads your Gmail directly and the AI report is built in. Only if you already run an Apps Script of your own (for a Google Sheet copy, or your own AI) paste its web app URL here (Deploy &gt; Manage deployments) - then Fetch Mail and the AI use it instead. Never use someone else's script.</P>
-      <Field label="Script URL" value={urlDraft} onChangeText={(v) => { setUrlDraft(v); setTestResult(null); }} placeholder="https://script.google.com/macros/s/.../exec" autoCapitalize="none" autoCorrect={false} />
-      <Row gap={10}>
-        <Btn style={{ flex: 1 }} kind="soft" title={testing ? 'Testing...' : 'Test connection'} disabled={testing || !isValidScriptUrl(urlDraft.trim())} onPress={runTestConnection} />
-        <Btn style={{ flex: 1 }} title={pulling ? 'Loading...' : 'Save'} onPress={saveCloudUrl} disabled={!urlDraft.trim() || pulling} />
-      </Row>
-      {!!wd.cloudSyncUrl && <Btn style={{ marginTop: 10 }} kind="soft" title={pulling ? 'Loading...' : 'Sync now (load from sheet)'} disabled={pulling} onPress={() => pullFromSheet(wd.cloudSyncUrl)} />}
-      {!!testResult && (
-        <Card style={{ marginTop: 12, borderLeftWidth: 4, borderLeftColor: testResult.ok ? t.ok : t.danger }}>
-          <Text style={{ color: t.text }}>{testResult.message}</Text>
-        </Card>
-      )}
-      {!!wd.cloudSyncUrl && !testResult && <Small style={{ marginTop: 10 }}>Connected.</Small>}
-      {!!pullInfo && (
-        <Card style={{ marginTop: 12 }}>
-          <Small style={{ fontWeight: '700' }}>What the script sent (for checking)</Small>
-          <Text selectable style={{ color: t.text, fontSize: t.fs(11), marginTop: 6 }}>
-            {`action: ${pullInfo.action}\ncolumns: ${(pullInfo.columns || []).join(', ')}\nstatuses: ${JSON.stringify(pullInfo.statuses)}\nfirst rows: ${JSON.stringify(pullInfo.sample)}`}
-          </Text>
-        </Card>
-      )}
-      </>
-    ),
-    reportSamples: (
-      <>
-      <P dim>Paste daily reports you wrote yourself - the more the better (5-10 covering different kinds of work). The app learns how you word each type of task, and every AI report copies that wording. Facts always come from your entries and are checked line by line.</P>
-      <Field multiline value={sampleDraft} onChangeText={setSampleDraft} placeholder="Paste a past report here..." />
-      <Btn title={samplesBusy ? 'Working...' : 'Save sample'} disabled={samplesBusy || !sampleDraft.trim()} onPress={addSample} />
-      {!!wd.cloudSyncUrl && <Btn style={{ marginTop: 8 }} kind="soft" title="Refresh" onPress={() => loadSamples()} disabled={samplesBusy} />}
-      {(() => {
-        const texts = [...(wd.reportSamplesLocal || []), ...samples.map((x) => x.sampleText)].filter((x, i, arr) => arr.indexOf(x) === i);
-        const st = learnStyle(texts);
-        return (
-          <>
-            {!!st.samples && (
-              <Card style={{ marginTop: 12 }}>
-                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15) }}>What the app learned</Text>
-                <Small style={{ marginTop: 4 }}>{st.samples} report{st.samples === 1 ? '' : 's'} · {st.lines.length} example lines · about {st.avgWords} words per line</Small>
-                {!!st.headings.length && <Small style={{ marginTop: 4 }}>Sections: {st.headings.slice(0, 6).join(' · ')}</Small>}
-                {!!st.openers.length && <Small style={{ marginTop: 4 }}>You often start with: {st.openers.slice(0, 6).map((o) => `"${o}…"`).join(', ')}</Small>}
-              </Card>
-            )}
-            {texts.map((txt, i) => {
-              const cloud = samples.find((x) => x.sampleText === txt);
-              return (
-                <Card key={`${i}-${txt.length}`} style={{ marginTop: 10 }}>
-                  <Text style={{ color: t.text }} numberOfLines={4}>{txt}</Text>
-                  <Pressable
-                    onPress={() => (cloud ? removeSample(cloud.id) : updateWd((w) => ({ ...w, reportSamplesLocal: (w.reportSamplesLocal || []).filter((x) => x !== txt) })))}
-                    style={{ marginTop: 8 }}
-                  ><Small style={{ color: t.danger }}>Delete</Small></Pressable>
-                </Card>
-              );
-            })}
-            {!texts.length && !samplesBusy && <P dim style={{ marginTop: 10 }}>No samples saved yet - the AI uses a plain, factual default style.</P>}
-          </>
-        );
-      })()}
-      </>
-    ),
-    paymentIntro: (
-      <>
-      <P dim>Two fixed lines shown at the top of the Payments section in every report, above the individual payment lines.</P>
-      <Field label="Line 1" multiline value={introDraft[0] || ''} onChangeText={(v) => setIntroDraft([v, introDraft[1] || ''])} />
-      <Field label="Line 2" multiline value={introDraft[1] || ''} onChangeText={(v) => setIntroDraft([introDraft[0] || '', v])} />
-      <Row gap={10}>
-        <Btn style={{ flex: 1 }} title="Save" onPress={() => savePaymentIntro(introDraft)} />
-        <Btn style={{ flex: 1 }} kind="soft" title="Reset to default" onPress={() => savePaymentIntro(DEFAULT_PAYMENT_INTRO)} />
-      </Row>
-      </>
-    ),
-    paymentRules: (
-      <>
-      <P dim>Set up on the web app (Config) and received with Realtime Sync. The entry form asks for a Sub Category when one of these categories is completed, and builds the Tally narration from these types.</P>
-      <Small style={{ marginTop: 10, marginBottom: 6, fontWeight: '700' }}>CATEGORIES WITH A SUB CATEGORY</Small>
-      <P>{plists.subCategoryCategories.length ? plists.subCategoryCategories.join(', ') : 'None'}</P>
-      <Small style={{ marginTop: 12, marginBottom: 6, fontWeight: '700' }}>SUB CATEGORIES</Small>
-      {!plists.subCategories.length && <P dim>None yet.</P>}
-      {plists.subCategories.map((sc) => (
-        <Card key={sc.id || sc.name} style={{ marginBottom: 8 }}>
-          <Text style={{ color: t.text, fontWeight: '700' }}>{sc.name}</Text>
-          <Small>{sc.fields.map((f) => f.label).join(', ') || 'No extra fields'}</Small>
-        </Card>
-      ))}
-      <Small style={{ marginTop: 12, marginBottom: 6, fontWeight: '700' }}>NARRATION TYPES</Small>
-      {plists.narrationTypes.map((nr) => (
-        <Card key={nr.id || nr.name} style={{ marginBottom: 8 }}>
-          <Text style={{ color: t.text, fontWeight: '700' }}>{nr.name}</Text>
-          {nr.template ? <Small>{nr.template.replace('{%}', '[%]').replace(/\{([^{}%]+)\}/g, '[$1]')}</Small> : <Small>Being {nr.hasPercent ? '[%] ' : ''}{nr.phrase}[{nr.docLabel}]{nr.fields.length ? ` · Fields: ${nr.fields.map((f) => f.label).join(', ')}` : ''}</Small>}
-        </Card>
-      ))}
-      </>
-    ),
-  };
-  const reminderBody = (kind) => (
-    <>
-      <P dim>{kind === 'walk' ? 'Nudges you to leave the desk while you work.' : 'Nudges you to drink water through the day.'} Alerts at each slot in the window below.</P>
-      <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
-        <P>Reminder</P>
-        <Btn kind={wd.reminders[kind].enabled ? 'ok' : 'soft'} title={wd.reminders[kind].enabled ? 'On' : 'Off'} onPress={() => saveReminder(kind, { enabled: !wd.reminders[kind].enabled })} />
-      </Row>
-      <Field label="Start (HH:MM)" value={wd.reminders[kind].start} onChangeText={(v) => saveReminder(kind, { start: v })} placeholder="10:00" />
-      <Field label="End (HH:MM)" value={wd.reminders[kind].end} onChangeText={(v) => saveReminder(kind, { end: v })} placeholder="19:30" />
-      <Field label="Every (min)" keyboardType="numeric" value={String(wd.reminders[kind].everyMin)} onChangeText={(v) => saveReminder(kind, { everyMin: Number(v) || 60 })} />
-    </>
-  );
-  const CONFIG_SHEETS = [['lists', 'Lists'], ['fixed', 'Fixed Daily Activities'], ['leave', 'Leave Days'], ['log', 'Activity Log'], ['alarm', 'Alerts & Alarm Sound'], ['slots', 'Time Slots'], ['backup', 'Data Backup'], ['realtime', 'Realtime Sync'], ['cloudSync', 'Cloud Sync'], ['reportSamples', 'Report Style Samples'], ['paymentIntro', 'Payment Intro Lines'], ['paymentRules', 'Sub Categories & Narration Types']];
+
+  const phoneSubtitle = tab === 'dashboard' || tab === 'report' ? new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }) : tab === 'register' ? `${openEntries.length} open` : tab === 'done' ? `${allDone.length} done` : '';
 
   return (
-    <View style={[{ flex: 1, paddingLeft: sideBar }, t.bgGradient ? { backgroundImage: t.bgGradient } : null]}>
-    <Screen headerless bottomBar>
-      {/* The phone's app bar: the logo and title, the finder and the alerts bell - nothing else; sync and settings are under More. */}
+    <View style={{ flex: 1, paddingLeft: sideBar, backgroundColor: t.bg }}>
+    <Screen headerless bottomBar onRefresh={Platform.OS !== 'web' ? pullRefresh : undefined}>
+      {/* The phone's app bar: the search and meeting-mode buttons, the signed-in name chip, then the serif title. */}
       {phoneLayout && (
-        <Row style={{ alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          {MORE_PAGES.includes(tab) ? (
-            <Pressable onPress={() => setTab('more')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back to More" style={{ paddingRight: 4 }}>
-              <Text style={{ color: t.accent, fontSize: t.fs(30), lineHeight: t.fs(32), fontWeight: '300' }}>‹</Text>
-            </Pressable>
-          ) : (
-            <View style={{ width: 34, height: 34 }}><AnimatedLogo size={34} /></View>
-          )}
-          <Text numberOfLines={1} style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(21), letterSpacing: -0.4 }}>{tab === 'dashboard' ? 'Working Dashboard' : { register: 'Tasks', done: 'Completed' }[tab] || TAB_TITLES[tab]}</Text>
-          <Pressable onPress={() => setPaletteOpen(true)} accessibilityRole="button" accessibilityLabel="Search" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, ...t.shadow }}>
-            <Text style={{ color: t.text, fontSize: t.fs(18) }}>⌕</Text>
-          </Pressable>
-          <Pressable onPress={() => setMeetingOpen(true)} accessibilityRole="button" accessibilityLabel={meetingOn ? 'Meeting mode is on' : 'Meeting mode'} style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: meetingOn ? t.warn + '33' : t.surface, ...t.shadow }}>
-            <Text style={{ fontSize: t.fs(16) }}>{meetingOn ? '🔕' : '🔔'}</Text>
-          </Pressable>
-        </Row>
+        <PhoneHeader
+          title={tab === 'dashboard' ? (new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening') : PHONE_TITLES[tab] || TAB_TITLES[tab]}
+          subtitle={phoneSubtitle}
+          userLabel={userLabel}
+          onSearch={() => setPaletteOpen(true)}
+          onBell={() => setMeetingOpen(true)}
+          bellOn={meetingOn}
+          onUser={() => setTab('more')}
+          onBack={MORE_PAGES.includes(tab) ? () => setTab('more') : undefined}
+        />
       )}
       {!phoneLayout && (
       <>
-      {/* web.app: a window-style top bar - frosted, and it stays at the top while the page scrolls. */}
+      {/* web.app: a top bar that stays at the top while the page scrolls. */}
       <Row style={[{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-        Platform.OS === 'web' && t.frosted ? { position: 'sticky', top: 0, zIndex: 20, backgroundColor: t.bar, backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', marginHorizontal: wide ? -28 : tabletWidth ? -20 : -16, paddingHorizontal: wide ? 28 : tabletWidth ? 20 : 16, paddingVertical: 10, marginTop: wide ? -20 : -8, borderBottomWidth: 0.5, borderBottomColor: t.sideEdge } : null]}>
+        Platform.OS === 'web' ? { position: 'sticky', top: 0, zIndex: 20, backgroundColor: t.bar, backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', marginHorizontal: wide ? -28 : tabletWidth ? -20 : -16, paddingHorizontal: wide ? 28 : tabletWidth ? 20 : 16, paddingVertical: 10, marginTop: wide ? -20 : -8, borderBottomWidth: 0.5, borderBottomColor: t.sideEdge } : null]}>
         {/* web.app only: the app's logo beside the title (the APK's header has none). */}
         {Platform.OS === 'web' && <View style={{ marginRight: 12 }}><AnimatedLogo size={44} /></View>}
         <View style={{ flex: 1 }}>
@@ -1573,7 +1220,7 @@ export default function WorkingDashboard() {
           ) : (
             <>
               {/* APK: the same title and date as the website, sized for the phone. */}
-              <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(t.frosted ? 26 : 22), letterSpacing: t.frosted ? -0.6 : 0 }}>{TAB_TITLES[tab]}</Text>
+              <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(26), letterSpacing: -0.6 }}>{TAB_TITLES[tab]}</Text>
               <Small>{new Date().toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</Small>
             </>
           )}
@@ -1592,20 +1239,14 @@ export default function WorkingDashboard() {
           <Text style={{ fontSize: t.fs(14) }}>{meetingOn ? '🔕' : '🔔'}</Text>
         </Pressable>
         <Pressable onPress={() => setTab('config')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surfaceAlt, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : wd.cloudSyncUrl ? t.warn : t.textDim }} />
-          <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline · edits waiting' : googleUser && realtimeError ? 'sync error' : googleUser ? 'live' : wd.lastSheetPullAt ? `synced ${new Date(wd.lastSheetPullAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : wd.cloudSyncUrl ? 'sheet' : 'local'}</Text>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : t.textDim }} />
+          <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline · edits waiting' : googleUser && realtimeError ? 'sync error' : googleUser ? 'live' : 'local'}</Text>
         </Pressable>
-        {/* web.app only: the page has no top bar (it wasted a strip of the screen), so Settings sits here. */}
-        {Platform.OS === 'web' && (
-          <Pressable onPress={() => navigation.navigate('Settings')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Settings" style={{ marginLeft: 12 }}>
-            <Text style={{ color: t.accent, fontSize: t.fs(22) }}>⚙</Text>
-          </Pressable>
-        )}
       </Row>
       </>
       )}
 
-      {wd.whatsNewSeen !== WHATS_NEW.id && tab === 'dashboard' && (
+      {wd.whatsNewSeen !== WHATS_NEW.id && tab === 'dashboard' && !phoneLayout && (
         <Card style={{ marginBottom: 12, borderWidth: 1, borderColor: t.accent + '55' }}>
           <Row style={{ alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(15) }}>🎉 {WHATS_NEW.title}</Text>
@@ -1624,7 +1265,7 @@ export default function WorkingDashboard() {
         <Card style={{ marginBottom: 12, backgroundColor: blend(t.warn, 0.14, t.surface), borderWidth: 1, borderColor: blend(t.warn, 0.5, t.surface) }}>
           <Row style={{ alignItems: 'center', gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: t.text, fontWeight: '800' }}>🔕 Meeting mode until {new Date(holdUntil).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</Text>
+              <Text style={{ color: t.text, fontWeight: '800' }}>Meeting mode until {new Date(holdUntil).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</Text>
               <Small>Alerts are held and ring once when it ends.</Small>
             </View>
             <Btn kind="soft" title="End now" onPress={() => setHold(0)} />
@@ -1633,7 +1274,7 @@ export default function WorkingDashboard() {
       )}
       {!!alarmBlock && (
         <Card style={{ marginBottom: 12, backgroundColor: blend(t.danger, 0.1, t.surface), borderWidth: 1, borderColor: blend(t.danger, 0.45, t.surface) }}>
-          <Text style={{ color: t.danger, fontWeight: '800', fontSize: t.fs(14.5) }}>⚠ Alarms cannot open full screen yet</Text>
+          <Text style={{ color: t.danger, fontWeight: '800', fontSize: t.fs(14.5) }}>Alarms cannot open full screen yet</Text>
           <Small style={{ marginTop: 3, marginBottom: 8 }}>
             {alarmBlock === 'overlay'
               ? 'Android shows task alerts only as a notification you must tap. Allow "Open over other apps" so an alert opens full screen on the lock screen and while you use the phone.'
@@ -1650,14 +1291,7 @@ export default function WorkingDashboard() {
         {tab === 'dashboard' && (
           <View>
             {/* web.app only: the greeting, the summary and the past-due alert on ONE line (the header above is the other). */}
-            {phoneLayout ? (
-              <View style={{ marginBottom: 12 }}>
-                <Small style={{ fontWeight: '600' }}>{new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}</Small>
-                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(27), letterSpacing: -0.6 }}>
-                  {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening'}
-                </Text>
-              </View>
-            ) : Platform.OS === 'web' ? (
+            {phoneLayout ? null : Platform.OS === 'web' ? (
               <Row style={{ alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: tabletWidth ? 'nowrap' : 'wrap' }}>
                 <Text numberOfLines={tabletWidth ? 1 : undefined} style={{ flex: tabletWidth ? 1 : undefined, width: tabletWidth ? undefined : '100%', color: t.textDim, fontSize: t.fs(15) }}>
                   <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(18) }}>
@@ -1695,7 +1329,7 @@ export default function WorkingDashboard() {
               </>
             )}
             {/* Quick add: type a sentence - "Pay ICICI invoice tomorrow 5pm high" - and the form opens filled in. */}
-            {formOn && <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
+            {formOn && !phoneLayout && <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
               <Row gap={8} style={{ alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
                   <Field style={{ marginBottom: 0 }} value={quickText} onChangeText={setQuickText} placeholder={phoneLayout ? 'Quick add a task…' : '➕ Quick add: "Pay vendor tomorrow 5pm high"'} onSubmitEditing={() => quickAdd()} returnKeyType="done" />
@@ -1707,40 +1341,77 @@ export default function WorkingDashboard() {
               {!!quickParsed && !!describeQuickAdd(quickParsed) && <Small style={{ marginTop: 6 }}>→ {describeQuickAdd(quickParsed)}</Small>}
             </Card>}
             {phoneLayout ? (
-              <>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 6, gap: 10 }}>
-                  <PhoneTile label="Overdue" value={stats.overdue} tone={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
-                  <PhoneTile label="Due today" value={stats.dueToday} tone={t.warn} dark onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
-                  <PhoneTile label="Next 7 days" value={stats.next7Days} tone={t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
-                  <PhoneTile label="This month" value={stats.thisMonth} tone={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'This Month' }); }} />
-                  <PhoneTile label="Pending" value={stats.pending} tone={t.ok} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
-                  <PhoneTile label="No due date" value={stats.noDueDate} tone={t.textDim} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
-                </ScrollView>
+              <View style={{ gap: 14 }}>
+                {/* The hero panel: how many tasks need you today, and how the day is going. */}
+                {(() => {
+                  const need = stats.pendingAsOnToday;
+                  const total = doneTodayCount + need;
+                  const pct = total ? Math.round((doneTodayCount / total) * 100) : 0;
+                  return (
+                    <Pressable onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} accessibilityRole="button" accessibilityLabel={`Today: ${need} ${need === 1 ? 'task needs' : 'tasks need'} you. Open them in Tasks`}
+                      style={({ pressed }) => ({ backgroundColor: t.primaryDark, borderRadius: t.heroRadius, paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 14, opacity: pressed ? 0.94 : 1 })}>
+                      <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.4 }}>TODAY</Text>
+                      <Row gap={10} style={{ alignItems: 'baseline' }}>
+                        <Text style={{ color: '#fff', fontFamily: display(), fontWeight: '600', fontSize: t.fs(64), lineHeight: t.fs(62), letterSpacing: -2 }}>{need}</Text>
+                        <Text style={{ color: t.heroDim, fontWeight: '600', fontSize: t.fs(15) }}>{need === 1 ? 'task needs you' : 'tasks need you'}</Text>
+                      </Row>
+                      <View style={{ height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
+                        <View style={{ height: 8, borderRadius: 4, backgroundColor: t.mint, width: `${pct}%` }} />
+                      </View>
+                      <Row style={{ justifyContent: 'space-between' }}>
+                        <Text style={{ color: t.heroDim, fontWeight: '700', fontSize: t.fs(12) }}>{doneTodayCount} of {total} done today</Text>
+                        <Text style={{ color: t.heroDim, fontWeight: '700', fontSize: t.fs(12) }}>{darTodayCount} in the daily report</Text>
+                      </Row>
+                    </Pressable>
+                  );
+                })()}
+                <Row gap={10}>
+                  <PhoneKpi tone="red" label="Overdue" value={stats.overdue} onPress={() => { openRegister({ dueWithin: 'Overdue' }); }} />
+                  <PhoneKpi tone="amber" label="Due today" value={stats.dueToday} onPress={() => { openRegister({ dueWithin: 'Today' }); }} />
+                  <PhoneKpi tone="slate" label="Next 7 days" value={stats.next7Days} onPress={() => { openRegister({ dueWithin: 'Next 7 Days' }); }} />
+                </Row>
+                <View>
+                  <Pressable onPress={() => setMoreCounts((v) => !v)} hitSlop={8} accessibilityRole="button" accessibilityState={{ expanded: moreCounts }} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={{ color: t.primary, fontWeight: '700', fontSize: t.fs(13) }}>{moreCounts ? 'Fewer counts' : 'More counts'}</Text>
+                    <Icon name={moreCounts ? 'chevronUp' : 'chevronDown'} size={16} color={t.primary} stroke={2.2} />
+                  </Pressable>
+                  {moreCounts && (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                      <PhoneKpi wide label="Pending as on Today" value={stats.pendingAsOnToday} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
+                      <PhoneKpi wide label="This Month" value={stats.thisMonth} onPress={() => { openRegister({ dueWithin: 'This Month' }); }} />
+                      <PhoneKpi wide label="Next Month" value={stats.nextMonth} onPress={() => { openRegister({ dueWithin: 'Next Month' }); }} />
+                      <PhoneKpi wide label="No Due Date" value={stats.noDueDate} onPress={() => { openRegister({ dueWithin: 'No Due Date' }); }} />
+                      <PhoneKpi wide label="Pending" value={stats.pending} onPress={() => { openRegister({ status: 'Pending' }); }} />
+                      <PhoneKpi wide label="High priority" value={openEntries.filter((e) => e.priority === 'High').length} onPress={() => { openRegister({ priority: 'High' }); }} />
+                      <PhoneKpi wide label="Open tasks" value={openEntries.length} onPress={() => { openRegister({}); }} />
+                      <PhoneKpi wide label="Done today" value={doneTodayCount} onPress={() => goTab('done')} />
+                    </View>
+                  )}
+                </View>
+                <WdWeeklyReview entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={openEditEntry} />
                 {!!attention.length && (
-                  <View style={{ marginTop: 14 }}>
-                    <Row style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                      <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(17) }}>Needs attention</Text>
-                      <Pressable onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} hitSlop={8}><Text style={{ color: t.accent, fontWeight: '700', fontSize: t.fs(13.5) }}>See all ›</Text></Pressable>
-                    </Row>
-                    {attention.map((e) => <PhoneRow key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} />)}
+                  <View>
+                    <SectionHead title="Needs attention" action="See all" onAction={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
+                    {attention.map((e) => <PhoneRow key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} onFollowUp={isBankFollowUpCategory(e.category) ? () => openFollowUp(e) : undefined} />)}
                   </View>
                 )}
                 {!!comingUp.length && (
-                  <View style={{ marginTop: 8 }}>
-                    <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(17), marginBottom: 8 }}>Coming up</Text>
-                    {comingUp.map((e) => <PhoneRow key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} />)}
+                  <View>
+                    <SectionHead title="Coming up" />
+                    {comingUp.map((e) => <PhoneRow key={e.id} entry={e} onPress={() => openEditEntry(e)} onDone={() => act(e, 'complete', { dar: false })} onDar={() => act(e, 'complete', { dar: true })} onFollowUp={isBankFollowUpCategory(e.category) ? () => openFollowUp(e) : undefined} />)}
                   </View>
                 )}
-              </>
+              </View>
             ) : (
             <Row style={{ flexWrap: 'wrap', gap: 10 }}>
-              <StatTile index={0} label="Pending as on Today" value={stats.pendingAsOnToday} sub="Overdue + due today" color={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: DUE_TILL_TODAY }); }} />
-              <StatTile index={1} label="Due Today" value={stats.dueToday} sub="Still on the clock" color={t.accent} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Today' }); }} />
-              <StatTile index={2} label="Overdue" value={stats.overdue} sub="Past the due time" color={t.danger} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Overdue' }); }} />
-              <StatTile index={3} label="Next 7 Days" value={stats.next7Days} sub="Coming up" color={t.warn} onPress={() => { setTab('register'); setFilter({ dueWithin: 'Next 7 Days' }); }} />
-              <StatTile index={4} label="This Month" value={stats.thisMonth} sub={`Due in ${new Date().toLocaleString([], { month: 'long' })}`} color={t.accent2} onPress={() => { setTab('register'); setFilter({ dueWithin: 'This Month' }); }} />
-              <StatTile index={5} label="No Due Date" value={stats.noDueDate} sub="Needs a deadline" color={t.textDim} onPress={() => { setTab('register'); setFilter({ dueWithin: 'No Due Date' }); }} />
-              <StatTile index={6} label="Pending" value={stats.pending} sub="As of now" color={t.warn} onPress={() => { setTab('register'); setFilter({ status: 'Pending' }); }} />
+              <StatTile index={0} label="Pending as on Today" value={stats.pendingAsOnToday} sub="Overdue + due today" color={t.danger} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
+              <StatTile index={1} label="Due Today" value={stats.dueToday} sub="Still on the clock" color={t.accent} onPress={() => { openRegister({ dueWithin: 'Today' }); }} />
+              <StatTile index={2} label="Overdue" value={stats.overdue} sub="Past the due time" color={t.danger} onPress={() => { openRegister({ dueWithin: 'Overdue' }); }} />
+              <StatTile index={3} label="Next 7 Days" value={stats.next7Days} sub="Coming up" color={t.warn} onPress={() => { openRegister({ dueWithin: 'Next 7 Days' }); }} />
+              <StatTile index={5} label="Next Month" value={stats.nextMonth} sub={`Due in ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleString([], { month: 'long' })}`} color={t.pink || t.accent} onPress={() => { openRegister({ dueWithin: 'Next Month' }); }} />
+              <StatTile index={4} label="This Month" value={stats.thisMonth} sub={`Due in ${new Date().toLocaleString([], { month: 'long' })}`} color={t.accent2} onPress={() => { openRegister({ dueWithin: 'This Month' }); }} />
+              <StatTile index={5} label="No Due Date" value={stats.noDueDate} sub="Needs a deadline" color={t.textDim} onPress={() => { openRegister({ dueWithin: 'No Due Date' }); }} />
+              <StatTile index={6} label="Pending" value={stats.pending} sub="As of now" color={t.warn} onPress={() => { openRegister({ status: 'Pending' }); }} />
             </Row>
             )}
 
@@ -1749,14 +1420,14 @@ export default function WorkingDashboard() {
             {/* Phone-width screens and the whole website: the bank follow-ups to make today, with the banker's last word on each. */}
             {(phoneLayout || Platform.OS === 'web') && !!followToday.length && (
               <View style={colItem}><Card style={{ marginTop: 14 }}>
-                <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 }}>📞 Follow-ups today ({followToday.length})</Small>
+                <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 }}>Follow-ups today ({followToday.length})</Small>
                 {followToday.map(({ entry, overdue, last, long }, i) => (
                   <Pressable key={entry.id} onPress={() => openFollowUp(entry)} accessibilityRole="button" accessibilityLabel={`Follow up: ${entry.title}`}
                     style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: t.border }}>
                     <Row style={{ alignItems: 'center', gap: 8 }}>
                       <Text style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: t.fs(14) }} numberOfLines={1}>{entry.title}</Text>
                       {/* "Both" (phone-width screens): a long pending follow-up is marked (it is listed first everywhere). */}
-                      {phoneLayout && long && <Text style={{ color: t.danger, fontWeight: '800', fontSize: t.fs(12) }}>⚠ Long pending</Text>}
+                      {phoneLayout && long && <Text style={{ color: t.danger, fontWeight: '800', fontSize: t.fs(12) }}>Long pending</Text>}
                       <Text style={{ color: overdue ? t.danger : t.accent, fontWeight: '700', fontSize: t.fs(12.5) }}>{overdue ? 'Overdue' : fmtDue(entry.dueAt)}</Text>
                     </Row>
                     <Small numberOfLines={2} style={{ marginTop: 2 }}>
@@ -1769,16 +1440,16 @@ export default function WorkingDashboard() {
             )}
 
             {/* web.app: open bank follow-ups by bank - where things are stuck. */}
-            {Platform.OS === 'web' && !!byBank.length && (
+            {!!byBank.length && (
               <View style={colItem}><Card style={{ marginTop: 14 }}>
-                <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 }}>🏦 Bank follow-ups by bank</Small>
+                <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 }}>Bank follow-ups by bank</Small>
                 <Row style={{ paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: t.border }}>
                   {['Bank', 'Open', 'Overdue', 'Oldest', 'Long pending'].map((h, i) => (
                     <Text key={h} style={{ flex: i ? 1 : 2, color: t.textDim, fontWeight: '700', fontSize: t.fs(12), textAlign: i ? 'center' : 'left' }}>{h}</Text>
                   ))}
                 </Row>
                 {byBank.map((g) => (
-                  <Pressable key={g.bank} onPress={() => { setTab('register'); setFilter({ ...EMPTY_WD_FILTER, bank: g.bank === 'Bank not named' ? '-' : g.bank }); }} accessibilityRole="button"
+                  <Pressable key={g.bank} onPress={() => { openRegister({ ...EMPTY_WD_FILTER, bank: g.bank === 'Bank not named' ? '-' : g.bank }); }} accessibilityRole="button"
                     accessibilityLabel={`${g.bank}: ${g.open} open`} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: t.border }}>
                     <View style={{ flex: 2 }}>
                       <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(14) }}>{g.bank}</Text>
@@ -1795,16 +1466,16 @@ export default function WorkingDashboard() {
             )}
 
             {/* web.app: the month's open tasks by due date. */}
-            {Platform.OS === 'web' && <View style={colItem}><WdCalendar entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={(e) => openEditEntry(e)} /></View>}
+            {<View style={colItem}><WdCalendar entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={(e) => openEditEntry(e)} /></View>}
             {payTotals.count > 0 && (
               <View style={colItem}>
                 <Card style={{ marginTop: 14 }}>
                   <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Small style={{ fontWeight: '700', textTransform: 'uppercase' }}>💳 Payments by vendor</Small>
+                    <Small style={{ fontWeight: '700', textTransform: 'uppercase' }}>Payments by vendor</Small>
                     <Row gap={6}>
                       {[['This month', 0], ['Last month', 1]].map(([label, n]) => (
                         <Pressable key={n} onPress={() => setPayMonth(n)} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: payMonth === n ? t.accent : t.surfaceAlt }}>
-                          <Text style={{ color: payMonth === n ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(11.5) }}>{label}</Text>
+                          <Text style={{ color: payMonth === n ? t.onAccent : t.text, fontWeight: '700', fontSize: t.fs(11.5) }}>{label}</Text>
                         </Pressable>
                       ))}
                     </Row>
@@ -1825,10 +1496,14 @@ export default function WorkingDashboard() {
                 </Card>
               </View>
             )}
-            <View style={colItem}><CountList title="By Category" total={stats.totalOpen} rows={byCategory} onPress={(v) => { setTab('register'); setFilter({ category: v }); }} /></View>
-            <View style={colItem}><CountList title="By Status" total={stats.totalOpen} rows={byStatus} onPress={(v) => { setTab('register'); setFilter({ status: v }); }} /></View>
-            <View style={colItem}><CountList title="By Priority" total={stats.totalOpen} rows={byPriority} onPress={(v) => { setTab('register'); setFilter({ priority: v }); }} /></View>
-            <View style={colItem}><CountList title="Pending Assignments" total={stats.totalOpen} rows={byAssignee} onPress={(v) => { setTab('register'); setFilter({ pendingWith: v }); }} /></View>
+            {[['This Month', thisMonthEntries, 'This month', ['category', 'status', 'priority', 'pendingWith']], ['Next Month', nextMonthEntries, 'Next month', ['category', 'priority']]].map(([due, list, name, fields]) => (
+              <View key={due}>
+                <Small style={{ fontWeight: '800', textTransform: 'uppercase', marginTop: 14 }}>{name} - {new Date(new Date().getFullYear(), new Date().getMonth() + (due === 'Next Month' ? 1 : 0), 1).toLocaleString([], { month: 'long' })} ({list.length} open)</Small>
+                {[['category', 'By Category', (e) => e.category], ['status', 'By Status', (e) => e.status], ['priority', 'By Priority', (e) => e.priority], ['pendingWith', 'Pending Assignments', (e) => e.pendingWith]].filter(([k]) => fields.includes(k)).map(([k, title, keyOf]) => (
+                  <View key={k} style={colItem}><CountList title={`${name} - ${title}`} total={list.length} rows={groupCounts(list, keyOf, k === 'pendingWith' ? 'Unassigned' : undefined)} onPress={(v) => { if (k === 'category' && list.some((e) => e.category === v && e.subCategory)) { setSubPop({ category: v, due, list: list.filter((e) => e.category === v) }); return; } openRegister({ [k]: v, dueWithin: due }); }} /></View>
+                ))}
+              </View>
+            ))}
 
             <View style={colItem}><Card style={{ marginTop: 14 }}>
               <Small style={{ fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 }}>Next 7 Days - Holidays</Small>
@@ -1840,42 +1515,28 @@ export default function WorkingDashboard() {
               ))}
             </Card></View>
             </View>
-            <Btn style={{ marginTop: 14 }} kind="soft" title="📝 Daily Activity Report" onPress={() => goTab('report')} />
+            <Btn style={{ marginTop: 14 }} kind="soft" title="Daily Activity Report" onPress={() => goTab('report')} />
           </View>
         )}
 
         {tab === 'register' && (
           <View>
-            <Row gap={8} style={{ alignItems: 'center', marginBottom: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field style={{ marginBottom: 0 }} value={filters.query} onChangeText={(v) => setFilter({ query: v })} placeholder={SEARCH_PLACEHOLDER} />
-              </View>
+            <Row gap={10} style={{ alignItems: 'center', marginBottom: 12 }}>
+              <SearchField style={{ flex: 1 }} value={filters.query} onChangeText={(v) => setFilter({ query: v })} placeholder="Search tasks" />
               <Pressable
                 onPress={() => setShowFilters((v) => !v)}
+                accessibilityRole="button"
                 accessibilityLabel="Filters"
-                style={{ width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: showFilters || isWdFilterActive(filters) ? t.accent + '33' : t.surfaceAlt }}
+                style={{ width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: showFilters || isWdFilterActive(filters) ? t.tint : t.surface, borderWidth: 1, borderColor: showFilters || isWdFilterActive(filters) ? t.primary : t.border }}
               >
-                <Text style={{ fontSize: 20 }}>⚙️</Text>
-                {isWdFilterActive(filters) && <View style={{ position: 'absolute', top: 7, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: t.accent }} />}
-              </Pressable>
-              <Pressable
-                onPress={() => (wd.cloudSyncUrl ? pullFromSheet(wd.cloudSyncUrl) : setTab('config'))}
-                accessibilityLabel="Sync now"
-                style={{ width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surfaceAlt }}
-              >
-                <Text style={{ fontSize: 20, opacity: pulling ? 0.4 : 1 }}>🔄</Text>
+                <Icon name="sliders" size={20} color={showFilters || isWdFilterActive(filters) ? t.tintText : t.text} stroke={1.9} />
               </Pressable>
             </Row>
             {phoneLayout && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, marginBottom: 12 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-                {[['All', ANY, openEntries.length], ['Overdue', 'Overdue', stats.overdue], ['Today', 'Today', stats.dueToday], ['Next 7 days', 'Next 7 Days', stats.next7Days], ['This month', 'This Month', stats.thisMonth]].map(([label, v, n]) => {
-                  const on = filters.dueWithin === v;
-                  return (
-                    <Pressable key={label} onPress={() => setFilter({ dueWithin: v })} accessibilityRole="button" accessibilityState={{ selected: on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
-                      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label} {n}</Text>
-                    </Pressable>
-                  );
-                })}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, marginBottom: 14 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
+                {[['', 'All', filteredOpen.length], ['late', 'Overdue', quickCounts.late], ['today', 'Today', quickCounts.today], ['week', 'Week', quickCounts.week]].map(([k, label, n]) => (
+                  <Chip key={k || 'all'} label={label} count={n} on={quickView === k} onPress={() => setQuickView(k)} accessibilityLabel={`${label}, ${n}`} />
+                ))}
               </ScrollView>
             )}
             {showFilters && (
@@ -1886,22 +1547,42 @@ export default function WorkingDashboard() {
                 <View style={{ flex: 1 }}><OptionPicker label="Status" source={SOURCES.wdStatus} value={filters.status === ANY ? null : filters.status} onChange={(v) => setFilter({ status: v || ANY })} allowAny anyLabel="All Statuses" /></View>
               </Row>
               <OptionPicker label="Pending with" source={SOURCES.wdAssignee} value={filters.pendingWith === ANY ? null : filters.pendingWith} onChange={(v) => setFilter({ pendingWith: v || ANY })} allowAny anyLabel="All Pending With" />
-              <Small style={{ marginBottom: 5 }}>Due date</Small>
-              <Segmented options={DUE_WITHIN_OPTIONS} value={filters.dueWithin} onChange={(v) => setFilter({ dueWithin: v })} style={{ marginBottom: 12 }} />
+              {(() => {
+                const used = [...new Set(openEntries.map((e) => e.subCategory).filter(Boolean))].sort();
+                if (!used.length && !filters.subCategory) return null;
+                return (
+                  <View style={{ marginBottom: 10 }}>
+                    <Label>Sub category</Label>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {[['', 'All'], ...used.map((x) => [x, x]), ['__none', 'None chosen']].map(([v, label]) => (
+                        <Pressable key={v || 'all'} onPress={() => setFilter({ subCategory: v })} accessibilityRole="button" accessibilityState={{ selected: filters.subCategory === v }} style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: (filters.subCategory || '') === v ? t.accent : t.surfaceAlt }}>
+                          <Text style={{ color: (filters.subCategory || '') === v ? t.onAccent : t.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })()}
+              <Label>Due date</Label>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                {DUE_WITHIN_OPTIONS.map((o) => <Chip key={o} label={o} on={filters.dueWithin === o} onPress={() => setFilter({ dueWithin: o })} />)}
+              </View>
               </Card>
             )}
 
             <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(15) }}>{filteredOpen.length} of {openEntries.length} entries shown{filters.bank ? `  ·  🏦 ${filters.bank === '-' ? 'Bank not named' : filters.bank}` : ''}</Text>
+              {(!phoneLayout || isWdFilterActive(filters)) && <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(15) }}>{filteredOpen.length} of {openEntries.length} entries shown{filters.bank ? `  ·  🏦 ${filters.bank === '-' ? 'Bank not named' : filters.bank}` : ''}</Text>}
               {isWdFilterActive(filters) && <Pressable onPress={() => setFilter(EMPTY_WD_FILTER)}><Small style={{ color: t.accent, fontWeight: '700' }}>Reset</Small></Pressable>}
             </Row>
-            {(Platform.OS !== 'web' || wide) && <Segmented options={[{ key: 'cards', label: '▦ Cards' }, { key: 'table', label: '☰ Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
-            <Segmented options={SORTS} value={sortBy} onChange={setSortBy} style={{ marginBottom: 10 }} />
+            {(Platform.OS !== 'web' || wide) && (!phoneLayout || showFilters) && <Segmented options={[{ key: 'cards', label: 'Cards' }, { key: 'table', label: 'Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
+            {(!phoneLayout || showFilters) && <Segmented options={SORTS} value={sortBy} onChange={setSortBy} style={{ marginBottom: 10 }} />}
             {!phoneLayout && <Small style={{ marginBottom: 12, textAlign: 'center' }}>{formOn ? 'Tap a card to edit · ' : ''}✓ completes it{WEB_DAR ? ' · DAR completes it into the daily report' : ''}{Platform.OS === 'web' && !phoneLayout ? ' · Keys: N new entry, / search, ⌘K finder, ? all shortcuts' : ''}</Small>}
-            {!filteredOpen.length && <P dim>Nothing matches.</P>}
+            {!boardRows.length && (openEntries.length
+              ? <EmptyState icon="search" title="Nothing matches" text="No task fits this filter or search." action="Show all tasks" onAction={() => { setFilters(EMPTY_WD_FILTER); setQuickView(''); }} />
+              : <EmptyState icon="done" title="All clear" text="No open tasks. Enjoy the quiet, or add the next one." action={formOn ? 'New task' : undefined} onAction={openNewEntry} />)}
             {phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}
             {phoneLayout && !tableView && visibleRegister.map((entry) => (
-              <PhoneRow key={entry.id} entry={entry} onPress={() => openEditEntry(entry)} onDone={() => act(entry, 'complete', { dar: false })} onDar={() => act(entry, 'complete', { dar: true })}
+              <PhoneRow card key={entry.id} entry={entry} onPress={() => openEditEntry(entry)} onDone={() => act(entry, 'complete', { dar: false })} onDar={() => act(entry, 'complete', { dar: true })}
                 onFollowUp={isBankFollowUpCategory(entry.category) ? () => openFollowUp(entry) : undefined} />
             ))}
             {!phoneLayout && tableView && <EntryTable entries={visibleRegister} onOpen={(e) => openEditEntry(e)} />}
@@ -1921,29 +1602,32 @@ export default function WorkingDashboard() {
               </FadeInUp>
             ))}
             </CardGrid>}
-            <ShowMore total={filteredOpen.length} visibleCount={shownCount} onPress={() => setVisibleCount((n) => n + 20)} />
+            <ShowMore total={boardRows.length} visibleCount={shownCount} onPress={() => setVisibleCount((n) => n + 20)} />
           </View>
         )}
 
         {tab === 'done' && (
           <View>
-            <Row gap={8} style={{ alignItems: 'center', marginBottom: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field style={{ marginBottom: 0 }} value={doneFilters.query} onChangeText={(v) => setDoneFilter({ query: v })} placeholder="🔍 Search completed tasks..." />
-                {!!doneFilters.query && (
-                  <Pressable onPress={() => setDoneFilter({ query: '' })} hitSlop={10} accessibilityLabel="Clear search"
-                    style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center' }}>
-                    <Text style={{ color: t.textDim, fontSize: t.fs(18) }}>✕</Text>
-                  </Pressable>
-                )}
-              </View>
+            {phoneLayout && (() => {
+              // Completed this week: tasks completed since this Monday (local time).
+              const mon = new Date(); mon.setHours(0, 0, 0, 0); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+              const n = allDone.filter((e) => (completedTime(e) || 0) >= mon.getTime()).length;
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: t.tint, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16, marginBottom: 12 }}>
+                  <Text style={{ color: t.tintText, fontWeight: '700', fontSize: t.fs(13) }}>Completed this week</Text>
+                  <Text style={{ color: t.tintText, fontFamily: display(), fontWeight: '600', fontSize: t.fs(30), lineHeight: t.fs(32) }}>{n}</Text>
+                </View>
+              );
+            })()}
+            <Row gap={10} style={{ alignItems: 'center', marginBottom: 12 }}>
+              <SearchField height={phoneLayout ? 46 : 48} style={{ flex: 1 }} value={doneFilters.query} onChangeText={(v) => setDoneFilter({ query: v })} placeholder="Search completed tasks" />
               <Pressable
                 onPress={() => setShowDoneFilters((v) => !v)}
+                accessibilityRole="button"
                 accessibilityLabel="Filters"
-                style={{ width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: showDoneFilters || isWdFilterActive({ ...doneFilters, query: '' }) ? t.accent + '33' : t.surfaceAlt }}
+                style={{ width: phoneLayout ? 46 : 48, height: phoneLayout ? 46 : 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: showDoneFilters || isWdFilterActive({ ...doneFilters, query: '' }) ? t.tint : t.surface, borderWidth: 1, borderColor: showDoneFilters || isWdFilterActive({ ...doneFilters, query: '' }) ? t.primary : t.border }}
               >
-                <Text style={{ fontSize: 20 }}>⚙️</Text>
-                {isWdFilterActive({ ...doneFilters, query: '' }) && <View style={{ position: 'absolute', top: 7, right: 7, width: 9, height: 9, borderRadius: 5, backgroundColor: t.accent }} />}
+                <Icon name="sliders" size={20} color={showDoneFilters || isWdFilterActive({ ...doneFilters, query: '' }) ? t.tintText : t.text} stroke={1.9} />
               </Pressable>
             </Row>
             {showDoneFilters && (
@@ -1953,27 +1637,41 @@ export default function WorkingDashboard() {
                   <View style={{ flex: 1 }}><OptionPicker label="Priority" source={SOURCES.wdPriority} value={doneFilters.priority === ANY ? null : doneFilters.priority} onChange={(v) => setDoneFilter({ priority: v || ANY })} allowAny anyLabel="All Priorities" /></View>
                   <View style={{ flex: 1 }}><OptionPicker label="Pending with" source={SOURCES.wdAssignee} value={doneFilters.pendingWith === ANY ? null : doneFilters.pendingWith} onChange={(v) => setDoneFilter({ pendingWith: v || ANY })} allowAny anyLabel="All Pending With" /></View>
                 </Row>
+                {phoneLayout && (Platform.OS !== 'web' || wide) && <Segmented options={[{ key: 'cards', label: 'Cards' }, { key: 'table', label: 'Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 12 }} />}
+                {phoneLayout && <Label>Shown first</Label>}
+                {phoneLayout && (
+                  <Segmented options={[{ key: '1', label: 'Today' }, { key: '3', label: '3 days' }, { key: '5', label: '5 days' }, { key: '10', label: '10 days' }]} value={String(doneDays)}
+                    onChange={(k) => { updateWd((w) => ({ ...w, doneDays: Number(k) })); setShowOlderDone(false); }} style={{ marginBottom: 12 }} />
+                )}
+                {phoneLayout && allDone.length > 1 && (
+                  <View>
+                    <Label>Sort by</Label>
+                    <PickerButton text={(DONE_SORTS.find((x) => x.key === doneSort) || DONE_SORTS[0]).label} onPress={() => setDoneSortOpen(true)} />
+                  </View>
+                )}
               </Card>
             )}
 
-            <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(15) }}>
-                {isWdFilterActive(doneFilters) ? `${doneEntries.length} of ${allDone.length} completed` : `${allDone.length} completed`}
-              </Text>
-              {doneNarrowed && <Pressable onPress={clearDone} hitSlop={8}><Small style={{ color: t.accent, fontWeight: '700' }}>Clear</Small></Pressable>}
-            </Row>
-            {(Platform.OS !== 'web' || wide) && <Segmented options={[{ key: 'cards', label: '▦ Cards' }, { key: 'table', label: '☰ Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
-            <Small style={{ marginBottom: 5 }}>Shown first</Small>
-            <Segmented options={[{ key: '1', label: 'Today' }, { key: '3', label: '3 days' }, { key: '5', label: '5 days' }, { key: '10', label: '10 days' }]} value={String(doneDays)}
-              onChange={(k) => { updateWd((w) => ({ ...w, doneDays: Number(k) })); setShowOlderDone(false); }} style={{ marginBottom: 12 }} />
-            {allDone.length > 1 && (
-              <Row style={{ alignItems: 'center', marginBottom: 12 }}>
-                <Small style={{ marginRight: 10, marginBottom: 0 }}>Sort by</Small>
-                <PickerButton style={{ flex: 1 }} text={`${(DONE_SORTS.find((x) => x.key === doneSort) || DONE_SORTS[0]).label}  ▾`} onPress={() => setDoneSortOpen(true)} />
+            {(!phoneLayout || isWdFilterActive(doneFilters) || doneNarrowed) && (
+              <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(14) }}>
+                  {isWdFilterActive(doneFilters) ? `${doneEntries.length} of ${allDone.length} completed` : `${allDone.length} completed`}
+                </Text>
+                {doneNarrowed && <Pressable onPress={clearDone} hitSlop={8}><Small style={{ color: t.primary, fontWeight: '800' }}>Clear</Small></Pressable>}
               </Row>
             )}
-            {!allDone.length && <P dim>Nothing completed yet.</P>}
-            {!!allDone.length && !doneEntries.length && <P dim>Nothing matches.</P>}
+            {(Platform.OS !== 'web' || wide) && !phoneLayout && <Segmented options={[{ key: 'cards', label: 'Cards' }, { key: 'table', label: 'Table' }]} value={tableView ? 'table' : 'cards'} onChange={(k) => updateWd((w) => ({ ...w, tableView: k === 'table' }))} style={{ marginBottom: 10, alignSelf: 'flex-start', width: 220 }} />}
+            {!phoneLayout && <Label>Shown first</Label>}
+            {!phoneLayout && <Segmented options={[{ key: '1', label: 'Today' }, { key: '3', label: '3 days' }, { key: '5', label: '5 days' }, { key: '10', label: '10 days' }]} value={String(doneDays)}
+              onChange={(k) => { updateWd((w) => ({ ...w, doneDays: Number(k) })); setShowOlderDone(false); }} style={{ marginBottom: 12 }} />}
+            {!phoneLayout && allDone.length > 1 && (
+              <Row style={{ alignItems: 'center', marginBottom: 12 }}>
+                <Small style={{ marginRight: 10, marginBottom: 0 }}>Sort by</Small>
+                <PickerButton style={{ flex: 1 }} text={(DONE_SORTS.find((x) => x.key === doneSort) || DONE_SORTS[0]).label} onPress={() => setDoneSortOpen(true)} />
+              </Row>
+            )}
+            {!allDone.length && <EmptyState icon="done" title="Nothing completed yet" text="Tasks you tick off with Done or DAR show up here, grouped by day." />}
+            {!!allDone.length && !doneEntries.length && <EmptyState icon="search" title="Nothing matches" text="No completed task fits this search." />}
             {phoneLayout && tableView && <EntryTable mode="done" completedAt={completedTime} entries={visibleDone} onOpen={(e) => openEditEntry(e)} />}
             {phoneLayout && !tableView && visibleDone.map((entry, i) => {
               // Grouped by the day it was completed: Today, Yesterday, then the date.
@@ -1983,7 +1681,7 @@ export default function WorkingDashboard() {
               const first = i === 0 || dayOf(completedTime(visibleDone[i - 1])) !== dayOf(ms);
               return (
                 <View key={entry.id}>
-                  {first && <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11.5), letterSpacing: 0.7, textTransform: 'uppercase', marginTop: i ? 8 : 0, marginBottom: 8, marginLeft: 2 }}>{label(ms)}</Text>}
+                  {first && <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginTop: i ? 10 : 2, marginBottom: 10 }}>{label(ms)}</Text>}
                   <PhoneDoneRow entry={entry} onPress={() => openEditEntry(entry)} onReopen={() => act(entry, 'reopen')} />
                 </View>
               );
@@ -1994,13 +1692,13 @@ export default function WorkingDashboard() {
               <EntryRow key={entry.id} entry={entry} mode="done" onPress={() => openEditEntry(entry)} onToggleDar={() => toggleDar(entry)} onAct={(kind, opts) => act(entry, kind, opts)} narration={narrationFor(entry, plists)} />
             ))}
             </CardGrid>}
-            <ShowMore total={doneEntries.length} visibleCount={shownCount} onPress={() => setVisibleCount((n) => n + 20)} />
+            <ShowMore total={(showOlderDone ? doneEntries : doneRecent).length} visibleCount={shownCount} onPress={() => setVisibleCount((n) => n + 20)} />
             {doneFolded && (
               <Pressable onPress={() => setShowOlderDone(true)} accessibilityRole="button" style={{ alignItems: 'center', paddingVertical: 14 }}>
                 <Text style={{ color: t.accent, fontWeight: '700' }}>••• Show more ({doneEntries.length - doneRecent.length} older)</Text>
               </Pressable>
             )}
-            {!!doneEntries.length && <Small style={{ textAlign: 'center' }}>Tap ↩ to reopen. Every change can be undone for a few seconds.</Small>}
+            {!!doneEntries.length && <Small style={{ textAlign: 'center' }}>Tap Reopen to bring one back. Every change can be undone for a few seconds.</Small>}
             <Sheet visible={doneSortOpen} onClose={() => setDoneSortOpen(false)} title="Sort by">
               <Choices
                 options={DONE_SORTS.map((x) => [x.key, x.label])}
@@ -2021,7 +1719,7 @@ export default function WorkingDashboard() {
               <NarrationForm lead={[
               // Optional: pick an entry - its mail chain and saved narration come in, and the result can be saved back to it.
               <View key="entry">
-              <Small style={{ marginBottom: 5 }}>ENTRY (optional)</Small>
+              <Label>ENTRY (optional)</Label>
               {narrationEntry ? (
                 <Row style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <Text style={{ flex: 1, color: t.text, fontWeight: '700' }} numberOfLines={2}>{narrationEntry.title}</Text>
@@ -2057,93 +1755,61 @@ export default function WorkingDashboard() {
           </View>
         )}
 
-        {tab === 'links' && Platform.OS === 'web' && (
-          <View>
-            <Card>
-              <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(13), marginBottom: 2 }}>USEFUL LINKS</Text>
-              <Small style={{ marginBottom: 10 }}>Keep the links you use. A click opens the link in a new tab of your default browser.</Small>
-              <Row gap={10} style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <View style={{ flex: 1, minWidth: 180 }}><Field label="NAME" value={linkDraft.title} onChangeText={(v) => setLinkDraft((d) => ({ ...d, title: v }))} placeholder="e.g. ICEGATE" /></View>
-                <View style={{ flex: 1, minWidth: 140 }}><Field label="FOLDER (optional)" value={linkDraft.folder} onChangeText={(v) => setLinkDraft((d) => ({ ...d, folder: v }))} placeholder="e.g. Bank portals" /></View>
-                <View style={{ flex: 2, minWidth: 240 }}><Field label="LINK" value={linkDraft.url} onChangeText={(v) => setLinkDraft((d) => ({ ...d, url: v }))} placeholder="https://..." autoCapitalize="none" /></View>
-                <Btn style={{ marginBottom: 12 }} title={linkDraft.id ? 'Save' : 'Add link'} onPress={() => {
-                  const url = normalizeLink(linkDraft.url);
-                  if (!url) return Alert.alert('Enter a link', 'Type a web address such as https://example.com');
-                  const title = linkDraft.title.trim() || url.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/.*$/, '');
-                  const folder = linkDraft.folder.trim();
-                  setTools((w) => {
-                    const list = Array.isArray(w.links) ? w.links : [];
-                    const row = { title, url, ...(folder ? { folder } : {}) };
-                    return { ...w, links: linkDraft.id ? list.map((x) => (x.id === linkDraft.id ? { id: x.id, ...row } : x)) : [...list, { id: `lnk-${Date.now().toString(36)}`, ...row }] };
-                  });
-                  setLinkDraft({ id: '', title: '', url: '', folder: '' });
-                }} />
-                {!!linkDraft.id && <Btn style={{ marginBottom: 12 }} kind="soft" title="Cancel" onPress={() => setLinkDraft({ id: '', title: '', url: '', folder: '' })} />}
-              </Row>
-            </Card>
-            <Row gap={8} style={{ marginTop: 10, flexWrap: 'wrap' }}>
-              <Btn kind="soft" title="⬇ Import bookmarks" onPress={async () => {
-                const text = await pickTextFile();
-                if (!text) return;
-                const found = parseBookmarks(text);
-                if (!found.length) return Alert.alert('No links found', 'Pick a bookmarks file exported from your browser (HTML) or from this tab.');
-                const res = addLinks(wd.links, found);
-                setTools((w) => ({ ...w, links: addLinks(w.links, found).links }));
-                Alert.alert('Imported', `${res.added} new link${res.added === 1 ? '' : 's'} added (${found.length - res.added} already here).`);
-              }} />
-              {!!(wd.links || []).length && <Btn kind="soft" title="⬆ Export" onPress={() => downloadText('working-dashboard-links.html', bookmarksHtml(wd.links))} />}
-              {!!linkFolder && <Btn kind="soft" title={`Open all in ${linkFolder}`} onPress={() => (wd.links || []).filter((x) => x.folder === linkFolder).forEach((x) => Linking.openURL(x.url))} />}
-            </Row>
-            {linkFolders(wd.links).length > 0 && (
-              <Row gap={6} style={{ marginTop: 10, flexWrap: 'wrap' }}>
-                {['', ...linkFolders(wd.links)].map((f) => (
-                  <Pressable key={f || 'all'} onPress={() => setLinkFolder(f)} style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: linkFolder === f ? t.accent : t.surfaceAlt }}>
-                    <Text style={{ color: linkFolder === f ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{f || 'All'}</Text>
-                  </Pressable>
-                ))}
-              </Row>
-            )}
-            {(wd.links || []).length > 6 && <Field style={{ marginTop: 10 }} value={linkFind} onChangeText={setLinkFind} placeholder="🔍 Search links..." />}
-            <CardGrid>
-              {(wd.links || []).filter((x) => (!linkFolder || x.folder === linkFolder) && (!linkFind.trim() || `${x.title} ${x.url} ${x.folder || ''}`.toLowerCase().includes(linkFind.trim().toLowerCase()))).map((x) => (
-                <Card key={x.id}>
-                  <Pressable onPress={() => Linking.openURL(x.url)} accessibilityRole="link" accessibilityLabel={`Open ${x.title}`}>
-                    <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(15) }} numberOfLines={1}>{x.title}</Text>
-                    <Small numberOfLines={1}>{x.folder ? `${x.folder} · ` : ''}{x.url}</Small>
-                  </Pressable>
-                  <Row gap={8} style={{ marginTop: 8 }}>
-                    <Btn kind="soft" title="Open" onPress={() => Linking.openURL(x.url)} />
-                    <Btn kind="soft" title="Edit" onPress={() => setLinkDraft({ id: x.id, title: x.title, url: x.url, folder: x.folder || '' })} />
-                    <Btn kind="soft" title="Delete" onPress={() => setTools((w) => ({ ...w, links: (w.links || []).filter((y) => y.id !== x.id) }))} />
-                  </Row>
-                </Card>
-              ))}
-            </CardGrid>
-            {!(wd.links || []).length && <Small style={{ marginTop: 10 }}>No links yet - add the first one above.</Small>}
-          </View>
-        )}
+        {tab === 'bin' && <WdBinTab binnedEntries={binnedEntries} act={act} />}
+
+        {tab === 'links' && <WdLinksTab wd={wd} setTools={setTools} linkDraft={linkDraft} setLinkDraft={setLinkDraft} linkFolder={linkFolder} setLinkFolder={setLinkFolder} linkFind={linkFind} setLinkFind={setLinkFind} />}
 
         {tab === 'report' && (
           <View>
-            {phoneLayout && (
-              <View style={{ marginBottom: 4 }}>
-                <Row gap={8} style={{ alignItems: 'center', marginBottom: 10 }}>
-                  <Pressable onPress={() => { const d = new Date(`${reportDate}T12:00:00`); d.setDate(d.getDate() - 1); const k = toDateKey(d); setReportDate(k); buildReport(k); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Previous day" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, ...t.shadow }}><Text style={{ color: t.accent, fontSize: t.fs(22), marginTop: -2 }}>‹</Text></Pressable>
-                  <View style={{ flex: 1 }}>
-                    <DateTimeField mode="date" value={new Date(`${reportDate}T12:00:00`).toISOString()} onChange={(v) => { const k = toDateKey(new Date(v)); setReportDate(k); buildReport(k); }} />
-                  </View>
-                  <Pressable onPress={() => { const d = new Date(`${reportDate}T12:00:00`); d.setDate(d.getDate() + 1); const k = toDateKey(d); setReportDate(k); buildReport(k); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Next day" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, ...t.shadow }}><Text style={{ color: t.accent, fontSize: t.fs(22), marginTop: -2 }}>›</Text></Pressable>
-                </Row>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, marginBottom: 12 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-                  {[['Today', () => { const k = toDateKey(new Date()); setReportDate(k); buildReport(k); }, reportKind === 'day' && reportDate === toDateKey(new Date())], ['This week', () => buildSummary('week'), reportKind === 'week'], ['This month', () => buildSummary('month'), reportKind === 'month']].map(([label, fn, on]) => (
-                    <Pressable key={label} onPress={fn} accessibilityRole="button" accessibilityState={{ selected: !!on }} style={{ borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.accent : t.surface, ...t.shadow }}>
-                      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
-                    </Pressable>
-                  ))}
-                  {!!reportModel && reportKind === 'day' && [[`${reportModel.data.others} other work`, t.ok], [`${reportModel.data.payments} payment${reportModel.data.payments === 1 ? '' : 's'}`, t.textDim], [`${reportModel.data.followed} followed up`, t.warn], ...(reportModel.data.excluded ? [[`${reportModel.data.excluded} left out`, t.textDim]] : [])].map(([label, c]) => (
-                    <View key={label} style={{ borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c + '22' }}><Text style={{ color: c, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text></View>
-                  ))}
-                </ScrollView>
+            {phoneLayout && (() => {
+              // A strip of seven days (five before today, tomorrow); a date outside it re-centres the strip on that day.
+              const todayK = toDateKey(new Date());
+              const at = (k, n) => { const d = new Date(`${k}T12:00:00`); d.setDate(d.getDate() + n); return d; };
+              const inWindow = reportDate >= toDateKey(at(todayK, -5)) && reportDate <= toDateKey(at(todayK, 1));
+              const first = inWindow ? at(todayK, -5) : at(reportDate, -5);
+              const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(first); d.setDate(d.getDate() + i); return d; });
+              const dayOn = (k) => reportKind === 'day' && reportDate === k;
+              return (
+                <View style={{ marginBottom: 14, gap: 12 }}>
+                  <Row gap={6}>
+                    {days.map((d) => {
+                      const k = toDateKey(d);
+                      const on = dayOn(k);
+                      return (
+                        <Pressable key={k} onPress={() => { setReportDate(k); buildReport(k); }} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+                          style={{ flex: 1, alignItems: 'center', gap: 2, paddingVertical: 8, borderRadius: 14, backgroundColor: on ? t.primaryDark : t.surface, borderWidth: 1, borderColor: on ? t.primaryDark : t.border }}>
+                          <Text style={{ color: on ? t.heroDim : t.text, fontWeight: '700', fontSize: t.fs(11) }}>{d.toLocaleDateString([], { weekday: 'short' })}</Text>
+                          <Text style={{ color: on ? '#fff' : t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(16) }}>{d.getDate()}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </Row>
+                  <Row gap={8} style={{ alignItems: 'center' }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 8 }}>
+                      {[['Today', () => { setReportDate(todayK); buildReport(todayK); }, reportKind === 'day' && reportDate === todayK], ['This week', () => buildSummary('week'), reportKind === 'week'], ['This month', () => buildSummary('month'), reportKind === 'month']].map(([label, fn, on]) => (
+                        <Chip key={label} label={label} on={!!on} onPress={fn} />
+                      ))}
+                    </ScrollView>
+                    <DateTimeField iconOnly mode="date" label="Pick another date" value={new Date(`${reportDate}T12:00:00`).toISOString()} onChange={(v) => { const k = toDateKey(new Date(v)); setReportDate(k); buildReport(k); }} />
+                  </Row>
+                </View>
+              );
+            })()}
+            {reportKind === 'day' && !!reportModel && (
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                {[['oth', 'Other work', reportModel.data.others], ['pay', 'Payments', reportModel.data.payments], ['fol', 'Followed up', reportModel.data.followed], ['out', 'Left out', reportModel.data.excluded]].map(([key, label, n]) => (
+                  <Pressable key={key} onPress={() => setGroupOpen(key)} accessibilityRole="button" accessibilityLabel={`${n} ${label} - show the tasks`} style={({ pressed }) => ({ flex: 1, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.85 : 1 })}>
+                    <Text style={{ color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(24), lineHeight: t.fs(27) }}>{n}</Text>
+                    <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(10.5) }} numberOfLines={1}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+            {reportKind === 'day' && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {[['headings', 'Section headings'], ['subFields', 'Sub category fields'], ['pending', 'Pending list']].map(([k, label]) => (
+                  <Chip key={k} label={label} on={!!reportOpts[k]} onPress={() => setReportOpt(k)} accessibilityLabel={`${label}: ${reportOpts[k] ? 'on' : 'off'}`} />
+                ))}
               </View>
             )}
             {!phoneLayout && (
@@ -2156,8 +1822,8 @@ export default function WorkingDashboard() {
               </Row>
               {/* Phone-width screens and the whole website: totals for the week (from Monday) or the month (from the 1st) up to the date above. */}
               {(phoneLayout || Platform.OS === 'web') && <Row gap={10} style={{ marginBottom: 8 }}>
-                <Btn style={{ flex: 1 }} kind={reportKind === 'week' ? 'primary' : 'soft'} title="📅 This week" onPress={() => buildSummary('week')} />
-                <Btn style={{ flex: 1 }} kind={reportKind === 'month' ? 'primary' : 'soft'} title="🗓 This month" onPress={() => buildSummary('month')} />
+                <Btn style={{ flex: 1 }} kind={reportKind === 'week' ? 'primary' : 'soft'} title="This week" onPress={() => buildSummary('week')} />
+                <Btn style={{ flex: 1 }} kind={reportKind === 'month' ? 'primary' : 'soft'} title="This month" onPress={() => buildSummary('month')} />
               </Row>}
               {!!reportModel && (
                 <Small>
@@ -2186,29 +1852,31 @@ export default function WorkingDashboard() {
             {phoneLayout && !!reportNote && <Small style={{ marginBottom: 8 }}>{reportNote}</Small>}
 
             {!!reportText && phoneLayout && reportKind === 'day' && !!reportModel && !(reportAlt && reportAlt.showing === 'ai') ? (
-              reportModel.sections.filter((sec) => sec.rows.length || (sec.intro && sec.intro.length)).map((sec) => (
-                <Card key={sec.key} style={{ marginBottom: 10 }}>
-                  <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11.5), letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8 }}>{sec.title}{sec.key === 'pay' ? ` (${sec.rows.length})` : ''}</Text>
-                  {[...(sec.intro || []), ...sec.rows.map((r) => r.line)].map((line, i) => (
-                    <Row key={i} gap={8} style={{ alignItems: 'flex-start', marginBottom: 6 }}>
-                      <Text style={{ color: t.textDim, fontSize: t.fs(14) }}>•</Text>
-                      <Text style={{ flex: 1, color: t.text, fontSize: t.fs(14), lineHeight: t.fs(20) }}>{line}</Text>
-                    </Row>
-                  ))}
-                </Card>
-              ))
+              <Card style={{ paddingVertical: 16, paddingHorizontal: 18, gap: 10 }}>
+                {reportModel.sections.filter((sec) => sec.rows.length || (sec.intro && sec.intro.length)).map((sec) => (
+                  <View key={sec.key} style={{ gap: 6 }}>
+                    <Text style={{ color: t.primary, fontWeight: '800', fontSize: t.fs(12), letterSpacing: 0.9, textTransform: 'uppercase', marginTop: 4 }}>{sec.title}{sec.key === 'pay' ? ` (${sec.rows.length})` : ''}</Text>
+                    {[...(sec.intro || []), ...sec.rows.map((r) => r.line)].map((line, i) => (
+                      <Row key={i} gap={8} style={{ alignItems: 'flex-start' }}>
+                        <Text style={{ color: t.textDim, fontSize: t.fs(13.5), lineHeight: t.fs(21) }}>•</Text>
+                        <Text style={{ flex: 1, color: t.text, fontSize: t.fs(13.5), lineHeight: t.fs(21), fontWeight: '500' }}>{line}</Text>
+                      </Row>
+                    ))}
+                  </View>
+                ))}
+              </Card>
             ) : !!reportText && (
               <Card style={{ marginTop: phoneLayout ? 0 : 14 }}>
-                <Text style={{ color: t.text, fontSize: t.fs(13.5), lineHeight: t.fs(20) }}>{reportText}</Text>
+                <Text style={{ color: t.text, fontSize: t.fs(13.5), lineHeight: t.fs(21), fontWeight: '500' }}>{reportText}</Text>
               </Card>
             )}
 
             {!!reportText && phoneLayout && (
-              <Pressable onPress={() => setAiOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: aiOpen }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14, marginTop: 4, ...t.shadow }}>
-                <Text style={{ fontSize: t.fs(16) }}>✨</Text>
+              <Pressable onPress={() => setAiOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: aiOpen }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: 16, paddingVertical: 13, paddingHorizontal: 14, marginTop: 12 }}>
+                <Icon name="sparkle" size={18} color={t.primary} stroke={1.9} />
                 <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14.5) }}>Instructions for AI</Text>
                 <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', color: t.textDim, fontSize: t.fs(12.5), fontWeight: '600' }}>{(wd[aiKey] || '').trim() ? 'Set' : 'Optional'}</Text>
-                <Text style={{ color: t.textDim, fontSize: t.fs(16) }}>{aiOpen ? '⌃' : '⌄'}</Text>
+                <Icon name={aiOpen ? 'chevronUp' : 'chevronDown'} size={16} color={t.textDim} stroke={2} />
               </Pressable>
             )}
             {!!reportText && (!phoneLayout || aiOpen) && (
@@ -2219,26 +1887,26 @@ export default function WorkingDashboard() {
             {!!reportText && (!phoneLayout || aiOpen) && (
               <Row gap={6} style={{ marginTop: 6, flexWrap: 'wrap' }}>
                 {REPORT_PRESETS.map((p) => (
-                  <Pressable key={p.label} onPress={() => setTools((w) => ({ ...w, [aiKey]: p.text }))} style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, backgroundColor: t.surfaceAlt }}>
-                    <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(12.5) }}>{p.label}</Text>
+                  <Pressable key={p.label} onPress={() => setTools((w) => ({ ...w, [aiKey]: p.text }))} style={{ paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, backgroundColor: t.tint }}>
+                    <Text style={{ color: t.tintText, fontWeight: '700', fontSize: t.fs(12.5) }}>{p.label}</Text>
                   </Pressable>
                 ))}
               </Row>
             )}
             {!!reportAlt && (
-              <Btn style={{ marginTop: 10 }} kind="soft" title={reportAlt.showing === 'ai' ? 'Show the standard version' : '✨ Show the AI version'}
+              <Btn style={{ marginTop: 10 }} kind="soft" title={reportAlt.showing === 'ai' ? 'Show the standard version' : 'Show the AI version'}
                 onPress={() => { const next = reportAlt.showing === 'ai' ? 'standard' : 'ai'; setReportText(reportAlt[next]); setReportAlt({ ...reportAlt, showing: next }); }} />
             )}
             {!!reportText && !phoneLayout && (
               <Row gap={10} style={{ marginTop: 14, flexWrap: 'wrap' }}>
-                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="📋 Copy" onPress={copyReport} />
-                {(phoneLayout || Platform.OS === 'web') && <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="✉️ Email" onPress={emailReport} />}
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="Copy" onPress={copyReport} />
+                {(phoneLayout || Platform.OS === 'web') && <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="Email" onPress={emailReport} />}
                 {/* "Both" (phone-width screens): the report as a PDF, to send on WhatsApp or attach to a mail. */}
-                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="📄 PDF" onPress={pdfReport} />
-                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="⬇ Excel" onPress={csvReport} />
-                {/* The person's own Apps Script if they added one, else the app's built-in AI (aiBuiltin.js). On a phone
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="PDF" onPress={pdfReport} />
+                <Btn style={{ flex: 1, minWidth: '45%' }} kind="soft" title="Excel" onPress={csvReport} />
+                {/* The app's built-in AI (aiBuiltin.js). On a phone
                     it has a line of its own below: four buttons in a row were too narrow to read. */}
-                {!phoneLayout && <Btn style={{ flex: 1 }} title={aiBusy ? 'Writing with AI...' : '✨ Rewrite with AI'} disabled={aiBusy} onPress={rewriteAny} />}
+                {!phoneLayout && <Btn style={{ flex: 1 }} title={aiBusy ? 'Writing with AI...' : 'Rewrite with AI'} disabled={aiBusy} onPress={rewriteAny} />}
               </Row>
             )}
 
@@ -2246,250 +1914,81 @@ export default function WorkingDashboard() {
           </View>
         )}
 
-        {tab === 'more' && (
-          <View>
-            <Card style={{ marginBottom: 14 }}>
-              <Row gap={12} style={{ alignItems: 'center' }}>
-                <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.fs(19) }}>{String(googleUser?.displayName || googleUser?.email || 'W').trim().charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{googleUser?.displayName || (googleUser ? 'Signed in' : 'This device only')}</Text>
-                  <Small numberOfLines={1}>{googleUser?.email || 'Sign in with Google under Config to sync'}</Small>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surfaceAlt, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: waiting ? t.warn : googleUser && realtimeError ? t.danger : googleUser ? t.ok : t.textDim }} />
-                  <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(12) }}>{waiting ? 'offline' : googleUser && realtimeError ? 'sync error' : googleUser ? 'in sync' : 'local'}</Text>
-                </View>
-              </Row>
-            </Card>
-            <Group title="Manage">
-              <Item icon="📅" color={t.accent} label="Holidays & leave" onPress={() => setTab('holidays')} />
-              <Item icon="🗑" color={t.danger} label="Bin" value={binnedEntries.length ? `${binnedEntries.length}` : undefined} onPress={() => setTab('bin')} last />
-            </Group>
-            <Group title="Settings">
-              <Item icon="⚙️" color={t.textDim} label="Config & lists" onPress={() => setTab('config')} />
-              <Item icon="🔔" color={t.warn} label="Alerts, app lock & backups" onPress={() => navigation.navigate('Settings')} last />
-            </Group>
-          </View>
-        )}
+        {tab === 'more' && <WdMoreTab googleUser={googleUser} waiting={waiting} realtimeError={realtimeError} binnedEntries={binnedEntries} setTab={setTab} wd={wd} data={data} update={update} />}
 
-        {tab === 'holidays' && (() => {
-          // "Both" (the APK and the website on a phone): the web app's Holidays tab in one column - search, a holiday
-          // calendar filter and "Alerts-on only", the continuous holidays, then a card per holiday (upcoming first).
-          const PALETTE = [t.accent, t.ok, t.warn, t.purple, t.accent2, t.pink, t.indigo, t.danger].filter(Boolean);     // one colour per holiday calendar
-          const calendars = ['USD Holiday', 'Indian Bank Holiday', ...holidayList.map((h) => h.tag).filter(Boolean)].filter((x, i, a) => a.indexOf(x) === i);
-          const colourOf = (tag) => PALETTE[Math.max(0, calendars.indexOf(tag)) % PALETTE.length];
-          const todayK = toDateKey(new Date());
-          const q = holQuery.trim().toLowerCase();
-          const list = holidayList
-            .filter((h) => (!q || h.title.toLowerCase().includes(q) || h.date.includes(q))
-              && (holCalendar === 'All' || h.tag === holCalendar)
-              && (!holAlertsOnly || h.alert !== false))
-            .sort((a, b) => {
-              const au = (a.endDate || a.date) >= todayK; const bu = (b.endDate || b.date) >= todayK;
-              if (au !== bu) return au ? -1 : 1;
-              return au ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
-            });
-          const blocks = holidayBlocks(holidayList);
-          const dayText = (k) => new Date(`${k}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-          const shortDay = (k) => new Date(`${k}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-          const weekend = (k) => [0, 6].includes(new Date(`${k}T12:00:00`).getDay());
-          const pill = (text, color) => (
-            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: t.surfaceAlt }}>
-              <Text style={{ color: color || t.textDim, fontSize: t.fs(12), fontWeight: color ? '700' : '500' }}>{text}</Text>
-            </View>
-          );
-          return (
-            <View>
-              {/* The month at a glance: holidays, leave and the tasks due each day. */}
-              <View style={{ marginBottom: 12 }}><WdCalendar entries={entries} holidays={holidayList} leaveDays={leaveList} onOpen={(e) => openEditEntry(e)} /></View>
-              <Row gap={8} style={{ marginBottom: 8 }}>
-                <View style={{ flex: 1 }}><Field style={{ marginBottom: 0 }} value={holQuery} onChangeText={setHolQuery} placeholder="🔍 Search holidays..." /></View>
-                <Pressable onPress={openNewHoliday} accessibilityLabel="Add holiday" style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent }}>
-                  <Text style={{ color: '#fff', fontSize: t.fs(22), fontWeight: '600' }}>+</Text>
-                </Pressable>
-              </Row>
-              <Row gap={8} style={{ marginBottom: 12, alignItems: 'center' }}>
-                <View style={{ flex: 1 }}><PickerButton text={holCalendar === 'All' ? 'All Holiday Calendars' : holCalendar} onPress={() => setHolCalendarOpen((v) => !v)} /></View>
-                <Pressable onPress={() => setHolAlertsOnly((v) => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: holAlertsOnly }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: holAlertsOnly ? t.accent : 'transparent', borderWidth: holAlertsOnly ? 0 : 2, borderColor: t.border }}>
-                    {holAlertsOnly && <Text style={{ color: '#fff', fontWeight: '900', fontSize: t.fs(11) }}>✓</Text>}
-                  </View>
-                  <Text style={{ color: t.text, fontSize: t.fs(13) }}>Alerts-on only</Text>
-                </Pressable>
-              </Row>
-              {holCalendarOpen && (
-                <View style={{ marginBottom: 12 }}>
-                  <Choices options={[['All', 'All Holiday Calendars'], ...calendars.map((c) => [c, c])]} value={holCalendar} onChange={(v) => { setHolCalendar(v); setHolCalendarOpen(false); }} />
-                </View>
-              )}
-              {blocks.map((b) => (
-                <View key={b.start} style={{ marginBottom: 8, padding: 12, borderRadius: 14, backgroundColor: t.ok + '1F', borderWidth: 1, borderColor: t.ok + '55', opacity: b.end < todayK ? 0.6 : 1 }}>
-                  <Text style={{ color: t.ok, fontSize: t.fs(13.5) }}>
-                    <Text style={{ fontWeight: '800' }}>{b.days}-day continuous holiday</Text>
-                    {` · ${shortDay(b.start)} – ${shortDay(b.end)}${b.names.length ? ` · ${b.names.join(' + ')}` : ''}`}
-                  </Text>
-                </View>
-              ))}
-              {!list.length && <P dim style={{ textAlign: 'center', marginVertical: 24 }}>{holidayList.length ? 'No holidays match.' : 'No holidays found - add one with the + button.'}</P>}
-              {/* web.app: the holiday cards side by side (two a row); a phone-width screen keeps one a row. */}
-              <CardGrid>{list.map((h) => {
-                const past = (h.endDate || h.date) < todayK;
-                const colour = colourOf(h.tag);
-                const next = nextWorkingDay(h.endDate || h.date, holidayList, leaveList);
-                return (
-                  <View key={h.id} style={{ marginTop: 10, padding: 14, borderRadius: 16, backgroundColor: t.surface, borderWidth: 0.5, borderColor: t.border, ...t.shadow, opacity: past ? 0.6 : 1 }}>
-                    <Row style={{ alignItems: 'flex-start', gap: 8 }}>
-                      <Text style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.fs(16) }} numberOfLines={2}>
-                        {h.alert === false ? '🔕' : '🔔'}{isOfficeClosed(h) ? ' 🏢' : ''} {h.title}
-                      </Text>
-                      {!!h.tag && (
-                        <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: colour + '22', borderWidth: 1, borderColor: colour + '55', maxWidth: '45%' }}>
-                          <Text style={{ color: colour, fontWeight: '700', fontSize: t.fs(11.5) }} numberOfLines={2}>{h.tag}</Text>
-                        </View>
-                      )}
-                    </Row>
-                    <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                      {pill(h.endDate ? `${dayText(h.date)} – ${dayText(h.endDate)}` : dayText(h.date), weekend(h.date) ? t.danger : null)}
-                      {pill(`Next working: ${dayText(next)}`)}
-                    </Row>
-                    <Row style={{ justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
-                      <RoundBtn icon="✎" a11y="Edit holiday" onPress={() => setHolidaySheet(h)} />
-                      <RoundBtn icon="🗑" a11y="Delete holiday" color={t.danger} onPress={() => Alert.alert('Delete this holiday?', h.title, [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => removeHoliday(h.id) }])} />
-                    </Row>
-                  </View>
-                );
-              })}</CardGrid>
-              {!!holidayList.length && <Small style={{ textAlign: 'center', marginTop: 12 }}>{holidayList.length} holidays{leaveList.length ? ` · ${leaveList.length} leave days` : ''}</Small>}
-            </View>
-          );
-        })()}
+        {tab === 'holidays' && <WdHolidaysTab entries={entries} holidayList={holidayList} leaveList={leaveList} openEditEntry={openEditEntry} openNewHoliday={openNewHoliday} setHolidaySheet={setHolidaySheet} removeHoliday={removeHoliday} holQuery={holQuery} setHolQuery={setHolQuery} holCalendar={holCalendar} setHolCalendar={setHolCalendar} holCalendarOpen={holCalendarOpen} setHolCalendarOpen={setHolCalendarOpen} holAlertsOnly={holAlertsOnly} setHolAlertsOnly={setHolAlertsOnly} />}
 
         {tab === 'config' && (() => {
-          // The phone Config page, laid out like the web app's: counts, a button per section ("All" shows every one),
-          // then each section open, one column.
-          const fontNames = ['Small', 'Default', 'Large', 'X-Large'];
+          // Appearance (Ledger): the colour theme swatches, the dark-mode switch and the text size.
+          const themeNow = themeKeyOf(data.settings?.theme);
+          const appearanceBody = (
+            <View style={{ gap: 16 }}>
+              <View>
+                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), marginBottom: 12 }}>Colour theme</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                  {THEME_SWATCHES.map((sw) => {
+                    const on = themeNow === sw.key;
+                    return (
+                      <Pressable key={sw.key} onPress={() => update({ settings: { theme: sw.key } })} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${sw.label} theme`}
+                        style={{ width: '31%', flexGrow: 1, gap: 7, borderRadius: 16, padding: 8, borderWidth: 2, borderColor: on ? t.primary : t.border }}>
+                        <View style={{ height: 34, borderRadius: 10, backgroundColor: sw.color }} />
+                        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(12) }}>{sw.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+              <Row style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <Text style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: t.fs(14) }}>Follow the phone's dark mode</Text>
+                <Toggle label="Follow the phone's dark mode" value={data.settings?.followDark !== false} onChange={(v) => update({ settings: { followDark: v } })} />
+              </Row>
+              <View>
+                <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(14), marginBottom: 8 }}>Text size</Text>
+                <Segmented tone="light" options={[{ key: '1', label: 'Small' }, { key: '2', label: 'Normal' }, { key: '3', label: 'Large' }, { key: '4', label: 'XL' }]} value={String(data.settings?.fontLevel || 2)} onChange={(k) => update({ settings: { fontLevel: Number(k) } })} />
+              </View>
+            </View>
+          );
           const panels = [
-            { key: 'appearance', icon: '🎨', title: 'Appearance', body: (
+            { key: 'alerts', icon: 'bell', title: 'Alerts', body: (
               <>
-                <P dim>The look of the whole app. Tap a theme to use it.</P>
-                <Small style={{ marginBottom: 6 }}>INTERFACE STYLE</Small>
-                <Segmented options={[{ key: 'modern', label: Platform.OS === 'web' ? 'macOS style' : 'Modern' }, { key: 'classic', label: 'Classic' }]} value={data.settings?.uiMode === 'classic' ? 'classic' : 'modern'} onChange={(k) => update({ settings: { uiMode: k } })} style={{ marginBottom: 14 }} />
-                <Small style={{ marginBottom: 6 }}>COLOURS</Small>
-                <Choices options={Object.values(THEMES).map((th) => [th.key, th.label])} value={data.settings?.theme || 'pearl'} onChange={(k) => update({ settings: { theme: k } })} />
+                <WdAlertSettings alerts={wd.alerts} priorities={wd.priorities || []} onChange={(v) => updateWd((w) => ({ ...w, alerts: v }))} />
+                <Text style={{ color: t.text, fontWeight: '700', marginTop: 16, marginBottom: 4 }}>Alarm sound</Text>
+                <P dim>Plays for every Working Dashboard alert. Tap a name to use it.</P>
+                <RingtonePicker value={wd.alarmRingtone} onChange={(v) => updateWd((w) => ({ ...w, alarmRingtone: v }))} />
               </>
             ) },
-            { key: 'quickadd', icon: '⚡', title: 'Quick Add', body: (() => {
-              const q = { dateOrder: 'dmy', dateOnlyTime: '', bankWord: 'bank', speechLang: 'en-IN', ...(wd.quickAdd || {}) };
-              const set = (patch) => updateWd((w) => ({ ...w, quickAdd: { ...q, ...(w.quickAdd || {}), ...patch } }));
-              return (
-                <>
-                  <P dim>How the Dashboard's Quick add bar and the finder read a typed sentence, and the smart snooze tip.</P>
-                  <Small style={{ marginTop: 12, marginBottom: 6 }}>DATES LIKE 05/10</Small>
-                  <Segmented options={[{ key: 'dmy', label: 'Day first (5 Oct)' }, { key: 'mdy', label: 'Month first (May 10)' }]} value={q.dateOrder} onChange={(k) => set({ dateOrder: k })} />
-                  <Small style={{ marginTop: 14, marginBottom: 6 }}>WHEN ONLY A DATE IS TYPED, THE TIME IS</Small>
-                  <Choices options={[['', 'All day'], ['09:00', '9:00 AM'], ['10:00', '10:00 AM'], ['12:00', '12:00 PM'], ['17:00', '5:00 PM']]} value={q.dateOnlyTime} onChange={(k) => set({ dateOnlyTime: k })} />
-                  <Field style={{ marginTop: 14 }} label="A PERSON'S NAME THAT MEANS 'THE BANK' CONTAINS" value={q.bankWord} onChangeText={(v) => set({ bankWord: v })} placeholder="bank" autoCapitalize="none" />
-                  <Small style={{ marginBottom: 6 }}>SPEAKING (the website's microphone)</Small>
-                  <Choices options={[['en-IN', 'English (India)'], ['hi-IN', 'Hindi'], ['te-IN', 'Telugu'], ['en-GB', 'English (UK)'], ['en-US', 'English (US)']]} value={q.speechLang} onChange={(k) => set({ speechLang: k })} />
-                </>
-              );
-            })() },
-            { key: 'history', icon: '↩️', title: 'Recent Changes', body: (
-              <>
-                <P dim>The last changes you made (done, moved, binned, reopened...). Restore puts the task back as it was before that change - any later edit to it is replaced.</P>
-                {!(wd.undoHistory || []).length && <P dim style={{ marginTop: 8 }}>Nothing yet.</P>}
-                {(wd.undoHistory || []).map((u) => (
-                  <Row key={u.id} gap={8} style={{ alignItems: 'center', paddingVertical: 8, borderTopWidth: 0.5, borderTopColor: t.border }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: t.text, fontSize: t.fs(14), fontWeight: '600' }} numberOfLines={2}>{u.message}</Text>
-                      <Small>{new Date(u.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</Small>
-                    </View>
-                    <Btn kind="soft" title="Restore" onPress={() => runUndo(u)} />
-                  </Row>
-                ))}
-              </>
-            ) },
-            { key: 'log', icon: '📝', title: 'Activity Log', body: configBodies.log },
-            { key: 'fixed', icon: '📌', title: 'Fixed Daily Activities', body: configBodies.fixed },
-            { key: 'leave', icon: '🌴', title: 'Leave Days', body: configBodies.leave },
-            { key: 'reportSamples', icon: '📄', title: 'Report Style Samples', body: configBodies.reportSamples },
-            { key: 'report', icon: '📊', title: 'Daily Activity Report', body: (
-              <>
-                <P dim>Built on this device from your entries: every entry completed on the date (unless marked "Done" only), entries moved forward that day, your Fixed Daily Activities and anything in the Activity Log. Domestic and Urgent payments are left out.</P>
-                <Btn title="Open the Daily Report" onPress={() => goTab('report')} />
-                <Text style={{ color: t.text, fontWeight: '700', marginTop: 16, marginBottom: 4 }}>Standard lines before payments</Text>
-                {configBodies.paymentIntro}
-              </>
-            ) },
-            { key: 'text', icon: '🔤', title: 'Text Size', body: (
-              <>
-                <P dim>Default text size for the whole app. Tap to switch - takes effect immediately.</P>
-                <Segmented options={Object.keys(FONT_LEVELS).map((lvl) => ({ key: String(lvl), label: fontNames[Number(lvl) - 1] || String(lvl) }))} value={String(data.settings?.fontLevel || 2)} onChange={(k) => update({ settings: { fontLevel: Number(k) } })} />
-              </>
-            ) },
-            { key: 'security', icon: '🔒', title: 'Security & PIN Lock', body: <AppLockSettings title="" footer="A PIN locks this app on this device. It lives only here and is never included in a backup." /> },
-            { key: 'realtime', icon: '🔄', title: 'Realtime Sync', body: configBodies.realtime },
-            { key: 'cloudSync', icon: '☁️', title: 'Cloud Sync', body: configBodies.cloudSync },
-            { key: 'backup', icon: '💾', title: 'Data Backup', body: configBodies.backup },
-            { key: 'alarm', icon: '🔔', title: 'Alarm Sound', body: configBodies.alarm },
-            { key: 'walk', icon: '🚶', title: 'Walk Reminder', body: reminderBody('walk') },
-            { key: 'water', icon: '💧', title: 'Water Reminder', body: reminderBody('water') },
-            { key: 'slots', icon: '⏱️', title: 'Time Slots', body: configBodies.slots },
-            { key: 'tools', icon: '🛠️', title: 'Settings & Tools', body: (
-              <>
-                <Row gap={10} style={{ marginBottom: 12 }}>
-                  <Btn style={{ flex: 1 }} kind="soft" title="✉️ Fetch Mail" onPress={openMail} />
-                  <Btn style={{ flex: 1 }} kind="soft" title={testingAlarm ? 'Playing...' : '🔔 Test Alarm'} disabled={testingAlarm} onPress={testAlarm} />
-                </Row>
-                <Text style={{ color: t.text, fontWeight: '700', marginBottom: 4 }}>Lists</Text>
-                {configBodies.lists}
-                <Text style={{ color: t.text, fontWeight: '700', marginTop: 12, marginBottom: 4 }}>Sub Categories & Narration Types</Text>
-                {configBodies.paymentRules}
-              </>
-            ) },
-            { key: 'system', icon: '🖥️', title: 'System', body: (
-              <>
-                <P dim>Alert permissions, battery, home-screen widgets and full backup / restore of the app.</P>
-                <Btn kind="soft" title="Open app settings" onPress={() => navigation.navigate('Settings')} />
-              </>
-            ) },
+            { key: 'appearance', icon: 'moon', title: 'Appearance', body: appearanceBody },
+            { key: 'lists', icon: 'list', title: 'Entry form options', body: <ListsEditor wd={wd} save={saveLists} /> },
+            { key: 'subs', icon: 'folder', title: 'Sub categories', body: <SubCategories wd={wd} lists={plists} save={saveLists} /> },
+            { key: 'reminder', icon: 'clock', title: 'Next reminder', body: <ReminderCategories wd={wd} save={saveLists} /> },
+            { key: 'formats', icon: 'report', title: 'Report formats', body: <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={saveLists} /> },
+            { key: 'gemini', icon: 'sparkle', title: 'Gemini (AI) key', body: <WdGeminiKey /> },
           ];
-          // The menu: sections in groups, each with a one-line description. Tablets and the website show the menu on the
-          // left and the chosen section on the right; a phone shows the menu, then the section with a way back.
           const groups = [
-            ['General', [['appearance', 'Theme and colours'], ['text', 'Size of the text'], ['security', 'PIN lock for this device']]],
-            ['Daily work', [['history', 'Undo changes made earlier'], ['quickadd', 'Dates, language and the bank word'], ['log', 'Things done outside tasks'], ['fixed', 'Routine lines for every report'], ['slots', 'How long a time slot is held'], ['leave', 'Days you are away'], ['tools', 'Lists, Sub Categories, Narration, Fetch Mail']]],
-            ['Reports', [['report', 'Standard lines before payments'], ['reportSamples', 'Past reports that teach the AI your style']]],
-            ['Alerts', [['alarm', 'Sound for alarms'], ['walk', 'Nudge to walk'], ['water', 'Nudge to drink water']]],
-            ['Data & sync', [['realtime', 'Share with the web app and other devices'], ['cloudSync', 'Google Sheet / Apps Script'], ['backup', 'Save and restore your data'], ['system', 'Permissions, battery, widgets']]],
+            ['General', [['alerts', 'When and how a due task alerts you'], ['appearance', 'Theme and colours']]],
+            ['Entry form', [['lists', 'Categories, priorities, statuses, pending with'], ['subs', 'Sub categories and their fields'], ['reminder', 'Which categories ask for a next reminder']]],
+            ['Reports', [['formats', 'The sentence each sub category writes'], ['gemini', 'Your own key, used only when the free route is busy']]],
           ];
           const byKey = Object.fromEntries(panels.map((x) => [x.key, x]));
           const split = !phoneLayout;
           const active = configFocus === 'all' ? (split ? 'appearance' : '') : configFocus;
-          const pick = (k) => { setConfigFocus(k); if (k === 'reportSamples') loadSamples(true); };
-          const counts = [['Active', openEntries.length, t.accent, 'register'], ['Done', allDone.length, t.ok, 'done'], ['In Bin', binnedEntries.length, t.danger, 'bin']];
+          const pick = (k) => setConfigFocus(k);
+          const counts = [['Active', openEntries.length, t.primary, 'register'], ['Done', allDone.length, t.ok, 'done'], ['In Bin', binnedEntries.length, t.danger, 'bin']];
+          // Wide screens: grouped menu on the left, the chosen topic on the right.
           const menu = (
             <View style={split ? { width: 250 } : undefined}>
               {groups.map(([title, items]) => (
                 <View key={title} style={{ marginBottom: 14 }}>
-                  <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11.5), letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6, marginLeft: 6 }}>{title}</Text>
+                  <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 8, marginLeft: 4 }}>{title}</Text>
                   <Card style={{ padding: 6 }}>
-                    {items.map(([k, hint], i) => {
+                    {items.map(([k]) => {
                       const x = byKey[k];
-                      const on = split && active === k;
+                      const on = active === k;
                       return (
                         <Pressable key={k} onPress={() => pick(k)} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={x.title}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 12, backgroundColor: on ? t.accent : 'transparent', marginTop: i ? 2 : 0 }}>
-                          <View style={{ width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? 'rgba(255,255,255,0.22)' : t.surfaceAlt }}>
-                            <Text style={{ fontSize: t.fs(17) }}>{x.icon}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(14.5) }} numberOfLines={1}>{x.title}</Text>
-                            {!split && <Small numberOfLines={1}>{hint}</Small>}
-                          </View>
-                          {!split && <Text style={{ color: t.textDim, fontSize: t.fs(20) }}>›</Text>}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 12, backgroundColor: on ? t.tint : 'transparent' }}>
+                          <Icon name={x.icon} size={19} color={on ? t.tintText : t.textDim} stroke={1.9} />
+                          <Text style={{ flex: 1, color: on ? t.tintText : t.text, fontWeight: '700', fontSize: t.fs(14.5) }} numberOfLines={1}>{x.title}</Text>
                         </Pressable>
                       );
                     })}
@@ -2498,46 +1997,87 @@ export default function WorkingDashboard() {
               ))}
             </View>
           );
+          // Phone: one list of topics (the Appearance row is highlighted - its card is open right below).
+          const topicList = (
+            <View style={{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>
+              {panels.map((x, i) => {
+                const on = x.key === 'appearance';
+                return (
+                  <Pressable key={x.key} onPress={() => pick(x.key)} accessibilityRole="button" accessibilityLabel={x.title}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, minHeight: 52, borderTopWidth: i ? 1 : 0, borderTopColor: t.surfaceAlt, backgroundColor: on ? t.tint : pressed ? t.surfaceAlt : t.surface })}>
+                    <Text style={{ color: on ? t.tintText : t.text, fontWeight: '700', fontSize: t.fs(15) }}>{x.title}</Text>
+                    <Icon name="chevronRight" size={16} color={on ? t.tintText : t.chevron} stroke={2} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          );
           const cur = active ? byKey[active] : null;
           const curHint = cur ? (groups.flatMap(([, it]) => it).find(([k]) => k === active) || [])[1] : '';
           const panel = cur && (
             <View style={{ flex: 1, minWidth: 0 }}>
               {!split && (
-                <Pressable onPress={() => setConfigFocus('all')} accessibilityRole="button" accessibilityLabel="Back to Config" style={{ alignSelf: 'flex-start', paddingVertical: 6, paddingRight: 12, marginBottom: 6 }}>
-                  <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.fs(14) }}>‹ Config</Text>
+                <Pressable onPress={() => setConfigFocus('all')} accessibilityRole="button" accessibilityLabel="Back to Config" style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingRight: 12, marginBottom: 6 }}>
+                  <Icon name="back" size={16} color={t.primary} stroke={2.2} />
+                  <Text style={{ color: t.primary, fontWeight: '800', fontSize: t.fs(14) }}>Config</Text>
                 </Pressable>
               )}
               <Card style={{ padding: 18 }}>
                 <Row gap={12} style={{ alignItems: 'center', marginBottom: 4 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surfaceAlt }}>
-                    <Text style={{ fontSize: t.fs(22) }}>{cur.icon}</Text>
+                  <View style={{ width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.tint }}>
+                    <Icon name={cur.icon} size={22} color={t.tintText} stroke={1.9} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(19) }}>{cur.title}</Text>
                     {!!curHint && <Small>{curHint}</Small>}
                   </View>
                 </Row>
-                <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: t.border, marginVertical: 14 }} />
+                <View style={{ height: 1, backgroundColor: t.border, marginVertical: 14 }} />
                 {cur.body}
               </Card>
             </View>
           );
+          const accountCard = (
+            <Card>
+              <Row gap={12} style={{ alignItems: 'center' }}>
+                <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: t.onAccent, fontFamily: display(), fontWeight: '600', fontSize: t.fs(20) }}>{String(googleUser?.displayName || googleUser?.email || 'W').trim().charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{googleUser?.displayName || (googleUser ? 'Signed in' : 'This device only')}</Text>
+                  <Small numberOfLines={1}>{googleUser?.email || 'Sign in with Google to sync with the website'}</Small>
+                </View>
+                <Btn kind="soft" title={googleUser ? 'Sign out' : 'Sign in'} disabled={realtimeBusy} onPress={googleUser ? doGoogleSignOut : doGoogleSignIn} />
+              </Row>
+            </Card>
+          );
+          if (phoneLayout) {
+            // Phone: a panel on its own page, or the topic list with the Appearance card open under it and the account at the foot.
+            return panel ? <View>{panel}</View> : (
+              <View style={{ gap: 14 }}>
+                {topicList}
+                <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginLeft: 4, marginBottom: -6 }}>APPEARANCE</Text>
+                <Card style={{ padding: 16 }}>{appearanceBody}</Card>
+                <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginLeft: 4, marginBottom: -6 }}>ACCOUNT</Text>
+                {accountCard}
+              </View>
+            );
+          }
           return (
             <View>
+              <View style={{ marginBottom: 14 }}>{accountCard}</View>
               <Row gap={10} style={{ marginBottom: 16 }}>
                 {counts.map(([label, n, color, to]) => (
-                  <Pressable key={label} onPress={() => goTab(to)} style={{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: t.surface, borderWidth: 0.5, borderColor: t.border }}>
-                    <Text style={{ color, fontWeight: '800', fontSize: t.fs(20) }}>{n}</Text>
+                  <Pressable key={label} onPress={() => goTab(to)} style={{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }}>
+                    <Text style={{ color, fontFamily: display(), fontWeight: '600', fontSize: t.fs(22) }}>{n}</Text>
                     <Small style={{ fontWeight: '700', textTransform: 'uppercase' }}>{label}</Small>
                   </Pressable>
                 ))}
               </Row>
-              {split ? (
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 18 }}>
-                  {menu}
-                  {panel}
-                </View>
-              ) : (panel || menu)}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 18 }}>
+                {menu}
+                {panel}
+              </View>
             </View>
           );
         })()}
@@ -2545,14 +2085,14 @@ export default function WorkingDashboard() {
         </FadeInUp>
       </SwipeTabs>
 
-      {/* Gmail, with the person's own sign-in (or their own Apps Script). */}
+      {/* Gmail, with the person's own sign-in. */}
       {(tab === 'dashboard' || tab === 'register' || tab === 'done') && mailAvailable && (
-        <Btn style={{ marginTop: 16 }} kind="soft" title="✉️ Fetch Mail" onPress={openMail} />
+        <Btn style={{ marginTop: 16 }} kind="soft" title="Fetch Mail" onPress={openMail} />
       )}
       <View style={{ height: 110 }} />
 
       {/* --- New/edit entry --- */}
-      <Sheet visible={!!entrySheet && formOn} onClose={closeEntrySheet} title={entries.some((x) => x.id === entrySheet?.id) ? 'Edit Entry' : 'New Entry'} full fillDesktop footer={entrySheet && pinSave ? entryButtons : null}>
+      <Sheet visible={!!entrySheet && formOn} onClose={closeEntrySheet} title={entries.some((x) => x.id === entrySheet?.id) ? 'Edit entry' : 'New entry'} full bigTitle fillDesktop footer={entrySheet && pinSave ? entryButtons : null}>
         {!!entrySheet && renderEntryForm()}
       </Sheet>
 
@@ -2613,8 +2153,8 @@ export default function WorkingDashboard() {
               {steps.map((c) => (
                 <Pressable key={c.id} onPress={() => tick(c.id)} accessibilityRole="checkbox" accessibilityState={{ checked: !!c.done }} accessibilityLabel={c.text}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: t.border }}>
-                  <View style={{ width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: c.done ? t.ok : 'transparent', borderWidth: c.done ? 0 : 2, borderColor: t.border }}>
-                    {!!c.done && <Text style={{ color: '#fff', fontWeight: '900', fontSize: t.fs(12) }}>✓</Text>}
+                  <View style={{ width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: c.done ? t.primary : 'transparent', borderWidth: c.done ? 0 : 2, borderColor: t.textDim }}>
+                    {!!c.done && <Icon name="check" size={14} color={t.onAccent} stroke={3} />}
                   </View>
                   <Text style={{ flex: 1, color: c.done ? t.textDim : t.text, fontSize: t.fs(14), textDecorationLine: c.done ? 'line-through' : 'none' }}>{c.text}</Text>
                 </Pressable>
@@ -2636,7 +2176,7 @@ export default function WorkingDashboard() {
           return fe ? (
             <View>
               <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), marginBottom: 10 }}>{fe.title}</Text>
-              <BankFollowUpForm quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={fe} draft={followSheet} onChange={(patch) => setFollowSheet((s) => ({ ...s, ...patch }))} />
+              <BankFollowUpForm holidays={holidayList} leaveDays={leaveList} quickRemarks={wd.followUpRemarks} onQuickRemarks={(list) => updateWd((w) => ({ ...w, followUpRemarks: list }))} entry={fe} draft={followSheet} onChange={(patch) => setFollowSheet((s) => ({ ...s, ...patch }))} />
               <Btn title="Save follow-up" onPress={saveFollowUp} />
             </View>
           ) : null;
@@ -2644,42 +2184,7 @@ export default function WorkingDashboard() {
       </Sheet>
 
       {/* --- Holiday editor --- */}
-      <Sheet visible={!!holidaySheet} onClose={() => setHolidaySheet(null)} title="Holiday">
-        {!!holidaySheet && (
-          <View>
-            <Field label="Name" value={holidaySheet.title} onChangeText={(v) => setHolidaySheet({ ...holidaySheet, title: v })} placeholder="e.g. Gandhi Jayanti" />
-            <Row gap={10}>
-              <View style={{ flex: 1 }}><DateTimeField label="Date" mode="date" value={holidaySheet.date ? new Date(`${holidayDateKey(holidaySheet.date)}T12:00:00`).toISOString() : null} onChange={(v) => setHolidaySheet({ ...holidaySheet, date: holidayDateKey(new Date(v)) })} /></View>
-              <View style={{ flex: 1 }}><DateTimeField label="End date (optional)" mode="date" value={holidaySheet.endDate ? new Date(`${holidayDateKey(holidaySheet.endDate)}T12:00:00`).toISOString() : null} onChange={(v) => setHolidaySheet({ ...holidaySheet, endDate: holidayDateKey(new Date(v)) })} /></View>
-            </Row>
-            <Field label="Holiday calendar (optional)" value={holidaySheet.tag} onChangeText={(v) => setHolidaySheet({ ...holidaySheet, tag: v })} placeholder="e.g. Indian Bank Holiday, USD Holiday" />
-            {/* The web app's "Office closed" tick: a closed day moves Daily tasks on and is offered "Postpone"; a market-only (USD) holiday is a working day. */}
-            <Pressable onPress={() => setHolidaySheet({ ...holidaySheet, officeClosed: !isOfficeClosed(holidaySheet) })} accessibilityRole="checkbox" accessibilityState={{ checked: isOfficeClosed(holidaySheet) }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <View style={{ width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: isOfficeClosed(holidaySheet) ? t.accent : 'transparent', borderWidth: isOfficeClosed(holidaySheet) ? 0 : 2, borderColor: t.accent }}>
-                {isOfficeClosed(holidaySheet) && <Text style={{ color: '#fff', fontWeight: '900' }}>✓</Text>}
-              </View>
-              <Text style={{ flex: 1, color: t.text, fontSize: t.fs(14) }}><Text style={{ fontWeight: '800' }}>Office closed</Text> - untick for a market-only holiday (a working day here)</Text>
-            </Pressable>
-            <Btn title="Save" onPress={saveHoliday} />
-            {holidayList.some((x) => x.id === holidaySheet.id) && (
-              <Btn style={{ marginTop: 8 }} kind="danger" title="Delete" onPress={() => { removeHoliday(holidaySheet.id); setHolidaySheet(null); }} />
-            )}
-          </View>
-        )}
-      </Sheet>
-
-      {/* --- Config sub-screens (tablets and desktop browsers; a phone shows them on the Config page) --- */}
-      {!phoneLayout && CONFIG_SHEETS.map(([key, title]) => (
-        <Sheet key={key} visible={configSection === key} onClose={() => setConfigSection(null)} title={title} full>
-          {configBodies[key]}
-        </Sheet>
-      ))}
-      {!phoneLayout && ['walk', 'water'].map((kind) => (
-        <Sheet key={kind} visible={configSection === kind} onClose={() => setConfigSection(null)} title={kind === 'walk' ? 'Walk Reminder' : 'Water Reminder'} full>
-          {reminderBody(kind)}
-        </Sheet>
-      ))}
+      <WdHolidaySheet holidaySheet={holidaySheet} setHolidaySheet={setHolidaySheet} holidayList={holidayList} saveHoliday={saveHoliday} removeHoliday={removeHoliday} />
 
       <CommandPalette visible={paletteOpen} onClose={() => setPaletteOpen(false)} tabs={BAR_TABS} entries={entries}
         onGoTab={goTab} onOpenEntry={(e) => openEditEntry(e)} onQuickAdd={(text) => quickAdd(text)} />
@@ -2687,11 +2192,11 @@ export default function WorkingDashboard() {
       {/* --- Fetch Mail --- */}
       <Sheet visible={mailSheet} onClose={closeMail} title="Fetch Mail" full>
         {!mailAvailable ? (
-          <P dim>Sign in with Google (Config &gt; Realtime Sync) to fetch your unread mail.</P>
+          <P dim>Sign in with Google (Config) to fetch your unread mail.</P>
         ) : (
           <View>
             <Row gap={8}>
-              <Field style={{ flex: 1 }} value={mailQuery} onChangeText={setMailQuery} placeholder="🔍 Search fetched mail..." />
+              <Field style={{ flex: 1 }} value={mailQuery} onChangeText={setMailQuery} placeholder="Search fetched mail" />
               <Btn title={mailBusy ? 'Fetching...' : 'Refresh'} disabled={mailBusy} onPress={openMail} style={{ paddingHorizontal: 14 }} />
             </Row>
             {mailBusy && <P dim style={{ marginTop: 10 }}>Fetching your unread mail...</P>}
@@ -2714,35 +2219,68 @@ export default function WorkingDashboard() {
 
     {/* Phone Report: Copy, the AI rewrite and the send options stay at the foot of the screen, above the tab bar. */}
     {phoneLayout && tab === 'report' && !!reportText && (
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: aboveBar - 8, flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, backgroundColor: t.surface, borderTopWidth: 0.5, borderTopColor: t.border }}>
-        <Btn style={{ flex: 1.4 }} title="📋 Copy" onPress={copyReport} />
-        <Btn style={{ flex: 1.4 }} kind="soft" title={aiBusy ? 'Writing…' : '✨ AI'} disabled={aiBusy} onPress={rewriteAny} />
-        <Btn style={{ flex: 1 }} kind="soft" title="⤴ Send" onPress={() => setShareOpen(true)} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: aboveBar - 10, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, backgroundColor: t.bg }}>
+        <Btn style={{ flex: 2 }} title="Copy report" onPress={copyReport} />
+        <Btn style={{ flex: 1.5 }} kind="soft" title={aiBusy ? 'Writing…' : 'Rewrite with AI'} disabled={aiBusy} onPress={rewriteAny} />
+        <Pressable onPress={() => setShareOpen(true)} accessibilityRole="button" accessibilityLabel="Send the report" style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surfaceAlt, opacity: pressed ? 0.85 : 1 })}>
+          <Icon name="share" size={20} color={t.text} stroke={1.9} />
+        </Pressable>
       </View>
     )}
+    <Sheet visible={!!groupOpen && !!reportModel && !!reportModel.groups} onClose={() => setGroupOpen('')} title={({ oth: 'Other work', pay: 'Payments', fol: 'Followed up', out: 'Left out (Done, not DAR)' })[groupOpen] || ''}>
+      {((reportModel && reportModel.groups && reportModel.groups[groupOpen]) || []).map((it) => (
+        <View key={it.id} style={{ backgroundColor: t.surface, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: t.border }}>
+          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14) }}>{it.title}</Text>
+          {!!it.line && it.line !== it.title && <Text style={{ color: t.textDim, fontSize: t.fs(13), marginTop: 3 }}>{it.line}</Text>}
+          <Text style={{ color: t.textDim, fontSize: t.fs(11), fontWeight: '800', marginTop: 8 }}>MOVE TO</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+            {REPORT_GROUPS.map((g) => (
+              <Pressable key={g.key} onPress={() => moveTask(it.id, g.key)} accessibilityRole="button" accessibilityState={{ selected: g.key === groupOpen }} style={{ borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: g.key === groupOpen ? t.primaryDark : t.surfaceAlt }}>
+                <Text style={{ color: g.key === groupOpen ? '#fff' : t.text, fontWeight: '800', fontSize: t.fs(12) }}>{g.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ))}
+      {!((reportModel && reportModel.groups && reportModel.groups[groupOpen]) || []).length && <Text style={{ color: t.textDim }}>Nothing here.</Text>}
+      {Object.keys(dayMoves).length > 0 && <Btn title={`Undo my moves (${Object.keys(dayMoves).length})`} kind="ghost" onPress={undoMoves} />}
+    </Sheet>
+    <Sheet visible={monthEndOpen} onClose={() => setMonthEndOpen(false)} title="Month end (last working days)">
+      {monthEndOptions(new Date(), (k) => isNonWorkingDay(k, holidayList, leaveList), 5).map((m) => (
+        <Pressable key={m.key} onPress={() => { setEntrySheet((d) => ({ ...d, dueAt: new Date(`${m.key}T00:00:00`).toISOString() })); setMonthEndOpen(false); }} accessibilityRole="button" style={{ backgroundColor: t.surface, borderRadius: 16, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: t.border }}>
+          <Text style={{ color: t.text, fontWeight: '700' }}>{m.label}</Text>
+        </Pressable>
+      ))}
+    </Sheet>
+    <Sheet visible={!!subPop} onClose={() => setSubPop(null)} title={subPop ? `${subPop.category} - Sub categories` : ''}>
+      {subPop && groupCounts(subPop.list, (e) => e.subCategory, 'None chosen').map((r) => (
+        <Pressable key={r.label} onPress={() => { const sp = subPop; setSubPop(null); openRegister({ category: sp.category, subCategory: r.label === 'None chosen' ? '__none' : r.label, dueWithin: sp.due }); }} accessibilityRole="button" style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: t.surface, borderRadius: 16, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: t.border }}>
+          <Text style={{ color: t.text, fontWeight: '700', flex: 1 }}>{r.label}</Text>
+          <Text style={{ color: t.accent, fontWeight: '800' }}>{r.count}</Text>
+        </Pressable>
+      ))}
+      {!!subPop && <Btn kind="soft" title={`All ${subPop.category} tasks`} onPress={() => { const sp = subPop; setSubPop(null); openRegister({ category: sp.category, dueWithin: sp.due }); }} />}
+    </Sheet>
     <Sheet visible={shareOpen} onClose={() => setShareOpen(false)} title="Send the report">
       <Field label="SEND TO (Email fills this in)" value={wd.reportEmail || ''} keyboardType="email-address" autoCapitalize="none" onChangeText={(v) => updateWd((w) => ({ ...w, reportEmail: v }))} placeholder="manager@company.com" />
-      <Btn style={{ marginBottom: 8 }} title="✉️ Email" onPress={() => { setShareOpen(false); emailReport(); }} />
-      <Btn style={{ marginBottom: 8 }} kind="soft" title="📄 PDF" onPress={() => { setShareOpen(false); pdfReport(); }} />
-      <Btn kind="soft" title="⬇ Excel" onPress={() => { setShareOpen(false); csvReport(); }} />
+      <Btn style={{ marginBottom: 8 }} title="Email" onPress={() => { setShareOpen(false); emailReport(); }} />
+      <Btn style={{ marginBottom: 8 }} kind="soft" title="PDF" onPress={() => { setShareOpen(false); pdfReport(); }} />
+      <Btn kind="soft" title="Excel" onPress={() => { setShareOpen(false); csvReport(); }} />
     </Sheet>
 
-    {formOn && (tab === 'dashboard' || tab === 'register') && (
-      <Pressable
-        onPress={openNewEntry}
-        accessibilityLabel="New entry"
-        style={{ position: 'absolute', right: wide ? 32 : 18, bottom: fabBottom, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, elevation: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
-      >
-        <Text style={{ color: '#fff', fontSize: 30, lineHeight: 34, fontWeight: '300' }}>+</Text>
-      </Pressable>
-    )}
-    <UndoBar undo={undo} onUndo={runUndo} onHide={() => setUndo(null)} bottom={wide ? 24 : Math.max(insets.bottom, 8) + 84} left={sideBar + 16} />
+    {formOn && (tab === 'dashboard' || tab === 'register') && <Fab onPress={openNewEntry} right={wide ? 32 : 20} bottom={fabBottom} />}
+    <UndoBar undo={undo} onUndo={runUndo} onHide={() => setUndo(null)} bottom={wide ? 24 : aboveBar + 8} left={sideBar + 20} />
     <BottomTabs
       tabs={BAR_TABS}
       value={tab}
-      badges={{ dashboard: stats.pendingAsOnToday, register: openEntries.length, done: doneEntries.length, bin: binnedEntries.length }}
+      badges={{ dashboard: stats.pendingAsOnToday, register: openEntries.length, done: allDone.length, bin: binnedEntries.length }}
       onChange={goTab}
     />
+    {introNeeded && (
+      <WdAlarmIntro kind={alarmBlock}
+        onAllow={() => { (alarmBlock === 'overlay' ? requestOverlayPermission() : requestFullScreenIntentPermission()); updateWd((w) => ({ ...w, alarmIntroSeen: true })); }}
+        onSkip={() => updateWd((w) => ({ ...w, alarmIntroSeen: true }))} />
+    )}
     </View>
   );
 }

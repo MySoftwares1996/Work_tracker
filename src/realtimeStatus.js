@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 // authKnown: Firebase has said who is signed in (or that no one is) since the app started.
 let state = { user: null, authKnown: false, listenError: '', pushError: '', lastPushAt: 0 };
 const subs = new Set();
-export const getRealtimeStatus = () => state;
+
 export function setRealtimeStatus(patch) {
   state = { ...state, ...patch };
   subs.forEach((f) => f());

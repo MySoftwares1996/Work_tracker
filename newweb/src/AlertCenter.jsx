@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from './store';
-import Logo from './Logo';
+import Icon from './icons';
+import { priTone } from './ui';
 import ClockPicker from './ClockPicker';
-import { SNOOZES, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel } from './data';
+import { SNOOZES, followUpPicks, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel, DONE_STATUS } from './data';
 import { finalNarration } from './reportFormats';
-import { loadAlertSettings, loadHandled, playAlertSound, saveHandled, showNotification } from './alerts';
+import NotifyExplainer from './NotifyExplainer';
+import { loadAlertSettings, saveAlertSettings, loadHandled, playAlertSound, saveHandled, shouldOfferExplainer, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
 const withRemark = (t, text) => {
@@ -20,6 +22,7 @@ export default function AlertCenter({ onOpen }) {
   const { tasks, lists, actions, notify } = useStore();
   const [settings, setSettings] = useState(loadAlertSettings);
   const [queue, setQueue] = useState([]);
+  const [explain, setExplain] = useState(false);       // the notification explainer, offered once when a due alert first pops up (not again for 7 days after "Not now")
   const handled = useRef(loadHandled());
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
@@ -56,6 +59,7 @@ export default function AlertCenter({ onOpen }) {
       });
       if (!popups.length) return;
       setQueue((q) => [...q, ...popups]);
+      if (shouldOfferExplainer()) setExplain(true);
       if (ring) playAlertSound();
       if (settings.notify && document.hidden) showNotification(alertHeading(popups[0]), popups[0].task.title);
     };
@@ -78,7 +82,11 @@ export default function AlertCenter({ onOpen }) {
     return () => { document.title = base; };
   }, [current]);
 
-  if (!current) return null;
+  const explained = (r) => {
+    setExplain(false);
+    if (r === 'granted') { saveAlertSettings({ ...loadAlertSettings(), notify: true }); setSettings(loadAlertSettings()); window.dispatchEvent(new Event('wd-alert-settings')); }
+  };
+  if (!current) return explain && shouldOfferExplainer() ? <NotifyExplainer onDone={explained} /> : null;      // after the alert is dealt with, not on top of it
   const finish = (a) => { handled.current.set(a.key, Date.now()); saveHandled(handled.current); setQueue((q) => q.filter((x) => x.key !== a.key)); };
   return <AlertCard key={current.key} a={current} count={live.length} lists={lists} actions={actions} finish={finish} onOpen={onOpen} notify={notify} />;
 }
@@ -92,6 +100,7 @@ function AlertNarration({ t }) {
 }
 
 function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
+  const { calendar } = useStore();
   const t = a.task;
   const today = dayKey(new Date());
   const [remarks, setRemarks] = useState('');
@@ -136,7 +145,16 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
     save({ nextReminder: when });
   };
   const skip = () => (a.kind === 'reminder' ? save({ nextReminder: null }) : save({ skippedDates: [...(t.skippedDates || []), today] }));
-  const move = () => { if (/^completed$/i.test(status) && needsFields(withSub(t))) return; if (!a.test) actions.save(withRemark(withFollowUp(withSub(moveTask(t, date, time, status, repeat))), remarks)); finish(a); };
+  const move = () => {
+    if (DONE_STATUS.test(status)) {      // "Completed" in the Move tab completes the task (work log, next repeat), as the Done button does
+      if (needsFields(withSub(t))) return;
+      if (!a.test) actions.complete(withRemark(withFollowUp(withSub(t)), remarks), t.dar);
+      finish(a);
+      return;
+    }
+    if (!a.test) actions.save(withRemark(withFollowUp(withSub(moveTask(t, date, time, status, repeat))), remarks));
+    finish(a);
+  };
   // Wide and short: the choices sit in tabs beside the task, and the main buttons stay in a bar along the bottom.
   const hasReply = !!(sc || (subList.length > 0 && !t.subCategory));
   const tabs = [...(hasReply ? [['reply', 'Reply']] : []), ...(asks ? [['reminder', 'Reminder']] : []), ['move', 'Move'], ['snooze', 'Snooze']];
@@ -147,26 +165,28 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
     <div className="alert-overlay" role="alertdialog" aria-modal="true" aria-label="Task due now">
       <div className={`alert-card tone-${tone}`}>
         <div className="alert-band">
-          <span className="alert-bell" aria-hidden="true"><Logo size={44} /></span>
+          <span className="alert-bell" aria-hidden="true"><Icon name="bell" size={30} strokeWidth={1.8} /></span>
           <div className="alert-band-text">
-            <div className="alert-heading">{alertHeading(a)}</div>
-            <div className="alert-meta">{a.test ? 'Test alert' : dueLabel(t)}{count > 1 ? ` · ${count - 1} more waiting` : ''}</div>
+            <span className="alert-heading">{alertHeading(a)}</span>
+            <h2 className="alert-title">{t.title}</h2>
           </div>
-          <button type="button" className="alert-close" onClick={() => finish(a)} aria-label="Dismiss this alert">✕</button>
+          <div className="alert-side">
+            <span className="alert-meta">{a.test ? 'Test alert' : dueLabel(t)}{count > 1 ? ` · ${count - 1} more waiting` : ''}</span>
+            <button type="button" className="alert-close" onClick={() => finish(a)} aria-label="Dismiss this alert"><Icon name="x" size={18} /></button>
+          </div>
         </div>
         <div className="alert-main">
           <div className="alert-left">
-            <h2 className="alert-title">{t.title}</h2>
             <div className="chips">
-              {t.priority && <span className="chip coral">{t.priority}</span>}
+              {t.priority && <span className={`chip ${priTone(t.priority)}`}>{t.priority}</span>}
               {t.category && <span className="chip violet">{t.category}</span>}
               {t.pendingWith && <span className="chip amber">Pending with: {t.pendingWith}</span>}
               {t.status && <span className="chip">{t.status}</span>}
-              {t.recurrence !== RECURRENCES[0] && <span className="chip">↻ {t.recurrence}</span>}
+              {t.recurrence !== RECURRENCES[0] && <span className="chip"><Icon name="repeat" size={12} />{t.recurrence}</span>}
             </div>
             {(t.reference || t.notes) && (
               <div className="alert-notes">
-                {t.reference && <p>✉ {t.reference}</p>}
+                {t.reference && <p className="alert-ref"><Icon name="mail" size={14} />{t.reference}</p>}
                 {t.notes && <p>{t.notes}</p>}
               </div>
             )}
@@ -209,6 +229,11 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
                     <button type="button" className="time-btn" onClick={() => setRClock(true)} aria-label="Pick the next reminder time on a clock"><span>{timeLabel(rTime) || 'Set time'}</span></button>
                     <button type="button" className="btn primary" onClick={setReminder} disabled={!rDate}>Save &amp; set next reminder</button>
                   </div>
+                  {isBankFollowUp(t.category) && (
+                    <div className="move-row" aria-label="Follow up again in">{followUpPicks(new Date(), calendar).map((pk) => (
+                      <button key={pk.label} type="button" className="btn" onClick={() => { setRDate(pk.key); setRError(''); }}>{pk.label}</button>
+                    ))}</div>
+                  )}
                   {rError && <p className="banner err" role="alert">{rError}</p>}
                 </div>
               )}

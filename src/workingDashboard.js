@@ -120,31 +120,12 @@ export function isDueThisMonth(e, now = new Date()) {
   const d = dueDate(e);
   return isOpen(e) && !!d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
-export const hasNoDueDate = (e) => isOpen(e) && !e.dueAt;
-
-/**
- * The Category / Priority / Status / Pending-with lists with every value the
- * given entries use added (case-insensitive, existing spelling kept). Entries
- * loaded from the sheet use values the app's lists have never seen, and a
- * value missing from its list cannot be picked in a filter or the entry form.
- */
-export function listsWithEntryValues(w, entries = []) {
-  const add = (list = [], values) => {
-    const have = new Set(list.map((x) => String(x).toLowerCase()));
-    const out = [...list];
-    for (const v of values) {
-      const k = String(v ?? '').trim();
-      if (k && !have.has(k.toLowerCase())) { have.add(k.toLowerCase()); out.push(k); }
-    }
-    return out;
-  };
-  return {
-    categories: add(w.categories, entries.map((e) => e.category)),
-    priorities: add(w.priorities, entries.map((e) => e.priority)),
-    statuses: add(w.statuses, entries.map((e) => e.status)),
-    assignees: add(w.assignees, entries.map((e) => e.pendingWith)),
-  };
+export function isDueNextMonth(e, now = new Date()) {
+  const d = dueDate(e);
+  const n = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return isOpen(e) && !!d && d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth();
 }
+export const hasNoDueDate = (e) => isOpen(e) && !e.dueAt;
 
 /** The Dashboard tab's 7 stat tiles. */
 export function dashboardStats(entries = [], now = new Date()) {
@@ -157,6 +138,7 @@ export function dashboardStats(entries = [], now = new Date()) {
     overdue: overdue.length,
     next7Days: open.filter((e) => isDueInNext7Days(e, now)).length,
     thisMonth: open.filter((e) => isDueThisMonth(e, now)).length,
+    nextMonth: open.filter((e) => isDueNextMonth(e, now)).length,
     noDueDate: open.filter(hasNoDueDate).length,
     pending: open.filter((e) => e.status === 'Pending').length,
     totalOpen: open.length,
@@ -181,14 +163,14 @@ export const NO_VALUE_LABEL = 'Uncategorised';
 export const NO_ASSIGNEE_LABEL = 'Unassigned';
 // Overdue or due today - what the "Pending as on Today" tile counts. Not one of the segmented options.
 export const DUE_TILL_TODAY = 'Till Today';
-export const EMPTY_WD_FILTER = { query: '', category: ANY, priority: ANY, status: ANY, pendingWith: ANY, dueWithin: ANY, bank: '' };
-export const DUE_WITHIN_OPTIONS = [ANY, 'Overdue', 'Today', 'Next 7 Days', 'This Month', 'No Due Date'];
+export const EMPTY_WD_FILTER = { query: '', category: ANY, priority: ANY, status: ANY, pendingWith: ANY, dueWithin: ANY, bank: '', subCategory: '' };
+export const DUE_WITHIN_OPTIONS = [ANY, 'Overdue', 'Today', 'Next 7 Days', 'This Month', 'Next Month', 'No Due Date'];
 
 export function isWdFilterActive(f = {}) {
   return !!String(f.query || '').trim()
     || (f.category && f.category !== ANY) || (f.priority && f.priority !== ANY)
     || (f.status && f.status !== ANY) || (f.pendingWith && f.pendingWith !== ANY)
-    || (f.dueWithin && f.dueWithin !== ANY) || !!f.bank;
+    || (f.dueWithin && f.dueWithin !== ANY) || !!f.bank || !!f.subCategory;
 }
 
 /** The bank a bank follow-up was last followed up with ('' when none was named) - the web app's "by bank" view. */
@@ -198,7 +180,7 @@ export function lastNamedBank(e) {
 }
 
 const DUE_WITHIN_CHECK = {
-  Overdue: isOverdue, Today: isDueToday, 'Next 7 Days': isDueInNext7Days, 'This Month': isDueThisMonth, 'No Due Date': hasNoDueDate,
+  Overdue: isOverdue, Today: isDueToday, 'Next 7 Days': isDueInNext7Days, 'This Month': isDueThisMonth, 'Next Month': isDueNextMonth, 'No Due Date': hasNoDueDate,
   [DUE_TILL_TODAY]: (e, now) => isOverdue(e, now) || isDueToday(e, now),
 };
 
@@ -225,6 +207,8 @@ export function filterEntries(entries = [], f = EMPTY_WD_FILTER, now = new Date(
     if (f.priority && f.priority !== ANY && !fieldMatches(e.priority, f.priority, NO_VALUE_LABEL)) return false;
     if (f.status && f.status !== ANY && !fieldMatches(e.status, f.status, NO_VALUE_LABEL)) return false;
     if (f.pendingWith && f.pendingWith !== ANY && !fieldMatches(e.pendingWith, f.pendingWith, NO_ASSIGNEE_LABEL)) return false;
+    // A Sub Category ('__none' = tasks with none chosen), as the website's Register.
+    if (f.subCategory && (f.subCategory === '__none' ? !!e.subCategory : e.subCategory !== f.subCategory)) return false;
     // web.app's "by bank" view: one bank's follow-ups ('-' = those with no bank named).
     if (f.bank && (f.bank === '-' ? lastNamedBank(e) : lastNamedBank(e).toLowerCase() !== String(f.bank).toLowerCase())) return false;
     if (f.dueWithin && f.dueWithin !== ANY) {
@@ -332,8 +316,6 @@ export const toggleEntryDar = (e, now = new Date()) => ({ ...e, dar: e.dar === f
  * deadlineAckDate as YYYY-MM-DD) and synced, so pressing either on one device stops the other alarming too.
  */
 export const snoozeEntry = (e, untilMs, now = new Date()) => ({ ...e, snoozeUntil: Math.round(Number(untilMs)) || null, snoozeCount: (Number(e.snoozeCount) || 0) + 1, ...editedNow(now) });
-/** Snoozed this many times in a row: the alert then suggests moving the task instead (see snoozeSuggestions). */
-export const SNOOZE_NUDGE_AFTER = 3;
 export function silenceEntryToday(e, now = new Date()) {
   const today = toDateKey(now);
   const dl = e.deadlineAt ? new Date(e.deadlineAt) : null;
@@ -582,77 +564,6 @@ export function holidayBlocks(holidays = []) {
   return blocks.sort((a, b) => a.start.localeCompare(b.start));
 }
 
-/* ---------- CSV ---------- */
-
-export const WD_CSV_COLUMNS = [
-  'Title', 'Category', 'Priority', 'Status', 'Pending With', 'Reference', 'Recurrence',
-  'Repeat every (min)', 'Due date', 'Due time', 'Deadline date', 'Deadline time', 'Notes', 'DAR', 'Done', 'Id',
-];
-
-const p2 = (n) => String(n).padStart(2, '0');
-const dateCell = (iso) => { if (!iso) return ''; const d = new Date(iso); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
-const timeCell = (iso) => { if (!iso) return ''; const d = new Date(iso); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
-
-export function entriesToCsvRows(entries = []) {
-  return entries.filter((e) => !e.binned).map((e) => ({
-    Title: e.title || '', Category: e.category || '', Priority: e.priority || '', Status: e.status || '',
-    'Pending With': e.pendingWith || '', Reference: e.reference || '', Recurrence: e.recurrence || 'none', 'Repeat every (min)': e.recurrence === 'custom' ? (e.recurrenceEveryMin || '') : '',
-    'Due date': dateCell(e.dueAt), 'Due time': timeCell(e.dueAt),
-    'Deadline date': dateCell(e.deadlineAt), 'Deadline time': timeCell(e.deadlineAt),
-    Notes: e.notes || '', DAR: e.dar !== false ? 'Yes' : 'No', Done: e.done ? 'Yes' : 'No', Id: e.id || '',
-  }));
-}
-
-function combineDateTime(dateStr, timeStr) {
-  // The export writes 2026-10-05 and 17:30; the same file saved again by Excel comes back as 05/10/2026
-  // and 5:30 PM, and reading only the first form dropped every date (and the PM) on import.
-  const k = holidayDateKey(typeof dateStr === 'string' ? dateStr.trim() : dateStr);
-  if (!k) return null;
-  const [y, m, d] = k.split('-').map(Number);
-  const t = /^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i.exec(String(timeStr ?? '').trim());
-  let hh = t ? Number(t[1]) : 0;
-  const mm = t ? Number(t[2]) : 0;
-  if (t && t[3]) { if (/pm/i.test(t[3]) && hh < 12) hh += 12; if (/am/i.test(t[3]) && hh === 12) hh = 0; }
-  const dt = new Date(y, m - 1, d, hh, mm);
-  return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
-}
-
-/** Imports rows from entriesToCsvRows()'s own shape; dedupes by Id, else by title+due date. */
-export function csvRowsToEntries(rows = [], { existing = [] } = {}) {
-  const existingIds = new Set(existing.map((e) => e.id));
-  const existingKeys = new Set(existing.map((e) => `${e.title}|${dateCell(e.dueAt)}`));
-  const out = [];
-  for (const r of rows) {
-    const title = String(r.Title || r.title || '').trim();
-    if (!title) continue;
-    const id = String(r.Id || r.id || '').trim();
-    const dueAt = combineDateTime(r['Due date'] || r.due_date, r['Due time'] || r.due_time);
-    const key = `${title}|${dateCell(dueAt)}`;
-    if (id && existingIds.has(id)) continue;
-    if (!id && existingKeys.has(key)) continue;
-    existingKeys.add(key);
-    out.push({
-      ...blankEntry(),
-      localEditAt: Date.now(),
-      id: id || uid(),
-      title,
-      category: r.Category || r.category || null,
-      priority: r.Priority || r.priority || 'Medium',
-      status: r.Status || r.status || 'Pending',
-      pendingWith: r['Pending With'] || r.pending_with || null,
-      reference: r.Reference || r.reference || '',
-      recurrence: RECURRENCES.includes(r.Recurrence) ? r.Recurrence : 'none',
-      recurrenceEveryMin: Number(r['Repeat every (min)']) || null,
-      dueAt,
-      deadlineAt: combineDateTime(r['Deadline date'] || r.deadline_date, r['Deadline time'] || r.deadline_time),
-      notes: r.Notes || r.notes || '',
-      // In the report unless the file says No (a file with no DAR column is in, like a task added here).
-      dar: !/^n/i.test(String(r.DAR ?? '').trim()),
-      done: /^y/i.test(String(r.Done || '')),
-    });
-  }
-  return out;
-}
 
 /* ---------- Time Slots ---------- */
 
@@ -708,12 +619,6 @@ export function reminderTimesAhead(reminder, now = new Date(), days = 3) {
  * gap (minutes) until it is done. Only moments still in the future are kept.
  */
 export const ENTRY_NAG_AFTER = [0, 10, 30, 60, 120, 240];
-export function entryAlertTimes(entry, now = new Date(), gaps = ENTRY_NAG_AFTER) {
-  if (!entry || !entry.dueAt || entry.done || entry.binned) return [];
-  const due = new Date(entry.dueAt).getTime();
-  if (!due) return [];
-  return gaps.map((m) => ({ at: new Date(due + m * 60000), after: m })).filter((x) => x.at.getTime() > now.getTime() + 1000);
-}
 
 // fullScreen: the due time and deadline ring as an alarm that keeps going until answered. followUps: keep ringing
 // again after the due time (+10 min, 30 min, 1 hr, 2 hr, 4 hr) until the entry is done. warningsRing: the
@@ -794,6 +699,7 @@ export function applyQuietHours(items0, entry, cfg) {
   }
   return out;
 }
+export const DATE_ONLY_ALERT = '19:00';      // the one alert of a task due on a date with no time
 const DEADLINE_LEAD_MIN = [24 * 60, 120, 30];
 // How many days ahead the once-a-day "still overdue" reminder is booked; the app books the next days as they come.
 export const DAILY_REMINDER_DAYS = 3;
@@ -812,7 +718,7 @@ const clock = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digi
  * Every alert one open entry should give, soonest first, future ones only:
  *  - due with a time: a warning before it (alerts.dueLeadMin, e.g. 1 hr and 15 min), an alarm that keeps
  *    ringing at it (alarm: true), then "still pending" follow-up alarms (ENTRY_NAG_AFTER) until it is done;
- *  - due on a date only: the evening before, the morning of, and the next morning if still open;
+ *  - due on a date only: one alert at 7 PM on that date (DATE_ONLY_ALERT), never again;
  *  - a deadline: 1 day, 2 hours and 30 minutes before, and an alarm at it (date only: the evening
  *    before and the morning of).
  * Each item: { at: Date, key, title, body, alarm }.
@@ -876,9 +782,8 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
   const due = entry.dueAt ? new Date(entry.dueAt) : null;
   if (due && !Number.isNaN(due.getTime())) {
     if (isDateOnly(due)) {
-      add(atClock(dayShift(due, -1), cfg.evening, '18:00'), 'due-eve', 'Due tomorrow', name);
-      add(atClock(due, cfg.morning, '09:30'), 'due-day', 'Due today', name, ring);
-      add(atClock(dayShift(due, 1), cfg.morning, '09:30'), 'due-late', 'Overdue since yesterday', name);
+      // A date with no time alerts once, at 7 PM on that date, and never again (the website does the same).
+      add(atClock(due, DATE_ONLY_ALERT, DATE_ONLY_ALERT), 'due-day', 'Due today', name, ring);
     } else {
       for (const m of [...new Set((cfg.dueLeadMin || []).map(Number).filter((x) => x > 0))].sort((a, b) => b - a)) {
         add(new Date(due.getTime() - m * 60000), `due-${m}`, `Due in ${leadText(m)} · ${clock(due)}`, name);       // a warning: never an alarm
@@ -892,15 +797,23 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
     }
     // Still open on a later day: it rings again at the same time every day until it is done (a task due
     // yesterday at 15:00 rings today at 15:00, tomorrow at 15:00...). A date-only entry rings at the morning time.
-    if (cfg.followUps !== false) {
+    if (cfg.followUps !== false && !isDateOnly(due)) {
       const wasDue = due.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
+      // Counted from the later of the due day and today, so a task left open for days still has the next ones ahead.
+      const dueDay = dayShift(due, 0);
+      const sinceDue = Math.round((dayShift(now, 0) - dueDay) / 86400000);
+      const first = Math.max(1, sinceDue);
       for (let k = 1; k <= DAILY_REMINDER_DAYS; k++) {
-        const day = dayShift(due, k);
+        const day = dayShift(due, first + k - 1);
         const at = isDateOnly(due) ? atClock(day, cfg.morning, '09:30') : new Date(day.getFullYear(), day.getMonth(), day.getDate(), due.getHours(), due.getMinutes());
         add(at, `daily-${k}`, `Still overdue: ${name}`, `Was due ${wasDue}. Mark it done, or move it.`, ring);
       }
     }
   }
+
+  // The next reminder the person set (the website's "Next reminder date & time"): one alert at that moment.
+  const nr = entry.nextReminderAt ? new Date(entry.nextReminderAt) : null;
+  if (nr && !Number.isNaN(nr.getTime())) add(nr, 'reminder', `Reminder: ${name}`, 'Your next reminder for this task.', ring);
 
   const dl = cfg.deadline && entry.deadlineAt ? new Date(entry.deadlineAt) : null;
   if (dl && !Number.isNaN(dl.getTime())) {
@@ -917,12 +830,11 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
   const snoozeEnd = Number(entry.snoozeUntil) || 0;
   const today = toDateKey(now);
   const sameDay = (d) => toDateKey(d) === today;
-  let kept = applyQuietHours(out.filter((x) => {
-    if (snoozeEnd && x.at.getTime() < snoozeEnd) return false;
+  // The "silenced today" filter runs after quiet hours move an alert, so 22:00 today shifted to 08:00 tomorrow still rings.
+  let kept = applyQuietHours(out.filter((x) => !(snoozeEnd && x.at.getTime() < snoozeEnd)), entry, cfg).filter((x) => {
     const isDeadline = x.key.startsWith('dl');
-    if (sameDay(x.at) && (isDeadline ? entry.deadlineAckDate === today : entry.lastAckDate === today)) return false;
-    return true;
-  }), entry, cfg);
+    return !(sameDay(x.at) && (isDeadline ? entry.deadlineAckDate === today : entry.lastAckDate === today));
+  });
   if (snoozeEnd > now.getTime() + 1000 && due && !Number.isNaN(due.getTime()) && due.getTime() <= snoozeEnd
     && !(sameDay(new Date(snoozeEnd)) && entry.lastAckDate === today)) {
     kept.push({ at: new Date(snoozeEnd), key: 'snooze', title: `Snoozed: ${name}`, body: 'Mark it done, or snooze it again.', alarm: ring });
@@ -931,24 +843,6 @@ export function entryAlertPlan(entry, now = new Date(), alerts = DEFAULT_ALERTS)
   kept.sort((a, b) => a.at - b.at || Number(b.alarm) - Number(a.alarm));
   kept = kept.filter((x, i) => !i || x.at - kept[i - 1].at >= 60000);
   return kept;
-}
-
-/**
- * Groups of open entries that look like the same task logged twice - same
- * title + category. Completed ones are left out: every completed occurrence of
- * a repeating entry shares its title and category, and listing that history
- * as duplicates (with "Delete this one" next to each) invited deleting it.
- */
-export function findDuplicateEntries(entries = []) {
-  const map = new Map();
-  for (const e of entries) {
-    if (!isOpen(e)) continue;
-    const key = `${String(e.title || '').trim().toLowerCase()}|${e.category || ''}`;
-    if (!key.replace('|', '')) continue;
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(e);
-  }
-  return [...map.values()].filter((group) => group.length > 1);
 }
 
 /**

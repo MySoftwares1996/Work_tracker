@@ -1,9 +1,6 @@
-import { inApp, askNative } from './nativeBridge';
-
 /** Copies text to the clipboard; resolves true when it worked (inside the Android app it asks the app). Falls back to a hidden textarea where the clipboard API is refused. */
 export async function copyText(text) {
   const value = String(text ?? '');
-  if (inApp() && (await askNative('copy', { text: value }, 5000)) === true) return true;
   try {
     if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(value); return true; }
   } catch { /* fall through to the older way */ }

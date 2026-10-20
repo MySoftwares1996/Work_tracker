@@ -29,7 +29,11 @@ export function rowToDoc(row, now = new Date()) {
   // A row already in the website's own document shape is written as it is.
   if ('description' in row || 'dueDate' in row || 'mailChain' in row) return { id, doc: JSON.parse(JSON.stringify({ ...row, id, purged: false })) };
   const due = asDate(row.dueAt);
-  const hasTime = !!due && !(due.getHours() === 0 && due.getMinutes() === 0);
+  // Date-only when the source says so (hasTime false, a bare date, or local midnight with no time given); a time the source states, even 00:00, is kept.
+  const sourceTime = typeof row.hasTime === 'boolean' ? row.hasTime : (String(row.dueTime || '').trim() ? true : null);
+  const midnight = !!due && due.getHours() === 0 && due.getMinutes() === 0;
+  const bareDate = typeof row.dueAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.dueAt.trim());
+  const hasTime = !!due && !bareDate && (sourceTime !== null ? sourceTime : !midnight);
   const t = {
     ...fromDoc(id, {}),
     id,

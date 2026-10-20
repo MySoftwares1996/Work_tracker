@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { backTab, isLeaving, markLeaving } from './stepBackCore';
-
-export { backTab, markLeaving };
+import { backTab } from './stepBackCore';
 
 /**
  * Back inside a tool: from a page (a person, a list) it closes that page; from any tab other than the first it
@@ -31,7 +29,6 @@ export function useTabHistory(initial, onRestore) {
   }, []);
 
   useEffect(() => navigation.addListener('beforeRemove', (e) => {
-    if (isLeaving()) return;
     const to = backTab(current.current, first.current);
     if (to == null) return;                          // first tab: leave the tool as usual
     e.preventDefault();
@@ -58,24 +55,4 @@ export function useTabHistory(initial, onRestore) {
   return [tab, setTab];
 }
 
-/** While `active` (a page inside a tool is open), Back runs `onBack` - close that page - instead of leaving. */
-export function useBackStep(active, onBack) {
-  const navigation = useNavigation();
-  const handler = useRef(onBack);
-  handler.current = onBack;
-  useEffect(() => {
-    if (!active) return undefined;
-    const unsub = navigation.addListener('beforeRemove', (e) => {
-      if (isLeaving()) return;
-      e.preventDefault();
-      handler.current?.();
-    });
-    // On the app's first screen Android's Back fires no 'beforeRemove' (see useTabHistory).
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!navigation.isFocused() || navigation.canGoBack()) return false;
-      handler.current?.();
-      return true;
-    });
-    return () => { unsub(); sub.remove(); };
-  }, [navigation, active]);
-}
+

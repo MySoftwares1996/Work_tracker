@@ -5,6 +5,7 @@ import { ensureChannel, ensureSelectedChannels } from './ringtones';
 import { scheduleFullScreenAlarm, cancelFullScreenAlarm } from './tracker';
 import { WD_CATEGORY, WD_GENTLE_CATEGORY, WD_DONE, WD_DAR, WD_SNOOZE, WD_SNOOZE_MIN, WD_REMIND, WD_RING } from './workingDashboardNotify';
 import { handleWdAction } from './workingDashboardActions';
+import { warnQuiet } from './quietCatch';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -28,7 +29,7 @@ async function ensureCategories() {
     { identifier: 'DONE', buttonTitle: 'Done', options: { opensAppToForeground: false } },
     { identifier: 'SNOOZE', buttonTitle: 'Snooze 20m', options: { opensAppToForeground: false } },
     { identifier: 'ACK', buttonTitle: 'Ack', options: { opensAppToForeground: false } },
-  ]).catch(() => {});
+  ]).catch(warnQuiet('notify'));
   // Working Dashboard alerts: act on the entry straight from the notification (Android shows the first three buttons), app closed or not. The buttons are
   // symbols (✓ Done, 💤 Snooze, 🔕 Reminder only, 🔔 Ring as alarm) so they sit on one line in the notification centre.
   await Notifications.setNotificationCategoryAsync(WD_CATEGORY, [
@@ -36,14 +37,14 @@ async function ensureCategories() {
     { identifier: WD_DAR, buttonTitle: '✓ DAR', options: { opensAppToForeground: false } },
     { identifier: WD_SNOOZE, buttonTitle: `💤 ${WD_SNOOZE_MIN}m`, options: { opensAppToForeground: false } },
     { identifier: WD_REMIND, buttonTitle: '🔕', options: { opensAppToForeground: false } },
-  ]).catch(() => {});
+  ]).catch(warnQuiet('notify'));
   // A Reminder task's alerts: the same, with a button to make it ring as an alarm instead.
   await Notifications.setNotificationCategoryAsync(WD_GENTLE_CATEGORY, [
     { identifier: WD_DONE, buttonTitle: '✓', options: { opensAppToForeground: false } },
     { identifier: WD_DAR, buttonTitle: '✓ DAR', options: { opensAppToForeground: false } },
     { identifier: WD_SNOOZE, buttonTitle: `💤 ${WD_SNOOZE_MIN}m`, options: { opensAppToForeground: false } },
     { identifier: WD_RING, buttonTitle: '🔔', options: { opensAppToForeground: false } },
-  ]).catch(() => {});
+  ]).catch(warnQuiet('notify'));
 }
 
 /**
@@ -82,19 +83,6 @@ export async function scheduleAt(date, { title, body, data, group = 'attendance'
   });
 }
 
-export async function scheduleInMinutes(minutes, payload) {
-  return scheduleAt(new Date(Date.now() + minutes * 60000), payload);
-}
-
-/** Fire a notification immediately - used for geofence enter/exit alerts. */
-export async function notifyNow({ title, body, data, group = 'attendance', ringtone = 'default' }) {
-  const channelId = await ensureChannel(group, ringtone);
-  return Notifications.scheduleNotificationAsync({
-    content: { title, body, data, sound: ringtone === 'silent' ? null : 'default' },
-    trigger: Platform.OS === 'android' ? { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1, channelId } : null,
-  });
-}
-
 /**
  * Schedules the WHOLE "keep ringing until acknowledged" chain up front, as a
  * batch of independently OS-scheduled notifications (one at `dueAt`, then
@@ -125,43 +113,10 @@ export async function cancelForTask(taskId) {
   if (!taskId) return;
   const all = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
   const mine = all.filter((n) => n.content?.data?.taskId === taskId);
-  await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {})));
+  await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(warnQuiet('notify'))));
   await cancelFullScreenAlarm(taskId);
 }
 
-/*
- * Today's "You can head out" alert. It is found by its tag in what the OS has booked rather than by an id
- * kept in the day's record: that id was lost when a day was edited by hand or marked absent (the alert
- * then rang after checkout), and a second re-book straight after a first read the old id before the store
- * caught up, leaving one booked. Calls are queued so overlapping re-books cannot both book one.
- * `at` is epoch ms, or null to cancel it.
- */
-const CHECKOUT_TITLE = 'You can head out';
-let checkoutQueue = Promise.resolve();
-export function syncCheckoutReminder(at, { body = '', ringtone = 'default' } = {}) {
-  const run = checkoutQueue.then(async () => {
-    const all = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
-    // Older versions booked it untagged, under the same title.
-    const mine = all.filter((n) => n.content?.data?.kind === 'checkout' || n.content?.title === CHECKOUT_TITLE);
-    const d = mine[0]?.content?.data;
-    if (at && mine.length === 1 && Number(d?.at) === at && d?.ringtone === ringtone && mine[0].content?.body === body) return mine[0].identifier;
-    await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {})));
-    if (!at) return null;
-    return scheduleAt(at, { title: CHECKOUT_TITLE, body, group: 'attendance', ringtone, data: { kind: 'checkout', at, ringtone } });
-  });
-  checkoutQueue = run.catch(() => {});
-  return run;
-}
-
-export async function cancel(id) {
-  if (id) await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
-}
-export async function cancelMany(ids = []) {
-  for (const id of ids) await cancel(id);
-}
-export async function cancelAll() {
-  await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
-}
 export const addResponseListener = (fn) => Notifications.addNotificationResponseReceivedListener(fn);
 
 /**
@@ -170,28 +125,13 @@ export const addResponseListener = (fn) => Notifications.addNotificationResponse
  * so a tapped ✓ / 💤 used to look as if nothing had happened.
  */
 export async function dismissEntryNotifications(entryId, identifier) {
-  if (identifier) await Notifications.dismissNotificationAsync(identifier).catch(() => {});
+  if (identifier) await Notifications.dismissNotificationAsync(identifier).catch(warnQuiet('notify'));
   if (entryId === undefined || entryId === null) return;
   const shown = await Notifications.getPresentedNotificationsAsync().catch(() => []);
   const mine = shown.filter((n) => n.request?.content?.data?.kind === 'wd-entry' && String(n.request.content.data.entryId) === String(entryId));
-  await Promise.all(mine.map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => {})));
+  await Promise.all(mine.map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(warnQuiet('notify'))));
 }
 export const addReceivedListener = (fn) => Notifications.addNotificationReceivedListener(fn);
-
-/**
- * Hydration and Tasks & reminders were removed from the app, but an older
- * build may already have handed their reminder chains (and, for tasks, the
- * full-screen alarm) to the OS, which would keep firing with no screen left
- * to silence them - so cancel exactly those. `taskIds` covers full-screen
- * alarms whose notification chain is already gone.
- */
-export async function cancelRemovedToolAlerts(taskIds = []) {
-  const all = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
-  const stale = all.filter((n) => ['hydration', 'task'].includes(n.content?.data?.kind));
-  await Promise.all(stale.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {})));
-  const ids = new Set([...taskIds, ...stale.map((n) => n.content?.data?.taskId)].filter(Boolean));
-  for (const id of ids) await cancelFullScreenAlarm(id);
-}
 
 /* ------------------------------------------------------------------ */
 /* Background handling: runs even with the app removed from Recents.  */
@@ -217,7 +157,7 @@ if (!TaskManager.isTaskDefined(BACKGROUND_NOTIFICATION_TASK)) {
       const pushed = data.data || data.notification?.request?.content?.data || data;
       if (pushed && (pushed.kind === 'wd-tasks-changed' || String(pushed.dataString || '').includes('wd-tasks-changed'))) {
         const { refreshWdAlerts } = await import('./workingDashboardActions');
-        await refreshWdAlerts().catch(() => {});
+        await refreshWdAlerts().catch(warnQuiet('notify'));
         return;
       }
       const actionIdentifier = data.actionIdentifier;

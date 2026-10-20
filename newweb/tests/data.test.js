@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planImport, rowToDoc, backupSection } from '../src/importBackup.js';
+import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveDueDate } from '../src/bulk.js';
+import { webBackup } from '../src/exportBackup.js';
+import { formatsAfterEdit, removedFormat } from '../src/reportFormats.js';
 import { narrationOf, finalNarration, isPaymentCategory, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, SAMPLE_FORMATS, effectiveFormats } from '../src/reportFormats.js';
-import { breakdown, subBreakdown, bankFollowUpDesk, geminiText, buildReportPrompt, numbersLost, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, reportText, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
+import { DEFAULT_LISTS, breakdown, subBreakdown, geminiText, templateFrom, applyTemplate, saveTemplate, readTemplates, upcomingWarnings, dueResponse, isDueToday, pendingAlerts, dueAlertAt, alertHeading, moveTask, SNOOZES, validateSubCategory, applySubCategoryEdit, categoryAsksReminder, toggleReminderCategory, reminderFrom, isReminderDue, reminderLabel, subCategoriesFor, parseSubCategoryLines, addSubCategories, withCarrying, categoryCarriesSubCategory, subCategoryMissing, addSubCategory, removeSubCategory, normalizeSubCategories, splitTime, joinTime, timeLabel, dialAngle, angleToHour, angleToMinute, writeListsValue, addOption, removeOption, blankTask, dayKey, fromDoc, isOverdue, nextOccurrence, parseDue, readCalendar, readLinks, readLists, stats, toDoc, filterTasks, sortTasks, dueLabel, isDueNextMonth } from '../src/data.js';
 
 const NOW = new Date(2026, 9, 15, 10, 0);
 const task = (o) => ({ ...blankTask(), title: 'T', ...o });
@@ -122,18 +125,6 @@ test('weekday repeats skip the weekend', () => {
   assert.equal(n.due.getDay(), 1);
 });
 
-test('the daily report lists the day\'s DAR tasks and leaves out "Done only"', () => {
-  const day = new Date(2026, 9, 15, 12);
-  const a = task({ title: 'Paid GST', done: true, completedAt: new Date(2026, 9, 15, 9), category: 'Payments', dar: true });
-  const b = task({ title: 'Private chore', done: true, completedAt: new Date(2026, 9, 15, 9), dar: false });
-  const c = task({ title: 'Other day', done: true, completedAt: new Date(2026, 9, 14, 9), dar: true });
-  const text = reportText([a, b, c], day);
-  assert.match(text, /1\. Paid GST \(Payments\)/);
-  assert.ok(!text.includes('Private chore'));
-  assert.ok(!text.includes('Other day'));
-  assert.match(reportText([], day), /No completed activities/);
-});
-
 test('lists, calendar and links are read from their documents', () => {
   assert.deepEqual(readLists({ categories: ['A'], priorities: ['P'], statuses: ['S'], pendingWith: ['X'] }), { categories: ['A'], priorities: ['P'], statuses: ['S'], pendingWith: ['X'] });
   assert.deepEqual(readLists(JSON.stringify({ categories: ['A'], assignees: ['Z'] })).pendingWith, ['Z']);
@@ -211,15 +202,43 @@ test('a point on the dial becomes an hour or a minute', () => {
 });
 
 import { readFileSync } from 'node:fs';
-import { THEMES } from '../src/themes.js';
-test('every theme in the chooser has its CSS and the tokens the screens use', () => {
+import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.js';
+const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
+const contrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+
+test('the six Ledger themes: Forest is the default and an old saved theme key becomes Forest', () => {
+  assert.deepEqual(THEMES.map((t) => t.id), ['forest', 'harbour', 'plum', 'ember', 'ink', 'rose']);
+  assert.equal(DEFAULT_THEME, 'forest');
+  ['violet', 'aqua', 'ocean', 'sunset', 'lilac', 'night', '', null, undefined].forEach((old) => assert.equal(normalizeTheme(old), 'forest'));
+  THEMES.forEach((t) => assert.equal(normalizeTheme(t.id), t.id));
+  const f = themeVars('forest', 'light');
+  assert.equal(f['--primary'], '#0B6B52');
+  assert.equal(f['--primary-dark'], '#123A2F');
+  assert.equal(f['--primary-tint'], '#E3F1EC');
+  assert.equal(themeVars('rose', 'light')['--primary'], '#B42318');
+  assert.equal(themeVars('violet', 'light')['--primary'], '#0B6B52');
+});
+
+test('every theme has a dark twin with the same tokens, and the CSS starts from the Forest / light values', () => {
   const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
-  assert.ok(THEMES.length >= 6);
-  THEMES.filter((t) => t.id !== 'violet').forEach((t) => {
-    const m = new RegExp(`:root\\[data-theme="${t.id}"\\] \\{([^}]*)\\}`).exec(css);
-    assert.ok(m, t.id);
-    ['--bg', '--surface', '--ink', '--violet', '--on-accent', '--tile-coral', '--tile-teal-fg', '--danger-bg', '--shadow'].forEach((v) => assert.ok(m[1].includes(v + ':'), `${t.id} ${v}`));
+  const root = /:root \{([^}]*)\}/.exec(css)[1];
+  const light = themeVars('forest', 'light');
+  Object.entries(light).forEach(([k, v]) => assert.ok(new RegExp(`${k}:\\s*${v.replace(/[()]/g, '\\$&')}`, 'i').test(root), `styles.css :root has ${k}: ${v}`));
+  THEMES.forEach((t) => {
+    assert.deepEqual(Object.keys(themeVars(t.id, 'dark')).sort(), Object.keys(light).sort(), t.id);
+    assert.equal(themeVars(t.id, 'dark')['--ground'], '#0F1714');
+    assert.equal(themeVars(t.id, 'dark')['--card'], '#17211D');
   });
+});
+
+test('all text passes 4.5:1 in every theme, light and dark', () => {
+  const PAIRS = [['--ink', '--ground'], ['--ink', '--card'], ['--ink', '--soft'], ['--muted', '--ground'], ['--muted', '--card'], ['--muted', '--soft'], ['--primary', '--ground'], ['--primary', '--card'],
+    ['--on-primary', '--primary'], ['--primary-ink', '--primary-tint'], ['--primary-ink', '--card'], ['--ink', '--primary-tint'], ['--muted', '--primary-tint'], ['#FFFFFF', '--primary-dark'], ['--mint', '--primary-dark'],
+    ['--danger-ink', '--danger-tint'], ['--on-danger', '--danger'], ['--danger', '--card'], ['--danger', '--ground'], ['--amber-ink', '--amber-tint'], ['--slate-ink', '--slate-tint'], ['--ink', '--amber-tint'], ['--ink', '--danger-tint'], ['--muted', '--danger-tint']];
+  THEMES.forEach((t) => ['light', 'dark'].forEach((mode) => {
+    const v = themeVars(t.id, mode);
+    PAIRS.forEach(([a, b]) => { const r = contrast(a[0] === '#' ? a : v[a], b[0] === '#' ? b : v[b]); assert.ok(r >= 4.5, `${t.id} ${mode} ${a} on ${b} is ${r.toFixed(2)}`); });
+  }));
 });
 
 test('sub categories: read from the lists, shown for the right categories, required before Completed', () => {
@@ -392,18 +411,6 @@ test('snooze, silence and skip are saved with the task in the phone app\'s own f
   assert.equal(toDoc(moved, NOW).snoozeUntil, null);                                                           // cleared, since the document had one
 });
 
-test('the daily report carries the banker\'s reply (a sub category field) and the notes', () => {
-  const day = new Date(2026, 9, 15, 12);
-  const t = task({ title: 'HDFC FD Statement Collation.', category: "Bank Follow-up's", done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, subCategory: "Urgent Bank Follow Up's", subCategoryFields: { "Banker's Reply's:": 'Need to collect on an urgent basis', Empty: ' ' }, notes: 'Called twice.\nStatement due tomorrow.' });
-  const text = reportText([t], day);
-  assert.match(text, /Urgent Bank Follow Up's - Banker's Reply's: Need to collect on an urgent basis/);
-  assert.match(text, /Notes: Called twice\. Statement due tomorrow\./);
-  assert.ok(!text.includes('Empty'));
-  assert.ok(!reportText([t], day, { subFields: false }).includes("Banker's Reply's"));
-  const only = reportText([task({ title: 'Plain', done: true, completedAt: new Date(2026, 9, 15, 9), dar: true, notes: 'n' })], day);
-  assert.ok(!only.includes('undefined') && /Notes: n/.test(only));
-});
-
 const backup = () => ({
   app: 'My_Personal_Tracker', exportedAt: '2026-10-10T08:00:00.000Z',
   data: { workingDashboard: {
@@ -495,31 +502,10 @@ test('a template keeps the usual fields, never the dates, and starts a new task'
   assert.deepEqual(readTemplates({ templates: list }).map((x) => x.name), ['Month-end reconciliation']);
 });
 
-test('the Gemini prompt keeps the draft and the person\'s instructions; lost numbers are found', () => {
-  const p = buildReportPrompt('1. Paid vendor 12500 (Payments)', 'Two lines per task');
-  assert.match(p, /Paid vendor 12500/);
-  assert.match(p, /Two lines per task/);
-  assert.ok(!/MY INSTRUCTIONS/.test(buildReportPrompt('x', '')));
-  assert.deepEqual(numbersLost('Paid 12,500', 'Paid 12500'), []);
-  assert.deepEqual(numbersLost('Paid 12,500 and 4471', 'Paid 12500'), ['4471']);
-});
-
 test('the Gemini API reply text is read from its parts', () => {
   assert.equal(geminiText({ candidates: [{ content: { parts: [{ text: 'Hello ' }, { text: 'world' }] } }] }), 'Hello world');
   assert.equal(geminiText({ candidates: [] }), '');
   assert.equal(geminiText(null), '');
-});
-
-test('the Dashboard bank desk lists open bank follow-ups, longest open first, with the banker\'s update', () => {
-  const now = new Date(2026, 9, 16, 12);
-  const old = task({ title: 'ICICI LC', category: "Bank Follow-up's", bankFollowUps: [{ d: '2026-10-05', at: new Date(2026, 9, 5, 10).toISOString(), remarks: 'Awaiting head office', next: new Date(2026, 9, 18, 10).toISOString() }] });
-  const fresh = task({ title: 'HDFC FD', category: "Urgent Bank Follow Up's", createdAt: new Date(2026, 9, 14), subCategoryFields: { "Banker's Reply's:": 'Will share tomorrow' } });
-  const other = task({ title: 'Not a bank task', category: 'Audit' });
-  const rows = bankFollowUpDesk([fresh, other, old, { ...old, id: 'x', done: true }], now);
-  assert.deepEqual(rows.map((r) => r.t.title), ['ICICI LC', 'HDFC FD']);
-  assert.equal(rows[0].update, 'Awaiting head office');
-  assert.equal(rows[0].days, 12);
-  assert.equal(rows[1].update, 'Will share tomorrow');
 });
 
 test('a report format fills its marks from the Sub Category fields, then Key Points, and shows what is missing', () => {
@@ -639,4 +625,113 @@ test('saved report formats keep their wording; samples added later still reach t
   assert.equal(findFormat(all, 'Invoice Payment').template, 'MY WORDING {Name}');
   assert.ok(findFormat(all, 'Imports Payment Initiation') && findFormat(all, 'Offline') && findFormat(all, 'ESI'));
   assert.equal(all.filter((f) => f.subCategory === 'Invoice Payment').length, 1);
+});
+
+test('the next repeat does not inherit the finished one\'s reminder, snooze, silence, skips or ticked steps', () => {
+  const t = task({ title: 'Rec', recurrence: 'Daily', due: new Date(2026, 9, 15, 9, 0), hasTime: true, nextReminder: new Date(2026, 9, 14, 9, 0), snoozeUntil: 12345, lastAckDate: '2026-10-15', skippedDates: ['2026-10-14'], checklist: [{ id: 'a', text: 'one', done: true }, { id: 'b', text: 'two', done: false }] });
+  const n = nextOccurrence(t, [], NOW);
+  assert.equal(n.nextReminder, null);
+  assert.equal(n.snoozeUntil, 0);
+  assert.equal(n.lastAckDate, '');
+  assert.deepEqual(n.skippedDates, []);
+  assert.deepEqual(n.checklist.map((c) => c.done), [false, false]);
+  assert.equal(n.checklist[0].text, 'one');
+  assert.equal(t.checklist[0].done, true);       // the finished task is untouched
+});
+
+test('the Register filters ignore case, as the Dashboard tiles do', () => {
+  const list = [task({ id: 'x', priority: 'high', status: 'pending' }), task({ id: 'y', priority: 'Low', status: 'Done' })];
+  assert.deepEqual(filterTasks(list, { priority: 'High' }, NOW).map((t) => t.id), ['x']);
+  assert.deepEqual(filterTasks(list, { status: 'Pending' }, NOW).map((t) => t.id), ['x']);
+});
+
+test('a backup row due exactly 00:00 keeps its time when the source says it had one', () => {
+  const at = new Date(2026, 9, 15, 0, 0).toISOString();
+  assert.equal(rowToDoc({ id: 'm1', title: 'a', dueAt: at, hasTime: true }).doc.dueTime, '00:00');
+  assert.equal(rowToDoc({ id: 'm2', title: 'a', dueAt: at, dueTime: '00:00' }).doc.dueTime, '00:00');
+  assert.equal(rowToDoc({ id: 'm3', title: 'a', dueAt: at }).doc.dueTime, '');
+  assert.equal(rowToDoc({ id: 'm4', title: 'a', dueAt: '2026-10-15' }).doc.dueTime, '');
+  assert.equal(rowToDoc({ id: 'm5', title: 'a', dueAt: new Date(2026, 9, 15, 9, 30).toISOString() }).doc.dueTime, '09:30');
+});
+
+test('an exported backup imports back: every task incl. done and binned, with the lists', () => {
+  const done = task({ id: 'd1', title: 'Paid', done: true, completedAt: new Date(2026, 9, 14, 11, 0), category: 'GST' });
+  const open = task({ id: 'o1', title: 'Send SOA', due: new Date(2026, 9, 20, 9, 30), hasTime: true, priority: 'High', notes: 'n', reference: 'RE: x' });
+  const bin = task({ id: 'b1', title: 'Old', binned: true, binnedAt: new Date(2026, 9, 1) });
+  const gone = task({ id: 'p1', title: 'Purged', purged: true });
+  const file = JSON.parse(JSON.stringify(webBackup({ tasks: [done, open, bin, gone], lists: { ...DEFAULT_LISTS, categories: ['GST', 'TDS'] }, calendar: { holidays: [{ date: '2026-10-20', name: 'Diwali' }], leaveDays: [] }, savedFormats: [removedFormat('ESI')] }, NOW)));
+  assert.equal(file.version, 1);
+  assert.deepEqual(file.data.workingDashboard.entries.map((e) => e.id).sort(), ['b1', 'd1', 'o1']);
+  const plan = planImport(file, { ids: new Set(), lists: { ...DEFAULT_LISTS, categories: [] } }, NOW);
+  assert.equal(plan.tasks.length, 3);
+  const by = Object.fromEntries(plan.tasks.map((x) => [x.id, x.doc]));
+  assert.equal(by.o1.description, 'Send SOA');
+  assert.equal(by.o1.dueDate, '2026-10-20');
+  assert.equal(by.o1.dueTime, '09:30');
+  assert.equal(by.o1.mailChain, 'RE: x');
+  assert.equal(by.o1.priority, 'High');
+  assert.equal(by.d1.completedDate, '2026-10-14');
+  assert.equal(by.d1.deleted, false);
+  assert.equal(by.b1.deleted, true);
+  assert.ok(plan.lists.categories.includes('TDS'));
+  assert.equal(plan.calendar.holidays.length, 1);
+  // importing again over the same account skips what is there
+  assert.equal(planImport(file, { ids: new Set(['o1', 'd1', 'b1']) }, NOW).tasks.length, 0);
+});
+
+test('removing a sample report format writes the phone\'s marker and keeps the other markers', () => {
+  const sample = SAMPLE_FORMATS.find((f) => f.subCategory === 'ESI');
+  const other = removedFormat('PO Advance Payment', 'Payments');
+  const after = formatsAfterEdit([other], { id: sample.id, subCategory: sample.subCategory, category: sample.category }, '');
+  assert.equal(after.length, 2);
+  assert.ok(after.some((f) => f.removed && f.subCategory === 'ESI' && f.template === ''));
+  assert.ok(after.includes(other));
+  const eff = effectiveFormats(after);
+  assert.ok(!eff.some((f) => f.subCategory === 'ESI'));
+  assert.ok(!eff.some((f) => /^PO Advance/.test(f.subCategory)));
+  assert.equal(eff.length, SAMPLE_FORMATS.length - 2);
+  // saving a format afterwards replaces the marker, and a second removal does not pile up markers
+  const saved = formatsAfterEdit(after, { subCategory: 'ESI', category: sample.category }, 'ESI paid {Amount}');
+  assert.ok(!saved.some((f) => f.removed && f.subCategory === 'ESI'));
+  assert.equal(effectiveFormats(saved).find((f) => f.subCategory === 'ESI').template, 'ESI paid {Amount}');
+  assert.equal(formatsAfterEdit(after, { subCategory: 'esi' }, '').filter((f) => f.removed).length, 2);
+});
+
+test('bulk selection: toggling and keeping only the rows still shown', () => {
+  const a = task({ id: 'a' }); const b = task({ id: 'b' });
+  let sel = toggleSelected(new Set(), 'a');
+  sel = toggleSelected(sel, 'b');
+  assert.deepEqual([...sel], ['a', 'b']);
+  assert.deepEqual([...toggleSelected(sel, 'a')], ['b']);
+  assert.deepEqual(selectedRows([b], sel).map((t) => t.id), ['b']);
+});
+
+test('bulk Done skips tasks whose Sub Category still needs fields', () => {
+  const lists = { ...DEFAULT_LISTS, subCategories: [{ id: 's', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] }] };
+  const needs = task({ id: 'n', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: {} });
+  const filled = task({ id: 'f', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: { 'Vendor Name': 'Acme' } });
+  const plain = task({ id: 'p' });
+  const { doable, skipped } = planBulkComplete([needs, filled, plain], lists);
+  assert.deepEqual(doable.map((t) => t.id), ['f', 'p']);
+  assert.deepEqual(skipped.map((t) => t.id), ['n']);
+  assert.equal(bulkCompleteNote(2, 0, false), '2 tasks marked done');
+  assert.equal(bulkCompleteNote(1, 0, true), '1 task marked DAR');
+  assert.match(bulkCompleteNote(2, 1, false), /2 tasks marked done; 1 skipped/);
+  assert.match(bulkCompleteNote(0, 3, true), /^3 skipped/);
+});
+
+test('bulk Move date keeps the time of day, clears a snooze and ignores bad dates', () => {
+  const timed = task({ due: new Date(2026, 9, 15, 17, 30), hasTime: true, snoozeUntil: 5, lastAckDate: '2026-10-15' });
+  const m = moveDueDate(timed, '2026-11-02');
+  assert.equal(dayKey(m.due), '2026-11-02');
+  assert.equal(m.due.getHours(), 17);
+  assert.equal(m.due.getMinutes(), 30);
+  assert.equal(m.hasTime, true);
+  assert.equal(m.snoozeUntil, 0);
+  const dateOnly = moveDueDate(task({ due: new Date(2026, 9, 15), hasTime: false }), '2026-10-20');
+  assert.equal(dayKey(dateOnly.due), '2026-10-20');
+  assert.equal(dateOnly.hasTime, false);
+  assert.equal(moveDueDate(task({ due: null }), '2026-10-20').hasTime, false);
+  assert.equal(moveDueDate(timed, 'nonsense'), timed);
+  assert.equal(moveDueDate(timed, '2026-02-31'), timed);
 });

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, Switch, AppState, Platform, Alert } from 'react-native';
-import { Card, P, Small, Btn, Row, Field, DateTimeField, useLayout } from '../ui';
+import { View, Text, Pressable, AppState, Platform, Alert } from 'react-native';
+import { Card, P, Small, Btn, Row, Field, DateTimeField, Toggle, useLayout } from '../ui';
+import Icon from '../icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme';
 import { DEFAULT_ALERTS } from '../workingDashboard';
@@ -11,6 +12,7 @@ import {
   isFullScreenIntentAllowed, requestFullScreenIntentPermission, setAlarmStyle, setAlarmDelivery, setAlarmBanner, canDrawOverlays, requestOverlayPermission, scheduleFullScreenAlarm,
 } from '../tracker';
 import { WEB_ALARM_STYLES, previewWebAlarm } from '../WebAlarm';
+import { warnQuiet } from '../quietCatch';
 
 // The phone's full-screen alarm looks (modules/native-tools AlarmStyles.kt), in the same order.
 const PHONE_ALARM_STYLES = [
@@ -47,7 +49,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
   const t = useTheme();
   const nav = useNavigation();
   const [log, setLog] = useState([]);
-  useEffect(() => { readAlertLog().then(setLog).catch(() => {}); }, []);
+  useEffect(() => { readAlertLog().then(setLog).catch(warnQuiet('WdAlertSettings')); }, []);
   const a = { ...DEFAULT_ALERTS, ...(alerts || {}) };
   const set = (patch) => onChange({ ...a, ...patch });
   const leads = new Set((a.dueLeadMin || []).map(Number));
@@ -56,7 +58,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
   const [testNote, setTestNote] = useState('');
   const testStyle = async () => {
     if (Platform.OS === 'web') { previewWebAlarm(); return; }
-    await setAlarmStyle(Number(a.phoneAlarmStyle) || 1).catch(() => {});
+    await setAlarmStyle(Number(a.phoneAlarmStyle) || 1).catch(warnQuiet('WdAlertSettings'));
     const ok = await scheduleFullScreenAlarm(`preview:${Date.now()}`, new Date(Date.now() + 5000), 'High priority due now', 'Sample task - style preview\nAny button closes it.').catch(() => false);
     setTestNote(ok ? 'Rings in 5 seconds - lock the screen to see it full screen.' : 'Could not book the test alarm: check "Alarms & reminders" below.');
   };
@@ -82,22 +84,22 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
   }, [check]);
 
   const chip = (label, on, onPress) => (
-    <Pressable key={label} onPress={onPress} style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 99, borderWidth: 1, borderColor: on ? t.accent : t.border, backgroundColor: on ? t.accent : t.surface }}>
-      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '600' }}>{label}</Text>
+    <Pressable key={label} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!on }} style={{ paddingHorizontal: 13, paddingVertical: 8, borderRadius: 99, borderWidth: 1, borderColor: on ? t.primaryDark : t.border, backgroundColor: on ? t.primaryDark : t.surface }}>
+      <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
     </Pressable>
   );
   const toggle = (title, hint, value, onValue) => (
     <Row style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 }}>
       <View style={{ flex: 1, marginRight: 10 }}>
-        <Text style={{ color: t.text, fontSize: t.fs(15) }}>{title}</Text>
+        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(14.5) }}>{title}</Text>
         <Small>{hint}</Small>
       </View>
-      <Switch value={value} onValueChange={onValue} trackColor={{ false: t.border, true: t.accent }} />
+      <Toggle label={title} value={value} onChange={onValue} />
     </Row>
   );
   const status = (ok, title, okText, badText, fix, fixTitle) => (
     <Row style={{ alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: t.border }}>
-      <Text style={{ fontSize: 16, marginRight: 8 }}>{ok ? '✅' : '⚠️'}</Text>
+      <View style={{ marginRight: 10 }}><Icon name={ok ? 'done' : 'alert'} size={20} color={ok ? t.primary : t.warn} stroke={2} /></View>
       <View style={{ flex: 1, marginRight: 8 }}>
         <Text style={{ color: t.text, fontWeight: '600' }}>{title}</Text>
         <Small style={{ color: ok ? t.textDim : t.warn }}>{ok ? okText : badText}</Small>
@@ -121,8 +123,8 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
       {/* Phone only: where an alarm appears - full screen (the default, on the lock screen too) or the notification centre. */}
       {Platform.OS !== 'web' && trackerAvailable() && (
         <Card style={{ marginBottom: 12 }}>
-          {toggle('Show alarms in the notification centre instead', 'Off (the default): an alarm opens full screen straight away - on the lock screen and while you use the phone. On: it appears only as a notification, with its buttons.', !!a.alarmAsNotification, (v) => { set({ alarmAsNotification: v }); setAlarmDelivery(v).catch(() => {}); })}
-          {toggle('Also show a banner notification', 'On (the safe default): the alarm also pops up a notification, so you still see it if your phone refuses the full screen. Off: only a small silent line in the notification shade - the alert is the full screen alone (needs "Open over other apps").', a.alarmBanner !== false, (v) => { set({ alarmBanner: v }); setAlarmBanner(v).catch(() => {}); })}
+          {toggle('Show alarms in the notification centre instead', 'Off (the default): an alarm opens full screen straight away - on the lock screen and while you use the phone. On: it appears only as a notification, with its buttons.', !!a.alarmAsNotification, (v) => { set({ alarmAsNotification: v }); setAlarmDelivery(v).catch(warnQuiet('WdAlertSettings')); })}
+          {toggle('Also show a banner notification', 'On (the safe default): the alarm also pops up a notification, so you still see it if your phone refuses the full screen. Off: only a small silent line in the notification shade - the alert is the full screen alone (needs "Open over other apps").', a.alarmBanner !== false, (v) => { set({ alarmBanner: v }); setAlarmBanner(v).catch(warnQuiet('WdAlertSettings')); })}
         </Card>
       )}
 
@@ -140,13 +142,13 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
             const on = (Number(a[key]) || 1) === n;
             return chip(`${n} · ${label}`, on, () => {
               set({ [key]: n });
-              if (key === 'phoneAlarmStyle') setAlarmStyle(n).catch(() => {});      // the next alarm already looks so
+              if (key === 'phoneAlarmStyle') setAlarmStyle(n).catch(warnQuiet('WdAlertSettings'));      // the next alarm already looks so
             });
           })}
         </View>
         {(Platform.OS === 'web' || trackerAvailable()) && (
           <Row gap={10} style={{ marginTop: 10, alignItems: 'center' }}>
-            <Btn kind="soft" title="▶ Test this style" onPress={testStyle} />
+            <Btn kind="soft" title="Test this style" onPress={testStyle} />
             {!!testNote && <Small style={{ flex: 1 }}>{testNote}</Small>}
           </Row>
         )}
@@ -159,7 +161,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
           {!rt.user
             ? 'Realtime Sync is not signed in, so the phone cannot see the web app - it always rings.'
             : webNow
-              ? '🖥️ Web app in use now - phone alarms are quiet.'
+              ? 'Web app in use now - phone alarms are quiet.'
               : seen
                 ? `Web app not in use (last seen ${new Date(seen).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}) - the phone rings.`
                 : 'No "in use" note from the web app yet - the phone rings. The web app sends it once it is updated and signed in.'}
@@ -170,7 +172,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
       {a.fullScreen !== false && (
         <Card style={{ marginBottom: 12 }}>
           <Text style={{ color: t.text, fontWeight: '700', marginBottom: 4 }}>Which tasks ring as an alarm</Text>
-          <Small style={{ marginBottom: 8 }}>By priority. The rest arrive as a plain 🔕 reminder - no ringing, no repeated nags. Only on this phone; the web app keeps its own alarms.</Small>
+          <Small style={{ marginBottom: 8 }}>By priority. The rest arrive as a plain reminder - no ringing, no repeated nags. Only on this phone; the web app keeps its own alarms.</Small>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {chip('All tasks', !Array.isArray(a.alarmPriorities), () => set({ alarmPriorities: null }))}
             {(priorities.length ? priorities : ['High', 'Medium', 'Low']).map((p) => {
@@ -183,7 +185,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
           </View>
           <Small style={{ marginTop: 8 }}>
             {!Array.isArray(a.alarmPriorities) ? 'Every task rings as an alarm.' : a.alarmPriorities.length ? `${a.alarmPriorities.join(', ')} ring as an alarm; every other task is a reminder.` : 'No task rings - all are reminders.'}
-            {' '}Tap 🔔 / 🔕 on a task's card to change just that one.
+            {' '}Tap the bell on a task's card to change just that one.
           </Small>
         </Card>
       )}
@@ -193,7 +195,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
         {toggle('Keep reminding after the due time', 'Rings again 10 min, 30 min, 1 hr, 2 hr and 4 hr after, then at the same time every day, until the entry is done.', a.followUps !== false, (v) => set({ followUps: v }))}
         <Small style={{ marginTop: 6, marginBottom: 6 }}>Warnings before the due time ("Due in 1 hr", "Due tomorrow", deadline warnings) are a notification only, for every task, on the phone and the website. The alarm rings at the due time.</Small>
         {toggle('Deadline warnings', '1 day, 2 hours and 30 minutes before a deadline, and an alarm at it.', !!a.deadline, (v) => set({ deadline: v }))}
-        <Small style={{ marginTop: 8, marginBottom: 6 }}>Entries due on a date with no time are announced the evening before and the morning of:</Small>
+        <Small style={{ marginTop: 8, marginBottom: 6 }}>A task due on a date with no time alerts once, at 7 PM on that date. These two times are only for a deadline set on a date with no time (the evening before and the morning of):</Small>
         <Row style={{ gap: 10 }}>
           <View style={{ flex: 1 }}><ClockField label="Morning" value={a.morning} fallback="09:30" onChange={(v) => set({ morning: v })} /></View>
           <View style={{ flex: 1 }}><ClockField label="Evening" value={a.evening} fallback="18:00" onChange={(v) => set({ evening: v })} /></View>
@@ -233,7 +235,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
       <Card>
         <Text style={{ color: t.text, fontWeight: '700', marginBottom: 4 }}>Full-screen alert</Text>
         <Small style={{ marginBottom: 8 }}>Every task alert opens like this - on the lock screen and while you use the phone. See it with a sample task:</Small>
-        <Btn kind="soft" title="👁 Preview the full-screen alert" onPress={() => nav.navigate('PastDueAlert', { preview: true })} />
+        <Btn kind="soft" title="Preview the full-screen alert" onPress={() => nav.navigate('PastDueAlert', { preview: true })} />
         {Platform.OS !== 'web' && trackerAvailable() && (
           <>
             <Btn kind="soft" style={{ marginTop: 8 }} title="⏱ Test alarm in 10 seconds" onPress={async () => {
@@ -249,7 +251,7 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
         <Card style={{ marginBottom: 12 }}>
           <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: t.text, fontWeight: '700' }}>Alerts log</Text>
-            <Pressable onPress={async () => { await clearAlertLog(); setLog([]); }} hitSlop={8}><Small style={{ color: t.accent, fontWeight: '700' }}>Clear</Small></Pressable>
+            <Pressable onPress={async () => { await clearAlertLog(); setLog([]); }} hitSlop={8}><Small style={{ color: t.primary, fontWeight: '800' }}>Clear</Small></Pressable>
           </Row>
           {!log.length ? <Small style={{ marginTop: 4 }}>Nothing went wrong with an alert.</Small> : log.slice(0, 12).map((x, i) => (
             <Small key={i} style={{ marginTop: 4 }}>{new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {x.text}</Small>

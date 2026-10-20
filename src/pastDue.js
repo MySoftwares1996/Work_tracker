@@ -50,10 +50,15 @@ export function withRemark(entry, remark, now = new Date()) {
 }
 
 /** Moved to another date and time. */
-export const moveEntry = (entry, dueAtIso, now = new Date()) => ({ ...entry, dueAt: dueAtIso, snoozeCount: 0, ...editedNow(now) });
+export const moveEntry = (entry, dueAtIso, now = new Date()) => {
+  // A new time starts afresh: an earlier snooze, Silence or Skip must not swallow the alert at the new time.
+  const today = toDateKey(now);
+  const skippedDates = Array.isArray(entry.skippedDates) ? entry.skippedDates.filter((d) => d !== today) : [];
+  return { ...entry, dueAt: dueAtIso, snoozeCount: 0, snoozeUntil: 0, lastAckDate: '', deadlineAckDate: '', skippedDates, ...editedNow(now) };
+};
 
 /**
- * After SNOOZE_NUDGE_AFTER snoozes the alert offers what usually helps: the next working day at the morning time, and - when
+ * After `after` (3) snoozes the alert offers what usually helps: the next working day at the morning time, and - when
  * the person list has a bank - handing it over as "Pending with <bank>". Returns [{ key, label, patch? , dueAt? }].
  */
 export function snoozeSuggestions(entry, { holidays = [], leaveDays = [], assignees = [], morning = '10:00', now = new Date(), after = 3, bankWord = 'bank' } = {}) {

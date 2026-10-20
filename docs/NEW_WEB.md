@@ -1,6 +1,6 @@
 # The new web app (`newweb/`)
 
-A separate website, built from scratch with its own look: a centred tab bar at the top, bold colourful tiles, cards. It signs in
+A separate website with the "Ledger" look: a white top bar (brand, pill tabs, the signed-in person), serif page titles, a dark green TODAY panel with tinted count tiles, white cards with 1px lines. Six colour themes (Forest default, Harbour, Plum, Ember, Ink, Rose), each with a dark twin, set in `src/themes.js` (Config > Appearance also has the dark-mode switch and the text size). It signs in
 with Google and reads and writes the **same Firebase account** as the phone app and the Expo website (`users/<uid>/tasks`,
 `meta/lists`, `meta/calendar`, `meta/tools`), so both always show the same tasks. It does not touch the phone app or the Expo website.
 
@@ -92,11 +92,6 @@ For each Sub Category you can write the exact line the Daily report uses for a t
 - A task with a format is listed under **Payments** with the standard payment lines, and stays word for word when Gemini rewrites the report.
 - The 22 formats from the owner's "Tally Narration formats" sheet are built in (`newweb/src/reportFormats.js`, `SAMPLE_FORMATS`) and used until a format is saved. Saving writes all formats to `users/<uid>/meta/tools` (`reportFormats`), so every browser shows the same ones.
 - If a template has a mark the Sub Category has no field for, Config shows an **Add it to the Sub Category** button.
-
-
-## Inside the Android app
-
-The APK shows this site in a built-in browser (`src/screens/WebApp.js`). `src/nativeBridge.js` talks to it: `token` / `signin` / `signout` (Google ID token from the phone, so the page and the phone are one account), `copy`, `print`, `file` (CSV via the share sheet), `settings`, `classic`. Outside the app none of it is active (`inApp()` is false).
 
 ## Speed
 

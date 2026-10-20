@@ -6,6 +6,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useTheme } from './theme';
 import { useLayout } from './ui';
+import { isOverdue } from './workingDashboard';
 
 const prioColor = (t, p) => (p === 'High' ? t.danger : p === 'Low' ? t.ok : t.warn);
 const day = (iso) => {
@@ -25,7 +26,7 @@ export default function EntryTable({ entries, onOpen, mode = 'open', completedAt
     ? [['Task', 4, (e) => e.title], ['Category', 2, (e) => e.category], ['Pending with', 1.5, (e) => e.pendingWith], ['Completed', 1.6, (e) => day(completedAt ? completedAt(e) : e.completedAt)], ['Report', 1, (e) => (e.dar === false ? 'Done only' : 'DAR')]]
     : [['Task', 4, (e) => e.title], ['Category', 2, (e) => e.category], ['Status', 1.5, (e) => e.status], ['Pending with', 1.5, (e) => e.pendingWith], ['Due', 1.6, (e) => day(e.dueAt)]];
   return (
-    <View style={{ backgroundColor: t.surface, borderRadius: t.radius, ...t.shadow }}>
+    <View style={{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 16, backgroundColor: t.surfaceAlt, borderBottomWidth: 0.5, borderBottomColor: t.border, borderTopLeftRadius: t.radius, borderTopRightRadius: t.radius, position: 'sticky', top: 0, zIndex: 1 }}>
         <View style={{ width: 22 }} />
         {cols.map(([label, flex]) => (
@@ -33,7 +34,8 @@ export default function EntryTable({ entries, onOpen, mode = 'open', completedAt
         ))}
       </View>
       {entries.map((e, i) => {
-        const overdue = mode === 'open' && e.dueAt && new Date(e.dueAt).getTime() < Date.now();
+        // The shared rule: a timed task is overdue once its time passes, a date-only one once its day has passed (it alerts at 7 PM, not at midnight).
+        const overdue = mode === 'open' && isOverdue(e);
         return (
           <Pressable key={e.id} onPress={() => onOpen(e)} accessibilityRole="button" accessibilityLabel={e.title}
             style={({ hovered }) => ({ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, ...(i === entries.length - 1 ? { borderBottomLeftRadius: t.radius, borderBottomRightRadius: t.radius } : null), backgroundColor: hovered ? t.accent + '14' : i % 2 ? t.surfaceAlt + '66' : 'transparent' })}>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, AccessibilityInfo } from 'react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle, Path } from 'react-native-svg';
 import { BRAND } from './theme';
+import { warnQuiet } from './quietCatch';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -35,7 +36,7 @@ export default function AnimatedLogo({ size = 88, still = false }) {
         ]),
       ]));
       loop.start();
-    }).catch(() => {});
+    }).catch(warnQuiet('AnimatedLogo'));
     return () => { cancelled = true; if (loop) loop.stop(); };
   }, [still]); // eslint-disable-line react-hooks/exhaustive-deps
 

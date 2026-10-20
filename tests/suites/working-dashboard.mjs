@@ -1,8 +1,8 @@
 import {
   blankEntry, dashboardStats, groupCounts, filterEntries, isWdFilterActive, sortEntries,
   completeEntry, reopenEntry, binEntry, restoreEntry, toggleEntryDar, isOpen,
-  nextWorkingDay, holidaysWithinDays, entriesToCsvRows, csvRowsToEntries, findDuplicateEntries,
-  nextFreeSlot, reminderTimesForToday, reminderTimesAhead, entryAlertTimes, nextRecurringEntry, recurrenceLabel, RECURRENCES, listsWithEntryValues,
+  nextWorkingDay, holidaysWithinDays,
+  nextFreeSlot, reminderTimesForToday, reminderTimesAhead, nextRecurringEntry, recurrenceLabel, RECURRENCES,
   normalizeCalendar, normalizeHolidays, holidayDateKey, completedTime, withCompletedAt,
 } from '../../src/workingDashboard.js';
 
@@ -100,30 +100,6 @@ export async function run({ ck, section }) {
   const upcoming = holidaysWithinDays(holidays, new Date(2026, 9, 1), 7);
   ck('holidays within N days finds the one in range', upcoming.length === 1 && upcoming[0].id === 'h1');
 
-  section('Working Dashboard: CSV export and import round trip');
-  const csvSrc = [e({ id: 'c1', title: 'Reconcile NOSTRO', category: 'Monthly Activity', priority: 'High', dueAt: new Date(2026, 9, 5, 14, 30).toISOString() })];
-  const rows = entriesToCsvRows(csvSrc);
-  ck('one row per non-binned entry', rows.length === 1);
-  ck('binned entries are not exported', entriesToCsvRows([e({ binned: true })]).length === 0);
-  ck('date and time are split into their own columns', rows[0]['Due date'] === '2026-10-05' && rows[0]['Due time'] === '14:30');
-
-  const reimported = csvRowsToEntries(rows, { existing: [] });
-  ck('re-importing restores the title and category', reimported[0].title === 'Reconcile NOSTRO' && reimported[0].category === 'Monthly Activity');
-  ck('the due date/time recombine correctly', new Date(reimported[0].dueAt).getHours() === 14 && new Date(reimported[0].dueAt).getMinutes() === 30);
-  ck('importing the same rows again (same Id) adds nothing new', csvRowsToEntries(rows, { existing: reimported }).length === 0);
-  ck('a row with no title is skipped, not a blank entry', csvRowsToEntries([{ Title: '  ' }], { existing: [] }).length === 0);
-
-  section('Working Dashboard: duplicate detection');
-  const dupPool = [
-    e({ title: 'Send report', category: 'MIS' }),
-    e({ title: 'send report', category: 'MIS' }), // same, case-insensitive
-    e({ title: 'Send report', category: 'Payments' }), // different category: not a duplicate
-    e({ title: 'Unique task', category: 'MIS' }),
-  ];
-  const dups = findDuplicateEntries(dupPool);
-  ck('exactly one duplicate group found', dups.length === 1);
-  ck('the group has both matching entries', dups[0].length === 2);
-
   section('Working Dashboard: time-slot conflicts');
   const busy = [e({ id: 'b1', dueAt: new Date(2026, 9, 3, 11, 15).toISOString() })];
   ck('a time inside the hold window is pushed to the next free slot', nextFreeSlot(new Date(2026, 9, 3, 11, 20).toISOString(), busy, 10) === new Date(2026, 9, 3, 11, 25).toISOString());
@@ -144,13 +120,6 @@ export async function run({ ck, section }) {
   const nowA = new Date(2026, 9, 3, 20, 0);
   const wr = { enabled: true, start: '09:00', end: '10:00', everyMin: 30 };
   ck('reminders are booked for the next days too, not just today', reminderTimesAhead(wr, nowA, 3).length === 6);
-  const dueSoon = { dueAt: new Date(2026, 9, 3, 20, 30).toISOString(), done: false, binned: false };
-  ck('an entry gets its due alert and every follow-up', entryAlertTimes(dueSoon, nowA).length === 6);
-  const overdueA = { dueAt: new Date(2026, 9, 3, 19, 0).toISOString(), done: false, binned: false };
-  ck('an overdue entry keeps getting follow-ups still ahead', entryAlertTimes(overdueA, nowA).length === 2);
-  ck('a done entry gets none', entryAlertTimes({ ...dueSoon, done: true }, nowA).length === 0);
-  ck('an undated entry gets none', entryAlertTimes({ done: false }, nowA).length === 0);
-
   section('Working Dashboard: hourly and custom-minute recurrence');
   const rNow = new Date(2026, 9, 3, 10, 0);
   const rBase = { id: 'r1', title: 'Check mail', recurrence: 'hourly', dueAt: new Date(2026, 9, 3, 9, 30).toISOString(), deadlineAt: new Date(2026, 9, 3, 11, 30).toISOString(), status: 'In-Progress', dar: true, done: false, binned: false };
@@ -167,16 +136,6 @@ export async function run({ ck, section }) {
   ck('daily and monthly still roll (a Daily task skips Sunday 4 Oct, as on the web app)', new Date(nextRecurringEntry({ ...rBase, recurrence: 'daily' }, [], rNow).dueAt).getDate() === 5 && new Date(nextRecurringEntry({ ...rBase, recurrence: 'monthly' }, [], rNow).dueAt).getMonth() === 10);
   ck('an occurrence already on the register is not duplicated', nextRecurringEntry(rBase, [rBase, { ...rBase, id: 'r2', dueAt: nx.dueAt }], rNow) === null);
   ck('labels read naturally', recurrenceLabel({ recurrence: 'hourly' }) === 'Every hour' && recurrenceLabel({ recurrence: 'custom', recurrenceEveryMin: 45 }) === 'Every 45 min' && recurrenceLabel({ recurrence: 'custom', recurrenceEveryMin: 120 }) === 'Every 2 h' && recurrenceLabel({ recurrence: 'none' }) === "Doesn't repeat");
-
-  section('Working Dashboard: lists learn the values entries use');
-  const L = listsWithEntryValues({ categories: [], priorities: ['High'], statuses: ['Pending'], assignees: ['Self'] }, [
-    { category: 'Domestic Payments', priority: 'high', status: 'Completed', pendingWith: 'self' },
-    { category: 'domestic payments', priority: 'Medium', status: 'Pending', pendingWith: 'Rami Reddy' },
-    { category: null, priority: '', status: '', pendingWith: null },
-  ]);
-  ck('new categories are added once, in the first spelling seen', JSON.stringify(L.categories) === JSON.stringify(['Domestic Payments']));
-  ck('existing values are not duplicated by a different case', L.priorities.join() === 'High,Medium' && L.assignees.join() === 'Self,Rami Reddy');
-  ck('new statuses are added and blanks are ignored', L.statuses.join() === 'Pending,Completed');
 
   section('Working Dashboard: every change is stamped so Realtime Sync sends it');
   const t0 = new Date(2026, 9, 3, 9, 0);
@@ -242,14 +201,6 @@ export async function runExtra({ ck, section }) {
   const uncategorised = groupCounts(people, (x) => x.category).find((r) => r.label === 'Uncategorised');
   ck('the Uncategorised row filters to the entries with no category', filterEntries(people, { category: 'Uncategorised' }).length === uncategorised.count && uncategorised.count === 3);
 
-  section('Working Dashboard: completed occurrences of a repeat are not duplicates');
-  const history = [
-    e({ title: 'Pay rent', category: 'Payments', done: true, completedAt: '2026-08-01T10:00:00Z' }),
-    e({ title: 'Pay rent', category: 'Payments', done: true, completedAt: '2026-09-01T10:00:00Z' }),
-    e({ title: 'Pay rent', category: 'Payments' }),
-  ];
-  ck('a repeat with its own history is not flagged', findDuplicateEntries(history).length === 0);
-  ck('two open copies still are', findDuplicateEntries([...history, e({ title: 'pay rent', category: 'Payments' })]).length === 1);
   await runExtra2({ ck, section });
 }
 
@@ -273,13 +224,6 @@ export async function runExtra2({ ck, section }) {
   const moved = { ...apr, dueAt: new Date(2027, 3, 15, 17, 0).toISOString() };
   const may = nextRecurringEntry(moved, [], new Date(2027, 3, 15, 18, 0));
   ck('moved by hand to the 15th, it repeats on the 15th', new Date(may.dueAt).getDate() === 15 && may.monthDay === 15);
-
-  section('Working Dashboard: a CSV saved again by Excel keeps its dates');
-  const excel = csvRowsToEntries([{ Title: 'Pay rent', 'Due date': '05/10/2026', 'Due time': '5:30 PM', 'Deadline date': '2026-10-07', 'Deadline time': '' }]);
-  const due = new Date(excel[0].dueAt);
-  ck('dd/mm/yyyy and 12-hour time are read', due.getFullYear() === 2026 && due.getMonth() === 9 && due.getDate() === 5 && due.getHours() === 17 && due.getMinutes() === 30, excel[0].dueAt);
-  ck('the export format still reads', new Date(excel[0].deadlineAt).getDate() === 7);
-  ck('a blank date stays blank', csvRowsToEntries([{ Title: 'x', 'Due date': '' }])[0].dueAt === null);
 
   section('Working Dashboard: a range with a mistyped end year cannot freeze the screen');
   const t0 = Date.now();
@@ -309,9 +253,12 @@ export async function runExtra2({ ck, section }) {
     ck('chosen warning times are used', keys(timed, { dueLeadMin: [1440, 30] }).startsWith('due-30,due,') && keys({ ...timed, dueAt: new Date(2026, 9, 6, 14, 0).toISOString() }, { dueLeadMin: [1440] }).startsWith('due-1440,due,'));
     ck('full-screen off: the due alert is a plain one', !entryAlertPlan(timed, now, { fullScreen: false }).some((x) => x.alarm));
     const dateOnly = { id: 'd', title: 'File GST', dueAt: new Date(2026, 9, 6).toISOString() };
-    const dPlan = entryAlertPlan(dateOnly, now).filter((x) => !/^daily-[2-3]$/.test(x.key));
-    ck('a date-only due: the evening before, the morning of (alarm), the next morning (the daily reminder)', dPlan.map((x) => x.key).join() === 'due-eve,due-day,daily-1'
-      && dPlan[0].at.getHours() === 18 && dPlan[1].at.getHours() === 9 && dPlan[1].at.getMinutes() === 30 && dPlan[1].alarm);
+    const dPlan = entryAlertPlan(dateOnly, now);
+    ck('a date-only due alerts once: 7 PM on its date (alarm), no evening before, no next morning, no daily reminders', dPlan.map((x) => x.key).join() === 'due-day'
+      && dPlan[0].at.getHours() === 19 && dPlan[0].at.getMinutes() === 0 && dPlan[0].at.getDate() === 6 && dPlan[0].alarm);
+    const rem = { id: 'r', title: 'Chase bank', nextReminderAt: new Date(2026, 9, 6, 15, 30).toISOString() };
+    const rPlan = entryAlertPlan(rem, now);
+    ck('a next reminder alerts once, at its time', rPlan.length === 1 && rPlan[0].key === 'reminder' && rPlan[0].at.getHours() === 15 && rPlan[0].at.getMinutes() === 30);
     const dl = { id: 'l', title: 'Submit audit', deadlineAt: new Date(2026, 9, 7, 17, 0).toISOString() };
     ck('a deadline: 1 day, 2 hr and 30 min before, then an alarm at it', keys(dl) === 'dl-1440,dl-120,dl-30,dl' && entryAlertPlan(dl, now).at(-1).alarm);
     ck('deadline warnings can be turned off', keys(dl, { deadline: false }) === '');
@@ -324,7 +271,7 @@ export async function runExtra2({ ck, section }) {
   {
     section('Working Dashboard: Alarm or Reminder, per task');
     const { alertModeOf, ALERT_MODES, entryAlertPlan, blankEntry } = await import('../../src/workingDashboard.js');
-    const { fromWebDocOver, toWebTask, mergeSheetPull } = await import('../../src/cloudSync.js');
+    const { fromWebDocOver, toWebTask } = await import('../../src/cloudSync.js');
     const now = new Date(2026, 9, 5, 9, 0);
     const base = { id: 'a1', title: 'Pay vendor', dueAt: new Date(2026, 9, 5, 15, 0).toISOString(), done: false, binned: false };
     const alarm = entryAlertPlan({ ...base, alertMode: 'alarm' }, now);
@@ -347,8 +294,6 @@ export async function runExtra2({ ck, section }) {
     ck('the choice is sent to the web app with the task', doc.alertMode === 'gentle');
     const back = fromWebDocOver({ ...base, alertMode: 'gentle' }, { ...doc, alertMode: undefined }, blankEntry());
     ck('a web copy without the field keeps the phone\'s choice', back.alertMode === 'gentle');
-    const pulled = mergeSheetPull([{ ...base, alertMode: 'gentle', src: 'cloud', updatedAt: '2026-10-01T00:00:00Z' }], [{ ...base, updatedAt: '2026-10-05T00:00:00Z' }]);
-    ck('a newer sheet row keeps the choice (the sheet has no column for it)', pulled.entries[0].alertMode === 'gentle');
   }
 
   {
@@ -374,5 +319,18 @@ export async function runExtra2({ ck, section }) {
     const dlPlan = wdm.entryAlertPlan(wdm.silenceEntryToday(dl, now), now);
     ck('silencing the due-time reminder leaves a later deadline today armed (as on the web app)', dlPlan.some((x) => x.key === 'dl'));
   }
-}
 
+  {
+    const wdm = await import('../../src/workingDashboard.js');
+    const now = new Date(2026, 9, 5, 12, 0);
+    const old = { id: 'o1', title: 'Old', dueAt: new Date(2026, 9, 1, 10, 0).toISOString(), done: false, binned: false, priority: 'Medium' };
+    const daily = wdm.entryAlertPlan(old, now).filter((x) => x.key.startsWith('daily-'));
+    ck('a task open for days still has "still overdue" alerts ahead (counted from today)', daily.length >= 2 && daily.every((x) => x.at > now), JSON.stringify(daily.map((x) => x.at)));
+    const dateOnly = { ...old, dueAt: new Date(2026, 9, 9).toISOString() };
+    ck('a date-only task still alerts once', wdm.entryAlertPlan(dateOnly, now).length === 1);
+    // Silenced today, 22:00 alert pushed to 08:00 tomorrow by quiet hours: it must survive the silence filter.
+    const e = { ...old, dueAt: new Date(2026, 9, 5, 22, 0).toISOString(), lastAckDate: '2026-10-05', priority: 'Low' };
+    const plan = wdm.entryAlertPlan(e, now, { quietHours: true, quietFrom: '21:00', quietTo: '08:00', quietExceptHigh: false });
+    ck('an alert moved past midnight by quiet hours is not dropped by today\'s silence', plan.some((x) => x.key === 'due' && x.at.getDate() === 6), JSON.stringify(plan.map((x) => [x.key, x.at])));
+  }
+}

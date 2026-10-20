@@ -17,7 +17,7 @@
  * Sections, in order: Other work completed, Payments, Followed up / in progress, Routine daily activities,
  * Other activities. A line already used elsewhere is dropped and counted.
  */
-import { toDateKey, isOpen, completedTime } from './workingDashboard';
+import { toDateKey, isOpen, completedTime, isNonWorkingDay } from './workingDashboard';
 import { isBankFollowUpCategory, bankFollowUpReportLine, bankFollowUps, fmtFollowDate } from './bankFollowUp';
 import {
   isDomesticPaymentCategory, isImportPaymentCategory, isUrgentPaymentCategory, workedOn, findNarrationType,
@@ -40,6 +40,8 @@ const timeOf = (iso) => (iso ? new Date(iso).toTimeString().slice(0, 5) : '99');
 const byTime = (a, b) => timeOf(a.dueAt).localeCompare(timeOf(b.dueAt)) || String(a.title || '').localeCompare(String(b.title || ''));
 const completedOn = (e) => { const ms = completedTime(e); return ms ? toDateKey(new Date(ms)) : ''; };
 const inReport = (e) => e.dar !== false;
+/** Open as of `date` (not today): a task completed after that day was still open on it, so a regenerated older report keeps its follow-up. */
+const openOn = (e, date) => !e.binned && (!e.done || (!!date && completedOn(e) > date));
 
 /** Duty payment (BOE): the category, sub category or narration type says "duty", or the narration mentions it. */
 export function isDutyPaymentEntry(e, lists) {
@@ -56,6 +58,11 @@ export function isPaymentEntry(e, lists) {
   return /domestic\s*payments?|urgent\s*payments?/i.test(e.category || '');
 }
 
+// One BOE number is one token with at least one digit ("9876543", "BOE/26/118"); several may be listed with commas or "&".
+// The words after it ("through ICEGATE") are never part of it.
+const BOE_TOKEN = '[A-Za-z0-9/-]*\\d[A-Za-z0-9/-]*';
+const BOE_NO_RE = new RegExp(`(?:\\bboe\\b|bill\\s*of\\s*entry)\\s*(?:no\\.?|number|#)?\\s*[:-]?\\s*(${BOE_TOKEN}(?:\\s*[,&]\\s*${BOE_TOKEN})*)`, 'i');
+
 /** The BOE No of a duty payment, from a BOE field, the narration's document number, or "BOE No: ..." in the text. */
 export function dutyBoeNo(e, lists) {
   const n = e.narration || {};
@@ -68,7 +75,7 @@ export function dutyBoeNo(e, lists) {
   }
   if (!v) {
     const m = [n.text, n.reportText, e.notes, e.title].map((x) => String(x || ''))
-      .map((x) => x.match(/(?:\bboe\b|bill\s*of\s*entry)\s*(?:no\.?|number|#)?\s*[:-]?\s*([A-Za-z0-9][A-Za-z0-9/,&\- ]*[A-Za-z0-9])/i)).find(Boolean);
+      .map((x) => x.match(BOE_NO_RE)).find(Boolean);
     if (m) v = m[1];
   }
   return v.replace(/\s+/g, ' ').replace(/[.,;:\s]+$/, '').trim();
@@ -204,10 +211,10 @@ export function collectReportData(entries = [], date, lists) {
   const listed = completed.filter(inReport);
   const isImport = (e) => isImportPaymentCategory(e.category);
   // Import payments set In Progress that day (remittance initiated) go under "Other work completed".
-  const importsOpen = live.filter((e) => isOpen(e) && isImport(e) && workedOn(e, date) && inReport(e));
+  const importsOpen = live.filter((e) => openOn(e, date) && isImport(e) && workedOn(e, date) && inReport(e));
   const payments = listed.filter((e) => isPaymentEntry(e, lists));
   const others = listed.filter((e) => !isPaymentEntry(e, lists)).concat(importsOpen);
-  const followed = live.filter((e) => isOpen(e) && !isImport(e) && workedOn(e, date) && inReport(e));
+  const followed = live.filter((e) => openOn(e, date) && !isImport(e) && workedOn(e, date) && inReport(e));
   return { payments: payments.sort(byTime), others: others.sort(byTime), followed: followed.sort(byTime), excluded: completed.length - listed.length, excludedList: completed.filter((e) => !inReport(e)), skippedPayments };
 }
 
@@ -219,7 +226,8 @@ export function collectReportData(entries = [], date, lists) {
 export function buildReportModel({ entries = [], fixedActivities = [], activityLog = [], date, paymentIntro, leaveDays = [], holidays = [], lists = paymentLists(), details = false } = {}) {
   const intro = (paymentIntro && paymentIntro.length ? paymentIntro : DEFAULT_PAYMENT_INTRO).map(clean).filter(Boolean);
   // Routine activities are done on working days: a leave day or a holiday reported them as done anyway.
-  const dayOff = (leaveDays || []).includes(date) || (holidays || []).some((h) => h && h.date && date >= h.date && date <= (h.endDate || h.date));
+  // Sunday, a holiday the office is closed on (an open-office USD holiday is not one) or a leave day.
+  const dayOff = isNonWorkingDay(date, holidays || [], leaveDays || []);
   const d = collectReportData(entries, date, lists);
 
   const seen = new Map();
@@ -389,12 +397,15 @@ export function verifyAiRewrite(model, aiText) {
  * An entry's amount in rupees from its Key Points ("Amount: ₹50,000", "Value - Rs. 4,35,000.50", "Amt 12000"), or 0.
  * A key point named like an amount wins; else the first value written in ₹ / Rs / INR.
  */
+// A value written in another currency ("USD 1,000", "$500", "EUR 20") is not rupees.
+const FOREIGN_MONEY = /\b(?:usd|eur|gbp|aed|sgd|jpy|cny|chf|aud|cad|dollars?|euros?|pounds?|dirhams?)\b|[$€£¥]/i;
 export function entryAmount(e) {
   const kps = Array.isArray(e?.keyPoints) ? e.keyPoints : [];
   const rows = kps.map((k) => (k && typeof k === 'object' ? [String(k.key ?? ''), String(k.value ?? '')] : ['', String(k ?? '')]));
   const toNum = (digits) => { const n = Number(String(digits).replace(/,/g, '')); return Number.isFinite(n) ? n : 0; };
   for (const [k, v] of rows) {
     if (!/\b(amount|amt|value)\b/i.test(k)) continue;
+    if (FOREIGN_MONEY.test(`${k} ${v}`)) continue;
     const m = /([0-9][0-9,]*(?:\.[0-9]+)?)/.exec(v);
     if (m && toNum(m[1])) return toNum(m[1]);
   }
@@ -428,7 +439,9 @@ export function buildPeriodSummary({ entries = [], kind = 'week', date, lists = 
   const inRange = (k) => !!k && k >= from && k <= to;
   const live = entries.filter((e) => e && !e.binned && !e.purged && !isSkippedPaymentCategory(e.category));
   const completed = live.filter((e) => e.done && inRange(completedOn(e)));
-  const payments = completed.filter((e) => isPaymentEntry(e, lists) || isPaymentCategory(e.category)).length;
+  // The daily report's rule: Duty and Import payments are not counted as payments (they have their own wording and section).
+  const isPay = (e) => countsAsPayment(e, lists);
+  const payments = completed.filter(isPay).length;
   const cats = {};
   completed.forEach((e) => { const c = e.category || 'Uncategorised'; cats[c] = (cats[c] || 0) + 1; });
   const byCategory = Object.entries(cats).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -444,7 +457,7 @@ export function buildPeriodSummary({ entries = [], kind = 'week', date, lists = 
     `Completed: ${completed.length} (payments ${payments}, other work ${completed.length - payments})`,
   ];
   // The amounts written on the payments (Key Points), added up.
-  const paid = completed.filter((e) => isPaymentEntry(e, lists) || isPaymentCategory(e.category)).map(entryAmount);
+  const paid = completed.filter(isPay).map(entryAmount);
   const paymentTotal = paid.reduce((a, n) => a + n, 0);
   const withAmount = paid.filter((n) => n > 0).length;
   if (paymentTotal > 0) lines.push(`Payments total: ${fmtRupees(paymentTotal)}${withAmount < payments ? ` (${withAmount} of ${payments} payments had an amount)` : ''}`);
@@ -505,9 +518,12 @@ export function reportCsvRows(model, text) {
   return { rows: String(text || '').split('\n').filter((l) => l.trim()).map((l) => ({ Line: l.replace(/^\*\s+/, '') })), columns: ['Line'] };
 }
 
+/** The daily report's rule for "a payment": Duty and Import payments have their own wording and section and are not counted. */
+export const countsAsPayment = (e, lists) => isPaymentEntry(e, lists) || (isPaymentCategory(e.category) && !isDutyPaymentEntry(e, lists) && !isImportPaymentCategory(e.category));
+
 /**
  * Payments of one month by vendor (the amounts written in Key Points), biggest first - the Dashboard's "Payments by vendor".
- * `monthKey` is "YYYY-MM"; Domestic / Urgent payments are left out, as in the report. Returns
+ * `monthKey` is "YYYY-MM"; Domestic / Urgent, Duty and Import payments are left out, as in the report. Returns
  * { total, count, withAmount, rows: [{ vendor, total, count }] }.
  */
 export function paymentsByVendor(entries = [], lists = paymentLists(), monthKey) {
@@ -516,7 +532,7 @@ export function paymentsByVendor(entries = [], lists = paymentLists(), monthKey)
   let total = 0; let count = 0; let withAmount = 0;
   (entries || []).forEach((e) => {
     if (!e || !e.done || e.binned || e.purged || isSkippedPaymentCategory(e.category)) return;
-    if (!(isPaymentEntry(e, lists) || isPaymentCategory(e.category))) return;
+    if (!countsAsPayment(e, lists)) return;
     const day = completedOn(e);
     if (!day || day.slice(0, 7) !== key) return;
     count += 1;

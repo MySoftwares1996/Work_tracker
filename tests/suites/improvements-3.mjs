@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { quickDueOptions, weeklySummaryTimes, calendarWeeks, filterEntries, EMPTY_WD_FILTER, isWdFilterActive, blankEntry } from '../../src/workingDashboard.js';
-import { defaultNextFollowUp, withQuickRemark, followUpsByBank, needsEscalationPrompt, escalateFollowUp, declineEscalation, bankFollowUpReportLine, addBankFollowUp } from '../../src/bankFollowUp.js';
+import { defaultNextFollowUp, withQuickRemark, followUpsByBank, bankFollowUpReportLine, addBankFollowUp } from '../../src/bankFollowUp.js';
+import { noteWork } from '../../src/workingDashboardPayments.js';
 import { entryAmount, fmtRupees, buildPeriodSummary, buildReportModel, reportModelToText } from '../../src/workingDashboardReport.js';
 import { toWebTask, fromWebDoc } from '../../src/cloudSync.js';
 
@@ -31,14 +32,10 @@ export async function run({ ck, section }) {
 
   section('Escalation');
   const old = { ...bf('o', 'SBI', 1, 7), title: 'LC with SBI', priority: 'Medium', createdAt: new Date(2026, 8, 1).toISOString() };
-  ck('offered for a long pending, non-High follow-up', needsEscalationPrompt(old, now));
-  ck('not for High', !needsEscalationPrompt({ ...old, priority: 'High' }, now));
-  const up = escalateFollowUp(old, now);
-  ck('Raise: High, and not offered again', up.priority === 'High' && !needsEscalationPrompt(up, now));
-  ck('"Not now": not offered again', !needsEscalationPrompt(declineEscalation(old, now), now));
+  const up = noteWork({ ...old, priority: 'High', escalation: { asked: '2026-10-08', escalatedOn: '2026-10-08' } }, 'Escalated', now);
   ck('the report line says so', bankFollowUpReportLine(up, '2026-10-08') === 'LC with SBI: Escalated to manager (open 37 days).', bankFollowUpReportLine(up, '2026-10-08'));
   ck('...and it is in that day\'s report', reportModelToText(buildReportModel({ entries: [up], date: '2026-10-08' })).includes('Escalated to manager'));
-  const both = escalateFollowUp(addBankFollowUp(old, { remarks: 'Still pending' }, now), now);
+  const both = noteWork({ ...addBankFollowUp(old, { remarks: 'Still pending' }, now), priority: 'High', escalation: { asked: '2026-10-08', escalatedOn: '2026-10-08' } }, 'Escalated', now);
   ck('with a follow-up the same day: added at the end', bankFollowUpReportLine(both, '2026-10-08').endsWith('Escalated to manager.'));
   const back = fromWebDoc(JSON.parse(JSON.stringify(toWebTask(up))), blankEntry());
   ck('escalation syncs with the web app', back && back.escalation && back.escalation.escalatedOn === '2026-10-08');

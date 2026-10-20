@@ -44,11 +44,27 @@ export function playAlertSound() {
 /** A desktop notification (when allowed and the page is in the background). */
 export function showNotification(title, body, onClick) {
   try {
+    if (!loadAlertSettings().notify) return;       // Config > Alerts > Desktop notification is off
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const n = new Notification(title, { body, tag: 'wd-alert' });
     n.onclick = () => { window.focus(); n.close(); if (onClick) onClick(); };
   } catch { /* not shown */ }
 }
+
+const EXPLAINER_SNOOZE = 'wd-notify-explainer-until';
+const WEEK = 7 * 86400000;
+/** True when the person pressed "Not now" on the notification explainer less than 7 days ago (the page then does not offer it by itself). */
+export function explainerSnoozed(now = Date.now()) {
+  try { return Number(localStorage.getItem(EXPLAINER_SNOOZE)) > now; } catch { return false; }
+}
+export function snoozeExplainer(now = Date.now()) {
+  try { localStorage.setItem(EXPLAINER_SNOOZE, String(now + WEEK)); } catch { /* not remembered */ }
+}
+/** Whether the page may offer the explainer by itself: notifications are supported, not decided in the browser, switched off in Config and not snoozed. */
+export function shouldOfferExplainer() {
+  try { return 'Notification' in window && Notification.permission === 'default' && !loadAlertSettings().notify && !explainerSnoozed(); } catch { return false; }
+}
+/** The browser's own permission prompt. Call it only after the in-page explainer (NotifyExplainer) was accepted. */
 export async function askNotificationPermission() {
   try { return 'Notification' in window ? await Notification.requestPermission() : 'denied'; } catch { return 'denied'; }
 }

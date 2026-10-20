@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
+import Icon from '../icons';
 import { DONE_STATUS, applySubCategoryEdit, validateSubCategory, addSubCategories, addSubCategory, parseSubCategoryLines, withCarrying, removeSubCategory, addOption, newId, removeOption } from '../data';
 
 export const LIST_META = [['categories', 'Categories'], ['priorities', 'Priorities'], ['statuses', 'Statuses'], ['pendingWith', 'Pending with']];
@@ -25,7 +26,7 @@ export function ListManager({ listKey, label, lists, onAdd }) {
   return (
     <div className="manager">
       <div className="chips">
-        {list.map((v) => <span key={v} className="chip removable">{v}<button type="button" onClick={() => remove(v)} aria-label={`Delete ${v}`}>✕</button></span>)}
+        {list.map((v) => <span key={v} className="chip removable">{v}<button type="button" onClick={() => remove(v)} aria-label={`Delete ${v}`}><Icon name="x" size={11} strokeWidth={2.6} /></button></span>)}
         {!list.length && <span className="muted">None yet</span>}
       </div>
       <div className="add-row">
@@ -63,7 +64,7 @@ export function SubCategoryManager({ lists, only }) {
     if (added) { save(list, cat); set(cat, { many: '' }); }
   };
   const remove = (sc) => { if (confirm(`Delete the Sub Category "${sc.name}"? Tasks using it keep it.`)) saveLists({ ...lists, subCategories: removeSubCategory(subs, sc.id) }); };
-  const chip = (sc) => <span key={sc.id} className="chip removable" title={sc.fields.map((f) => f.label).join(', ')}>{sc.name}{sc.fields.length > 0 && <small>{sc.fields.length} field{sc.fields.length > 1 ? 's' : ''}</small>}<button type="button" className="edit-btn" onClick={() => setEditing(editing === sc.id ? '' : sc.id)} aria-label={`Edit ${sc.name}`} title="Edit the name and fields">✎</button><button type="button" onClick={() => remove(sc)} aria-label={`Delete ${sc.name}`}>✕</button></span>;
+  const chip = (sc) => <span key={sc.id} className="chip removable" title={sc.fields.map((f) => f.label).join(', ')}>{sc.name}{sc.fields.length > 0 && <small>{sc.fields.length} field{sc.fields.length > 1 ? 's' : ''}</small>}<button type="button" className="edit-btn" onClick={() => setEditing(editing === sc.id ? '' : sc.id)} aria-label={`Edit ${sc.name}`} title="Edit the name and fields"><Icon name="pencil" size={11} strokeWidth={2.4} /></button><button type="button" onClick={() => remove(sc)} aria-label={`Delete ${sc.name}`}><Icon name="x" size={11} strokeWidth={2.6} /></button></span>;
   const general = subs.filter((x) => !x.category);
   if (only === '') return <p className="muted">Choose a Category first. Sub Categories are kept under a category.</p>;
   return (
@@ -116,7 +117,7 @@ function SubCategoryEditor({ sc, subs, onSave, onCancel }) {
           <div key={r.key} className="field-row">
             <input value={r.label} onChange={(e) => setRow(r.key, { label: e.target.value })} placeholder="Field name" aria-label="Field name" />
             <input value={r.options} onChange={(e) => setRow(r.key, { options: e.target.value })} placeholder="Choices, comma separated (optional)" aria-label="Choices for this field" />
-            <button type="button" className="btn ghost" onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))} aria-label={`Delete field ${r.label || ''}`}>✕</button>
+            <button type="button" className="icon-btn" onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))} aria-label={`Delete field ${r.label || ''}`}><Icon name="x" size={16} /></button>
           </div>
         ))}
         {!rows.length && <span className="muted">No fields yet.</span>}

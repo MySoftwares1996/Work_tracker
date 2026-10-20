@@ -47,8 +47,8 @@ export async function run({ ck, section }) {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 2); tomorrow.setHours(0, 0, 0, 0);
   const dated = { id: 'dd', title: 'Date only', dueAt: tomorrow.toISOString(), done: false, binned: false };
   const dayItem = (morning) => entryAlertPlan(dated, new Date(), { morning }).find((x) => x.key === 'due-day');
-  ck('a typed morning time is used', dayItem('08:15').at.getHours() === 8 && dayItem('08:15').at.getMinutes() === 15);
-  ck('"25:00" or "9:75" fall back to 9:30 on the same day', ['25:00', '9:75', '9'].every((m) => { const at = dayItem(m).at; return at.getDate() === tomorrow.getDate() && at.getHours() === 9 && at.getMinutes() === 30; }));
+  ck('a date-only task rings once at 7 PM on its due date, whatever the morning time is', ['08:15', '25:00', '9'].every((m) => { const at = dayItem(m).at; return at.getDate() === tomorrow.getDate() && at.getHours() === 19 && at.getMinutes() === 0; }));
+  ck('a date-only task has no other alert', entryAlertPlan(dated, new Date(), {}).length === 1);
   // Snoozed from its last alert: nothing of its own is left to ring, but the snooze must still be booked.
   const spent = { id: 'sp', title: 'Old task', dueAt: timedIn(-6 * 3600000), done: false, binned: false };
   const snoozeAt = Date.now() + 15 * 60000;

@@ -1,4 +1,4 @@
-import { SOURCES, normaliseOptions, union, fixedSource } from '../../src/optionSources.js';
+import { SOURCES, normaliseOptions, union } from '../../src/optionSources.js';
 
 export async function run({ ck, section }) {
   const base = () => ({
@@ -45,77 +45,7 @@ export async function run({ ck, section }) {
   ck('a working dashboard category deleted while an entry uses it stays deleted after a reload',
     JSON.stringify(normaliseOptions(delWd).workingDashboard.categories) === '["Query"]', JSON.stringify(normaliseOptions(delWd).workingDashboard.categories));
 
-  section('Options: spend categories, visible everywhere spend reads them');
-  const r = SOURCES.spendCategory.add(n, 'Groceries');
-  ck('adding returns the new value', r.value === 'Groceries');
-  ck('it lands in the spend list', r.db.expenses.spendCategories.includes('Groceries'));
-  ck('every spend reader sees it', SOURCES.spendCategory.read(r.db).some((o) => o.value === 'Groceries'));
-  ck('it does not appear in the income list', !SOURCES.incomeCategory.read(r.db).some((o) => o.value === 'Groceries'));
-  const dup = SOURCES.spendCategory.add(r.db, '  groceries ');
-  ck('case/space duplicate reuses existing', dup.existed && dup.value === 'Groceries' && dup.db === r.db);
-  ck('empty name rejected', !!SOURCES.spendCategory.add(n, '   ').error);
-
-  const ic = SOURCES.incomeCategory.add(n, 'Bonus');
-  ck('income category added to its own list', ic.db.expenses.incomeCategories.includes('Bonus'));
-  ck('it does not appear in the spend list', !SOURCES.spendCategory.read(ic.db).some((o) => o.value === 'Bonus'));
-
-  const m = SOURCES.mainCategory.add(n, 'Investments');
-  ck('main category can be added (was blocked)', m.db.expenses.mainCategories.includes('Investments'));
-
-  section('Options: categories are independent');
-  const s1 = SOURCES.subCategoryList.add(n, 'Cab');
-  ck('a sub-category is added to one flat list', s1.db.expenses.subCategoryList.includes('Cab'));
-  ck('any category can be used with it', SOURCES.subCategoryList.read(s1.db).some((o) => o.value === 'Cab'));
-  ck('old per-parent calls reach the same list', SOURCES.subCategory('Food') === SOURCES.subCategoryList && SOURCES.subCategory('Travel') === SOURCES.subCategoryList);
-  ck('spend and income each have their own, independent category list', SOURCES.spendCategory !== SOURCES.incomeCategory && SOURCES.spendCategory.id === 'spendCategory' && SOURCES.incomeCategory.id === 'incomeCategory');
-
-  section('Options: deleting');
-  const del = SOURCES.tag.remove(n, 'OFFICE');
-  ck('delete is case-insensitive', !del.db.expenses.tags.includes('office'));
-  ck('records keep their value', del.db.expenses.txns[0].tags.includes('office'));
-  ck('usage counted for the warning', SOURCES.tag.usage(n, 'office') === 1);
-
-  section('Options: accounts');
-  const a = SOURCES.account.add(n, 'ICICI Savings', { kind: 'bank', opening: 500 });
-  const made = a.db.expenses.accounts.find((x) => x.id === a.value);
-  ck('account created with kind and opening', made && made.kind === 'bank' && made.opening === 500);
-  ck('read gives id as value, name as label', SOURCES.account.read(a.db).some((o) => o.value === a.value && o.label === 'ICICI Savings'));
-  ck('account in use cannot be deleted', !!SOURCES.account.remove(n, 'hdfc').error);
-  const freshDel = SOURCES.account.remove(a.db, a.value);
-  ck('unused account can be deleted', !freshDel.error && !freshDel.db.expenses.accounts.some((x) => x.id === a.value));
-  const solo = { expenses: { txns: [], accounts: [{ id: 'cash', name: 'Cash' }] } };
-  ck('last account cannot be deleted', !!SOURCES.account.remove(solo, 'cash').error);
-
-  section('Options: task categories');
-  const tc = SOURCES.taskType.add(n, 'Anniversary');
-  ck('a task category can be added', tc.db.taskTypes.includes('Anniversary'));
-  ck('usage counts tasks of that type', SOURCES.taskType.usage(n, 'Renewal') === 1);
-
-  section('Options: fixed lists');
-  const f = fixedSource('p', 'Priority', ['High', 'Low']);
-  ck('fixed list reads', f.read().length === 2);
-  ck('fixed list refuses additions', !!f.add({}, 'x').error);
-
   section('Options: union');
   ck('dedupes case-insensitively, first spelling wins', JSON.stringify(union(['Food', 'food', ' FOOD '], ['Bills'])) === '["Food","Bills"]');
   ck('drops blanks and nulls', union(['', null, '  ', 'A']).length === 1);
-}
-
-export async function runExtra({ ck, section }) {
-  section('Options: account add is repeatable with a fixed id');
-  const db = { expenses: { txns: [], accounts: [{ id: 'cash', name: 'Cash' }] } };
-  const first = SOURCES.account.add(db, 'Axis', { id: 'acct_axis_1' });
-  const second = SOURCES.account.add(db, 'Axis', { id: 'acct_axis_1' });
-  ck('same id both times', first.value === 'acct_axis_1' && second.value === 'acct_axis_1');
-  ck('applying to already-updated db does not duplicate', SOURCES.account.add(first.db, 'Axis', { id: 'acct_axis_1' }).db.expenses.accounts.length === 2);
-
-  section('Options: editing an account');
-  const u = SOURCES.account.update(first.db, 'acct_axis_1', { opening: '2500', kind: 'wallet', name: 'Axis Savings' });
-  const acc = u.db.expenses.accounts.find((a) => a.id === 'acct_axis_1');
-  ck('opening balance set', acc.opening === 2500);
-  ck('kind changed', acc.kind === 'wallet');
-  ck('renamed, same id', acc.name === 'Axis Savings' && acc.id === 'acct_axis_1');
-  ck('duplicate name refused', !!SOURCES.account.update(first.db, 'acct_axis_1', { name: 'cash' }).error);
-  ck('non-number opening refused', !!SOURCES.account.update(first.db, 'acct_axis_1', { opening: 'abc' }).error);
-  ck('missing account reported', !!SOURCES.account.update(first.db, 'nope', { opening: 1 }).error);
 }

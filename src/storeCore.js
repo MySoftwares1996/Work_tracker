@@ -6,6 +6,8 @@
  * unaffected and keep importing from '../store'.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { warnQuiet } from './quietCatch';
+import { newId } from './ids';
 
 export const KEY = 'MPT_DB_V1';
 
@@ -40,8 +42,8 @@ export const DEFAULT_DB = {
     emergencyName: '', emergencyPhone: '', allergies: '', conditions: '',
   },
   settings: {
-    theme: 'pearl',
-    uiMode: 'modern',      // 'modern' = macOS look on the website / iOS look on the phone; 'classic' = the earlier plain look
+    theme: 'forest',      // Ledger colour theme: forest, harbour, plum, ember, ink or rose (earlier keys are mapped by themeKeyOf in theme.js)
+    followDark: true,      // follow the phone's dark mode (Config > Appearance)
     fontLevel: 2,
     office: { lat: null, lng: null, radius: DEFAULTS.geofenceRadiusM, label: 'Office' },
     // Set by the user in Work Tracker > Config. Empty means the built-in view.
@@ -173,6 +175,10 @@ export const DEFAULT_DB = {
     undoHistory: [],         // the last 25 undoable changes (Config > Recent Changes)
     narrationHistory: [],    // narrations copied for Tally (src/narrationHistory.js), this device only
     templates: [],          // task templates (src/templates.js) - follow the account with the links (meta/tools)
+    reportOpts: {},         // the Report's switches: headings, Sub Category fields, pending list (defaults: on, on, off), this device only
+    reportMoves: {},        // the Report's moved tasks per day ({ 'YYYY-MM-DD': { taskId: group } }), this device only
+    formatSetupAt: 0,       // when the categories and sub categories the report formats need were first added automatically (once per account)
+    reportFormats: [],      // report formats (src/reportFormats.js) - follow the account (meta/tools); [] = the sample formats
     reportAiNotesSummary: '',      // instructions for Rewrite with AI on the weekly / monthly summary
     reportAiNotes: '',      // instructions for Rewrite with AI (Daily Report)
     toolsStamps: {},        // when each synced tool (links, templates, AI notes, meeting mode) last changed here
@@ -190,31 +196,26 @@ export const DEFAULT_DB = {
       walk: { enabled: false, start: '11:00', end: '19:30', everyMin: 90 },
       water: { enabled: false, start: '10:00', end: '19:30', everyMin: 60 },
     },
-    // The same Apps Script deployment the user's existing web app talks to
-    // (Cloud Sync, Gmail Fetch Mail, and the AI Daily Report all go through
-    // this one URL). Empty until Config > Cloud Sync is filled in.
-    cloudSyncUrl: '',
     paymentIntro: null, // null = use workingDashboardReport.js's DEFAULT_PAYMENT_INTRO
     // The web app's payment lists, received with Realtime Sync (null until then - see
     // workingDashboardPayments.paymentLists for the defaults): Sub Categories with their rule fields, the
     // categories that need one when completed, and the Tally narration types.
     subCategories: null,
+    reminderCategories: null,   // the categories that ask for a next reminder date and time (null = none yet); follows the account's lists
     subCategoryCategories: null,
     narrationTypes: null,
     // Bumped whenever categories/priorities/statuses/assignees or
     // holidays/leaveDays change locally, so firebaseSync.js's push() knows
-    // the meta docs need writing - the same "newest timestamp wins" rule
-    // the Apps Script sync already uses for its own lists/calendar bundle.
+    // the meta docs need writing ("newest timestamp wins").
     listsUpdatedAt: 0,
     calendarUpdatedAt: 0,
     // Entries deleted forever on this phone, waiting to be deleted in Firestore too. Without them
     // the cloud copy came straight back on the next sync.
     deletedIds: [],
-    // Every entry ever deleted forever here, kept so a Cloud Sync (sheet) pull does not re-add it.
+    // Every entry ever deleted forever here, kept so a sync does not re-add it.
     purgedIds: [],
   },
 };
-
 
 function deepMerge(base, patch) {
   if (Array.isArray(base) || typeof base !== 'object' || base === null) return patch === undefined ? base : patch;
@@ -263,10 +264,17 @@ export const REMOVED_SECTIONS = ['hydration'];
 /** Storage keys that belonged to removed tools, deleted on the next load. */
 export const REMOVED_KEYS = ['MPT_HYD_LOG_V1'];
 
+/** Working Dashboard settings that belonged to removed features (the Google Apps Script / Sheet sync). Stopped being read; dropped when stored data is loaded or restored. */
+export const REMOVED_WD_FIELDS = ['cloudSyncUrl', 'lastSheetPullAt', 'reportSamplesLocal'];
+
 export function withoutRemoved(obj) {
   if (!obj || typeof obj !== 'object') return obj;
   const out = { ...obj };
   for (const k of REMOVED_SECTIONS) delete out[k];
+  if (out.workingDashboard && typeof out.workingDashboard === 'object') {
+    out.workingDashboard = { ...out.workingDashboard };
+    for (const k of REMOVED_WD_FIELDS) delete out.workingDashboard[k];
+  }
   return out;
 }
 
@@ -320,6 +328,43 @@ const readManifest = (raw) => {
   try { const m = JSON.parse(raw); return Number(m.__chunks) > 0 && m.gen ? m : null; } catch { return null; }
 };
 
+/** A short fingerprint of a damaged value, to tell "the same damaged copy as last launch" from a new one. */
+export function rawSig(raw) {
+  const str = String(raw ?? '');
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return `${str.length}:${h.toString(36)}`;
+}
+
+/**
+ * Which recovery copies (MPT_CORRUPT_<key>_<time>) to write for the damaged values found at launch. A value that
+ * stays damaged is copied once, not at every launch; at most `max` copies per key are kept (`drop` lists the older
+ * ones to remove). `seen` is { key: { sig, copies } } as saved last time; the new one is returned.
+ */
+export function corruptCopyPlan(damaged = [], seen = {}, stamp = Date.now(), max = 3, existingKeys = []) {
+  const writes = [];
+  const drop = [];
+  const next = { ...(seen || {}) };
+  damaged.forEach(([k, raw]) => {
+    const cur = (seen && seen[k]) || { sig: '', copies: [] };
+    // Copies a previous app version left (no ledger entry) count too, so they are pruned as well: <prefix><digits>, oldest first.
+    const prefix = `MPT_CORRUPT_${k}_`;
+    const known = new Set(cur.copies || []);
+    const adopted = (existingKeys || []).filter((n) => typeof n === 'string' && n.startsWith(prefix) && /^\d+$/.test(n.slice(prefix.length)) && !known.has(n))
+      .sort((x, y) => Number(x.slice(prefix.length)) - Number(y.slice(prefix.length)));
+    const copies = [...adopted, ...(cur.copies || [])];
+    const sig = rawSig(raw);
+    if (cur.sig !== sig) {
+      const name = `${prefix}${stamp}`;
+      writes.push([name, raw]);
+      copies.push(name);
+    }
+    while (copies.length > max) drop.push(copies.shift());
+    if (cur.sig !== sig || adopted.length || drop.length) next[k] = { sig, copies };
+  });
+  return { writes, drop, seen: next };
+}
+
 /** Pairs for one value: as it is when short, else the pieces and then the manifest (written last). */
 export function chunkPairs(key, json, gen = Date.now().toString(36)) {
   if (typeof json !== 'string' || json.length <= CHUNK_CHARS) return [[key, json]];
@@ -357,7 +402,7 @@ let writeQueue = Promise.resolve();
 export function writeStored(pairs) {
   // One write at a time: a save's sweep must never see - and remove - another save's new pieces.
   const run = writeQueue.then(() => writeStoredNow(pairs));
-  writeQueue = run.catch(() => {});
+  writeQueue = run.catch(warnQuiet('storeCore'));
   return run;
 }
 
@@ -377,14 +422,29 @@ async function writeStoredNow(pairs) {
   if (!swept.length) return;
   const all = AsyncStorage.getAllKeys ? await AsyncStorage.getAllKeys().catch(() => []) : [];
   const stale = all.filter((k) => swept.some((key) => isChunkOf(key)(k)) && !keep.has(k));
-  if (stale.length) await AsyncStorage.multiRemove(stale).catch(() => {});
+  if (stale.length) await AsyncStorage.multiRemove(stale).catch(warnQuiet('storeCore'));
   swept.forEach((k) => (heads.some(([h, v]) => h === k && readManifest(v)) ? pieced.add(k) : pieced.delete(k)));
 }
 
-/** Every storage key belonging to these keys, pieces included - for clearing them. */
+/** The sync bookkeeping keys: per account (ack map, server snapshot, unsent-edits copy) and the corrupt-copy ledger. */
+export const SYNC_STATE_PREFIXES = ['MPT_RT_ACK_', 'MPT_RT_SNAP_', 'MPT_UNSYNCED_'];
+export const CORRUPT_SEEN_KEY = 'MPT_CORRUPT_SEEN';
+/** Of `allKeys`: the sync bookkeeping, and with `withCorrupt` the recovery copies (MPT_CORRUPT_*) as well. */
+export function syncStateKeys(allKeys = [], { withCorrupt = true, withUnsynced = true } = {}) {
+  return allKeys.filter((k) => typeof k === 'string' && (
+    SYNC_STATE_PREFIXES.some((p) => k.startsWith(p) && (withUnsynced || p !== 'MPT_UNSYNCED_'))
+    || (withCorrupt && (k === CORRUPT_SEEN_KEY || k.startsWith('MPT_CORRUPT_')))));
+}
+
+/**
+ * Every storage key belonging to these keys, pieces included - for clearing them. Clearing the main data key (the
+ * "erase everything" path) also takes the sync bookkeeping and the recovery copies, which belong to that data.
+ */
 export async function storedKeysOf(keys) {
   const all = AsyncStorage.getAllKeys ? await AsyncStorage.getAllKeys().catch(() => []) : [];
-  return [...keys, ...all.filter((k) => keys.some((key) => isChunkOf(key)(k)))];
+  const out = [...keys, ...all.filter((k) => keys.some((key) => isChunkOf(key)(k)))];
+  if (keys.includes(KEY)) syncStateKeys(all).forEach((k) => { if (!out.includes(k)) out.push(k); });
+  return out;
 }
 
 export async function loadAll() {
@@ -396,9 +456,9 @@ export async function loadAll() {
   const slices = {};
   let migrated = false;
   // Rewriting the core (migrated) is what drops a removed tool's data from it.
-  if (core && REMOVED_SECTIONS.some((k) => k in core)) migrated = true;
+  if (core && (REMOVED_SECTIONS.some((k) => k in core) || (core.workingDashboard && REMOVED_WD_FIELDS.some((k) => k in core.workingDashboard)))) migrated = true;
   if (REMOVED_KEYS.some((k) => map[k] != null)) {
-    await AsyncStorage.multiRemove(REMOVED_KEYS).catch(() => {});
+    await AsyncStorage.multiRemove(REMOVED_KEYS).catch(warnQuiet('storeCore'));
   }
   for (const s of SLICES) {
     const parsed = map[s.key] ? safeParse(map[s.key], s.key, corrupt) : null;
@@ -415,84 +475,5 @@ export async function loadAll() {
   return { core, slices, migrated, corrupt };
 }
 
+export const uid = () => newId();
 
-export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-export const todayKey = (d = new Date()) => {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-export const monthKey = (d = new Date()) => todayKey(d).slice(0, 7);
-export const addMonths = (mk, n) => {
-  const [y, m] = mk.split('-').map(Number);
-  const d = new Date(y, m - 1 + n, 1);
-  return monthKey(d);
-};
-export const monthLabel = (mk) => {
-  const [y, m] = mk.split('-').map(Number);
-  return new Date(y, m - 1, 1).toLocaleString([], { month: 'long', year: 'numeric' });
-};
-/** 8537 -> "8.5k", 12400 -> "12k", 1250000 -> "1.3M": short enough to sit above a narrow bar. */
-export function compactNumber(n) {
-  const v = Math.round(Number(n) || 0);
-  const trim = (x) => x.replace(/\.0$/, '');
-  if (Math.abs(v) >= 1e6) return `${trim((v / 1e6).toFixed(1))}M`;
-  if (Math.abs(v) >= 1e4) return `${Math.round(v / 1e3)}k`;
-  if (Math.abs(v) >= 1e3) return `${trim((v / 1e3).toFixed(1))}k`;
-  return String(v);
-}
-
-/** "₹1,749", and "−₹1,749" for negatives rather than "₹-1,749". */
-export const inr = (n) => {
-  const v = Number(n) || 0;
-  const body = '\u20B9' + Math.abs(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  return v < 0 ? '\u2212' + body : body;
-};
-
-/**
- * A quantity (fund units, shares) exactly as it was entered or imported -
- * never forced to a fixed number of decimals the way a currency figure is.
- * A holding total is a running sum of many rows, so it is rounded to 6
- * places first purely to drop binary floating-point noise (0.1 + 0.2
- * territory), then trailing zeros are trimmed - it never rounds away a real
- * digit the source (a manual entry or an imported file) actually had.
- */
-export const fmtUnits = (n) => {
-  if (n == null || !Number.isFinite(Number(n))) return '-';
-  return Number(Number(n).toFixed(6)).toString();
-};
-
-/**
- * True once the app holds anything actually worth not losing. Gates the
- * backup reminder below so a fresh install with nothing entered yet is never
- * nagged to back up an empty database.
- */
-export function hasAnyData(db) {
-  return (
-    (db.expenses?.txns?.length || 0) > 0 ||
-    (db.tasks?.length || 0) > 0 ||
-    Object.keys(db.attendance?.days || {}).length > 0 ||
-    (db.investments?.txns?.length || 0) > 0 ||
-    (db.workingDashboard?.entries?.length || 0) > 0 ||
-    (db.epfo?.transactions?.length || 0) > 0 ||
-    (db.healthRecords?.patients?.length || 0) > 0 ||
-    (db.healthMeasures?.readings?.length || 0) > 0 ||
-    (db.healthMeasures?.reports?.length || 0) > 0 ||
-    Object.keys(db.water?.log || {}).length > 0 ||
-    Object.keys(db.steps?.daily || {}).length > 0
-  );
-}
-
-/**
- * Everything this app stores lives only on the device - AsyncStorage, no
- * cloud sync - so the one manual JSON export in Settings is the only thing
- * standing between a lost/reset/uninstalled phone and losing it all for
- * good. True when there is real data to protect and either no export has
- * ever been made, or the last one is more than `days` old.
- */
-export function isBackupStale(lastBackupAt, hasData, days = 21) {
-  if (!hasData) return false;
-  if (!lastBackupAt) return true;
-  const last = new Date(lastBackupAt).getTime();
-  if (!last) return true;
-  return Date.now() - last >= days * 24 * 60 * 60 * 1000;
-}

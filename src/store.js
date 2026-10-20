@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { AppState } from 'react-native';
-import { KEY, DEFAULT_DB, SLICES, coreOf, assemble, loadAll, deepMerge, writeStored } from './storeCore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { KEY, DEFAULT_DB, SLICES, coreOf, assemble, loadAll, deepMerge, writeStored, corruptCopyPlan, storedKeysOf } from './storeCore';
 import { normaliseOptions } from './optionSources';
 import { repairWebShapedEntries } from './cloudSync';
 import { blankEntry } from './workingDashboard';
 import { LoadFailed } from './ErrorBoundary';
+import { warnQuiet } from './quietCatch';
 
 // Pure logic lives in storeCore.js; re-exported so every existing
 // `import { ... } from '../store'` keeps working unchanged.
 export * from './storeCore';
 
 const StoreCtx = createContext(null);
+const SEEN_KEY = 'MPT_CORRUPT_SEEN';        // which damaged values already have a recovery copy (storeCore corruptCopyPlan)
 
 export function StoreProvider({ children }) {
   const [data, setData] = useState(DEFAULT_DB);
@@ -19,6 +22,7 @@ export function StoreProvider({ children }) {
   const skipNextWrite = useRef(true);
   const lastSlices = useRef({});
   const lastCore = useRef('');
+  const saveRetry = useRef(null);
   // Set when the saved data could not be read. Nothing is written while it is,
   // or the first edit would save the empty defaults over every collection.
   const loadFailed = useRef(false);
@@ -43,10 +47,18 @@ export function StoreProvider({ children }) {
     try {
       const { core, slices, migrated, corrupt } = res;
       // A damaged entry is copied to a recovery key before anything can overwrite it.
+      // Once per damaged value, not at every launch while it stays damaged; the oldest copies are dropped (3 kept).
       const damaged = Object.entries(corrupt || {});
       if (damaged.length) {
-        const stamp = Date.now();
-        await writeStored(damaged.map(([k, raw]) => [`MPT_CORRUPT_${k}_${stamp}`, raw])).catch(() => {});
+        try {
+          let seen = {};
+          try { seen = JSON.parse(await AsyncStorage.getItem(SEEN_KEY)) || {}; } catch { seen = {}; }
+          const existing = AsyncStorage.getAllKeys ? await AsyncStorage.getAllKeys().catch(() => []) : [];
+          const plan = corruptCopyPlan(damaged, seen, Date.now(), 3, existing);
+          if (plan.writes.length) await writeStored(plan.writes);
+          if (plan.writes.length || plan.drop.length) await AsyncStorage.setItem(SEEN_KEY, JSON.stringify(plan.seen));
+          if (plan.drop.length) await AsyncStorage.multiRemove(await storedKeysOf(plan.drop)).catch(warnQuiet('store'));
+        } catch (e) { warnQuiet('store')(e); }
       }
       // Repairs older data onto the single-list model; a no-op once done.
       const base = assemble(core, slices);
@@ -59,10 +71,12 @@ export function StoreProvider({ children }) {
       setData(assembled);
       setReady(true);
       if (migrated || repairedWd !== wdEntries) {
-        // Write the split layout (and any repair) once so the next load is already clean.
+        // Write the split layout (and any repair) once so the next load is already clean. A damaged value is not
+        // written over (its raw copy is kept above, and the empty stand-in must not replace what could be recovered by hand).
+        const bad = corrupt || {};
         await writeStored([
-          [KEY, JSON.stringify(coreOf(assembled))],
-          ...SLICES.map((s) => [s.key, JSON.stringify(s.read(assembled) ?? s.empty)]),
+          ...(KEY in bad ? [] : [[KEY, JSON.stringify(coreOf(assembled))]]),
+          ...SLICES.filter((s) => !(s.key in bad)).map((s) => [s.key, JSON.stringify(s.read(assembled) ?? s.empty)]),
         ]).catch((e) => console.warn('Store migration write failed:', e?.message));
       }
     } catch (e) {
@@ -83,14 +97,17 @@ export function StoreProvider({ children }) {
   const writeNow = useCallback(async (snapshot) => {
     if (loadFailed.current) return;
     const writes = [];
+    const marks = [];                 // what was marked as written, to take back if the write fails
     for (const s of SLICES) {
       const cur = s.read(snapshot);
       if (cur !== lastSlices.current[s.key]) {
         writes.push([s.key, JSON.stringify(cur ?? s.empty)]);
+        marks.push({ key: s.key, prev: lastSlices.current[s.key], cur });
         lastSlices.current[s.key] = cur;
       }
     }
     const coreJson = JSON.stringify(coreOf(snapshot));
+    const prevCore = lastCore.current;
     if (coreJson !== lastCore.current) {
       writes.push([KEY, coreJson]);
       lastCore.current = coreJson;
@@ -100,6 +117,12 @@ export function StoreProvider({ children }) {
       await writeStored(writes);     // a collection past ~2 MB is stored in pieces Android can read back
     } catch (e) {
       console.warn('Save failed', e?.message);
+      // Not saved, so not "written": the markers go back (unless a newer save already moved them on), and the next
+      // write - or the retry below - tries these collections again instead of skipping them as unchanged.
+      marks.forEach((m) => { if (lastSlices.current[m.key] === m.cur) lastSlices.current[m.key] = m.prev; });
+      if (lastCore.current === coreJson) lastCore.current = prevCore;
+      clearTimeout(saveRetry.current);
+      saveRetry.current = setTimeout(() => { writeNow(dataRef.current); }, 5000);
     }
   }, []);
 

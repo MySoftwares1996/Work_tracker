@@ -2,14 +2,15 @@ import React from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
 import { Field, Small, DateTimeField, Row, useLayout } from '../ui';
 import { useTheme } from '../theme';
-import { bankFollowUps, fmtFollowDate, followUpWho, withQuickRemark, DEFAULT_QUICK_REMARKS } from '../bankFollowUp';
+import { bankFollowUps, fmtFollowDate, followUpWho, withQuickRemark, DEFAULT_QUICK_REMARKS, followUpPicks, applyFollowUpPick } from '../bankFollowUp';
+import { isNonWorkingDay } from '../workingDashboard';
 
 /**
  * A bank follow-up task's follow-ups so far (newest first), then today's: the banker's remarks / update and the
  * next follow-up date they gave. Used by the card's 📞 button and by the entry form ("Both": phone-width screens).
  * `draft` = { remarks, next }; `onChange(patch)`.
  */
-export function BankFollowUpForm({ entry, draft, onChange, title = 'BANK FOLLOW-UPS', quickRemarks, onQuickRemarks }) {
+export function BankFollowUpForm({ entry, draft, onChange, title = 'BANK FOLLOW-UPS', quickRemarks, onQuickRemarks, holidays, leaveDays }) {
   const t = useTheme();
   const log = bankFollowUps(entry).slice().reverse();
   // "Both" (phone-width screens): who the follow-up was with - the bank and the banker's name.
@@ -47,6 +48,15 @@ export function BankFollowUpForm({ entry, draft, onChange, title = 'BANK FOLLOW-
       })()}
       <Field label="TODAY'S BANKER REMARKS / UPDATE" multiline value={draft.remarks || ''} onChangeText={(v) => onChange({ remarks: v })} placeholder="What the banker said" />
       <DateTimeField label="NEXT FOLLOW-UP (as informed by the banker)" value={draft.next} onChange={(v) => onChange({ next: v })} />
+      {/* Follow up again in N days: fills the date (keeps the time); Sundays, holidays and leave days are skipped. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        {followUpPicks(new Date(), (k) => isNonWorkingDay(k, holidays || [], leaveDays || [])).map((pk) => (
+          <Pressable key={pk.label} onPress={() => onChange({ next: applyFollowUpPick(draft.next, pk.key) })} accessibilityRole="button" accessibilityLabel={`Follow up ${pk.label}`}
+            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.border }}>
+            <Text style={{ color: t.text, fontSize: t.fs(12.5), fontWeight: '600' }}>{pk.label}</Text>
+          </Pressable>
+        ))}
+      </View>
       {!!log.length && <Small style={{ marginTop: 4, marginBottom: 6, fontWeight: '700' }}>FOLLOW-UPS SO FAR ({log.length})</Small>}
       {log.map((f, i) => (
         <View key={`${f.at || f.d}-${i}`} style={{ paddingVertical: 7, borderTopWidth: i ? 1 : 0, borderTopColor: t.border }}>

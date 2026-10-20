@@ -2,9 +2,8 @@
  * Google Sign-In + Firestore realtime sync - the same `users/{uid}/tasks` +
  * `users/{uid}/meta/{lists,calendar}` shape the web app's `rt` object
  * already uses in the "work-tracker-3b728" Firebase project, so a
- * phone and the web app can share entries live. The Apps Script/Sheets
- * sync (src/cloudSync.js) stays in independently, the same backup role it
- * has on the web app.
+ * phone and the web app can share entries live (the entry <-> document
+ * converters are in src/cloudSync.js).
  *
  * Every Firestore/auth call lives here, kept separate from
  * firebaseSyncCore.js's pure merge/ack logic so that part stays unit
@@ -14,8 +13,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged, signInWithCredential, signOut as fbSignOut, GoogleAuthProvider } from '@react-native-firebase/auth';
 import { getFirestore, collection, doc, onSnapshot, getDocs, writeBatch } from '@react-native-firebase/firestore';
+import * as firestoreApi from '@react-native-firebase/firestore';      // arrayUnion: not every build (the web shim) has it, so it is read off the namespace
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
-import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, decodeLists, encodeLists, decodeCalendar, mergeListsForPush } from './firebaseSyncCore';
+import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, decodeLists, encodeLists, decodeCalendar, mergeListsForPush, ackKey, snapKey, docHashes, diffWebDoc, createMutator, raceTimeout } from './firebaseSyncCore';
 import { toWebTask } from './cloudSync';
 
 // This project's own Firebase Android app (work-tracker-3b728), the
@@ -38,20 +38,6 @@ export async function signInWithGoogle() {
   const credential = GoogleAuthProvider.credential(res.data.idToken);
   const userCredential = await signInWithCredential(getAuth(getApp()), credential);
   return userCredential.user;
-}
-
-/**
- * A Google ID token for the website shown inside the app (it signs in with it, so the phone and the page are one account).
- * Quietly with the account already used on this phone; `interactive` asks the person to choose one, and signs the phone in too.
- * null when there is none.
- */
-export async function googleIdToken({ interactive = false } = {}) {
-  ensureConfigured();
-  let res;
-  if (interactive) { await GoogleSignin.hasPlayServices(); res = await GoogleSignin.signIn(); } else res = await GoogleSignin.signInSilently();
-  if (!res || !isSuccessResponse(res) || !res.data?.idToken) return null;
-  if (interactive) await signInWithCredential(getAuth(getApp()), GoogleAuthProvider.credential(res.data.idToken));
-  return res.data.idToken;
 }
 
 /**
@@ -93,7 +79,10 @@ const chunksOf = (list, size) => {
   return out;
 };
 
-const ackKey = (uid) => `MPT_RT_ACK_${uid}`;
+// A write that cannot reach the server (no signal) never settles: Firestore keeps it queued and sends it later. The
+// caller is told "offline" after this long, and tries again; the queued write is not cancelled (setting it twice is harmless).
+const COMMIT_TIMEOUT_MS = 15000;
+const commit = (batch) => raceTimeout(batch.commit(), COMMIT_TIMEOUT_MS, 'offline - will retry');
 
 // How the web app stores its lists document, and what it last held - learned from what it sent.
 const metaFormats = { lists: null };
@@ -106,6 +95,24 @@ async function loadAck(uid) {
 async function saveAck(uid, ack) {
   try { await AsyncStorage.setItem(ackKey(uid), JSON.stringify(ack)); } catch { /* retried on the next push/snapshot */ }
 }
+async function loadSnap(uid) {
+  try { return JSON.parse(await AsyncStorage.getItem(snapKey(uid))) || {}; } catch { return {}; }
+}
+async function saveSnap(uid, snap) {
+  try { await AsyncStorage.setItem(snapKey(uid), JSON.stringify(snap)); } catch { /* the next push sends the whole entry again */ }
+}
+// The acknowledgement map and the per-entry snapshot (what the server holds, field by field) have several writers:
+// the live listener, the background pull and every push. Each change is reloaded, applied and saved in turn, so one
+// writer never saves over another's update.
+const mutateAck = createMutator(loadAck, saveAck);
+const mutateSnap = createMutator(loadSnap, saveSnap);
+/** Remembers the server's copy of these documents (and forgets removed ones), for the next push's field diff. */
+const rememberDocs = (uid, docs, removedIds = []) => mutateSnap(uid, (s) => {
+  const next = { ...s };
+  docs.forEach((d) => { if (d && d.id !== undefined && d.id !== null) next[String(d.id)] = docHashes(d); });
+  removedIds.forEach((id) => { delete next[String(id)]; });
+  return next;
+}).catch(() => {});
 
 /**
  * Subscribes to one signed-in user's Firestore data. `getEntries()` returns
@@ -122,8 +129,6 @@ export function listen(uid, { getEntries, getTombstones = () => [], onRemoteChan
   const db = getFirestore(getApp());
   const tasksCol = collection(db, 'users', uid, 'tasks');
   const metaCol = collection(db, 'users', uid, 'meta');
-  let ack = {};
-  loadAck(uid).then((a) => { ack = { ...a, ...ack }; });
 
   const unsubTasks = onSnapshot(tasksCol, { includeMetadataChanges: true }, (snap) => {
     const incoming = [];
@@ -140,8 +145,8 @@ export function listen(uid, { getEntries, getTombstones = () => [], onRemoteChan
     const current = getEntries();
     const afterRemoval = applyRemovedIds(current, removedIds);
     const merged = mergeRemoteEntries(afterRemoval.entries, incoming, getTombstones());
-    ack = ackAfterSnapshot(ack, incoming, merged.entries);
-    saveAck(uid, ack);
+    mutateAck(uid, (a) => ackAfterSnapshot(a, incoming, merged.entries)).catch(() => {});
+    rememberDocs(uid, incoming, removedIds);
     // Hand over what arrived, not a finished list: the caller merges it into the entries as they are
     // when it is applied, so an edit made in the meantime is not overwritten by a stale copy.
     onRemoteChange({ remote: { incoming, removedIds } });
@@ -194,7 +199,7 @@ export async function pushPresence(uid, note) {
   const db = getFirestore(getApp());
   const batch = writeBatch(db);
   batch.set(doc(db, 'users', uid, 'meta', 'presence'), { webActiveAt: Number(note?.webActiveAt) || 0, lastInputAt: Number(note?.lastInputAt) || 0 }, { merge: true });
-  await batch.commit();
+  await commit(batch);
   return true;
 }
 
@@ -205,13 +210,21 @@ export async function pushPresence(uid, note) {
 export async function saveDeviceToken(uid, token) {
   if (!uid || !token) return false;
   const db = getFirestore(getApp());
+  const union = firestoreApi.arrayUnion;
+  if (typeof union === 'function') {
+    // Added on the server side: another phone registering at the same moment keeps its token.
+    const b = writeBatch(db);
+    b.set(doc(db, 'users', uid, 'meta', 'devices'), { tokens: union(token), updatedAt: Date.now() }, { merge: true });
+    await commit(b);
+    return true;
+  }
   const snap = await getDocs(collection(db, 'users', uid, 'meta'));
   const cur = snap.docs.find((d) => d.id === 'devices');
   const tokens = Array.isArray(cur && cur.data() && cur.data().tokens) ? cur.data().tokens : [];
   if (tokens.includes(token)) return true;
   const batch = writeBatch(db);
   batch.set(doc(db, 'users', uid, 'meta', 'devices'), { tokens: [...tokens, token].slice(-8), updatedAt: Date.now() }, { merge: true });
-  await batch.commit();
+  await commit(batch);
   return true;
 }
 
@@ -221,7 +234,7 @@ export async function pushTools(uid, { stamps = {}, ts = Date.now(), ...values }
   const db = getFirestore(getApp());
   const batch = writeBatch(db);
   batch.set(doc(db, 'users', uid, 'meta', 'tools'), { ...values, stamps, ts }, { merge: true });
-  await batch.commit();
+  await commit(batch);
   return true;
 }
 
@@ -246,7 +259,8 @@ export async function pullTasksIfSignedIn(accountUid, localEntries = [], tombsto
     if (doc2.purged === true) removedIds.push(String(doc2.id)); else incoming.push(doc2);
   });
   const merged = mergeRemoteEntries(applyRemovedIds(localEntries, removedIds).entries, incoming, tombstones);
-  saveAck(user.uid, ackAfterSnapshot(await loadAck(user.uid), incoming, merged.entries));
+  await mutateAck(user.uid, (a) => ackAfterSnapshot(a, incoming, merged.entries));
+  await rememberDocs(user.uid, incoming, removedIds);
   return { incoming, removedIds };
 }
 
@@ -266,7 +280,7 @@ export async function pushIfSignedIn(entries = [], accountUid = null) {
   return true;
 }
 
-export async function push(uid, { entries = [], lists, listsUpdatedAt = 0, deletedIds = [] }) {
+export async function push(uid, { entries = [], lists, extraLists, listsUpdatedAt = 0, deletedIds = [] }) {
   const ack = await loadAck(uid);
   const dirty = dirtyEntries(entries, ack);
   // Lists are written only once the web app's lists document has been read this session (its format
@@ -274,27 +288,38 @@ export async function push(uid, { entries = [], lists, listsUpdatedAt = 0, delet
   // written back: its holiday records have their own shape, and a phone copy written over them could
   // lose or duplicate holidays there.
   const listsValue = lists !== undefined && remoteMeta.lists && (remoteMeta.listsMissing || isMetaDirty(listsUpdatedAt, ack.__lists))
-    ? encodeLists(mergeListsForPush(lists, []), metaFormats.lists) : undefined;
+    ? encodeLists(mergeListsForPush(lists, []), metaFormats.lists, extraLists) : undefined;
   const listsDirty = listsValue !== undefined;
-  if (!dirty.length && !deletedIds.length && !listsDirty) return { deleted: [] };
+  if (!dirty.length && !deletedIds.length && !listsDirty) return { deleted: [], wrote: false };
 
   const db = getFirestore(getApp());
+  const snap = dirty.length ? await loadSnap(uid) : {};
+  let wrote = false;
   // Firestore refuses a batch of more than 500 writes, so a first sign-in with a big register
   // (every entry dirty) failed on every push and never synced. Written in chunks instead, each
   // acked as soon as it lands so a failure part-way only re-sends what did not make it.
-  let next = { ...ack };
   for (const part of chunksOf(dirty, BATCH_LIMIT)) {
     const batch = writeBatch(db);
-    // In the web app's own field names, merged so its fields the phone does not know are kept.
-    part.forEach((e) => batch.set(doc(db, 'users', uid, 'tasks', String(e.id)), JSON.parse(JSON.stringify(toWebTask(e))), { merge: true }));
-    await batch.commit();
-    next = ackAfterPush(next, part);
-    await saveAck(uid, next);
+    const sentDocs = [];
+    // In the web app's own field names, merged so its fields the phone does not know are kept. Only the fields that
+    // changed here since this phone last sent or received the entry are written (diffWebDoc): a phone that was offline
+    // must not put its old due date, status or bin state back over an edit made on the web app meanwhile.
+    part.forEach((e) => {
+      const full = JSON.parse(JSON.stringify(toWebTask(e)));
+      sentDocs.push(full);
+      batch.set(doc(db, 'users', uid, 'tasks', String(e.id)), diffWebDoc(full, snap[String(e.id)]), { merge: true });
+    });
+    await commit(batch);
+    wrote = true;
+    await mutateAck(uid, (a) => ackAfterPush(a, part));
+    await rememberDocs(uid, sentDocs.map((d) => ({ ...d, id: d.id })));
   }
   for (const part of chunksOf(deletedIds, BATCH_LIMIT)) {
     const batch = writeBatch(db);
     part.forEach((id) => batch.delete(doc(db, 'users', uid, 'tasks', String(id))));
-    await batch.commit();
+    await commit(batch);
+    wrote = true;
+    await rememberDocs(uid, [], part);
   }
   if (listsDirty) {
     const batch = writeBatch(db);
@@ -304,10 +329,10 @@ export async function push(uid, { entries = [], lists, listsUpdatedAt = 0, delet
       const user = getAuth(getApp()).currentUser;
       batch.set(doc(db, 'users', uid, 'meta', 'profile'), { email: user?.email || '', name: user?.displayName || '', createdAt: Date.now(), app: 'Working Dashboard' }, { merge: true });
     }
-    await batch.commit();
+    await commit(batch);
+    wrote = true;
     remoteMeta.listsMissing = false;
-    next.__lists = listsUpdatedAt;
-    await saveAck(uid, next);
+    await mutateAck(uid, (a) => ({ ...a, __lists: listsUpdatedAt }));
   }
-  return { deleted: deletedIds };       // the caller can now forget these tombstones
+  return { deleted: deletedIds, wrote };       // the caller can now forget these tombstones
 }

@@ -16,8 +16,9 @@ import { loadAll, assemble, writeStored, SLICES } from './storeCore';
 import { completeEntry, withCompletedAt, nextRecurringEntry, isOpen, blankEntry, snoozeEntry, editedNow, normalizeHolidays, normalizeLeaveDays, setAlertOffDays } from './workingDashboard';
 import { cancelEntryAlert, snoozeEntryAlert, scheduleEntryAlert, syncEntryAlerts, planAll, readSnoozes, WD_DONE, WD_DAR, WD_SNOOZE, WD_SNOOZE_MIN, WD_REMIND, WD_RING } from './workingDashboardNotify';
 import { stopAlarmRinging } from './tracker';
-import { pullSheetEntries, mergeSheetPull, isValidScriptUrl, fromWebDocOver } from './cloudSync';
+import { fromWebDocOver } from './cloudSync';
 import { mergeRemoteEntries, applyRemovedIds } from './firebaseSyncCore';
+import { warnQuiet } from './quietCatch';
 
 const WD_SLICE = SLICES.find((s) => s.read({ workingDashboard: { entries: 'x' } }) === 'x');
 
@@ -45,7 +46,7 @@ async function changeEntries(change) {
     await writeStored([[WD_SLICE.key, JSON.stringify(next)]]);
     // With the app closed, send the change to the web app now - it used to wait for the app to be opened,
     // so the web app kept alarming for a task already done or snoozed on the phone.
-    import('./firebaseSync').then((m) => m.pushIfSignedIn && m.pushIfSignedIn(next, wd.accountUid)).catch(() => {});
+    import('./firebaseSync').then((m) => m.pushIfSignedIn && m.pushIfSignedIn(next, wd.accountUid)).catch(warnQuiet('pushIfSignedIn'));
   }
 }
 
@@ -58,28 +59,32 @@ export async function completeWdEntry(entryId, { dar = false } = {}) {
   const id = String(entryId);
   const wd = await readWd();
   const ringtone = wd.alarmRingtone || 'chime';
-  let rolled = null;
+  // Worked out here from the entries already read (the updater below runs later, inside React, and must stay pure).
+  const now = new Date();
+  const opts = { holidays: normalizeHolidays(wd.holidays), leaveDays: normalizeLeaveDays(wd.leaveDays) };
+  const before = (wd.entries || []).find((x) => String(x.id) === id);
+  const rolled = before && isOpen(before) ? nextRecurringEntry(before, wd.entries || [], now, opts) : null;
   await changeEntries((entries) => {
     const e = entries.find((x) => String(x.id) === id);
     if (!e || !isOpen(e)) return null;
-    rolled = nextRecurringEntry(e, entries, new Date(), { holidays: normalizeHolidays(wd.holidays), leaveDays: normalizeLeaveDays(wd.leaveDays) });
-    return [...(rolled ? [rolled] : []), ...entries.map((x) => (String(x.id) === id ? completeEntry({ ...x, dar }) : x))];
+    const next = nextRecurringEntry(e, entries, now, opts);
+    return [...(next ? [next] : []), ...entries.map((x) => (String(x.id) === id ? completeEntry({ ...x, dar }) : x))];
   });
-  await cancelEntryAlert(id).catch(() => {});
-  if (rolled) await scheduleEntryAlert(rolled, ringtone, wd.alerts).catch(() => {});
+  await cancelEntryAlert(id).catch(warnQuiet('workingDashboardActions'));
+  if (rolled) await scheduleEntryAlert(rolled, ringtone, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
   redrawWidgets();
 }
 
 /** Home-screen widgets show the entries too. Loaded on demand: widgets.js imports this file. */
 function redrawWidgets() {
-  import('./widgets').then((m) => m.refreshWidgets()).catch(() => {});
+  import('./widgets').then((m) => m.refreshWidgets()).catch(warnQuiet('workingDashboardActions'));
 }
 
 /** Snooze on an alert: quiet now, one alarm again in `minutes` (15 unless a length was picked on the alarm). */
 export async function snoozeWdEntry(entryId, minutes = WD_SNOOZE_MIN) {
   const wd = await readWd();
   const e = (wd.entries || []).find((x) => String(x.id) === String(entryId));
-  if (!e || !isOpen(e)) { await cancelEntryAlert(String(entryId)).catch(() => {}); return; }
+  if (!e || !isOpen(e)) { await cancelEntryAlert(String(entryId)).catch(warnQuiet('workingDashboardActions')); return; }
   // Kept on the entry too (the web app's snoozeUntil), so the web app is quiet for the same time.
   const until = Date.now() + minutes * 60000;
   await changeEntries((entries) => entries.map((x) => (String(x.id) === String(entryId) ? snoozeEntry(x, until) : x)));
@@ -96,10 +101,10 @@ export async function setWdAlertMode(entryId, mode) {
   await stopAlarmRinging(`wd:${id}:`).catch(() => false);
   const wd = await readWd();
   const e = (wd.entries || []).find((x) => String(x.id) === id);
-  if (!e || !isOpen(e)) { await cancelEntryAlert(id).catch(() => {}); return; }
+  if (!e || !isOpen(e)) { await cancelEntryAlert(id).catch(warnQuiet('workingDashboardActions')); return; }
   const next = { ...e, alertMode: mode, ...editedNow() };
   await changeEntries((entries) => entries.map((x) => (String(x.id) === id ? { ...x, alertMode: mode, ...editedNow() } : x)));
-  await scheduleEntryAlert(next, wd.alarmRingtone || 'chime', wd.alerts).catch(() => {});
+  await scheduleEntryAlert(next, wd.alarmRingtone || 'chime', wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
 }
 
 /**
@@ -113,6 +118,7 @@ export function snoozeMinutesOf(action) {
 }
 
 const handled = new Set();
+const HANDLED_MAX = 200;
 /**
  * A button pressed on a Working Dashboard alert. `action` is the notification
  * action (WD_DONE / WD_SNOOZE / WD_REMIND / WD_RING) or the alarm's ("DONE" / "SNOOZE" / "DAR" / "REMIND").
@@ -120,7 +126,16 @@ const handled = new Set();
  */
 export async function handleWdAction(action, entryId, key) {
   if (!entryId) return false;
-  if (key) { if (handled.has(key)) return true; handled.add(key); }
+  if (key) {
+    if (handled.has(key)) return true;
+    handled.add(key);
+    if (handled.size > HANDLED_MAX) handled.delete(handled.values().next().value);      // oldest first: the set stays bounded
+    try { return await runWdAction(action, entryId); } catch (err) { handled.delete(key); throw err; }      // a failed press may be retried
+  }
+  return runWdAction(action, entryId);
+}
+
+async function runWdAction(action, entryId) {
   if (action === WD_DONE || action === 'DONE') { await completeWdEntry(entryId); return true; }
   if (action === 'DAR' || action === WD_DAR) { await completeWdEntry(entryId, { dar: true }); return true; }
   const snoozeMin = snoozeMinutesOf(action);
@@ -136,28 +151,13 @@ export const WD_REFRESH_TASK = 'PT_WD_ALERT_REFRESH';
 const SIG_KEY = 'MPT_WD_ALERT_SIG';
 
 /**
- * Books the alerts again from what is stored, after first adding any entry the
- * web app created since the app last ran (read from the Google Sheet; only new
- * entries are added, nothing the phone has is replaced). Skipped when the
+ * Books the alerts again from what is stored, after first reading the web app's edits since the app last ran
+ * (Realtime Sync, when signed in). Skipped when the
  * alerts would come out the same as last time.
  */
 export async function refreshWdAlerts({ pull = true, force = false, wd: given = null } = {}) {
   let wd = given || await readWd();      // the app passes what it holds; reading every stored collection costs more
   if (!given) setAlertOffDays(wd.holidays, wd.leaveDays);     // with the app closed: quiet hours' off days
-  if (pull && isValidScriptUrl(wd.cloudSyncUrl || '')) {
-    try {
-      const res = await pullSheetEntries(wd.cloudSyncUrl, blankEntry());
-      if (res.ok && res.tasks.length) {
-        let added = 0;
-        await changeEntries((entries) => {
-          const merged = mergeSheetPull(entries, res.tasks, wd.lastSheetPullAt || 0, wd.purgedIds || [], { addOnly: true });
-          added = merged.added;
-          return merged.added ? merged.entries : null;
-        });
-        if (added) wd = live ? wd : await readWd();
-      }
-    } catch { /* offline: book from what is stored */ }
-  }
   // Signed in to Realtime Sync: the web app's edits since the app last ran (a task done, moved or changed there) are
   // read now, so the alerts booked below are the current ones and not the old ones that would ring for nothing.
   if (pull && wd.accountUid) {
@@ -183,7 +183,7 @@ export async function refreshWdAlerts({ pull = true, force = false, wd: given = 
   if (!given) redrawWidgets();          // background run: overdue / due-today counts move with the clock
   if (!force && sig === (await AsyncStorage.getItem(SIG_KEY).catch(() => null))) return 0;
   const n = await syncEntryAlerts(entries, wd.alarmRingtone || 'chime', wd.alerts);
-  await AsyncStorage.setItem(SIG_KEY, sig).catch(() => {});
+  await AsyncStorage.setItem(SIG_KEY, sig).catch(warnQuiet('workingDashboardActions'));
   return n;
 }
 

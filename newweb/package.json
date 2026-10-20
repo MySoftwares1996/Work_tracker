@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test tests/data.test.js"
+    "test": "node --test tests/data.test.js",
+    "test:e2e": "node tests/e2e/entry-form.mjs && node tests/e2e/bulk.mjs"
   },
   "dependencies": {
     "firebase": "^12.19.0",

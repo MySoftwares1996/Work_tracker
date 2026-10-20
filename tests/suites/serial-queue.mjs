@@ -18,4 +18,11 @@ export async function run({ ck, section }) {
   const failed = serial(async () => { throw new Error('boom'); });
   await failed.catch(() => {});
   ck('a failed job does not stop later ones', (await serial(async () => 7)) === 7);
+
+  // An abandoned job is told so, and the next job starts after the timeout.
+  let seen = null;
+  const slow = serial(async (job) => { await new Promise((r) => setTimeout(r, 80)); seen = job.cancelled; });
+  await slow.catch(() => {});
+  await new Promise((r) => setTimeout(r, 60));
+  ck('a job given up on sees cancelled=true', seen === true, String(seen));
 }

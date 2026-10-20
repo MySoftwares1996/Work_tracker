@@ -1,58 +1,13 @@
-import { isValidScriptUrl, buildGetUrl, explainHtmlReply, parseCloudResponse, cloudRequest, cloudGet, testConnection, pullSheetEntries, normalizeSheetTask, parseSheetDate, mergeSheetPull, withTime, entrySig, toWebTask, fromWebDocOver } from '../../src/cloudSync.js';
+import { normalizeSheetTask, parseSheetDate, withTime, toWebTask, fromWebDocOver } from '../../src/cloudSync.js';
 import { mergeRemoteEntries } from '../../src/firebaseSyncCore.js';
 
-const fakeFetch = (text, { ok = true } = {}) => async () => ({ ok, text: async () => text });
 
 export async function run({ ck, section }) {
-  section('Cloud Sync: URL validation and GET urls');
-  ck('a real Apps Script exec URL is valid', isValidScriptUrl('https://script.google.com/macros/s/AKfycbx123/exec'));
-  ck('a trailing slash or path is rejected', !isValidScriptUrl('https://script.google.com/macros/s/AKfycbx123/exec/'));
-  ck('a non-script URL is rejected', !isValidScriptUrl('https://example.com'));
-  ck('blank is rejected', !isValidScriptUrl(''));
-  ck('GET params are encoded onto the URL', buildGetUrl('https://x/exec', { action: 'fetchEmails', id: 'a b' }) === 'https://x/exec?action=fetchEmails&id=a%20b');
-  ck('no base URL gives an empty string', buildGetUrl('', { action: 'ping' }) === '');
-
-  section('Cloud Sync: explaining Google\'s HTML error pages');
-  ck('a sign-in page is explained', /sign-in/.test(explainHtmlReply('<html><title>Sign in - Google Accounts</title>accounts.google.com</html>')));
-  ck('a permission page is explained', /permission/.test(explainHtmlReply('<html><body>Authorization required</body></html>')));
-  ck('a busy page is explained as temporary', /temporary|busy/i.test(explainHtmlReply('<html><body>Sorry, unable to open the file at this time.</body></html>')));
-  ck('an unrecognised page still gets a plain message', /temporary error/.test(explainHtmlReply('<html><title>Oops</title></html>')));
-
-  section('Cloud Sync: parsing a response');
-  ck('valid JSON parses through', parseCloudResponse('{"status":"success"}').status === 'success');
-  let threw = false;
-  try { parseCloudResponse('<html>busy</html>'); } catch (e) { threw = true; }
-  ck('HTML throws a friendly error, not a JSON parse error', threw);
-
-  section('Cloud Sync: cloudRequest / cloudGet with an injected fetch');
-  const okData = await cloudRequest('https://script.google.com/macros/s/x/exec', { action: 'ping' }, { fetchImpl: fakeFetch('{"status":"success","taskCount":12}') });
-  ck('cloudRequest returns the parsed body', okData.status === 'success' && okData.taskCount === 12);
-  let rejected = false;
-  try { await cloudRequest('', { action: 'ping' }); } catch (e) { rejected = true; }
-  ck('no URL configured rejects before fetching', rejected);
-  const emails = await cloudGet('https://script.google.com/macros/s/x/exec', { action: 'fetchEmails' }, { fetchImpl: fakeFetch('{"status":"success","emails":[{"id":"1"}]}') });
-  ck('cloudGet returns the parsed body', emails.emails.length === 1);
-
-  section('Cloud Sync: testConnection');
-  const bad = await testConnection('not-a-url');
-  ck('an obviously wrong URL is rejected without a network call', bad.ok === false && /looks wrong/.test(bad.message));
-  const good = await testConnection('https://script.google.com/macros/s/x/exec', { fetchImpl: fakeFetch('{"status":"success","taskCount":5,"sheet":"Tasks_default"}') });
-  ck('a working script reports success with the entry count', good.ok === true && /5/.test(good.message));
-  const errored = await testConnection('https://script.google.com/macros/s/x/exec', { fetchImpl: fakeFetch('{"status":"error","message":"Unknown action: ping"}') });
-  ck('a script error surfaces its message', errored.ok === false && /Unknown action/.test(errored.message));
-
-  section('Cloud Sync: pulling entries from the sheet');
+  section('Entry readers');
   const blank = { id: 'x', title: '', keyPoints: [], done: false, binned: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
-  const unknown = async () => ({ text: async () => '{"error":"Unknown action"}' });
-  const answers = async (_u, init) => ({ text: async () => (JSON.parse(init.body).action === 'getTasks' ? '{"status":"success","tasks":[{"id":7,"title":"GST","done":"TRUE","keyPoints":"[\\"a\\"]","dueAt":"2026-10-05"},{"title":"no id"}]}' : '{"error":"Unknown action"}') });
-  const pulled = await pullSheetEntries('https://x/exec', blank, { fetchImpl: answers });
-  ck('pull returns usable rows only', pulled.ok && pulled.tasks.length === 1);
-  ck('pull coerces string fields', pulled.tasks[0].id === '7' && pulled.tasks[0].done === true && pulled.tasks[0].keyPoints[0].value === 'a' && /^2026-10-0[45]/.test(pulled.tasks[0].dueAt));
-  const none = await pullSheetEntries('https://x/exec', blank, { fetchImpl: unknown });
-  ck('pull reports failure when no action returns a list', !none.ok && /did not hand back/.test(none.message));
   ck('a row without an id is skipped', normalizeSheetTask({ title: 'x' }, blank) === null);
 
-  section('Cloud Sync: real-world sheet columns');
+  section('Entry readers: real-world columns');
   const b2 = { ...blank, status: 'Pending', priority: 'Medium' };
   const row = normalizeSheetTask({ ID: 'a1', 'Task Name': 'Pay GST', Status: 'Completed', 'Due Date': '05/10/2026 17:30', Category: 'Domestic Payments', 'Assigned To': 'Self' }, b2);
   ck('status Completed marks the entry done', row.done === true && row.status === 'Completed');
@@ -61,12 +16,6 @@ export async function run({ ck, section }) {
   ck('a pending row with a deadline stays open and dated', (() => { const r = normalizeSheetTask({ id: 2, status: 'Pending', deadline: '2026-10-09T10:00:00.000Z' }, b2); return !r.done && !!r.dueAt; })());
   ck('Excel serial dates parse', parseSheetDate(46300).startsWith('2026-'));
   ck('blank dates are null', parseSheetDate('') === null);
-  const m = mergeSheetPull([{ id: '1', updatedAt: '2026-10-01T00:00:00.000Z', done: false }, { id: '2', updatedAt: '2026-10-03T00:00:00.000Z' }, { id: '9' }], [{ id: '1', done: true }, { id: '2', done: true }, { id: '3' }], new Date('2026-10-02T00:00:00.000Z').getTime());
-  ck('sheet replaces unedited local copies', m.entries.find((e) => e.id === '1').done === true && m.replaced === 1);
-  ck('a local edit after the last pull is kept', m.keptLocal === 1 && !m.entries.find((e) => e.id === '2').done);
-  ck('new sheet rows are added and local-only rows kept', m.added === 1 && m.entries.length === 4);
-  const ao = mergeSheetPull([{ id: '1', dueAt: '2026-09-19T00:00:00.000Z', status: 'In-Progress', src: 'cloud', updatedAt: '2026-09-10T00:00:00.000Z' }], [{ id: '1', dueAt: null, status: 'Not Yet Started', updatedAt: '2026-09-12T00:00:00.000Z' }, { id: '3' }], 0, [], { addOnly: true });
-  ck('while Realtime Sync is on, the sheet only adds - it never replaces the web app\'s copy', ao.entries.find((e) => e.id === '1').status === 'In-Progress' && ao.entries.find((e) => e.id === '1').dueAt && ao.added === 1 && ao.replaced === 0);
 
   const wt = new Date(withTime(new Date(2026, 9, 5).toISOString(), '5:30 PM'));
   ck('a separate time column is applied to a midnight date', wt.getHours() === 17 && wt.getMinutes() === 30);
@@ -83,31 +32,10 @@ export async function run({ ck, section }) {
 
   ck('sheet recurrence text is normalised', normalizeSheetTask({ id: 1, Recurrence: 'Monthly' }, blank).recurrence === 'monthly' && normalizeSheetTask({ id: 2, Recurrence: "Doesn't repeat" }, blank).recurrence === 'none');
 
-  section('Cloud Sync: edits on the phone survive later pulls');
-  const sheetRow = (over = {}) => normalizeSheetTask({ id: 'r1', Title: 'Pay GST', Status: 'Not Yet Started', 'Due Date': '05/10/2026', ...over }, blank);
-  const loaded = mergeSheetPull([], [sheetRow()], 0).entries;
-  const second = mergeSheetPull(loaded, [sheetRow()], Date.now());
-  ck('an untouched entry is simply refreshed from the sheet', second.replaced === 1 && second.keptLocal === 0);
-  const edited = loaded.map((e) => ({ ...e, done: true, status: 'Completed' }));           // completed on the phone: updatedAt is not bumped by that
-  const third = mergeSheetPull(edited, [sheetRow()], Date.now());
-  ck('an entry completed on the phone is kept, even though updatedAt never changed', third.keptLocal === 1 && third.entries[0].done === true);
-  const fourth = mergeSheetPull(third.entries, [sheetRow()], Date.now() + 1000);
-  ck('and still kept on the pull after that (the old rule lost it here)', fourth.keptLocal === 1 && fourth.entries[0].done === true);
-  ck('a sheet change on an untouched entry still arrives', mergeSheetPull(loaded, [sheetRow({ Status: 'In-Progress' })], Date.now()).entries[0].status === 'In-Progress');
-  ck('the signature ignores bookkeeping fields', entrySig({ ...loaded[0], updatedAt: 'x', sheetSig: 'y' }) === loaded[0].sheetSig);
+  section('Entry readers: dates');
   ck('a bare ISO date is that day locally, so a Due Time can still be applied', (() => { const r = normalizeSheetTask({ id: 9, 'Due Date': '2026-10-05', 'Due Time': '17:30' }, blank); const d = new Date(r.dueAt); return d.getDate() === 5 && d.getHours() === 17 && d.getMinutes() === 30; })());
-  const emptyFirst = async (_u, init) => ({ text: async () => (JSON.parse(init.body).action === 'getTasks' ? '{"status":"success","tasks":[]}' : '{"status":"success","tasks":[{"id":1,"title":"x"}]}') });
-  ck('an empty first answer does not stop the search', (await pullSheetEntries('https://x/exec', blank, { fetchImpl: emptyFirst })).tasks.length === 1);
-  const allEmpty = async () => ({ text: async () => '{"status":"success","tasks":[]}' });
-  ck('if every action is empty the result is empty, not an error', (await pullSheetEntries('https://x/exec', blank, { fetchImpl: allEmpty })).ok === true);
 
-  section('Cloud Sync: a sheet pull does not undo what Realtime Sync brought');
-  const cloudCopy = { ...sheetRow({ Status: 'Completed' }), src: 'cloud', dar: true, sheetSig: undefined, updatedAt: '2026-10-03T10:00:00.000Z' };
-  const olderSheet = sheetRow({ Status: 'Completed' });
-  const keep = mergeSheetPull([cloudCopy], [{ ...olderSheet, updatedAt: '2026-10-01T10:00:00.000Z' }], Date.now());
-  ck('an older sheet row does not replace the cloud copy (and its DAR mark)', keep.keptLocal === 1 && keep.entries[0].dar === true);
-  const newer = mergeSheetPull([cloudCopy], [{ ...olderSheet, updatedAt: '2026-10-09T10:00:00.000Z' }], Date.now());
-  ck('a strictly newer sheet row still arrives', newer.replaced === 1);
+  section('Entry readers: DAR and completion');
   const darCols = ['DAR', 'In DAR', 'DAR Marked', 'Include in DAR'].map((h) => normalizeSheetTask({ id: 1, [h]: 'Yes' }, blank).dar);
   ck('common ways of naming the DAR column are read', darCols.every(Boolean));
   ck('ticks and X count as marked; blanks and No do not', normalizeSheetTask({ id: 1, DAR: '✓' }, blank).dar === true && normalizeSheetTask({ id: 1, DAR: 'No' }, blank).dar === false && normalizeSheetTask({ id: 1, DAR: '' }, blank).dar === false);
@@ -155,15 +83,6 @@ export async function runExtra({ ck, section }) {
   const blank = { status: 'Not Yet Started', priority: 'Medium' };
   const withDueTime = normalizeSheetTask({ id: 7, 'Due Date': 46300, 'Due Time': '17:30' }, blank);
   ck('a serial due date takes the separate Due Time', new Date(withDueTime.dueAt).getHours() === 17 && new Date(withDueTime.dueAt).getMinutes() === 30);
-  const purged = mergeSheetPull([{ id: 'keep', title: 'k' }], [{ id: 'gone', title: 'g' }, { id: 'new', title: 'n' }], 0, ['gone']);
-  ck('an entry deleted forever on the phone is not re-added by a sheet pull', !purged.entries.some((e) => e.id === 'gone') && purged.entries.some((e) => e.id === 'new') && purged.added === 1);
-  const cloud = { id: 'c', src: 'cloud', updatedAt: '2026-10-03T10:00:00.000Z', title: 'cloud' };
-  const sheetNewer = { id: 'c', updatedAt: '2026-10-09T10:00:00.000Z', title: 'sheet' };
-  const farFuturePull = new Date('2030-01-01T00:00:00Z').getTime();
-  const longAgoPull = new Date('2020-01-01T00:00:00Z').getTime();
-  ck('a strictly newer sheet row replaces a cloud copy whenever the last pull was',
-    mergeSheetPull([cloud], [sheetNewer], longAgoPull).entries[0].title === 'sheet' && mergeSheetPull([cloud], [sheetNewer], farFuturePull).entries[0].title === 'sheet');
-
   section('Realtime Sync: the DAR mark is read under any field name');
   const b3 = { status: 'Not Yet Started', priority: 'Medium' };
   const darOf = (extra) => normalizeSheetTask({ id: 'x', description: 'Pay vendor', status: 'Completed', ...extra }, b3).dar;

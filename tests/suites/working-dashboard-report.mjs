@@ -89,7 +89,7 @@ export async function run({ ck, section }) {
   const fixedOf = (opts) => buildReportModel({ entries: [], fixedActivities: routine, date, ...opts }).sections.find((x) => x.key === 'fix').rows.length;
   ck('routine activities on a working day', fixedOf({}) === 1);
   ck('none on a leave day', fixedOf({ leaveDays: [date] }) === 0);
-  ck('none inside a multi-day holiday', fixedOf({ holidays: [{ date: '2000-01-01', endDate: '2999-12-31' }] }) === 0);
+  ck('none inside a multi-day holiday', fixedOf({ holidays: [{ date: '2026-10-01', endDate: '2026-10-05' }] }) === 0);
   ck('an empty day says so plainly', reportModelToText(buildReportModel({ entries: [], date })).includes('No completed or updated entries for this date.'));
 
   section('Working Dashboard Report: AI rewrites');

@@ -18,6 +18,7 @@ import { makeSerial } from './serialQueue';
 import { logAlert } from './alertLog';
 import { reminderTimesAhead, entryAlertPlan, alertModeOf, isQuietTime, weeklySummaryTimes, isWarningKey, DEFAULT_ALERTS } from './workingDashboard';
 import { scheduleFullScreenAlarm, cancelFullScreenAlarm, listFullScreenAlarms, stopAlarmRinging, setAlarmSound, setAlarmStyle, setAlarmDelivery, setAlarmBanner, trackerAvailable } from './tracker';
+import { warnQuiet } from './quietCatch';
 
 export const WD_CATEGORY = 'PT_WD_ALERT';
 export const WD_DONE = 'WD_DONE';
@@ -42,8 +43,8 @@ export const entryIdOfAlarm = (alarmId) => {
 
 async function cancelByKind(kind, entryId) {
   const all = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
-  const mine = all.filter((n) => n.content?.data?.kind === kind && (entryId == null || n.content?.data?.entryId === entryId));
-  await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {})));
+  const mine = all.filter((n) => n.content?.data?.kind === kind && (entryId == null || String(n.content?.data?.entryId) === String(entryId)));
+  await Promise.all(mine.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier).catch(warnQuiet('workingDashboardNotify'))));
 }
 
 async function cancelAlarms(entryId) {
@@ -66,7 +67,7 @@ export const MAX_NUDGES_PER_KIND = 60;
  */
 const rawSerial = makeSerial(60000, 'alert update');
 // A failed or timed-out alert job is also written to the alerts log (Config > Alerts), then thrown to the caller as before.
-const serial = (fn) => rawSerial(fn).catch((err) => { logAlert('job', (err && err.message) || String(err)); throw err; });
+const serial = (fn) => rawSerial((ctx) => fn(ctx)).catch((err) => { logAlert('job', (err && err.message) || String(err)); throw err; });
 
 const notifyFor = (entry, item, ringtone, alerts) => ({
   title: item.title,
@@ -77,18 +78,22 @@ const notifyFor = (entry, item, ringtone, alerts) => ({
   data: { kind: 'wd-entry', entryId: entry.id, key: item.key, alarm: !!item.alarm },
 });
 
+/** Stops a job that was given up on (serialQueue timeout) before it books or cancels anything over its successor's work. */
+function stillWanted(ctx) { if (ctx && ctx.cancelled) throw new Error('alert job was abandoned after a timeout'); }
+
 /**
  * Books a list of { e, item } soonest first. The due moment, deadline, overdue and follow-up alerts open the full-screen
  * alarm (Alarm and Reminder tasks alike); the warnings before them ("Due in 1 hr") are always a notification only.
  * A notification also stands in without the native module, or if Android refuses the alarm. The batch is already capped (MAX_ENTRY_ALERTS); later alerts are booked as these pass.
  */
-async function book(jobs, ringtone, alerts) {
+async function book(jobs, ringtone, alerts, ctx = null) {
   const native = trackerAvailable();
-  if (native) await setAlarmSound(ringtone).catch(() => {});      // the ringing alarm plays the ringtone chosen in Config
-  if (native) await setAlarmStyle((alerts && alerts.phoneAlarmStyle) || 1).catch(() => {});      // ...and looks as chosen there
-  if (native) await setAlarmBanner(!(alerts && alerts.alarmBanner === false)).catch(() => {});      // the banner notification stays unless switched off
-  if (native) await setAlarmDelivery(!!(alerts && alerts.alarmAsNotification)).catch(() => {});      // full screen unless set to the notification centre
+  if (native) await setAlarmSound(ringtone).catch(warnQuiet('workingDashboardNotify'));      // the ringing alarm plays the ringtone chosen in Config
+  if (native) await setAlarmStyle((alerts && alerts.phoneAlarmStyle) || 1).catch(warnQuiet('workingDashboardNotify'));      // ...and looks as chosen there
+  if (native) await setAlarmBanner(!(alerts && alerts.alarmBanner === false)).catch(warnQuiet('workingDashboardNotify'));      // the banner notification stays unless switched off
+  if (native) await setAlarmDelivery(!!(alerts && alerts.alarmAsNotification)).catch(warnQuiet('workingDashboardNotify'));      // full screen unless set to the notification centre
   for (const { e, item } of jobs) {
+    stillWanted(ctx);
     // The full-screen alarm rings by itself and carries its own Done / Snooze; a notification at the
     // same moment would only ring twice. Without the native module (or past the cap) it is the notification.
     // A warning before the due time ("Due in 1 hr") is a notification only, for every task; the due moment, deadline
@@ -104,13 +109,16 @@ async function book(jobs, ringtone, alerts) {
 }
 
 /** Re-arms (cancel then reschedule) every alert for one entry. */
-export const scheduleEntryAlert = (entry, ringtone = 'chime', alerts) => serial(async () => {
+export const scheduleEntryAlert = (entry, ringtone = 'chime', alerts) => serial(async (ctx) => {
+  stillWanted(ctx);
   await cancelByKind('wd-entry', entry.id);
+  stillWanted(ctx);
   await cancelAlarms(entry.id);
+  stillWanted(ctx);
   // Edited (new due time, reopened...): an old snooze no longer applies.
   const snoozes = await readSnoozes();
   if (snoozes[String(entry.id)]) { delete snoozes[String(entry.id)]; await writeSnoozes(snoozes); }
-  await book(entryAlertPlan(entry, new Date(), alerts).map((item) => ({ e: entry, item })), ringtone, alerts);
+  await book(entryAlertPlan(entry, new Date(), alerts).map((item) => ({ e: entry, item })), ringtone, alerts, ctx);
 });
 
 /**
@@ -157,11 +165,14 @@ export function planAll(entries = [], now = new Date(), alerts, cap = MAX_ENTRY_
  * capped at MAX_ENTRY_ALERTS; the rest are booked by a later sync (app
  * launch, return to the app, or the background refresh).
  */
-export const syncEntryAlerts = (entries = [], ringtone = 'chime', alerts, now = new Date()) => serial(async () => {
+export const syncEntryAlerts = (entries = [], ringtone = 'chime', alerts, now = new Date()) => serial(async (ctx) => {
+  stillWanted(ctx);
   await cancelByKind('wd-entry');
+  stillWanted(ctx);
   await cancelAlarms();
+  stillWanted(ctx);
   const batch = planAll(entries, now, alerts, MAX_ENTRY_ALERTS, await readSnoozes(now.getTime()));
-  await book(batch, ringtone, alerts);
+  await book(batch, ringtone, alerts, ctx);
   return batch.length;
 });
 
@@ -174,13 +185,16 @@ export const cancelEntryAlert = (entryId) => serial(async () => {
 });
 
 /** Snooze: this entry's alerts stop, and one alert (and alarm) rings again in WD_SNOOZE_MIN minutes. */
-export const snoozeEntryAlert = (entry, ringtone = 'chime', minutes = WD_SNOOZE_MIN, alerts) => serial(async () => {
+export const snoozeEntryAlert = (entry, ringtone = 'chime', minutes = WD_SNOOZE_MIN, alerts) => serial(async (ctx) => {
+  stillWanted(ctx);
   await cancelByKind('wd-entry', entry.id);
+  stillWanted(ctx);
   await cancelAlarms(entry.id);
   await stopAlarmRinging(`wd:${entry.id}:`);
+  stillWanted(ctx);
   const at = Date.now() + minutes * 60000;
   await writeSnoozes({ ...(await readSnoozes()), [String(entry.id)]: at });
-  await book([{ e: entry, item: snoozeItem(entry, at, alerts) }], ringtone, alerts);
+  await book([{ e: entry, item: snoozeItem(entry, at, alerts) }], ringtone, alerts, ctx);
 });
 
 /** Schedules the walk/water nudges for the rest of today and the next two days; call again whenever settings change or the app opens. */

@@ -10,7 +10,6 @@ export async function run(h) {
   await runCsv(h);
   await runVendorTotals(h);
   await runMeeting(h);
-  await runAutoBackupTests(h);
   await runAudit(h);
   await runBackupContent(h);
   await runQuickAddSettings(h);
@@ -39,6 +38,19 @@ async function runQuickAdd({ ck, section }) {
   ck('a readable summary', describeQuickAdd(a, now) === 'High · Tomorrow 5:00 PM · Payments · with Rahul', describeQuickAdd(a, now));
   const i = parseQuickAdd('review 25/12/2026', opt);
   ck('dd/mm/yyyy is day first', new Date(i.dueAt).getMonth() === 11 && new Date(i.dueAt).getDate() === 25);
+  // A bare n-n / n/n is not a date any more: it needs "on/by/before/till" in front or a year after it.
+  const bare = parseQuickAdd('INV 12-10', opt);
+  ck('"INV 12-10" stays in the title', bare.title === 'INV 12-10' && !bare.dueAt, bare.title);
+  const bare2 = parseQuickAdd('check ratio 3/4 today', opt);
+  ck('"3/4" stays in the title, today still read', bare2.title === 'check ratio 3/4' && !!bare2.dueAt);
+  const by = parseQuickAdd('pay vendor by 12-10', opt);
+  ck('"by 12-10" is 12 Oct', new Date(by.dueAt).getMonth() === 9 && new Date(by.dueAt).getDate() === 12 && by.title === 'pay vendor', by.title);
+  const yr = parseQuickAdd('INV 12-10-26', opt);
+  ck('a year after it makes it a date', new Date(yr.dueAt).getFullYear() === 2026 && new Date(yr.dueAt).getDate() === 12 && yr.title === 'INV');
+  const bf = parseQuickAdd('file before 20/10', opt);
+  ck('"before 20/10" is a date', new Date(bf.dueAt).getDate() === 20 && bf.title === 'file');
+  const mn = parseQuickAdd('send 12 oct', opt);
+  ck('month-name dates still work', new Date(mn.dueAt).getMonth() === 9 && new Date(mn.dueAt).getDate() === 12 && mn.title === 'send');
 }
 
 import { templateFrom, applyTemplate, saveTemplate } from '../../src/templates.js';
@@ -128,14 +140,6 @@ export async function runMeeting({ ck, section }) {
   ck('nudges are quiet during it', isQuietTime(new Date(2026, 9, 9, 11, 0), { holdUntil: hold }) === true && isQuietTime(new Date(2026, 9, 9, 13, 0), { holdUntil: hold }) === false);
 }
 
-import { backupsToPrune, backupName } from '../../src/autoBackup.js';
-export async function runAutoBackupTests({ ck, section }) {
-  section('Daily automatic backup');
-  const names = ['auto-2026-10-01.json', 'auto-2026-10-09.json', 'auto-2026-10-05.json', 'notes.txt', 'auto-2026-09-30.json', 'auto-2026-10-08.json', 'auto-2026-10-07.json', 'auto-2026-10-06.json', 'auto-2026-10-04.json'];
-  const prune = backupsToPrune(names, 7);
-  ck('only the newest 7 stay; other files are never touched', prune.length === 1 && prune[0] === 'auto-2026-09-30.json', prune.join());
-  ck('the file is named by the local date', backupName(new Date(2026, 9, 9, 23, 59)) === 'auto-2026-10-09.json');
-}
 
 import { addAudit, auditDiff } from '../../src/audit.js';
 export async function runAudit({ ck, section }) {
@@ -161,7 +165,7 @@ export async function runBackupContent({ ck, section }) {
 export async function runQuickAddSettings({ ck, section }) {
   section('Quick add settings');
   const now = new Date(2026, 9, 9, 10, 0);
-  const a = parseQuickAdd('review 05/10', { now, dateOrder: 'mdy' });
+  const a = parseQuickAdd('review by 05/10', { now, dateOrder: 'mdy' });      // adjusted: a numeric date now needs "by/on/before/till" or a year
   ck('month first reads 05/10 as 10 May', new Date(a.dueAt).getMonth() === 4 && new Date(a.dueAt).getDate() === 10);
   const b = parseQuickAdd('send file tomorrow', { now, dateOnlyTime: '17:00' });
   ck('a date alone takes the chosen time', new Date(b.dueAt).getHours() === 17 && !b.dateOnly);

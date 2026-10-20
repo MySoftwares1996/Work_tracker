@@ -1,3 +1,4 @@
+import { lockPhase } from '../../src/appLockCore.js';
 import { hasPin, setPin, verifyPin, clearPin, isBiometricAvailable, authenticateWithBiometric } from '../../src/appLock.js';
 import { __reset as resetSecureStore } from '../stubs/expo-secure-store.mjs';
 import { __set as setBiometric } from '../stubs/expo-local-authentication.mjs';
@@ -50,4 +51,9 @@ export async function runExtra({ ck, section }) {
   ck('the count and the cool-down end are read back after a restart', back.wrong === 5 && back.until === until);
   await clearLockout();
   ck('a successful unlock clears it', (await loadLockout()).wrong === 0);
+
+  section('App lock: when it engages');
+  ck('lock on with a PIN asks for it', lockPhase({ enabled: true, hasPin: true }) === 'locked');
+  ck('lock on without a PIN asks for one', lockPhase({ enabled: true, hasPin: false }) === 'setup');
+  ck('lock off opens the app (no profile name needed)', lockPhase({ enabled: false, hasPin: false }) === 'open' && lockPhase({ enabled: false, hasPin: true }) === 'open');
 }
