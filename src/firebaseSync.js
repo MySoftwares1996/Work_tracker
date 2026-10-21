@@ -15,7 +15,7 @@ import { getAuth, onAuthStateChanged, signInWithCredential, signOut as fbSignOut
 import { getFirestore, collection, doc, onSnapshot, getDocs, writeBatch } from '@react-native-firebase/firestore';
 import * as firestoreApi from '@react-native-firebase/firestore';      // arrayUnion: not every build (the web shim) has it, so it is read off the namespace
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
-import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, decodeLists, encodeLists, decodeCalendar, mergeListsForPush, ackKey, snapKey, docHashes, diffWebDoc, createMutator, raceTimeout } from './firebaseSyncCore';
+import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, decodeLists, encodeLists, decodeCalendar, mergeListsForPush, keepFilledLists, ackKey, snapKey, docHashes, diffWebDoc, createMutator, raceTimeout } from './firebaseSyncCore';
 import { toWebTask } from './cloudSync';
 
 // This project's own Firebase Android app (work-tracker-3b728), the
@@ -288,7 +288,7 @@ export async function push(uid, { entries = [], lists, extraLists, listsUpdatedA
   // written back: its holiday records have their own shape, and a phone copy written over them could
   // lose or duplicate holidays there.
   const listsValue = lists !== undefined && remoteMeta.lists && (remoteMeta.listsMissing || isMetaDirty(listsUpdatedAt, ack.__lists))
-    ? encodeLists(mergeListsForPush(lists, []), metaFormats.lists, extraLists) : undefined;
+    ? encodeLists(keepFilledLists(mergeListsForPush(lists, []), remoteMeta.lists), metaFormats.lists, extraLists) : undefined;
   const listsDirty = listsValue !== undefined;
   if (!dirty.length && !deletedIds.length && !listsDirty) return { deleted: [], wrote: false };
 

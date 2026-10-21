@@ -9,7 +9,7 @@ import { useStore } from '../store';
 import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
 import { categoryAsksReminder, toggleReminderCategory } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
-import { backupLists, restoreFromBackup, subCategoriesFromTasks } from '../../../src/listsRestore.js';
+import { backupLists, restoreFromBackup, subCategoriesFromTasks, optionsFromTasks } from '../../../src/listsRestore.js';
 
 /** Config: a side menu of topics, and the chosen topic's panels beside it. */
 export default function Config() {
@@ -28,7 +28,7 @@ export default function Config() {
       </>
     ) },
     { key: 'subs', title: 'Sub categories', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><p className="muted">Sub categories and their fields, kept under each category.</p><SubCategoryManager lists={lists} /></section> },
-    { key: 'restore', title: 'Restore sub categories', body: () => <RestoreSubCategories /> },
+    { key: 'restore', title: 'Restore lists', body: () => <RestoreSubCategories /> },
     { key: 'reminder', title: 'Next reminder', body: () => (
       <section className="card plain">
         <h2 className="h2">Next reminder date &amp; time</h2>
@@ -92,11 +92,13 @@ function RestoreSubCategories() {
   const [found, setFound] = useState(null);
   const [state, setState] = useState({ msg: '', error: '' });
   const fromTasks = useMemo(() => subCategoriesFromTasks(tasks, lists.subCategories), [tasks, lists.subCategories]);
+  const usedOptions = useMemo(() => optionsFromTasks(tasks, lists), [tasks, lists]);
+  const usedCount = Object.values(usedOptions).reduce((n, l) => n + l.length, 0);
   const read = async (f) => {
     setState({ msg: '', error: '' });
     try {
       const b = backupLists(JSON.parse(await f.text()));
-      if (!b.subCategories.length && !b.narrationTypes.length) { setFound(null); setState({ msg: '', error: 'That file has no Sub Categories or narration types.' }); return; }
+      if (!b.subCategories.length && !b.narrationTypes.length && !b.statuses.length && !b.pendingWith.length) { setFound(null); setState({ msg: '', error: 'That file has no lists to restore.' }); return; }
       setFound({ name: f.name, b });
     } catch (e) { setFound(null); setState({ msg: '', error: e instanceof SyntaxError ? 'That file is not a backup (it is not valid JSON).' : (e?.message || String(e)) }); }
   };
@@ -106,7 +108,7 @@ function RestoreSubCategories() {
     if (!found.b.narrationTypes.length) delete next.narrationTypes;       // the file has none: the account's own stay as they are
     saveLists(next);
     if (plan.reportFormats) saveReportFormats(plan.reportFormats);
-    setState({ msg: `Restored: ${plan.counts.subCategories} Sub Categories and ${plan.counts.narrationTypes} narration types are as they were in the file (${plan.counts.newSubCategories} and ${plan.counts.newNarrationTypes} of them were missing)${plan.counts.formats ? `, and ${plan.counts.formats} report formats were added back` : ''}.`, error: '' });
+    setState({ msg: `Restored: ${plan.counts.newOptions} statuses / Pending with / categories / priorities were missing and are back; ${plan.counts.subCategories} Sub Categories and ${plan.counts.narrationTypes} narration types are as they were in the file (${plan.counts.newSubCategories} and ${plan.counts.newNarrationTypes} of them were missing)${plan.counts.formats ? `, and ${plan.counts.formats} report formats were added back` : ''}.`, error: '' });
     setFound(null);
   };
   const rebuild = () => {
@@ -115,13 +117,14 @@ function RestoreSubCategories() {
   };
   return (
     <section className="card plain">
-      <h2 className="h2">Restore sub categories and narrations</h2>
-      <p className="muted">Exactly as they were: pick a backup file (Config &gt; Export a backup here, or the phone app's export). Its Sub Categories, with their fields and choice lists, and its narration types come back; ones added since are kept and nothing is deleted. Your tasks are not touched.{demo ? ' (Demo: nothing is saved.)' : ''}</p>
+      <h2 className="h2">Restore lists, sub categories and narrations</h2>
+      <p className="muted">Exactly as they were: pick a backup file (Config &gt; Export a backup here, or the phone app's export). Its Statuses, Pending with, categories, priorities, Sub Categories (with their fields and choice lists) and narration types come back; ones added since are kept and nothing is deleted. Your tasks are not touched. The phone app can do the same from its own daily backups (Config &gt; Sub categories).{demo ? ' (Demo: nothing is saved.)' : ''}</p>
       <input type="file" accept=".json,application/json" aria-label="Backup file to restore from" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) read(f); e.target.value = ''; }} />
       {plan && (
         <div className="import-summary" role="status">
           <b>{found.name}{found.b.savedAt ? ` (saved ${new Date(found.b.savedAt).toLocaleDateString()})` : ''}:</b>
           <ul>
+            <li>{plan.counts.statuses} statuses, {plan.counts.pendingWith} Pending with names ({plan.counts.newOptions} options missing now, with categories and priorities)</li>
             <li>{plan.counts.subCategories} Sub Categories ({plan.counts.newSubCategories} missing now)</li>
             <li>{plan.counts.narrationTypes} narration types ({plan.counts.newNarrationTypes} missing now)</li>
             {plan.counts.formats > 0 && <li>{plan.counts.formats} report formats missing now</li>}
@@ -130,6 +133,12 @@ function RestoreSubCategories() {
         </div>
       )}
       <h3 className="h2" style={{ marginTop: 8 }}>No backup file?</h3>
+      {usedCount > 0 ? (
+        <>
+          <p className="muted">Your tasks use {usedCount} option{usedCount === 1 ? '' : 's'} missing from the lists{usedOptions.statuses.length ? `. Statuses: ${usedOptions.statuses.join(', ')}` : ''}{usedOptions.pendingWith.length ? `. Pending with: ${usedOptions.pendingWith.join(', ')}` : ''}{usedOptions.categories.length ? `. Categories: ${usedOptions.categories.join(', ')}` : ''}{usedOptions.priorities.length ? `. Priorities: ${usedOptions.priorities.join(', ')}` : ''}.</p>
+          <div><button type="button" className="btn" onClick={() => { saveLists({ ...lists, categories: [...lists.categories, ...usedOptions.categories], priorities: [...lists.priorities, ...usedOptions.priorities], statuses: [...lists.statuses, ...usedOptions.statuses], pendingWith: [...lists.pendingWith, ...usedOptions.pendingWith] }); setState({ msg: `${usedCount} options your tasks use are back in the lists.`, error: '' }); }}>Add back {usedCount} from my tasks</button></div>
+        </>
+      ) : <p className="muted">Every status, Pending with name, category and priority your tasks use is in the lists.</p>}
       {fromTasks.length ? (
         <>
           <p className="muted">{fromTasks.length} Sub Categor{fromTasks.length === 1 ? 'y is' : 'ies are'} used by your tasks but missing from the list: {fromTasks.map((x) => x.name).join(', ')}. They can be rebuilt, each under the category its tasks have and with the field names the tasks filled in. A field's list of choices (TT / DD...) is not stored on the tasks, so add those again after.</p>

@@ -1,5 +1,6 @@
 /**
- * Putting the Sub Categories, their categories, the narration types, the Next-reminder categories and the report formats back
+ * Putting the entry form lists (categories, priorities, statuses, pending with), the Sub Categories, the narration types, the
+ * Next-reminder categories and the report formats back
  * from one of the phone's old daily backups (<documents>/auto-backup/auto-YYYY-MM-DD.json, written until the auto backup was
  * removed on 17 Oct 2026), or - with no backup - rebuilding the Sub Categories from the tasks that use them. Pure, so it is tested.
  */
@@ -13,6 +14,9 @@ export function backupLists(json) {
   return {
     savedAt: (json && json.exportedAt) || '',
     categories: arr(w.categories),
+    priorities: arr(w.priorities),
+    statuses: arr(w.statuses),
+    pendingWith: arr(w.assignees).length ? arr(w.assignees) : arr(w.pendingWith),       // the phone calls it assignees, the website pendingWith
     subCategories: arr(w.subCategories).filter((x) => norm(nameOf(x))),
     subCategoryCategories: arr(w.subCategoryCategories),
     narrationTypes: arr(w.narrationTypes).filter((x) => norm(nameOf(x))),
@@ -31,13 +35,16 @@ const union = (a, b) => { const out = []; const seen = new Set(); [...a, ...b].f
  * missing now (formats edited since stay). { lists, reportFormats (or null), counts }.
  */
 export function restoreFromBackup(now = {}, backup = {}) {
-  const b = { subCategories: [], subCategoryCategories: [], narrationTypes: [], reminderCategories: [], categories: [], reportFormats: [], ...backup };
+  const b = { subCategories: [], subCategoryCategories: [], narrationTypes: [], reminderCategories: [], categories: [], priorities: [], statuses: [], pendingWith: [], reportFormats: [], ...backup };
   const nowFormats = arr(now.reportFormats);
   const missingFormats = b.reportFormats.filter((f) => !nowFormats.some((x) => norm(x.subCategory) === norm(f.subCategory)));
   const has = (list, x) => arr(list).some((y) => norm(nameOf(y)) === norm(nameOf(x)));
   return {
     lists: {
-      categories: union(arr(now.categories), b.categories),
+      categories: union(b.categories, arr(now.categories)),
+      priorities: union(b.priorities, arr(now.priorities)),
+      statuses: union(b.statuses, arr(now.statuses)),
+      pendingWith: union(b.pendingWith, arr(now.pendingWith)),
       subCategories: byName(arr(now.subCategories), b.subCategories),
       subCategoryCategories: union(b.subCategoryCategories, arr(now.subCategoryCategories)),
       narrationTypes: byName(arr(now.narrationTypes), b.narrationTypes),
@@ -50,6 +57,9 @@ export function restoreFromBackup(now = {}, backup = {}) {
       newSubCategories: b.subCategories.filter((x) => !has(now.subCategories, x)).length,
       newNarrationTypes: b.narrationTypes.filter((x) => !has(now.narrationTypes, x)).length,
       formats: missingFormats.length,
+      statuses: b.statuses.length,
+      pendingWith: b.pendingWith.length,
+      newOptions: ['categories', 'priorities', 'statuses', 'pendingWith'].reduce((n, k) => n + b[k].filter((v) => !arr(now[k]).some((x) => norm(x) === norm(v))).length, 0),
     },
   };
 }
@@ -73,4 +83,21 @@ export function subCategoriesFromTasks(entries = [], have = []) {
     const category = Object.entries(x.cats).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
     return { id: `sc-r${Date.now().toString(36)}-${i}`, name: x.name, ...(category ? { category } : null), fields: x.fields.map((label) => ({ label })) };
   });
+}
+
+/**
+ * The options the tasks use that the lists are missing: { categories, priorities, statuses, pendingWith } (only the missing ones,
+ * in the order first used). `now` holds the lists as they are, pending with as `pendingWith`.
+ */
+export function optionsFromTasks(entries = [], now = {}) {
+  const out = { categories: [], priorities: [], statuses: [], pendingWith: [] };
+  const fields = { categories: 'category', priorities: 'priority', statuses: 'status', pendingWith: 'pendingWith' };
+  for (const e of arr(entries)) {
+    if (!e) continue;
+    Object.entries(fields).forEach(([k, f]) => {
+      const v = String(e[f] ?? '').trim();
+      if (v && !arr(now[k]).some((x) => norm(x) === norm(v)) && !out[k].some((x) => norm(x) === norm(v))) out[k].push(v);
+    });
+  }
+  return out;
 }

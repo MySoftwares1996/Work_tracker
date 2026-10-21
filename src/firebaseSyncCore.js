@@ -280,7 +280,20 @@ export function mergeListsForPush(remote, local) {
 export function listsOnReceive(remote, local, remoteTs, localTs) {
   const r = Number(remoteTs) || 0;
   if (!r) return mergeListsForPush(remote, local);
-  return (Number(localTs) || 0) > r ? mergeListsForPush(local, []) : mergeListsForPush(remote, []);
+  return (Number(localTs) || 0) > r ? keepFilledLists(mergeListsForPush(local, []), remote) : mergeListsForPush(remote, []);
+}
+
+/**
+ * Never lets an empty list stand in for a filled one: where `lists` has nothing for a list the account (`remote`) still has
+ * options in, the account's are kept. An empty Statuses or Pending with list on the phone is a reset or a stale copy, not a
+ * choice - emptying a list completely is done on the website. Pure.
+ */
+export function keepFilledLists(lists, remote) {
+  return LIST_NAMES.map((_, i) => {
+    const mine = Array.isArray(lists?.[i]) ? lists[i] : [];
+    const theirs = Array.isArray(remote?.[i]) ? remote[i].filter((v) => String(v ?? '').trim()) : [];
+    return mine.length || !theirs.length ? mine : theirs.map((v) => String(v).trim());
+  });
 }
 
 /** meta/calendar `calendar` field -> { calendar: [holidays, leaveDays] | null, format }. */

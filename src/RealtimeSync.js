@@ -54,7 +54,13 @@ export default function RealtimeSync() {
       const before = wdRef.current;
       if (before.accountUid && before.accountUid !== signedUid) await saveUnsyncedBackup(before).catch(warnQuiet('RealtimeSync'));
       const back = await takeUnsyncedBackup(signedUid).catch(() => null);
-      updateWd((w) => mergeUnsynced(forAccount(w, signedUid, email), back));
+      updateWd((w) => {
+        const next = mergeUnsynced(forAccount(w, signedUid, email), back);
+        // Emptied for this account (the built-in default lists): not an edit made on this phone, so it must not be
+        // stamped as the newest copy - it used to be, and those defaults then replaced the account's real lists.
+        prevLists.current = JSON.stringify([next.categories, next.priorities, next.statuses, next.assignees]);
+        return next;
+      });
     })().catch(warnQuiet('RealtimeSync')).finally(() => { switching.current = ''; });
   }, [ready, signedUid, wd.accountUid]); // eslint-disable-line react-hooks/exhaustive-deps
 
