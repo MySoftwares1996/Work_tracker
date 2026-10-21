@@ -121,8 +121,8 @@ export async function runExtra({ ck, section }) {
   await handleWdAction('REMIND', 'r');
   let r = (await stored()).find((e) => e.id === 'r');
   ck('"Reminder only" on the ringing alarm makes it a Reminder, as a phone edit', r.alertMode === 'gentle' && r.localEditAt > 0);
-  // A Reminder task's due moment is full screen too (its warnings are notifications, like every task's).
-  ck('...and its due alerts still open the full-screen alarm (Reminder tasks too)', rAlarms().length > 0 && !rAlarms().some((id) => id.includes(':nag-')));
+  // "Reminder only" means just that: no full-screen alarm at all for the task, only notifications.
+  ck('...and it has no ringing alarm left, only notifications', rAlarms().length === 0 && rNotes().length > 0 && rNotes().every((n) => n.content.data.alarm === false));
   await handleWdAction('WD_RING', 'r', 'k-ring');
   r = (await stored()).find((e) => e.id === 'r');
   ck('"Ring as alarm" turns it back into an Alarm that rings again', r.alertMode === 'alarm' && rAlarms().length > 0);

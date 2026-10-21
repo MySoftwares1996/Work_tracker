@@ -22,8 +22,8 @@ The owner names the target of each change with one of these. Apply it there and 
 
 Several sessions have changed the alert code; check this list before changing it, and update it when it changes.
 
-- The due moment, deadline, overdue and follow-up alerts are booked on the phone as full-screen alarms,
-  `wd:<entry id>:<key>`; the warnings before them (`isWarningKey`: "Due in 1 hr", "Due tomorrow", "Deadline in 2 hr") are always a notification only - on the website too, where they open no alarm window (`src/WebAlarm.js`); the owner asked for this for every task, so there is no setting to make them ring (`src/workingDashboardNotify.js`, native `AlarmReceiver`). Walk / water nudges are `nudge:`.
+- The due moment, deadline, overdue and follow-up alerts of an Alarm task are booked on the phone as full-screen alarms,
+  `wd:<entry id>:<key>`; a Reminder task ("Reminder only" on the alert, 🔕 on the card, `alertMode: 'gentle'`) gets notifications only and never rings (`book()` in `src/workingDashboardNotify.js`, the owner's request); the warnings before them (`isWarningKey`: "Due in 1 hr", "Due tomorrow", "Deadline in 2 hr") are always a notification only - on the website too, where they open no alarm window (`src/WebAlarm.js`); the owner asked for this for every task, so there is no setting to make them ring (`src/workingDashboardNotify.js`, native `AlarmReceiver`). Walk / water nudges are `nudge:`.
 - Web in use = phone silent: web.app writes an "in use" note while the tab is open and used (`src/RealtimeSync.js`);
   the phone shows only a quiet notification for task alerts while it is fresh (3 min; was nothing before the next APK build) and the tab had input in the last 15 min
   (`webActiveUntil` in `src/firebaseSyncCore.js`, native `WebPresence.kt`). Unknown = it rings.
