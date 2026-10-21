@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
 import { Card, Small, Btn, Field, Row } from '../ui';
 import { useTheme } from '../theme';
 import Icon from '../icons';
+import { listAutoBackups, readAutoBackup } from '../autoBackupFiles';
+import { backupLists, restoreFromBackup, subCategoriesFromTasks } from '../listsRestore';
 import { addOption, removeOption, addSubCategory, addSubCategories, parseSubCategoryLines, applySubCategoryEdit, validateSubCategory, removeSubCategory, withCarrying } from '../listsCore';
 
 const DONE_STATUS = /^(completed?|done|closed)$/i;
@@ -93,6 +95,72 @@ function SubEditor({ sc, subs, onSave, onCancel }) {
         <Btn kind="soft" title="Cancel" onPress={onCancel} />
       </Row>
     </View>
+  );
+}
+
+/**
+ * Config > Sub categories > Restore: puts the Sub Categories, narration types (and missing report formats) back from one of the phone's
+ * old daily backups, exactly as they were then; or, with no backup, rebuilds the Sub Categories the tasks use. Saved as a phone edit, so it
+ * reaches the website too.
+ */
+export function RestoreLists({ wd, entries, save, setTools }) {
+  const t = useTheme();
+  const [backups, setBackups] = useState(null);
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const out = [];
+      for (const name of await listAutoBackups()) {
+        const json = await readAutoBackup(name);
+        if (json) out.push({ name, label: name.replace(/^auto-|\.json$/g, ''), lists: backupLists(json) });
+      }
+      if (live) setBackups(out);
+    })();
+    return () => { live = false; };
+  }, []);
+  const fromTasks = subCategoriesFromTasks(entries, wd.subCategories);
+  const restore = (b) => {
+    const plan = restoreFromBackup(wd, b.lists);
+    Alert.alert(`Restore from ${b.label}?`, `${plan.counts.subCategories} Sub Categories and ${plan.counts.narrationTypes} narration types are put back as they were on ${b.label}${plan.counts.formats ? `, and ${plan.counts.formats} missing report formats` : ''}. Nothing you have now is deleted.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Restore', onPress: () => {
+        save(plan.lists);
+        if (plan.reportFormats) setTools((w) => ({ ...w, reportFormats: plan.reportFormats }));
+        setMsg(`Restored from ${b.label}: ${plan.counts.newSubCategories} Sub Categories and ${plan.counts.newNarrationTypes} narration types were missing and are back. They are sent to the website too.`);
+      } },
+    ]);
+  };
+  if (backups === null) return null;
+  const useful = backups.filter((b) => b.lists.subCategories.length || b.lists.narrationTypes.length);
+  return (
+    <Card style={{ marginBottom: 14, gap: 8 }}>
+      <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15) }}>Restore Sub Categories and narrations</Text>
+      {useful.length ? (
+        <>
+          <Small>This phone kept a daily backup until 17 Oct. Pick a day to put its Sub Categories and narration types back exactly as they were.</Small>
+          {useful.map((b) => (
+            <Row key={b.name} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ color: t.text, fontWeight: '700' }}>{b.label}</Text>
+                <Small>{b.lists.subCategories.length} Sub Categories · {b.lists.narrationTypes.length} narration types</Small>
+              </View>
+              <Btn kind="soft" title="Restore" onPress={() => restore(b)} style={{ paddingHorizontal: 18 }} />
+            </Row>
+          ))}
+        </>
+      ) : <Small>No backup with Sub Categories was found on this phone.</Small>}
+      {fromTasks.length > 0 && (
+        <>
+          <Small style={{ marginTop: 4 }}>{fromTasks.length} Sub Categor{fromTasks.length === 1 ? 'y is' : 'ies are'} used by your tasks but missing from the list. They can be rebuilt with the field names the tasks filled in (choice lists are not known).</Small>
+          <Btn kind="neutral" title={`Rebuild ${fromTasks.length} from my tasks`} style={{ alignSelf: 'flex-start' }} onPress={() => {
+            save({ subCategories: [...(Array.isArray(wd.subCategories) ? wd.subCategories : []), ...fromTasks], subCategoryCategories: [...new Set([...(wd.subCategoryCategories || []), ...fromTasks.map((x) => x.category).filter(Boolean)])] });
+            setMsg(`${fromTasks.length} Sub Categories rebuilt from your tasks.`);
+          }} />
+        </>
+      )}
+      {!!msg && <Small style={{ color: t.accent }}>{msg}</Small>}
+    </Card>
   );
 }
 
