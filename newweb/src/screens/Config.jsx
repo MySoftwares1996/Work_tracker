@@ -5,6 +5,7 @@ import NotifyExplainer from '../NotifyExplainer';
 import { loadAlertSettings, saveAlertSettings } from '../alerts';
 import { THEMES, TEXT_SIZES, applyTheme, applyScheme, applyTextSize, savedTheme, savedScheme, savedTextSize } from '../themes';
 import { PageHead } from '../ui';
+import Icon from '../icons';
 import { useStore } from '../store';
 import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
 import { categoryAsksReminder, toggleReminderCategory } from '../data';
@@ -16,9 +17,9 @@ export default function Config() {
   const { lists, user, signOut, demo, saveLists } = useStore();
   const [topic, setTopic] = useState('look');
   const topics = [
-    { key: 'alerts', title: 'Alerts', body: () => <AlertSettings /> },
-    { key: 'look', title: 'Appearance', body: () => <Appearance /> },
-    { key: 'entry', title: 'Entry form options', body: () => (
+    { group: 'General', key: 'alerts', icon: 'bell', title: 'Alerts', desc: 'Pop-ups, sound and desktop notifications', body: () => <AlertSettings /> },
+    { key: 'look', icon: 'sparkle', title: 'Appearance', desc: 'Colour theme, dark mode, text size', body: () => <Appearance /> },
+    { group: 'Lists', key: 'entry', icon: 'list', title: 'Entry form options', desc: 'Categories, statuses, priorities, people', body: () => (
       <>
         <section className="card plain">
           <h2 className="h2">Entry form options</h2>
@@ -27,21 +28,26 @@ export default function Config() {
         <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
       </>
     ) },
-    { key: 'subs', title: 'Sub categories', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><p className="muted">Sub categories and their fields, kept under each category.</p><SubCategoryManager lists={lists} /></section> },
-    { key: 'restore', title: 'Restore lists', body: () => <RestoreSubCategories /> },
-    { key: 'reminder', title: 'Next reminder', body: () => (
+    { key: 'subs', icon: 'template', title: 'Sub categories', desc: 'Sub categories and their fields', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><p className="muted">Sub categories and their fields, kept under each category.</p><SubCategoryManager lists={lists} /></section> },
+    { key: 'restore', icon: 'repeat', title: 'Restore lists', desc: 'Bring lost lists back', body: () => <RestoreSubCategories /> },
+    { key: 'reminder', icon: 'clock', title: 'Next reminder', desc: 'Categories that ask for one', body: () => (
       <section className="card plain">
         <h2 className="h2">Next reminder date &amp; time</h2>
         <p className="muted">Choose the categories that ask for a next reminder date and time in the entry form. The other categories do not show it.</p>
         <div className="chips">{lists.categories.map((c) => { const on = categoryAsksReminder(lists, c); return <button type="button" key={c} className={`chip toggle${on ? ' on' : ''}`} aria-pressed={on} onClick={() => saveLists(toggleReminderCategory(lists, c))}>{c}</button>; })}</div>
       </section>
     ) },
-    { key: 'formats', title: 'Report formats', body: () => <ReportFormats /> },
-    { key: 'gemini', title: 'Gemini key', body: () => <GeminiKey /> },
-    { sep: true, key: 'export', title: 'Export a backup', body: () => <ExportBackup /> },
-    { key: 'import', title: 'Import', body: () => <ImportBackup /> },
+    { group: 'Daily report', key: 'formats', icon: 'chat', title: 'Report formats', desc: 'The line each Sub Category writes', body: () => <ReportFormats /> },
+    { key: 'gemini', icon: 'sparkle', title: 'Gemini key', desc: 'For Rewrite with Gemini', body: () => <GeminiKey /> },
+    { group: 'Your data', key: 'export', icon: 'copy', title: 'Export a backup', desc: 'Everything in one file', body: () => <ExportBackup /> },
+    { key: 'import', icon: 'inbox', title: 'Import', desc: 'From a backup file', body: () => <ImportBackup /> },
   ];
+  // Restore lists sits last in the Lists group.
+  const [restoreTopic] = topics.splice(topics.findIndex((x) => x.key === 'restore'), 1);
+  topics.splice(topics.findIndex((x) => x.key === 'reminder') + 1, 0, restoreTopic);
   const open = topics.find((x) => x.key === topic) || topics[1];
+  // The topics in their groups, for the side menu.
+  const groups = topics.reduce((out, x) => { if (x.group || !out.length) out.push({ title: x.group || '', items: [] }); out[out.length - 1].items.push(x); return out; }, []);
   return (
     <>
       <PageHead title="Config" sub="Alerts, colours and the lists the entry form uses." />
@@ -50,18 +56,31 @@ export default function Config() {
           <section className="card plain cfg-account">
             <span className="cfg-avatar" aria-hidden="true">{(user.displayName || user.email || '?').trim().charAt(0).toUpperCase()}</span>
             <span className="cfg-who"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span></span>
-            <button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
+            <button type="button" className="btn cfg-out" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
           </section>
           <nav className="menu" aria-label="Config topics">
-            {topics.map((x) => (
-              <span key={x.key} className="menu-item">
-                {x.sep && <hr />}
-                <button type="button" className={open.key === x.key ? 'on' : ''} aria-current={open.key === x.key ? 'page' : undefined} onClick={() => setTopic(x.key)}>{x.title}</button>
-              </span>
+            {groups.map((g) => (
+              <div key={g.title} className="menu-group">
+                {g.title && <span className="menu-label">{g.title}</span>}
+                {g.items.map((x) => (
+                  <span key={x.key} className="menu-item">
+                    <button type="button" className={open.key === x.key ? 'on' : ''} aria-current={open.key === x.key ? 'page' : undefined} onClick={() => setTopic(x.key)}>
+                      <span className="menu-ico" aria-hidden="true"><Icon name={x.icon} size={18} /></span>
+                      <span className="menu-txt"><b>{x.title}</b><small>{x.desc}</small></span>
+                    </button>
+                  </span>
+                ))}
+              </div>
             ))}
           </nav>
         </div>
-        <div className="pn cfg-page">{open.body()}</div>
+        <div className="pn cfg-page">
+          <header className="cfg-head">
+            <span className="cfg-head-ico" aria-hidden="true"><Icon name={open.icon} size={24} /></span>
+            <span><small className="menu-label">{(groups.find((g) => g.items.includes(open)) || {}).title}</small><h2>{open.title}</h2></span>
+          </header>
+          {open.body()}
+        </div>
       </div>
     </>
   );

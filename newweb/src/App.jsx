@@ -180,6 +180,7 @@ function Dashboard({ onEdit, onNew, go }) {
       </section>
       <section className="more-tiles" aria-label="More counts">
         {[
+          ['Pending as on today', s.pendingAsOnToday, 'Overdue plus due today', () => go('register', { due: 'pending' })],
           ['Next month', s.nextMonth, `Due in ${monthName(1)}`, () => go('register', { due: 'nextmonth' })],
           ['No due date', s.noDueDate, 'Needs a deadline', () => go('register', { due: 'none' })],
           ['Pending', s.pending, 'Status Pending', () => go('register', { status: 'Pending' })],
