@@ -334,5 +334,5 @@ export async function push(uid, { entries = [], lists, extraLists, listsUpdatedA
     remoteMeta.listsMissing = false;
     await mutateAck(uid, (a) => ({ ...a, __lists: listsUpdatedAt }));
   }
-  return { deleted: deletedIds, wrote };       // the caller can now forget these tombstones
+  return { deleted: deletedIds, wrote, listsWritten: listsDirty };       // the caller can now forget these tombstones
 }

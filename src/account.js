@@ -16,7 +16,7 @@ import { dirtyEntries, ackKey, raceTimeout } from './firebaseSyncCore';
 export const ACCOUNT_KEYS = [
   'entries', 'categories', 'priorities', 'statuses', 'assignees', 'holidays', 'leaveDays', 'fixedActivities',
   'activityLog', 'paymentIntro', 'subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories',
-  'listsUpdatedAt', 'calendarUpdatedAt', 'deletedIds', 'purgedIds',
+  'listsUpdatedAt', 'paymentListsAt', 'paymentListsSentAt', 'calendarUpdatedAt', 'deletedIds', 'purgedIds',
   'links', 'reportAiNotes', 'reportAiNotesSummary', 'templates', 'reportFormats', 'formatSetupAt', 'narrationHistory', 'undoHistory', 'toolsStamps', 'toolsUpdatedAt',
 ];
 

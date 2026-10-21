@@ -177,6 +177,8 @@ export const DEFAULT_DB = {
     templates: [],          // task templates (src/templates.js) - follow the account with the links (meta/tools)
     reportOpts: {},         // the Report's switches: headings, Sub Category fields, pending list (defaults: on, on, off), this device only
     reportMoves: {},        // the Report's moved tasks per day ({ 'YYYY-MM-DD': { taskId: group } }), this device only
+    paymentListsAt: 0,      // when the Sub Category / narration / reminder lists were last edited on this phone (firebaseSyncCore.stampListsEdit)
+    paymentListsSentAt: 0,  // ...and the edit last sent to the account: the phone sends those lists only while the first is newer
     formatSetupAt: 0,       // when the categories and sub categories the report formats need were first added automatically (once per account)
     reportFormats: [],      // report formats (src/reportFormats.js) - follow the account (meta/tools); [] = the sample formats
     reportAiNotesSummary: '',      // instructions for Rewrite with AI on the weekly / monthly summary

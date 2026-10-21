@@ -200,8 +200,28 @@ function encodeMeta(parts, format, names) {
 
 // The web app's lists document names the fourth list pendingWith; the phone calls it assignees.
 const WEB_LIST_NAMES = ['categories', 'priorities', 'statuses', 'pendingWith'];
-// The web app's payment lists, carried in the same document: read by the phone, never written back.
+// The web app's payment lists, carried in the same document. The phone sends back only the ones it edits (PHONE_PAYMENT_KEYS).
 export const PAYMENT_LIST_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories', 'darPaymentIntro'];
+export const PHONE_PAYMENT_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'];
+
+/*
+ * The payment lists (Sub Categories and the rest) have their own stamp on the phone, `paymentListsAt`, set only when they are
+ * edited on the phone (Config > Sub categories / Next reminder, Report formats > Add to my lists, the one-time format setup);
+ * `paymentListsSentAt` is the stamp last written to the account. Editing a category or a status on the phone used to send the
+ * phone's whole copy of the Sub Categories with it - a stale or empty copy then wiped the website's.
+ */
+/** True when the phone has an edit of the payment lists the account has not got yet. */
+export const phonePaymentEditUnsent = (w = {}) => Number(w.paymentListsAt) > (Number(w.paymentListsSentAt) || 0);
+/** The payment lists to send with a lists push: only after a phone edit of them that is not yet sent, else undefined. */
+export function paymentListsToSend(w = {}) {
+  if (!phonePaymentEditUnsent(w)) return undefined;
+  const out = Object.fromEntries(PHONE_PAYMENT_KEYS.filter((k) => Array.isArray(w[k])).map((k) => [k, w[k]]));
+  return Object.keys(out).length ? out : undefined;
+}
+/** When the account's payment lists arrive: the phone keeps its own copy only while it holds a newer edit not yet sent. */
+export const keepPhonePaymentLists = (w = {}, remoteTs = 0) => phonePaymentEditUnsent(w) && Number(w.paymentListsAt) > (Number(remoteTs) || 0);
+/** A lists edit made on the phone: the patch, stamped, with the payment-list stamp when it touches those lists. */
+export const stampListsEdit = (patch = {}, now = Date.now()) => ({ ...patch, listsUpdatedAt: now, ...(PHONE_PAYMENT_KEYS.some((k) => k in patch) ? { paymentListsAt: now } : null) });
 
 /**
  * meta/lists `lists` field -> { lists: [categories, priorities, statuses, assignees] | null, format, extra }.

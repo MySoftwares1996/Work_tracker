@@ -3,7 +3,7 @@ import { AppState, Platform } from 'react-native';
 import { useStore } from './store';
 import { watchAuthState, listen as listenRealtime, push as pushRealtime, pushPresence, pushTools, saveDeviceToken } from './firebaseSync';
 import { toolsFromRemote, toolsValue, TOOL_KEYS } from './links';
-import { mergeRemoteEntries, applyRemovedIds, listsOnReceive, webActiveUntil, dirtyToolKeys } from './firebaseSyncCore';
+import { mergeRemoteEntries, applyRemovedIds, listsOnReceive, webActiveUntil, dirtyToolKeys, paymentListsToSend, keepPhonePaymentLists, phonePaymentEditUnsent, stampListsEdit } from './firebaseSyncCore';
 import { setWebActiveUntil, setWebPresenceCheck, stopAlarmRinging } from './tracker';
 import { DEFAULT_ALERTS, isSnoozed, isSilencedToday } from './workingDashboard';
 import { fromWebDocOver, mergeHolidays } from './cloudSync';
@@ -85,7 +85,7 @@ export default function RealtimeSync() {
       const w = wdRef.current;
       if (w.formatSetupAt || w.accountUid !== signedUid || !metaSeen.current.tools || !metaSeen.current.lists) return;
       const plan = planFormatSetup({ categories: w.categories, subCategories: paymentLists(w, w.categories).subCategories, subCategoryCategories: w.subCategoryCategories }, effectiveFormats(w.reportFormats));
-      updateWd((x) => ({ ...x, formatSetupAt: Date.now(), ...(plan.categories.length || plan.subCategories.length ? { categories: plan.lists.categories, subCategories: plan.lists.subCategories, subCategoryCategories: plan.lists.subCategoryCategories, listsUpdatedAt: Date.now() } : null), toolsUpdatedAt: Date.now() }));
+      updateWd((x) => ({ ...x, formatSetupAt: Date.now(), ...(plan.categories.length || plan.subCategories.length ? stampListsEdit({ categories: plan.lists.categories, subCategories: plan.lists.subCategories, subCategoryCategories: plan.lists.subCategoryCategories }) : null), toolsUpdatedAt: Date.now() }));
     }, 2000);
     return () => clearTimeout(timer);
   }, [metaTick, ready, signedUid, wd.accountUid, wd.formatSetupAt]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -184,10 +184,9 @@ export default function RealtimeSync() {
       // The web app's payment lists (Sub Categories, Tally narration types, the report's payment lines): the web
       // app is where they are edited, so its copy replaces the phone's.
       const pl = patch.paymentLists || {};
-      // (unless this phone changed them after the arriving copy was written - then its own copy is sent next)
-      // A document with no time of its own (an older writer) cannot be told older than the phone's edit: it is taken.
-      const remoteTs = Number(patch.listsUpdatedAt) || 0;
-      const phoneNewer = remoteTs > 0 && Number(w.listsUpdatedAt) > remoteTs;
+      // (unless this phone edited them - these lists, not just a category - after the arriving copy was written and has not
+      // sent that edit yet: then its own copy is sent next)
+      const phoneNewer = keepPhonePaymentLists(w, patch.listsUpdatedAt);
       if (!phoneNewer) ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
       if (Array.isArray(pl.darPaymentIntro) && pl.darPaymentIntro.some((x) => String(x || '').trim())) next = { ...next, paymentIntro: pl.darPaymentIntro.map((x) => String(x || '')) };
       if (cal) next = { ...next, holidays: mergeHolidays(cal.holidays, normalizeHolidays(w.holidays)).holidays, leaveDays: normalizeLeaveDays([...cal.leaveDays, ...normalizeLeaveDays(w.leaveDays)]) };
@@ -279,8 +278,8 @@ export default function RealtimeSync() {
     return pushRealtime(u.uid, {
       entries: w.entries || [],
       lists: [w.categories, w.priorities, w.statuses, w.assignees],
-      // The payment lists the phone edits (Report formats > Add to my lists, Next reminder): only those it has, so it never clears the web app's.
-      extraLists: Object.fromEntries(['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].filter((k) => Array.isArray(w[k])).map((k) => [k, w[k]])),
+      // The payment lists only after this phone edited them (paymentListsToSend), so a category edit never sends a stale copy over the website's.
+      extraLists: paymentListsToSend(w),
       listsUpdatedAt: w.listsUpdatedAt || 0,
       deletedIds: w.deletedIds || [],
     }).then((res) => {
@@ -288,6 +287,9 @@ export default function RealtimeSync() {
       // lastPushAt only when something really reached the server (a no-op or an offline timeout is not a push).
       setRealtimeStatus({ pushError: '', ...(res && res.wrote ? { lastPushAt: Date.now() } : null) });
       if (res && res.deleted && res.deleted.length) updateWd((x) => ({ ...x, deletedIds: (x.deletedIds || []).filter((id) => !res.deleted.includes(id)) }));
+      // The payment lists that went out are now the account's: later pushes leave them alone until the next phone edit.
+      const sentStamp = Number(w.paymentListsAt) || 0;
+      if (res && res.listsWritten && phonePaymentEditUnsent(w)) updateWd((x) => ({ ...x, paymentListsSentAt: Math.max(Number(x.paymentListsSentAt) || 0, sentStamp) }));
     }).catch((e) => {
       setRealtimeStatus({ pushError: e?.message || 'Could not reach the web app - will try again.' });
       clearTimeout(retryTimer.current);

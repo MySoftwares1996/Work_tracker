@@ -1,4 +1,4 @@
-import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, docHashes } from '../../src/firebaseSyncCore.js';
+import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, docHashes, paymentListsToSend, keepPhonePaymentLists, stampListsEdit, encodeLists } from '../../src/firebaseSyncCore.js';
 
 export async function run({ ck, section }) {
   const e = (id, updatedAt) => ({ id, title: `t${id}`, updatedAt });
@@ -317,4 +317,17 @@ export async function runExtra3({ ck, section }) {
   ck('copies from a previous app version (no ledger) are pruned, oldest first', pruned.drop.join() === 'MPT_CORRUPT_MPT_X_1,MPT_CORRUPT_MPT_X_2' && pruned.seen.MPT_X.copies.join() === 'MPT_CORRUPT_MPT_X_3,MPT_CORRUPT_MPT_X_4,MPT_CORRUPT_MPT_X_99');
   const prunedSame = cp([['MPT_X', 'bad']], pruned.seen, 100, 3, [...old2.slice(2, 4), 'MPT_CORRUPT_MPT_X_99']);
   ck('a later launch with the same damage leaves it at 3', !prunedSame.writes.length && !prunedSame.drop.length);
+
+  section('Firebase Sync Core: the Sub Category lists are sent only after a phone edit of them');
+  const subs = [{ id: 's1', name: 'EPFO', fields: [] }];
+  const stale = { categories: ['Payments'], subCategories: [], listsUpdatedAt: 500 };
+  ck('a category edit on the phone does not send its (stale, empty) Sub Categories', paymentListsToSend({ ...stale, ...stampListsEdit({ categories: ['Payments', 'Bank'] }, 900) }) === undefined);
+  ck('...so the lists written carry no subCategories and the website keeps its own', !('subCategories' in encodeLists([['Payments', 'Bank'], [], [], []], 'named', paymentListsToSend({ ...stale, listsUpdatedAt: 900 }))));
+  const edited = { ...stale, ...stampListsEdit({ subCategories: subs }, 900) };
+  ck('a Sub Category edit on the phone is stamped and sent', edited.paymentListsAt === 900 && edited.listsUpdatedAt === 900 && paymentListsToSend(edited).subCategories === subs);
+  ck('...once sent, it is not sent again with later category edits', paymentListsToSend({ ...edited, paymentListsSentAt: 900, ...stampListsEdit({ categories: ['X'] }, 950) }) === undefined);
+  ck('the website\'s Sub Categories are taken even when a phone category edit is newer', !keepPhonePaymentLists({ listsUpdatedAt: 2000, paymentListsAt: 0 }, 1000));
+  ck('...and when the phone\'s own Sub Category edit was already sent', !keepPhonePaymentLists({ paymentListsAt: 2000, paymentListsSentAt: 2000 }, 1000));
+  ck('an unsent phone Sub Category edit newer than the arriving copy is kept (it is sent next)', keepPhonePaymentLists({ paymentListsAt: 2000, paymentListsSentAt: 0 }, 1000));
+  ck('...but an arriving copy written after it wins', !keepPhonePaymentLists({ paymentListsAt: 2000, paymentListsSentAt: 0 }, 3000));
 }

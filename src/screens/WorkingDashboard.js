@@ -60,6 +60,7 @@ import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LA
 import { useTabHistory } from '../useStepBack';
 import WdWeeklyReview from './WdWeeklyReview';
 import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow, PhoneHeader, Fab, SectionHead } from './wdCards';
+import { stampListsEdit } from '../firebaseSyncCore';
 import { GlossFill, glossTile } from '../glass';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
@@ -291,7 +292,8 @@ export default function WorkingDashboard() {
   const setTools = (fn) => updateWd((w) => { const next = fn(w); const now = Date.now(); return { ...next, toolsStamps: stampChanges(toolsValue(w), toolsValue(next), w.toolsStamps, now), toolsUpdatedAt: now }; });
 
   // The Category / Priority / Status / Pending with lists and the Sub Category / reminder lists: stamped, so they are sent to the account.
-  const saveLists = (patch) => updateWd((w) => ({ ...w, ...patch, listsUpdatedAt: Date.now() }));
+  // Stamped as a phone edit; a Sub Category / narration / reminder list change also gets its own stamp, so only then are those lists sent.
+  const saveLists = (patch) => updateWd((w) => ({ ...w, ...stampListsEdit(patch) }));
 
   const pushLog = (w, title, details = '', auto = true) => ({
     ...w,
