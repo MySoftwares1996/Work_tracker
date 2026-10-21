@@ -9,6 +9,7 @@ import { useStore } from '../store';
 import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
 import { categoryAsksReminder, toggleReminderCategory } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
+import { backupLists, restoreFromBackup, subCategoriesFromTasks } from '../../../src/listsRestore.js';
 
 /** Config: a side menu of topics, and the chosen topic's panels beside it. */
 export default function Config() {
@@ -27,6 +28,7 @@ export default function Config() {
       </>
     ) },
     { key: 'subs', title: 'Sub categories', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><p className="muted">Sub categories and their fields, kept under each category.</p><SubCategoryManager lists={lists} /></section> },
+    { key: 'restore', title: 'Restore sub categories', body: () => <RestoreSubCategories /> },
     { key: 'reminder', title: 'Next reminder', body: () => (
       <section className="card plain">
         <h2 className="h2">Next reminder date &amp; time</h2>
@@ -76,6 +78,66 @@ function ExportBackup() {
       <p className="muted">Downloads every task (open, done and in the Bin) with your categories, sub categories, links, templates and report formats as one file. Keep it somewhere safe; Import (below) reads it back.</p>
       <div><button type="button" className="btn primary" onClick={run}>Export a backup</button></div>
       {msg && <p className="banner ok" role="status">{msg}</p>}
+    </section>
+  );
+}
+
+/**
+ * Config > Restore sub categories: puts the Sub Categories and narration types back exactly from a backup file (the website's Export,
+ * the phone app's export or a phone auto backup), keeping what was added since and deleting nothing; or rebuilds the Sub Categories the
+ * tasks use, with the field names the tasks filled in. Only the lists are touched, never the tasks (src/listsRestore.js, shared with the phone).
+ */
+function RestoreSubCategories() {
+  const { tasks, lists, saveLists, savedFormats, saveReportFormats, demo } = useStore();
+  const [found, setFound] = useState(null);
+  const [state, setState] = useState({ msg: '', error: '' });
+  const fromTasks = useMemo(() => subCategoriesFromTasks(tasks, lists.subCategories), [tasks, lists.subCategories]);
+  const read = async (f) => {
+    setState({ msg: '', error: '' });
+    try {
+      const b = backupLists(JSON.parse(await f.text()));
+      if (!b.subCategories.length && !b.narrationTypes.length) { setFound(null); setState({ msg: '', error: 'That file has no Sub Categories or narration types.' }); return; }
+      setFound({ name: f.name, b });
+    } catch (e) { setFound(null); setState({ msg: '', error: e instanceof SyntaxError ? 'That file is not a backup (it is not valid JSON).' : (e?.message || String(e)) }); }
+  };
+  const plan = found ? restoreFromBackup({ ...lists, reportFormats: savedFormats }, found.b) : null;
+  const restore = () => {
+    const next = { ...lists, ...plan.lists };
+    if (!found.b.narrationTypes.length) delete next.narrationTypes;       // the file has none: the account's own stay as they are
+    saveLists(next);
+    if (plan.reportFormats) saveReportFormats(plan.reportFormats);
+    setState({ msg: `Restored: ${plan.counts.subCategories} Sub Categories and ${plan.counts.narrationTypes} narration types are as they were in the file (${plan.counts.newSubCategories} and ${plan.counts.newNarrationTypes} of them were missing)${plan.counts.formats ? `, and ${plan.counts.formats} report formats were added back` : ''}.`, error: '' });
+    setFound(null);
+  };
+  const rebuild = () => {
+    saveLists({ ...lists, subCategories: [...(lists.subCategories || []), ...fromTasks], subCategoryCategories: [...new Set([...(lists.subCategoryCategories || []), ...fromTasks.map((x) => x.category).filter(Boolean)])] });
+    setState({ msg: `${fromTasks.length} Sub Categor${fromTasks.length === 1 ? 'y' : 'ies'} rebuilt from your tasks.`, error: '' });
+  };
+  return (
+    <section className="card plain">
+      <h2 className="h2">Restore sub categories and narrations</h2>
+      <p className="muted">Exactly as they were: pick a backup file (Config &gt; Export a backup here, or the phone app's export). Its Sub Categories, with their fields and choice lists, and its narration types come back; ones added since are kept and nothing is deleted. Your tasks are not touched.{demo ? ' (Demo: nothing is saved.)' : ''}</p>
+      <input type="file" accept=".json,application/json" aria-label="Backup file to restore from" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) read(f); e.target.value = ''; }} />
+      {plan && (
+        <div className="import-summary" role="status">
+          <b>{found.name}{found.b.savedAt ? ` (saved ${new Date(found.b.savedAt).toLocaleDateString()})` : ''}:</b>
+          <ul>
+            <li>{plan.counts.subCategories} Sub Categories ({plan.counts.newSubCategories} missing now)</li>
+            <li>{plan.counts.narrationTypes} narration types ({plan.counts.newNarrationTypes} missing now)</li>
+            {plan.counts.formats > 0 && <li>{plan.counts.formats} report formats missing now</li>}
+          </ul>
+          <div><button type="button" className="btn primary" onClick={restore}>Restore</button> <button type="button" className="btn" onClick={() => setFound(null)}>Cancel</button></div>
+        </div>
+      )}
+      <h3 className="h2" style={{ marginTop: 8 }}>No backup file?</h3>
+      {fromTasks.length ? (
+        <>
+          <p className="muted">{fromTasks.length} Sub Categor{fromTasks.length === 1 ? 'y is' : 'ies are'} used by your tasks but missing from the list: {fromTasks.map((x) => x.name).join(', ')}. They can be rebuilt, each under the category its tasks have and with the field names the tasks filled in. A field's list of choices (TT / DD...) is not stored on the tasks, so add those again after.</p>
+          <div><button type="button" className="btn" onClick={rebuild}>Rebuild {fromTasks.length} from my tasks</button></div>
+        </>
+      ) : <p className="muted">Every Sub Category your tasks use is in the list.</p>}
+      {state.msg && <p className="banner ok" role="status">{state.msg}</p>}
+      {state.error && <p className="banner err" role="alert">{state.error}</p>}
     </section>
   );
 }

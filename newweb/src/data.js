@@ -266,6 +266,7 @@ export function readLists(v) {
     if (Array.isArray(named.subCategories)) out.subCategories = normalizeSubCategories(named.subCategories);
     if (Array.isArray(named.subCategoryCategories)) out.subCategoryCategories = named.subCategoryCategories.map(String);
     if (Array.isArray(named.reminderCategories)) out.reminderCategories = named.reminderCategories.map(String);
+    if (Array.isArray(named.narrationTypes)) out.narrationTypes = named.narrationTypes;       // read too, so a restore keeps the ones the account has
   } else if (Array.isArray(obj)) {
     ['categories', 'priorities', 'statuses', 'pendingWith'].forEach((k, i) => { if (Array.isArray(obj[i]) && obj[i].length) out[k] = obj[i].map(String); });
   }
