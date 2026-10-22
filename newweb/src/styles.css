@@ -590,3 +590,8 @@ tr.is-selected td { background: var(--primary-tint); }
   .wd-logo, .wd-logo * { animation: none !important; stroke-dashoffset: 0 !important; }
   .ls-logo { transform: none !important; }
 }
+
+/* Cards per row: at most --n cards side by side (fewer when the window is too narrow for them). */
+.grid.fixed-cols { grid-template-columns: repeat(auto-fill, minmax(max(170px, calc((100% - (var(--n) - 1) * 16px) / var(--n) - 1px)), 1fr)); }
+.perrow { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.perrow select { min-width: 0; }

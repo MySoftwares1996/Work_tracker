@@ -8,6 +8,7 @@ import { PageHead, Chip, priTone, priDot } from './ui';
 import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveDueDate } from './bulk';
 
 import { copyText } from './clipboard';
+import { useCardsPerRow, gridProps, PerRow } from './cardsPerRow';
 import { weeklyReview, slipReason } from '../../src/weeklyReview.js';
 
 import { useStore } from './store';
@@ -423,6 +424,7 @@ function Register({ onEdit, onNew, preset }) {
   useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
   const [by, setBy] = useState('due');
   const [view, setView] = useState('cards');
+  const [perRow, setPerRow] = useCardsPerRow('register');
   const open = tasks.filter(isOpen);
   const sorted = sortTasks(filterTasks(open, f), by);
   const { shown, more, showMore } = usePaged(sorted, JSON.stringify(f) + by);
@@ -458,13 +460,14 @@ function Register({ onEdit, onNew, preset }) {
         <>
           <select value={by} onChange={(e) => setBy(e.target.value)} aria-label="Sort">{Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>Sort: {v}</option>)}</select>
           <div className="seg" role="group" aria-label="View"><button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')} aria-pressed={view === 'cards'}>Cards</button><button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')} aria-pressed={view === 'table'}>Table</button></div>
+          {view === 'cards' && <PerRow value={perRow} onChange={setPerRow} />}
         </>
       )} />
       {loading && <SkeletonRows />}
       {!loading && !sorted.length && (filtered && open.length
         ? <Empty icon="search" title="Nothing matches" text="No open task fits these filters." action={{ label: 'Clear filters', onClick: clearFilters, primary: false }} />
         : <Empty icon="check" title="All clear" text="No open tasks. Enjoy the quiet - or add the next one." action={{ label: 'New entry', onClick: () => onEdit() }} />)}
-      {view === 'cards' ? <div className="grid">{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} selected={selected.has(t.id)} onSelect={select} selecting={selected.size > 0} />)}</div> : <Table rows={shown} onEdit={onEdit} selected={selected} onSelect={select} />}
+      {view === 'cards' ? <div {...gridProps(perRow)}>{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} selected={selected.has(t.id)} onSelect={select} selecting={selected.size > 0} />)}</div> : <Table rows={shown} onEdit={onEdit} selected={selected} onSelect={select} />}
       <MoreButton more={more} onClick={showMore} />
       {picked.length > 0 && (
         <div className="bulk-bar" role="toolbar" aria-label="Actions for the selected tasks">
@@ -528,13 +531,14 @@ function Completed({ onEdit, onNew }) {
   const [f, setF] = useState({ q: '', priority: '', category: '', pendingWith: '' });
   const rows = filterTasks(tasks.filter((t) => t.done && !t.binned), f).sort((a, b) => (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0));
   const { shown, more, showMore } = usePaged(rows, JSON.stringify(f));
+  const [perRow, setPerRow] = useCardsPerRow('completed');
   return (
     <>
       <PageHead title="Completed" sub={`${rows.length} completed`} onNew={onNew} />
-      <Filters f={f} setF={setF} lists={lists} />
+      <Filters f={f} setF={setF} lists={lists} extra={<PerRow value={perRow} onChange={setPerRow} />} />
       {loading && <SkeletonRows />}
       {!loading && !rows.length && <Empty icon="check" title="Nothing completed yet" text="Tasks you mark done will be listed here." />}
-      <div className="grid">
+      <div {...gridProps(perRow)}>
         {shown.map((t) => (
           <article key={t.id} className="card task is-done">
             <button className="card-main" onClick={() => onEdit(t)}>
@@ -570,11 +574,13 @@ function Holidays({ onNew }) {
 function Bin({ onNew }) {
   const { tasks, actions } = useStore();
   const rows = tasks.filter((t) => t.binned).sort((a, b) => (b.binnedAt?.getTime() || 0) - (a.binnedAt?.getTime() || 0));
+  const [perRow, setPerRow] = useCardsPerRow('bin');
   return (
     <>
       <PageHead title="Bin" sub="Restore a task, or delete it forever (it then disappears on every device)." onNew={onNew} />
       {!rows.length && <Empty icon="bin" title="The bin is empty" text="Deleted tasks wait here until you restore them." />}
-      <div className="grid">
+      {rows.length > 1 && <div className="flt"><PerRow value={perRow} onChange={setPerRow} /></div>}
+      <div {...gridProps(perRow)}>
         {rows.map((t) => (
           <article key={t.id} className="card task">
             <div className="card-main"><span className="card-title">{t.title}</span><span className="card-meta">{t.category && <Chip>{t.category}</Chip>}{t.binnedAt && <Chip>Binned {t.binnedAt.toLocaleDateString([], { day: 'numeric', month: 'short' })}</Chip>}</span></div>
@@ -589,14 +595,16 @@ function Bin({ onNew }) {
 function Links({ onNew }) {
   const { links } = useStore();
   const folders = [...new Set(links.map((l) => l.folder))].sort();
+  const [perRow, setPerRow] = useCardsPerRow('links');
   return (
     <>
       <PageHead title="Links" sub={`${links.length} saved link${links.length === 1 ? '' : 's'}`} onNew={onNew} />
       {!links.length && <Empty icon="link" title="No links yet" text="Links saved on the old website appear here." />}
+      {links.length > 1 && <div className="flt"><PerRow value={perRow} onChange={setPerRow} /></div>}
       {folders.map((fo) => (
         <section key={fo || '-'}>
           {fo && <h2 className="h2">{fo}</h2>}
-          <div className="grid">{links.filter((l) => l.folder === fo).map((l) => <a key={l.id} className="card plain linkcard" href={l.url} target="_blank" rel="noopener noreferrer"><span className="card-title">{l.title}</span><span className="muted">{l.url.replace(/^https?:\/\//, '')}</span></a>)}</div>
+          <div {...gridProps(perRow)}>{links.filter((l) => l.folder === fo).map((l) => <a key={l.id} className="card plain linkcard" href={l.url} target="_blank" rel="noopener noreferrer"><span className="card-title">{l.title}</span><span className="muted">{l.url.replace(/^https?:\/\//, '')}</span></a>)}</div>
         </section>
       ))}
     </>
