@@ -148,7 +148,6 @@ function Dashboard({ onEdit, onNew, go }) {
   };
   const hour = now.getHours();
   const first = String((user && user.displayName) || '').trim().split(/\s+/)[0];
-  const monthName = (add) => new Date(now.getFullYear(), now.getMonth() + add, 1).toLocaleString([], { month: 'long' });
   const todayKey = dayKey(now);
   const doneTodayDar = tasks.filter((t) => t.done && !t.binned && !t.purged && t.completedAt && dayKey(t.completedAt) === todayKey && t.dar).length;
   const need = s.pendingAsOnToday;
@@ -163,9 +162,9 @@ function Dashboard({ onEdit, onNew, go }) {
       </form>
       <section className="tiles" aria-label="Today at a glance">
         <div className="hero">
-          <span className="hero-k">TODAY</span>
+          <span className="hero-k">PENDING AS ON TODAY</span>
           <button type="button" className="hero-n" onClick={() => go('register', { due: 'pending' })} title="Overdue plus due today: open them in the Register">
-            <b>{loading ? '–' : need}</b><span>{need === 1 ? 'task needs you' : 'tasks need you'}</span>
+            <b>{loading ? '–' : need}</b><span>overdue + due today</span>
           </button>
           <div className="bar" role="progressbar" aria-label="Done today" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><i style={{ width: `${pct}%` }} /></div>
           <div className="hero-f">
@@ -177,11 +176,10 @@ function Dashboard({ onEdit, onNew, go }) {
         <Stat loading={loading} tone="amber" label="Due today" value={s.dueToday} onClick={() => go('register', { due: 'today' })} />
         <Stat loading={loading} tone="slate" label="Next 7 days" value={s.dueSoon} onClick={() => go('register', { due: 'next7' })} />
         <Stat loading={loading} tone="green" label="This month" value={s.thisMonth} onClick={() => go('register', { due: 'month' })} />
+        <Stat loading={loading} tone="blue" label="Next month" value={s.nextMonth} onClick={() => go('register', { due: 'nextmonth' })} />
       </section>
       <section className="more-tiles" aria-label="More counts">
         {[
-          ['Pending as on today', s.pendingAsOnToday, 'Overdue plus due today', () => go('register', { due: 'pending' })],
-          ['Next month', s.nextMonth, `Due in ${monthName(1)}`, () => go('register', { due: 'nextmonth' })],
           ['No due date', s.noDueDate, 'Needs a deadline', () => go('register', { due: 'none' })],
           ['Pending', s.pending, 'Status Pending', () => go('register', { status: 'Pending' })],
           ['High priority', s.high, 'Open tasks', () => go('register', { priority: 'High' })],
