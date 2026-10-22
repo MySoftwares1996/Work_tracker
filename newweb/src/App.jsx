@@ -167,11 +167,13 @@ function Dashboard({ onEdit, onNew, go }) {
   const pct = dayTotal ? Math.round((s.doneToday / dayTotal) * 100) : 0;
   return (
     <div className="dash">
-      <PageHead title={`Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}${first ? `, ${first}` : ''}`} sub={now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} onNew={onNew} />
-      <form className="quick" onSubmit={addQuick}>
-        <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Quick add a task and press Enter..." aria-label="Quick add" />
-        <button className="btn primary" disabled={!quick.trim()}>Add</button>
-      </form>
+      {/* Two lines in all: the top bar, then greeting + date, Quick add and New entry on one row. */}
+      <PageHead className="dash-head" title={`Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}${first ? `, ${first}` : ''}`} sub={now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} onNew={onNew}>
+        <form className="quick" onSubmit={addQuick}>
+          <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Quick add a task and press Enter..." aria-label="Quick add" />
+          <button className="btn primary" disabled={!quick.trim()}>Add</button>
+        </form>
+      </PageHead>
       <section className="tiles" aria-label="Today at a glance">
         <div className="hero">
           <span className="hero-k">PENDING AS ON TODAY</span>
