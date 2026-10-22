@@ -15,6 +15,7 @@ import { shareCsv } from '../csv';
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
 import { newId } from '../ids';
 import { refreshWdAlerts } from '../workingDashboardActions';
+import { checkForPhoneUpdate } from '../updateStatus';
 import WdAlarmIntro from './WdAlarmIntro';
 import { warnQuiet } from '../quietCatch';
 import { seenWebFields } from '../cloudSync';
@@ -302,6 +303,16 @@ export default function WorkingDashboard() {
   const openRegister = (patch = {}) => { setFilters({ ...EMPTY_WD_FILTER, ...patch }); setQuickView(''); setVisibleCount(5); setTab('register'); };
   // Pull down on any tab: read the website's edits now and rebook the alerts (the same job the background refresh does).
   const pullRefresh = () => refreshWdAlerts({ pull: true, wd });
+  // The Refresh button in the app bar: the same read as pulling down, plus a look for a new version of the app.
+  const [headerBusy, setHeaderBusy] = useState(false);
+  const headerRefresh = async () => {
+    setHeaderBusy(true);
+    let msg = 'Latest data loaded.';
+    try { await pullRefresh(); } catch (e) { msg = `Could not reach the server: ${e && e.message ? e.message : 'no connection?'}`; }
+    if (Platform.OS !== 'web') { try { msg += ` ${await checkForPhoneUpdate()}`; } catch { /* the update check is optional */ } }
+    setHeaderBusy(false);
+    Alert.alert('Refresh', msg);
+  };
   const goTab = (k) => { setTab(k); setVisibleCount(5); if (k === 'report' && (!reportModel || reportKind === 'day')) buildReport(); };
   // The narration form starts from the entry's saved narration ("Include mail chain" off for a new one; an older
   // narration, saved before the tick existed, keeps the mail chain - as on the web app).
@@ -1197,6 +1208,8 @@ export default function WorkingDashboard() {
           title={tab === 'dashboard' ? (new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening') : PHONE_TITLES[tab] || TAB_TITLES[tab]}
           subtitle={phoneSubtitle}
           userLabel={userLabel}
+          onRefresh={headerRefresh}
+          refreshing={headerBusy}
           onSearch={() => setPaletteOpen(true)}
           onBell={() => setMeetingOpen(true)}
           bellOn={meetingOn}

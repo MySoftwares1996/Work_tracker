@@ -595,3 +595,10 @@ tr.is-selected td { background: var(--primary-tint); }
 .grid.fixed-cols { grid-template-columns: repeat(auto-fill, minmax(max(170px, calc((100% - (var(--n) - 1) * 16px) / var(--n) - 1px)), 1fr)); }
 .perrow { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
 .perrow select { min-width: 0; }
+
+/* The Refresh button in the top bar. */
+.refresh-btn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
+.refresh-btn:hover:not(:disabled) { background: var(--primary-tint); color: var(--primary); }
+.refresh-btn.spin svg { animation: refresh-spin 0.8s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .refresh-btn.spin svg { animation: none; opacity: 0.5; } }

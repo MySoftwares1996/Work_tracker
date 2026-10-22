@@ -9,6 +9,7 @@ import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveD
 
 import { copyText } from './clipboard';
 import { useCardsPerRow, gridProps, PerRow } from './cardsPerRow';
+import { refreshAll } from './refresh';
 import { weeklyReview, slipReason } from '../../src/weeklyReview.js';
 
 import { useStore } from './store';
@@ -60,6 +61,13 @@ export default function App() {
     config: <Config />,
   };
   const name = store.user.displayName || store.user.email || '';
+  const [refreshing, setRefreshing] = useState(false);
+  const doRefresh = async () => {
+    setRefreshing(true);
+    const r = store.demo ? 'demo' : await refreshAll().catch(() => 'offline');
+    store.notify(r === 'demo' ? 'Demo data - nothing to refresh' : r === 'reload' ? 'A new version is available - reloading' : r === 'synced' ? `Up to date - refreshed ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Could not reach the server - showing the last data received');
+    setTimeout(() => setRefreshing(false), 600);
+  };
 
   return (
     <div className="app">
@@ -76,6 +84,7 @@ export default function App() {
           {store.demo && <span className="pill demo">Demo data</span>}
           {!store.demo && store.hasLoaded && !store.synced && <span className="pill demo" role="status" title="Offline: showing the last data received. Changes are sent when the connection returns.">Offline</span>}
           {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? `In sync${store.lastSyncAt ? ` - last update from the server ${new Date(store.lastSyncAt).toLocaleTimeString()}` : ''}` : store.hasLoaded ? 'Offline - showing the last data received' : 'Syncing...'} />}
+          <button type="button" className={`refresh-btn${refreshing ? ' spin' : ''}`} onClick={doRefresh} disabled={refreshing} aria-label="Refresh" title="Refresh: read the latest from the server and check for a new version"><Icon name="refresh" size={20} /></button>
           <span className="me" title={store.user.email || name}><i className="me-av" aria-hidden="true">{(name.trim().charAt(0) || '?').toUpperCase()}</i><span className="me-name">{name}</span></span>
         </div>
       </header>

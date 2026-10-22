@@ -22,6 +22,10 @@ export function friendlyError(e) {
 }
 
 /** The shared actions, written once for both the live and the demo store. `commit` saves one task. */
+/** The Refresh button: asks the server for everything now (set while a signed-in store is live). Resolves true when it read the server. */
+let syncNowFn = null;
+export const syncNow = () => (syncNowFn ? syncNowFn() : Promise.resolve(false));
+
 function makeActions(commit, getTasks, notify) {
   // A status moved on (In Progress, Waiting...) is a day worked on: it goes into the task's work log, which the Daily report is written from.
   const save = (t) => {
@@ -109,9 +113,10 @@ export function LiveStore({ children }) {
     // computer or on the phone is here at once, not only after a refresh.
     let busy = false;
     let last = 0;
-    const refresh = async (force) => {
-      if (busy || document.hidden || Date.now() - last < (force ? 4000 : 30000)) return;
+    const refresh = async (force, manual) => {
+      if (busy || (!manual && (document.hidden || Date.now() - last < (force ? 4000 : 30000)))) return false;
       busy = true; last = Date.now();
+      let ok = false;
       try {
         const [tasks, metas] = await Promise.all([getDocsFromServer(collection(db, 'users', user.uid, 'tasks')), getDocsFromServer(collection(db, 'users', user.uid, 'meta'))]);
         setTaskMap((m) => {
@@ -125,9 +130,12 @@ export function LiveStore({ children }) {
         });
         metas.docs.forEach((x) => applyMeta(x.id, x.data() || {}));
         setLastSyncAt(Date.now());
+        ok = true;
       } catch { /* offline: the live listener catches up when the network returns */ }
       busy = false;
+      return ok;
     };
+    syncNowFn = () => refresh(true, true);
     // Coming back to the tab at most every 30 s re-reads everything; coming back online does it at once.
     const onShow = () => { if (!document.hidden) refresh(false); };
     const onFocus = () => refresh(false);
@@ -135,7 +143,7 @@ export function LiveStore({ children }) {
     document.addEventListener('visibilitychange', onShow);
     window.addEventListener('focus', onFocus);
     window.addEventListener('online', onOnline);
-    return () => { un1(); un2(); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onOnline); };
+    return () => { un1(); un2(); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onOnline); syncNowFn = null; };
   }, [user]);
 
   useEffect(() => {

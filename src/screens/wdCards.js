@@ -329,11 +329,12 @@ export function CircleBtn({ icon, label, onPress, active }) {
  * The phone's app bar: a row of actions at the right (search, meeting-mode bell, the name chip), then the serif title with a
  * muted line under it. `onBack` puts a 44px back circle before the title (pages opened from More).
  */
-export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bellOn, onUser, onBack }) {
+export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bellOn, onUser, onBack, onRefresh, refreshing }) {
   const t = useTheme();
   return (
     <View style={{ marginBottom: 14 }}>
       <Row gap={8} style={{ justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
+        {!!onRefresh && <CircleBtn icon="refresh" label={refreshing ? 'Refreshing' : 'Refresh'} onPress={refreshing ? undefined : onRefresh} />}
         <CircleBtn icon="search" label="Search" onPress={onSearch} />
         <CircleBtn icon={bellOn ? 'bellOff' : 'bell'} label={bellOn ? 'Meeting mode is on' : 'Meeting mode'} onPress={onBell} active={bellOn} />
         <Pressable onPress={onUser} accessibilityRole="button" accessibilityLabel={`Signed in as ${userLabel}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: 150, height: 44, paddingLeft: 7, paddingRight: 14, borderRadius: 22, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.8 : 1 })}>

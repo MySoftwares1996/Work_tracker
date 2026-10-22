@@ -1,6 +1,7 @@
 /** Line icons (24px grid, 2px stroke) used by the screens instead of emoji. `Icon name="check" size={16}`. */
 const PATHS = {
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  refresh: <path d="M20 11a8 8 0 0 0-14-4.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4.5L20 15M20 20v-5h-5" />,
   x: <path d="m6 6 12 12M18 6 6 18" />,
   plus: <path d="M12 5v14M5 12h14" />,
   chevL: <path d="m15 6-6 6 6 6" />,
