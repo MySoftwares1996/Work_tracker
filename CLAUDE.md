@@ -155,3 +155,7 @@ with a real compiler against the Android API) · the APK itself is only proven b
 
 Never take a feature, theme, tile, option or screen out without being asked. If a redesign or clean-up drops something, say so in the
 reply and add a line to `docs/REMOVED.md` in the same commit. That file is the complete list.
+
+## New entry draft (website)
+
+The website's New entry form keeps what was typed in `localStorage` (`newweb/src/entryDraft.js`, key `wd-entry-draft`) and puts it back on the next open; only Reset or Save clears it. Firestore uses a persistent local cache (`store.jsx`) so a task saved on a bad connection still goes up after a refresh. A failed save keeps its error on screen. The phone form has no draft yet.

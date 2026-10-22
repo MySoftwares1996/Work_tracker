@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, persistentLocalCache, persistentMultipleTabManager, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
 import { readReportFormats, planFormatSetup, effectiveFormats } from './reportFormats';
 import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
@@ -58,7 +58,10 @@ function Toast({ note }) {
 let firestoreDb;
 const dbOf = () => {
   if (firestoreDb) return firestoreDb;
-  try { firestoreDb = initializeFirestore(firebaseApp(), { experimentalAutoDetectLongPolling: true }); } catch { firestoreDb = getFirestore(firebaseApp()); }
+  // The local cache is kept on this device (shared by every tab): a task saved while the connection is slow or down is still sent after a
+  // refresh or a closed tab, instead of being lost with the page.
+  try { firestoreDb = initializeFirestore(firebaseApp(), { experimentalAutoDetectLongPolling: true, localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+  catch { try { firestoreDb = initializeFirestore(firebaseApp(), { experimentalAutoDetectLongPolling: true }); } catch { firestoreDb = getFirestore(firebaseApp()); } }
   return firestoreDb;
 };
 
@@ -218,8 +221,8 @@ export function LiveStore({ children }) {
   const actions = useMemo(() => {
     const commit = (t) => {
       if (!user) return;
-      setError('');
-      setDoc(doc(dbOf(), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(friendlyError(e)));
+      // A failed save stays on screen (the next save no longer hides it): the task would otherwise just disappear later.
+      setDoc(doc(dbOf(), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(`A task could not be saved: ${friendlyError(e)}`));
     };
     return makeActions(commit, () => tasksRef.current, flash);
   }, [user, flash]);

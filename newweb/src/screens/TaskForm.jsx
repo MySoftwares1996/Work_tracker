@@ -6,6 +6,7 @@ import { useStore } from '../store';
 import { finalNarration } from '../reportFormats';
 import { monthEndOptions } from '../../../src/monthEnd.js';
 import { isOffDay, templateFrom, applyTemplate, saveTemplate, categoryAsksReminder, reminderFrom, toggleReminderCategory, categoryCarriesSubCategory, subCategoriesFor, findSubCategory, subCategoryMissing, RECURRENCES, DONE_STATUS, dayKey, pad, newId, timeLabel } from '../data';
+import { loadDraft, saveDraft, clearDraft, withDraft } from '../entryDraft';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
 
 const toInputDate = (d) => (d ? dayKey(d) : '');
@@ -78,16 +79,21 @@ function AutoText({ value, ...rest }) {
 export default function TaskForm({ initial, onClose }) {
   const { tasks, lists, actions } = useStore();
   const isNew = !tasks.some((t) => t.id === initial.id);
-  const [t, setT] = useState(initial);
-  const [date, setDate] = useState(toInputDate(initial.due));
-  const [time, setTime] = useState(toInputTime(initial));
+  // A blank New entry gets back what was typed last time (refresh, closed tab or closed form); "Reset" clears it.
+  const draftOn = isNew && !initial.title;
+  const [draft0] = useState(() => (draftOn ? loadDraft() : null));
+  const [t, setT] = useState(() => withDraft(initial, draft0));
+  const [date, setDate] = useState(draft0 ? draft0.date || '' : toInputDate(initial.due));
+  const [time, setTime] = useState(draft0 ? draft0.time || '' : toInputTime(initial));
   const [managing, setManaging] = useState('');       // the list whose options are being added / deleted
   const [step, setStep] = useState('');
   const [clockOpen, setClockOpen] = useState(false);
-  const [remDate, setRemDate] = useState(initial.nextReminder ? dayKey(initial.nextReminder) : '');
-  const [remTime, setRemTime] = useState(initial.nextReminder ? `${pad(initial.nextReminder.getHours())}:${pad(initial.nextReminder.getMinutes())}` : '');
+  const [remDate, setRemDate] = useState(draft0 ? draft0.remDate || '' : initial.nextReminder ? dayKey(initial.nextReminder) : '');
+  const [remTime, setRemTime] = useState(draft0 ? draft0.remTime || '' : initial.nextReminder ? `${pad(initial.nextReminder.getHours())}:${pad(initial.nextReminder.getMinutes())}` : '');
   const [remClock, setRemClock] = useState(false);
   const { saveLists, templates, saveTemplates, notify, calendar } = useStore();
+  useEffect(() => { if (draftOn) saveDraft(initial, t, { date, time, remDate, remTime }); }, [draftOn, initial, t, date, time, remDate, remTime]);
+  const reset = () => { setT(initial); setDate(toInputDate(initial.due)); setTime(toInputTime(initial)); setRemDate(''); setRemTime(''); setStep(''); clearDraft(); notify('Form reset'); };
   const monthEnd = useMemo(() => monthEndOptions(new Date(), (k) => isOffDay(k, calendar), 5), [calendar]);
   const [tplName, setTplName] = useState(null);      // null = closed; a string = naming the template being saved
   // Escape and a click on the backdrop close only the topmost popup; the form itself closes when none is open.
@@ -122,6 +128,7 @@ export default function TaskForm({ initial, onClose }) {
     if (/^completed$/i.test(t.status) && !t.done) actions.complete(next, t.dar);
     else if (t.done && !DONE_STATUS.test(t.status)) actions.save({ ...next, done: false, completedAt: null });     // status moved away from Completed: reopen it
     else actions.save(next);
+    if (draftOn) clearDraft();
     onClose();
   };
   // A select with its own "Edit" link: add or delete the options right here.
@@ -294,6 +301,7 @@ export default function TaskForm({ initial, onClose }) {
         </div>
         <div className="sheet-foot">
           {!isNew && !t.binned && <button type="button" className="btn danger" onClick={() => { actions.bin(t); onClose(); }}>Move to bin</button>}
+          {isNew && <button type="button" className="btn ghost" onClick={reset} title="Clear everything typed in this form">Reset</button>}
           <span className="grow" />
           <button type="button" className="btn soft big" onClick={onClose}>Cancel</button>
           <button className="btn primary big" disabled={!t.title.trim()}>Save entry</button>
