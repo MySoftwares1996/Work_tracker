@@ -30,6 +30,7 @@ export const THEMES = [
   { id: 'plum', name: 'Plum', light: { primary: '#8A3FD1', dark: '#3A1B57', tint: '#F0E6FA', tintInk: '#6A2CA3', mint: '#D2B2F0' }, night: { primary: '#C79AF2', dark: '#4A2470', tint: '#35214A', tintInk: '#DDC0F6', mint: '#D2B2F0' } },
   { id: 'ember', name: 'Ember', light: { primary: '#C2410C', dark: '#5A200A', tint: '#FBE9DF', tintInk: '#99330A', mint: '#F5B896' }, night: { primary: '#F28F5E', dark: '#6E2D10', tint: '#43271A', tintInk: '#F6C3A6', mint: '#F5B896' } },
   { id: 'ink', name: 'Ink', light: { primary: '#16231F', dark: '#0E1513', tint: '#E9ECEB', tintInk: '#16231F', mint: '#B9C7C1' }, night: { primary: '#CFDCD6', dark: '#2A3832', tint: '#26312D', tintInk: '#D2DDD8', mint: '#B9C7C1' } },
+  { id: 'glass', name: 'Glass', light: { primary: '#4B4CD8', dark: '#232566', tint: '#E8E9FF', tintInk: '#3638A8', mint: '#B9BBFF', ground: '#EBEFFC', card: '#F7F9FF', soft: '#EDF0FC', line: '#C9D3F1', line2: '#B8C4EA' }, night: { primary: '#9A9BFF', dark: '#2B2D78', tint: '#25264A', tintInk: '#C9CAFF', mint: '#B9BBFF' } },
   { id: 'rose', name: 'Rose', light: { primary: '#B42318', dark: '#5C1A14', tint: '#FBE7E4', tintInk: '#8E1F15', mint: '#F2A9A0' }, night: { primary: '#F58A7F', dark: '#6E2019', tint: '#43211E', tintInk: '#F6BDB7', mint: '#F2A9A0' } },
 ];
 
@@ -54,8 +55,9 @@ export function themeVars(id, mode = 'light') {
   const t = THEMES.find((x) => x.id === normalizeTheme(id));
   const b = BASE[mode === 'dark' ? 'dark' : 'light'];
   const p = t[mode === 'dark' ? 'night' : 'light'];
+  const o = mode === 'dark' ? {} : p;
   return {
-    '--ground': b.ground, '--card': b.card, '--soft': b.soft, '--line': b.line, '--line2': b.line2, '--ink': b.ink, '--muted': b.muted, '--off': b.off,
+    '--ground': o.ground || b.ground, '--card': o.card || b.card, '--soft': o.soft || b.soft, '--line': o.line || b.line, '--line2': o.line2 || b.line2, '--ink': b.ink, '--muted': b.muted, '--off': b.off,
     '--danger': b.danger, '--on-danger': b.onDanger, '--danger-tint': b.dangerTint, '--danger-ink': b.dangerInk, '--danger-line': b.dangerLine,
     '--amber': b.amber, '--amber-tint': b.amberTint, '--amber-ink': b.amberInk, '--slate-tint': b.slateTint, '--slate-ink': b.slateInk, '--scrim': b.scrim,
     '--primary': p.primary, '--on-primary': mode === 'dark' ? '#0B1511' : '#FFFFFF', '--primary-dark': p.dark, '--primary-tint': p.tint, '--primary-ink': p.tintInk, '--mint': p.mint,

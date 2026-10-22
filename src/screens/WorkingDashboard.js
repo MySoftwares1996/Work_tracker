@@ -1380,6 +1380,9 @@ export default function WorkingDashboard() {
                   );
                 })()}
                 <Row gap={10}>
+                  <PhoneKpi tone="red" label="Pending as on Today" value={stats.pendingAsOnToday} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
+                </Row>
+                <Row gap={10}>
                   <PhoneKpi tone="red" label="Overdue" value={stats.overdue} onPress={() => { openRegister({ dueWithin: 'Overdue' }); }} />
                   <PhoneKpi tone="amber" label="Due today" value={stats.dueToday} onPress={() => { openRegister({ dueWithin: 'Today' }); }} />
                   <PhoneKpi tone="slate" label="Next 7 days" value={stats.next7Days} onPress={() => { openRegister({ dueWithin: 'Next 7 Days' }); }} />
@@ -1391,7 +1394,6 @@ export default function WorkingDashboard() {
                   </Pressable>
                   {moreCounts && (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                      <PhoneKpi wide label="Pending as on Today" value={stats.pendingAsOnToday} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
                       <PhoneKpi wide label="This Month" value={stats.thisMonth} onPress={() => { openRegister({ dueWithin: 'This Month' }); }} />
                       <PhoneKpi wide label="Next Month" value={stats.nextMonth} onPress={() => { openRegister({ dueWithin: 'Next Month' }); }} />
                       <PhoneKpi wide label="No Due Date" value={stats.noDueDate} onPress={() => { openRegister({ dueWithin: 'No Due Date' }); }} />

@@ -3,6 +3,10 @@
 Every removal is logged here in the same commit that makes it. Nothing is taken out without the owner saying so; a look change that
 drops something must list it here and in the reply. Restoring any line below is a request away (the commit is in git history).
 
+## Restored on 2026-10-22 (owner asked)
+- **Glass** is back as a seventh colour (phone Config > Appearance and website Config; periwinkle ground, indigo accent, dark twin). The other old themes stay removed.
+- **Pending as on Today** is its own tile again on the website Dashboard and the phone Home (the TODAY panel number stays too).
+
 ## Ledger redesign (2026-10-18) - things that went with it
 | What | Where | Note |
 |---|---|---|

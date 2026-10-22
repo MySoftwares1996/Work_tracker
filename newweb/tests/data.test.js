@@ -207,7 +207,7 @@ const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >
 const contrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
 test('the six Ledger themes: Forest is the default and an old saved theme key becomes Forest', () => {
-  assert.deepEqual(THEMES.map((t) => t.id), ['forest', 'harbour', 'plum', 'ember', 'ink', 'rose']);
+  assert.deepEqual(THEMES.map((t) => t.id), ['forest', 'harbour', 'plum', 'ember', 'ink', 'glass', 'rose']);
   assert.equal(DEFAULT_THEME, 'forest');
   ['violet', 'aqua', 'ocean', 'sunset', 'lilac', 'night', '', null, undefined].forEach((old) => assert.equal(normalizeTheme(old), 'forest'));
   THEMES.forEach((t) => assert.equal(normalizeTheme(t.id), t.id));

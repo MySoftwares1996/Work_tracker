@@ -184,6 +184,7 @@ function Dashboard({ onEdit, onNew, go }) {
             <span>{loading ? '–' : doneTodayDar} in the daily report</span>
           </div>
         </div>
+        <Stat loading={loading} tone="danger" label="Pending as on Today" value={s.pendingAsOnToday} onClick={() => go('register', { due: 'pending' })} />
         <Stat loading={loading} tone="danger" label="Overdue" value={s.overdue} onClick={() => go('register', { due: 'overdue' })} />
         <Stat loading={loading} tone="amber" label="Due today" value={s.dueToday} onClick={() => go('register', { due: 'today' })} />
         <Stat loading={loading} tone="slate" label="Next 7 days" value={s.dueSoon} onClick={() => go('register', { due: 'next7' })} />

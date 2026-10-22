@@ -35,3 +35,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - Phone: a Refresh button in the app bar (reads the website's edits now and looks for a new app version). New web: a Refresh button in the top bar (checks for a newer site build and reloads on it, else re-reads data from the server).
 - Phone: the floating + button is now a green + in the app bar (Home and Tasks), so it no longer covers the DAR button.
 - New web: fixed a crash after sign-in (hook order) and added an error screen; web only.
+- Glass colour theme and the Pending as on Today tile on Home are back (web done; the phone gets them in the next phone update / build).

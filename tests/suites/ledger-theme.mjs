@@ -7,7 +7,7 @@ const ratio = (a, b) => { const x = lum(a); const y = lum(b); return (Math.max(x
 export async function run({ ck, section }) {
   section('Ledger: the six colour themes');
   const keys = Object.keys(THEMES);
-  ck('six themes: Forest, Harbour, Plum, Ember, Ink, Rose', keys.join() === 'forest,harbour,plum,ember,ink,rose' && THEME_SWATCHES.map((s) => s.label).join() === 'Forest,Harbour,Plum,Ember,Ink,Rose');
+  ck('seven themes: Forest, Harbour, Plum, Ember, Ink, Glass, Rose', keys.join() === 'forest,harbour,plum,ember,ink,glass,rose' && THEME_SWATCHES.map((s) => s.label).join() === 'Forest,Harbour,Plum,Ember,Ink,Glass,Rose');
   ck('Forest is the default', DEFAULT_THEME === 'forest' && themeKeyOf(undefined) === 'forest');
   ck('Forest uses the approved tokens', THEMES.forest.bg === '#F7F5EF' && THEMES.forest.primary === '#0B6B52' && THEMES.forest.primaryDark === '#123A2F' && THEMES.forest.tint === '#E3F1EC' && THEMES.forest.tintText === '#0B5A45' && THEMES.forest.mint === '#9BD3BF');
   ck('the other themes swap only primary / primaryDark / tint', THEMES.harbour.primary === '#2457C5' && THEMES.harbour.primaryDark === '#14284F' && THEMES.harbour.tint === '#E4ECFA' && THEMES.plum.primary === '#8A3FD1' && THEMES.ember.primary === '#C2410C' && THEMES.ink.primaryDark === '#0E1513' && THEMES.rose.primary === '#B42318');
@@ -15,7 +15,7 @@ export async function run({ ck, section }) {
   ck('cards 20, hero 24, buttons 14, fields 14, no shadow on cards', THEMES.forest.radius === 20 && THEMES.forest.heroRadius === 24 && THEMES.forest.btnRadius === 14 && THEMES.forest.fieldRadius === 14 && Object.keys(THEMES.forest.shadow).length === 0);
 
   section('Ledger: older stored themes');
-  ck('the earlier default (warm) and the unmapped looks become Forest', ['warm', 'pearl', 'glass', 'neu', 'clay', 'hero', 'aqua', 'nonsense', ''].every((k) => themeKeyOf(k) === 'forest'));
+  ck('the earlier default (warm) and the unmapped looks become Forest', ['warm', 'pearl', 'neu', 'clay', 'hero', 'aqua', 'nonsense', ''].every((k) => themeKeyOf(k) === 'forest'));
   ck('the ones that map sensibly keep their colour family', themeKeyOf('ocean') === 'harbour' && themeKeyOf('violet') === 'plum' && themeKeyOf('lilac') === 'plum' && themeKeyOf('sunset') === 'ember' && themeKeyOf('night') === 'ink');
   ck('a current key stays itself', keys.every((k) => themeKeyOf(k) === k));
 

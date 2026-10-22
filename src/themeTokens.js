@@ -46,13 +46,14 @@ const COLOURS = {
   plum: { label: 'Plum', swatch: '#8A3FD1', light: { primary: '#8A3FD1', primaryDark: '#3A1B57', tint: '#F0E6FA', tintText: '#6B2BA8', mint: '#D6B4F2', heroDim: '#EBDAF8' }, dark: { primary: '#C08EF0', primaryDark: '#4D2A73', tint: '#2E2040', tintText: '#DFC3F7', mint: '#D6B4F2', heroDim: '#EBDAF8' } },
   ember: { label: 'Ember', swatch: '#C2410C', light: { primary: '#C2410C', primaryDark: '#5A200A', tint: '#FBE9DF', tintText: '#9A3412', mint: '#F4B896', heroDim: '#F9D9C6' }, dark: { primary: '#F58A52', primaryDark: '#7A2F0F', tint: '#3A2216', tintText: '#FBBE9C', mint: '#F4B896', heroDim: '#F9D9C6' } },
   ink: { label: 'Ink', swatch: '#16231F', light: { primary: '#16231F', primaryDark: '#0E1513', tint: '#E9ECEB', tintText: '#16231F', mint: '#B8C7C1', heroDim: '#D3DDD9' }, dark: { primary: '#B8C7C1', primaryDark: '#26332F', tint: '#243029', tintText: '#D3DDD9', mint: '#B8C7C1', heroDim: '#D3DDD9' } },
+  glass: { label: 'Glass', swatch: '#4B4CD8', light: { primary: '#4B4CD8', primaryDark: '#232566', tint: '#E8E9FF', tintText: '#3638A8', mint: '#B9BBFF', heroDim: '#DCDDFF', ground: { bg: '#EBEFFC', surface: '#F7F9FF', surfaceAlt: '#EDF0FC', border: '#C9D3F1', fieldBorder: '#B8C4EA', chevron: '#8A94B8' } }, dark: { primary: '#9A9BFF', primaryDark: '#2B2D78', tint: '#25264A', tintText: '#C9CAFF', mint: '#B9BBFF', heroDim: '#DCDDFF' } },
   rose: { label: 'Rose', swatch: '#B42318', light: { primary: '#B42318', primaryDark: '#5C1A14', tint: '#FBE7E4', tintText: '#8E1F15', mint: '#F2B1AA', heroDim: '#F7D2CD' }, dark: { primary: '#F27A6F', primaryDark: '#7A2820', tint: '#3C2220', tintText: '#F7B3AB', mint: '#F2B1AA', heroDim: '#F7D2CD' } },
 };
 
 export const build = (key, dark) => {
-  const g = dark ? GROUND.dark : GROUND.light;
-  const s = dark ? SIGNAL.dark : SIGNAL.light;
   const c = COLOURS[key][dark ? 'dark' : 'light'];
+  const g = { ...(dark ? GROUND.dark : GROUND.light), ...(c.ground || {}) };
+  const s = dark ? SIGNAL.dark : SIGNAL.light;
   return {
     key,
     label: COLOURS[key].label,
