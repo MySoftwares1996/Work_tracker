@@ -37,3 +37,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - New web: fixed a crash after sign-in (hook order) and added an error screen; web only.
 - Glass colour theme and the Pending as on Today tile on Home are back (web done; the phone gets them in the next phone update / build).
 - New web: New entry keeps what was typed (refresh / closed form) with a Reset button; tasks saved on a slow connection survive a refresh (local cache). Phone form: not done yet.
+- Phone: New entry keeps its draft (AsyncStorage) with a Reset button (src/entryDraft.js); goes out with the next phone update.

@@ -158,4 +158,4 @@ reply and add a line to `docs/REMOVED.md` in the same commit. That file is the c
 
 ## New entry draft (website)
 
-The website's New entry form keeps what was typed in `localStorage` (`newweb/src/entryDraft.js`, key `wd-entry-draft`) and puts it back on the next open; only Reset or Save clears it. Firestore uses a persistent local cache (`store.jsx`) so a task saved on a bad connection still goes up after a refresh. A failed save keeps its error on screen. The phone form has no draft yet.
+The website's New entry form keeps what was typed in `localStorage` (`newweb/src/entryDraft.js`, key `wd-entry-draft`) and puts it back on the next open; only Reset or Save clears it. Firestore uses a persistent local cache (`store.jsx`) so a task saved on a bad connection still goes up after a refresh. A failed save keeps its error on screen. The phone form does the same in `src/entryDraft.js` (AsyncStorage `MPT_WD_ENTRY_DRAFT`, Reset beside Cancel / Save).

@@ -10,6 +10,7 @@ import { display } from '../fonts';
 import { SOURCES } from '../optionSources';
 import { useTheme, blend, THEME_SWATCHES, themeKeyOf } from '../theme';
 import { useStore, uid } from '../store';
+import { applyDraft, clearEntryDraft, loadEntryDraft, saveEntryDraft } from '../entryDraft';
 import { shareCsv } from '../csv';
 
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
@@ -325,7 +326,18 @@ export default function WorkingDashboard() {
       narrationDraft: n ? { typeName: n.typeName || '', percent: n.percent || '', docNo: n.docNo || '', poNo: n.poNo || '', purpose: n.purpose || '', fieldsValues: { ...(n.fieldsValues || {}) }, includeMail: n.includeMail !== false } : { typeName: '', includeMail: false },
     };
   };
-  const openNewEntry = () => { if (!formOn) return; setAccOpen({}); setEntrySheet(withDrafts(blankEntry())); };
+  // A New entry opens with what was typed last time (closed form, killed app); Reset or Save clears it.
+  const draftId = useRef(null);
+  const draftBlank = useRef(null);
+  const openNewEntry = async () => {
+    if (!formOn) return;
+    setAccOpen({});
+    const blank = blankEntry();
+    draftBlank.current = blank; draftId.current = blank.id;
+    setEntrySheet(withDrafts(applyDraft(blank, await loadEntryDraft())));
+  };
+  const resetNewEntry = () => { const blank = blankEntry(); draftBlank.current = blank; draftId.current = blank.id; clearEntryDraft(); setEntrySheet(withDrafts(blank)); };
+  useEffect(() => { if (entrySheet && draftId.current === entrySheet.id && draftBlank.current) saveEntryDraft(entrySheet, draftBlank.current); }, [entrySheet]);
   // Narrations copied anywhere are kept (the last 30, stars stay) - shown under the narration form.
   useEffect(() => { setNarrationSink((text, typeName) => updateWd((w) => ({ ...w, narrationHistory: addHistory(w.narrationHistory || [], text, typeName) }))); return () => setNarrationSink(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Quick add: a typed sentence opens the New Entry form pre-filled (title, due date and time, priority, category, person).
@@ -448,6 +460,7 @@ export default function WorkingDashboard() {
   };
 
   const commitEntry = (d) => {
+    if (draftId.current === d.id) { draftId.current = null; clearEntryDraft(); }
     let row = { ...finalizeDraft(d), ...editedNow() };
     const isNew = !entries.some((x) => x.id === row.id);
     const prev = entries.find((x) => x.id === row.id);
@@ -839,6 +852,7 @@ export default function WorkingDashboard() {
     </Row>
   ) : (
     <Row gap={10}>
+      {draftId.current === entrySheet?.id && <Btn style={{ flex: 1 }} kind="soft" title="Reset" onPress={resetNewEntry} />}
       <Btn style={{ flex: 1 }} kind="neutral" title="Cancel" onPress={closeEntrySheet} />
       <Btn style={{ flex: 2 }} title="Save entry" onPress={() => saveEntry()} />
     </Row>
