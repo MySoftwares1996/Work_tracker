@@ -316,11 +316,11 @@ export function CountList({ title, total, rows, activeLabel, onPress }) {
 const initialOf = (name) => String(name || '?').trim().charAt(0).toUpperCase() || '?';
 
 /** The 44px white circle used for the app bar's actions (search, meeting-mode bell). */
-export function CircleBtn({ icon, label, onPress, active }) {
+export function CircleBtn({ icon, label, onPress, active, primary }) {
   const t = useTheme();
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? t.warnTint : t.surface, borderWidth: 1, borderColor: active ? t.amber : t.border, opacity: pressed ? 0.8 : 1 })}>
-      <Icon name={icon} size={20} color={active ? t.warnText : t.text} stroke={2} />
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: primary ? t.primary : active ? t.warnTint : t.surface, borderWidth: 1, borderColor: active ? t.amber : t.border, opacity: pressed ? 0.8 : 1 })}>
+      <Icon name={icon} size={20} color={primary ? t.onAccent : active ? t.warnText : t.text} stroke={primary ? 2.4 : 2} />
     </Pressable>
   );
 }
@@ -329,7 +329,7 @@ export function CircleBtn({ icon, label, onPress, active }) {
  * The phone's app bar: a row of actions at the right (search, meeting-mode bell, the name chip), then the serif title with a
  * muted line under it. `onBack` puts a 44px back circle before the title (pages opened from More).
  */
-export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bellOn, onUser, onBack, onRefresh, refreshing }) {
+export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bellOn, onUser, onBack, onRefresh, refreshing, onNew }) {
   const t = useTheme();
   return (
     <View style={{ marginBottom: 14 }}>
@@ -337,6 +337,7 @@ export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bell
         {!!onRefresh && <CircleBtn icon="refresh" label={refreshing ? 'Refreshing' : 'Refresh'} onPress={refreshing ? undefined : onRefresh} />}
         <CircleBtn icon="search" label="Search" onPress={onSearch} />
         <CircleBtn icon={bellOn ? 'bellOff' : 'bell'} label={bellOn ? 'Meeting mode is on' : 'Meeting mode'} onPress={onBell} active={bellOn} />
+        {!!onNew && <CircleBtn icon="plus" label="New entry" onPress={onNew} primary />}
         <Pressable onPress={onUser} accessibilityRole="button" accessibilityLabel={`Signed in as ${userLabel}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: 150, height: 44, paddingLeft: 7, paddingRight: 14, borderRadius: 22, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.8 : 1 })}>
           <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: t.fs(13) }}>{initialOf(userLabel)}</Text>

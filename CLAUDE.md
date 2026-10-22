@@ -107,7 +107,7 @@ Text size (`settings.fontLevel`). Tokens and the 4.5:1 contrast check live in `s
 `t.tint`, `t.tintText`, `t.mint`, `t.heroDim`, `t.dangerTint`, `t.prioDot`, `t.fontDisplay`). Fonts: `@expo-google-fonts/fraunces` (titles, big numbers: `display()`) and `manrope`
 (`src/fonts.js` loads them with `useAppFonts` in `App.js` - never blocking, the system font is the fallback - and `patchText()` gives every `<Text>` without a family the Manrope
 weight of its fontWeight; a TextInput sets `fontFamily: ff(600)` itself). Chrome icons are `src/icons.js` line icons (no emoji in the chrome). The signed-in name chip sits top right of the
-app bar on every phone screen with the search and meeting-mode circles (`PhoneHeader`, `userLabel` in `WorkingDashboard.js`). Layouts follow the artboards: Home (hero panel, three tinted tiles, Needs attention), Tasks (search, All / Overdue /
+app bar on every phone screen with the search and meeting-mode circles (`PhoneHeader`, `userLabel` in `WorkingDashboard.js`; on the phone the New entry + is a green circle in this bar next to Refresh / Search / Meeting mode - there is no floating button over the cards). Layouts follow the artboards: Home (hero panel, three tinted tiles, Needs attention), Tasks (search, All / Overdue /
 Today / Week chips, cards with Done / DAR), the entry form (2-up category / pending, priority buttons, due row, notes, MORE DETAILS pills opening popups, sticky Cancel / Save), Report (day strip,
 four count boxes, white report card, Copy report / Rewrite with AI bar), Done, More (dark profile card), Config, the full-screen alert (colour by priority) and Welcome (`WdFormBits.js` has the form's pills).
 

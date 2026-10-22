@@ -1209,6 +1209,7 @@ export default function WorkingDashboard() {
           subtitle={phoneSubtitle}
           userLabel={userLabel}
           onRefresh={headerRefresh}
+          onNew={formOn && (tab === 'dashboard' || tab === 'register') ? openNewEntry : undefined}
           refreshing={headerBusy}
           onSearch={() => setPaletteOpen(true)}
           onBell={() => setMeetingOpen(true)}
@@ -2281,7 +2282,7 @@ export default function WorkingDashboard() {
       <Btn kind="soft" title="Excel" onPress={() => { setShareOpen(false); csvReport(); }} />
     </Sheet>
 
-    {formOn && (tab === 'dashboard' || tab === 'register') && <Fab onPress={openNewEntry} right={wide ? 32 : 20} bottom={fabBottom} />}
+    {formOn && !phoneLayout && (tab === 'dashboard' || tab === 'register') && <Fab onPress={openNewEntry} right={wide ? 32 : 20} bottom={fabBottom} />}
     <UndoBar undo={undo} onUndo={runUndo} onHide={() => setUndo(null)} bottom={wide ? 24 : aboveBar + 8} left={sideBar + 20} />
     <BottomTabs
       tabs={BAR_TABS}
