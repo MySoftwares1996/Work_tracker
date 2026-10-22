@@ -614,6 +614,39 @@ tr.is-selected td { background: var(--primary-tint); }
 .wide-pill > .ico:last-child { color: var(--muted); }
 .dar-check { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); }
 
+/* ---- New / Edit entry, layout E (the owner's pick): one band per section, its fields in one line across ---- */
+.form-body.bands { gap: 14px; }
+.band { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; align-items: start; padding: 16px 20px; }
+.band-h { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; font-size: 14.5px; font-weight: 800; color: var(--ink); padding-top: 2px; }
+.band-f { display: grid; gap: 14px; align-items: start; min-width: 0; }
+.bf-task { grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); }
+.bf-prio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bf-sched { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.bf-people { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1.4fr); }
+.bf-report { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.band-note { grid-column: 1 / -1; margin: 0; }
+.band textarea.auto { min-height: 46px; }
+.band .sub-panel { gap: 6px; }
+.band .pill-btn { align-self: stretch; min-height: 46px; justify-content: flex-start; }
+.band .pill-btn:disabled { opacity: 0.55; cursor: default; }
+.band .pill-btn.is-quiet { color: var(--muted); font-weight: 600; cursor: default; }
+.band .pair { flex-wrap: nowrap; }
+.band .pair .pill-btn { flex: 1; min-width: 0; }
+.dar-pill { cursor: pointer; text-transform: none; letter-spacing: 0; }
+.alert-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.alert-seg button.on { background: var(--primary-tint); border-color: var(--primary); color: var(--primary-ink); }
+.sheet-head .tpl-row { padding: 0; border: 0; }
+@media (max-width: 1200px) {
+  .bf-task { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bf-sched { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bf-people, .bf-report { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .band { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .band-h { flex-direction: row; align-items: center; }
+  .bf-task, .bf-prio, .bf-sched { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ---- Config (Config 3, the owner's pick): group tabs across the top, the group's settings side by side as tiles, four across ---- */
 .cfg-account { flex-wrap: nowrap; padding: 8px 10px 8px 8px; border-radius: 999px; }
 .cfg-account .cfg-avatar { width: 36px; height: 36px; font-size: 15px; }
@@ -684,11 +717,11 @@ tr.is-selected td { background: var(--primary-tint); }
 :root[data-theme="glass"][data-mode="dark"] .modal-card { background: rgba(22, 28, 44, 0.92); }
 :root[data-theme="glass"] .card.is-selected { box-shadow: 0 0 0 2px var(--primary), var(--g-shadow); }
 /* Glossy tiles: a deep gradient, a soft shine and a bright rim, white text. */
-:root[data-theme="glass"] :is(.hero, .st, .btn.primary, .btn.ok, .tab.on, .chip.toggle.on, .seg button.on) {
+:root[data-theme="glass"] :is(.hero, .st, .btn.primary, .btn.ok, .tab.on, .chip.toggle.on, .seg button.on, .alert-seg button.on) {
   color: #fff; border-color: transparent; box-shadow: inset 0 0 0 2px var(--g-tile-rim), 0 8px 18px rgba(20, 50, 120, 0.22);
 }
 :root[data-theme="glass"] .hero { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-hero); }
-:root[data-theme="glass"] :is(.btn.primary, .btn.ok.soft, .tab.on, .chip.toggle.on, .seg button.on) { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-blue); }
+:root[data-theme="glass"] :is(.btn.primary, .btn.ok.soft, .tab.on, .chip.toggle.on, .seg button.on, .alert-seg button.on) { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-blue); }
 :root[data-theme="glass"] .btn.ok:not(.soft) { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-green); }
 :root[data-theme="glass"] .st.danger { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-red); }
 :root[data-theme="glass"] .st.amber { background: linear-gradient(180deg, var(--g-tile-sheen), transparent 45%), var(--g-amber); }
