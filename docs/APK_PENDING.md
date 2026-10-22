@@ -39,3 +39,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - New web: New entry keeps what was typed (refresh / closed form) with a Reset button; tasks saved on a slow connection survive a refresh (local cache). Phone form: not done yet.
 - Phone: New entry keeps its draft (AsyncStorage) with a Reset button (src/entryDraft.js); goes out with the next phone update.
 - New web: asks the server directly 4 s and 15 s after start when the live listener stays on the saved copy; clearer banner when saved tasks are shown. Web only.
+- New web: Glass is now a real glass finish (blue-to-lilac sky, frosted cards, glossy tiles and buttons) in light mode; the big Dashboard panel reads "Pending as on Today" and Next month is the fifth tile (all looks). Phone Glass is still colour only.
