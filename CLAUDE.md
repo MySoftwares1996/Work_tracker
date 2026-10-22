@@ -150,3 +150,8 @@ with a real compiler against the Android API) · the APK itself is only proven b
 - **A change** says its target (APK / web.app / Both); anything in shared logic is called out, and the other platform is
   checked (`npm run verify` runs the checks and tests; `npx expo export -p web` builds the website; the APK is only
   proven by the CI build).
+
+## Removals - the owner wants every one listed
+
+Never take a feature, theme, tile, option or screen out without being asked. If a redesign or clean-up drops something, say so in the
+reply and add a line to `docs/REMOVED.md` in the same commit. That file is the complete list.
