@@ -132,13 +132,15 @@ export function LiveStore({ children }) {
           return next;
         });
         metas.docs.forEach((x) => applyMeta(x.id, x.data() || {}));
-        setLastSyncAt(Date.now());
+        setLastSyncAt(Date.now()); setHasLoaded(true); setSynced(true);
         ok = true;
       } catch { /* offline: the live listener catches up when the network returns */ }
       busy = false;
       return ok;
     };
     syncNowFn = () => refresh(true, true);
+    // The live listener can sit on the saved copy (a slow first connection, another tab holding the cache): ask the server directly too.
+    const kick = [setTimeout(() => refresh(true, true), 4000), setTimeout(() => refresh(true, true), 15000)];
     // Coming back to the tab at most every 30 s re-reads everything; coming back online does it at once.
     const onShow = () => { if (!document.hidden) refresh(false); };
     const onFocus = () => refresh(false);
@@ -146,7 +148,7 @@ export function LiveStore({ children }) {
     document.addEventListener('visibilitychange', onShow);
     window.addEventListener('focus', onFocus);
     window.addEventListener('online', onOnline);
-    return () => { un1(); un2(); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onOnline); syncNowFn = null; };
+    return () => { un1(); un2(); kick.forEach(clearTimeout); document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onOnline); syncNowFn = null; };
   }, [user]);
 
   useEffect(() => {
