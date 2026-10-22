@@ -38,7 +38,7 @@ import { stampChanges, toolsValue } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
 import { PaymentFields, NarrationForm } from './WdPaymentFields';
-import { PrioritySegment, DetailChip } from './WdFormBits';
+import { PrioritySegment, DetailChip, FormBand } from './WdFormBits';
 import WdAlertSettings from './WdAlertSettings';
 import WdReportFormats from './WdReportFormats';
 import { ListsEditor, SubCategories, ReminderCategories, RestoreLists } from './WdLists';
@@ -184,7 +184,8 @@ export default function WorkingDashboard() {
   const [linkFind, setLinkFind] = useState('');
   const [linkFolder, setLinkFolder] = useState('');      // '' = all folders
   const [reportAlt, setReportAlt] = useState(null);      // { standard, ai, showing } after Rewrite with AI
-  const [configFocus, setConfigFocus] = useState('all');      // the phone Config page: every section, or one
+  const [configFocus, setConfigFocus] = useState('all');      // the tablet Config page: the chosen section
+  const [configGroup, setConfigGroup] = useState('General');  // the phone Config page: the chosen group tab
   // The phone Holidays tab's search and filters.
   const [holQuery, setHolQuery] = useState('');
   const [holCalendar, setHolCalendar] = useState('All');
@@ -1092,32 +1093,42 @@ export default function WorkingDashboard() {
       const steps = checklistOf(entrySheet);
       const stepsDone = steps.filter((c) => c.done).length;
       const showReminder = Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(entrySheet.category);
-      const alertMode = ALERT_MODES.find((m) => m.key === alertModeOf(entrySheet, wd.alerts)) || ALERT_MODES[0];
       const dateShort = (iso) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
       const detailTitle = { alert: 'Alert', deadline: 'Deadline', reminder: 'Next reminder', mail: 'Mail chain', history: 'History' }[detailSheet] || '';
       return (
         <View>
           {f.templates}
-          {f.title}
           {f.saveTemplate}
-          <Row gap={10} style={{ alignItems: 'flex-start' }}>{f.category}{f.pendingWith}</Row>
-          {f.priority}
-          {f.due}
-          {f.slot}
-          {f.custom}
-          {f.notes}
-          <Label>MORE DETAILS</Label>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-            {f.status}
-            <DetailChip icon="bell" label={`Alert · ${alertMode.key === 'alarm' ? 'Alarm' : 'Reminder'}`} filled={alertModeOf(entrySheet, wd.alerts) === 'alarm'} onPress={() => setDetailSheet('alert')} />
-            <DetailChip icon="calendar" label={entrySheet.deadlineAt ? `Deadline · ${dateShort(entrySheet.deadlineAt)}` : 'Deadline'} filled={!!entrySheet.deadlineAt} onPress={() => setDetailSheet('deadline')} />
-            {showReminder && <DetailChip icon="clock" label={entrySheet.nextReminderAt ? `Next reminder · ${dateShort(entrySheet.nextReminderAt)}` : 'Next reminder'} filled={!!entrySheet.nextReminderAt} onPress={() => setDetailSheet('reminder')} />}
-            <DetailChip icon="checklist" label={steps.length ? `Checklist · ${stepsDone} of ${steps.length}` : 'Checklist'} filled={!!steps.length} onPress={() => setStepsOpen(true)} />
-            <DetailChip icon="mail" label="Mail chain" filled={!!String(entrySheet.reference || '').trim()} onPress={() => setDetailSheet('mail')} />
-            {!!f.history && <DetailChip icon="list" label={`History · ${(entrySheet.audit || []).length}`} onPress={() => setDetailSheet('history')} />}
-          </View>
-          {f.payment}
-          {f.dar}
+          {/* Layout E, as on the website: one band per section - the task, priority & alert, schedule, people & notes, report. */}
+          <FormBand icon="edit" title="The task">
+            {f.title}
+            {f.category}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>{f.status}</View>
+          </FormBand>
+          <FormBand icon="bell" title="Priority & alert">
+            {f.priority}
+            {f.alert}
+          </FormBand>
+          <FormBand icon="calendar" title="Schedule">
+            {f.due}
+            {f.slot}
+            {f.custom}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              <DetailChip icon="calendar" label={entrySheet.deadlineAt ? `Deadline · ${dateShort(entrySheet.deadlineAt)}` : 'Deadline'} filled={!!entrySheet.deadlineAt} onPress={() => setDetailSheet('deadline')} />
+              {showReminder && <DetailChip icon="clock" label={entrySheet.nextReminderAt ? `Next reminder · ${dateShort(entrySheet.nextReminderAt)}` : 'Next reminder'} filled={!!entrySheet.nextReminderAt} onPress={() => setDetailSheet('reminder')} />}
+              <DetailChip icon="checklist" label={steps.length ? `Checklist · ${stepsDone} of ${steps.length}` : 'Checklist'} filled={!!steps.length} onPress={() => setStepsOpen(true)} />
+            </View>
+          </FormBand>
+          <FormBand icon="user" title="People & notes">
+            {f.pendingWith}
+            {f.notes}
+            <View style={{ marginBottom: 12 }}>{f.mail}</View>
+          </FormBand>
+          <FormBand icon="report" title="Report">
+            {f.payment}
+            {f.dar}
+            {!!f.history && <View style={{ flexDirection: 'row', marginBottom: 12 }}><DetailChip icon="list" label={`History · ${(entrySheet.audit || []).length}`} onPress={() => setDetailSheet('history')} /></View>}
+          </FormBand>
           {!pinSave && entryButtons}
           {!!binBtn && <View style={{ marginTop: 8 }}>{binBtn}</View>}
           <Sheet visible={stepsOpen} onClose={() => setStepsOpen(false)} title="Checklist">
@@ -1351,13 +1362,13 @@ export default function WorkingDashboard() {
                   const total = doneTodayCount + need;
                   const pct = total ? Math.round((doneTodayCount / total) * 100) : 0;
                   return (
-                    <Pressable onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} accessibilityRole="button" accessibilityLabel={`Today: ${need} ${need === 1 ? 'task needs' : 'tasks need'} you. Open them in Tasks`}
+                    <Pressable onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} accessibilityRole="button" accessibilityLabel={`Pending as on today: ${need} ${need === 1 ? 'task' : 'tasks'}, overdue and due today. Open them in Tasks`}
                       style={({ pressed }) => ({ backgroundColor: t.primaryDark, borderRadius: t.heroRadius, paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 14, opacity: pressed ? 0.94 : 1, ...glossTile(t) })}>
                       <GlossFill tone="hero" radius={t.heroRadius} />
-                      <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.4 }}>TODAY</Text>
+                      <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.4 }}>PENDING AS ON TODAY</Text>
                       <Row gap={10} style={{ alignItems: 'baseline' }}>
                         <Text style={{ color: '#fff', fontFamily: display(), fontWeight: '600', fontSize: t.fs(64), lineHeight: t.fs(62), letterSpacing: -2 }}>{need}</Text>
-                        <Text style={{ color: t.heroDim, fontWeight: '600', fontSize: t.fs(15) }}>{need === 1 ? 'task needs you' : 'tasks need you'}</Text>
+                        <Text style={{ color: t.heroDim, fontWeight: '600', fontSize: t.fs(15) }}>{need === 1 ? 'task' : 'tasks'} · overdue + due today</Text>
                       </Row>
                       <View style={{ height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
                         <View style={{ height: 8, borderRadius: 4, backgroundColor: t.mint, width: `${pct}%` }} />
@@ -1963,15 +1974,18 @@ export default function WorkingDashboard() {
             ) },
             { key: 'appearance', icon: 'moon', title: 'Appearance', body: appearanceBody },
             { key: 'lists', icon: 'list', title: 'Entry form options', body: <ListsEditor wd={wd} save={saveLists} /> },
-            { key: 'subs', icon: 'folder', title: 'Sub categories', body: <View><RestoreLists wd={wd} entries={entries} save={saveLists} setTools={setTools} /><SubCategories wd={wd} lists={plists} save={saveLists} /></View> },
+            { key: 'subs', icon: 'folder', title: 'Sub categories', body: <SubCategories wd={wd} lists={plists} save={saveLists} /> },
+            { key: 'restore', icon: 'undo', title: 'Restore lists', body: <RestoreLists wd={wd} entries={entries} save={saveLists} setTools={setTools} /> },
             { key: 'reminder', icon: 'clock', title: 'Next reminder', body: <ReminderCategories wd={wd} save={saveLists} /> },
             { key: 'formats', icon: 'report', title: 'Report formats', body: <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={saveLists} /> },
             { key: 'gemini', icon: 'sparkle', title: 'Gemini (AI) key', body: <WdGeminiKey /> },
           ];
+          // The website's Config groups (General, Lists, Daily report, Your data).
           const groups = [
-            ['General', [['alerts', 'When and how a due task alerts you'], ['appearance', 'Theme and colours']]],
-            ['Entry form', [['lists', 'Categories, priorities, statuses, pending with'], ['subs', 'Sub categories and their fields'], ['reminder', 'Which categories ask for a next reminder']]],
-            ['Reports', [['formats', 'The sentence each sub category writes'], ['gemini', 'Your own key, used only when the free route is busy']]],
+            ['General', [['alerts', 'When and how a due task alerts you'], ['appearance', 'Theme and colours'], ['gemini', 'Your own key, used only when the free route is busy']]],
+            ['Lists', [['lists', 'Categories, priorities, statuses, pending with'], ['subs', 'Sub categories and their fields'], ['reminder', 'Which categories ask for a next reminder']]],
+            ['Daily report', [['formats', 'The sentence each sub category writes']]],
+            ['Your data', [['restore', 'Bring the lists back from a backup or from the tasks']]],
           ];
           const byKey = Object.fromEntries(panels.map((x) => [x.key, x]));
           const split = !phoneLayout;
@@ -1999,21 +2013,6 @@ export default function WorkingDashboard() {
                   </Card>
                 </View>
               ))}
-            </View>
-          );
-          // Phone: one list of topics (the Appearance row is highlighted - its card is open right below).
-          const topicList = (
-            <View style={{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>
-              {panels.map((x, i) => {
-                const on = x.key === 'appearance';
-                return (
-                  <Pressable key={x.key} onPress={() => pick(x.key)} accessibilityRole="button" accessibilityLabel={x.title}
-                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, minHeight: 52, borderTopWidth: i ? 1 : 0, borderTopColor: t.surfaceAlt, backgroundColor: on ? t.tint : pressed ? t.surfaceAlt : t.surface })}>
-                    <Text style={{ color: on ? t.tintText : t.text, fontWeight: '700', fontSize: t.fs(15) }}>{x.title}</Text>
-                    <Icon name="chevronRight" size={16} color={on ? t.tintText : t.chevron} stroke={2} />
-                  </Pressable>
-                );
-              })}
             </View>
           );
           const cur = active ? byKey[active] : null;
@@ -2057,13 +2056,32 @@ export default function WorkingDashboard() {
           );
           if (phoneLayout) {
             // Phone: a panel on its own page, or the topic list with the Appearance card open under it and the account at the foot.
-            return panel ? <View>{panel}</View> : (
+            // Phone: the website's group tabs across the top; the chosen group's settings open one under another.
+            const [, items] = groups.find(([g]) => g === configGroup) || groups[0];
+            return (
               <View style={{ gap: 14 }}>
-                {topicList}
-                <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginLeft: 4, marginBottom: -6 }}>APPEARANCE</Text>
-                <Card style={{ padding: 16 }}>{appearanceBody}</Card>
-                <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginLeft: 4, marginBottom: -6 }}>ACCOUNT</Text>
                 {accountCard}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {groups.map(([g]) => <Chip key={g} label={g} on={g === configGroup} onPress={() => setConfigGroup(g)} />)}
+                </View>
+                {items.map(([k, hint]) => {
+                  const x = byKey[k];
+                  return (
+                    <Card key={k} style={{ padding: 16 }}>
+                      <Row gap={12} style={{ alignItems: 'center' }}>
+                        <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.tint }}>
+                          <Icon name={x.icon} size={19} color={t.tintText} stroke={1.9} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{x.title}</Text>
+                          <Small>{hint}</Small>
+                        </View>
+                      </Row>
+                      <View style={{ height: 1, backgroundColor: t.border, marginVertical: 12 }} />
+                      {x.body}
+                    </Card>
+                  );
+                })}
               </View>
             );
           }

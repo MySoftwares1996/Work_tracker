@@ -41,3 +41,19 @@ export function DetailChip({ icon, label, filled, onPress }) {
     </Pressable>
   );
 }
+
+/** One section of the entry form ("layout E", as on the website): an icon and a title, then its fields. */
+export function FormBand({ icon, title, children }) {
+  const t = useTheme();
+  return (
+    <View accessibilityLabel={title} style={{ backgroundColor: t.surface, borderRadius: 18, borderWidth: 1, borderColor: t.border, padding: 14, paddingBottom: 2, marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+        <View style={{ width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: t.tint }}>
+          <Icon name={icon} size={15} color={t.tintText} stroke={2} />
+        </View>
+        <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14.5) }}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
