@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import ErrorBoundary from './ErrorBoundary';
 import { DEMO, DemoStore, LiveStore } from './store';
 import './styles.css';
 import { startTheme } from './themes';
@@ -11,4 +12,4 @@ const Store = DEMO ? DemoStore : LiveStore;
 // Offline start and quicker repeat opens (public/sw.js); not in the demo or while developing.
 if ('serviceWorker' in navigator && import.meta.env.PROD && !DEMO) window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
 
-createRoot(document.getElementById('root')).render(<StrictMode><Store><App /></Store></StrictMode>);
+createRoot(document.getElementById('root')).render(<StrictMode><ErrorBoundary><Store><App /></Store></ErrorBoundary></StrictMode>);

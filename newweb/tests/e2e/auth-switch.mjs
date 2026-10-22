@@ -1,0 +1,14 @@
+import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
+import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
+const root=new URL('../../dist', import.meta.url).pathname;
+const T={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.webmanifest':'application/json'};
+const server=http.createServer((req,res)=>{const p=decodeURIComponent(req.url.split('?')[0]);let f=path.join(root,p==='/'?'index.html':p);if(!fs.existsSync(f)||fs.statSync(f).isDirectory())f=path.join(root,'index.html');res.writeHead(200,{'Content-Type':T[path.extname(f)]||'application/octet-stream'});res.end(fs.readFileSync(f));});
+await new Promise(r=>server.listen(0,r));
+const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+const p=await (await b.newContext({viewport:{width:1360,height:700}})).newPage();
+const errs=[];p.on('pageerror',e=>errs.push(String(e).slice(0,160)));p.on('console',m=>{if(m.type()==='error')errs.push(m.text().slice(0,160))});
+await p.goto(`http://localhost:${server.address().port}/?demo&slowauth`);await p.waitForTimeout(1800);
+const bar=await p.locator('header.top').count();const btn=await p.locator('button[aria-label="Refresh"]').count();
+console.log(bar===1&&btn===1&&!errs.length?'  ok   the app appears after a late sign-in (no hook-order crash)':'  FAIL the app did not appear after a late sign-in '+JSON.stringify(errs));
+if(!(bar===1&&btn===1&&!errs.length)) process.exitCode=1;
+await b.close();server.close();

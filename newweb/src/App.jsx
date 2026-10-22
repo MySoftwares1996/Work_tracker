@@ -41,6 +41,14 @@ export default function App() {
   useEffect(() => { const f = () => { const k = tabFromHash(); setTab(k); if (k !== tabRef.current) setPreset(null); tabRef.current = k; }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
   const go = (k, filter = null) => { tabRef.current = k; location.hash = k; setPreset(filter ? { ...filter, n: Date.now() } : null); setTab(k); window.scrollTo({ top: 0 }); };
 
+  // Hooks first: the early returns below (loading, sign-in) must never change how many hooks run.
+  const [refreshing, setRefreshing] = useState(false);
+  const doRefresh = async () => {
+    setRefreshing(true);
+    const r = store.demo ? 'demo' : await refreshAll().catch(() => 'offline');
+    store.notify(r === 'demo' ? 'Demo data - nothing to refresh' : r === 'reload' ? 'A new version is available - reloading' : r === 'synced' ? `Up to date - refreshed ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Could not reach the server - showing the last data received');
+    setTimeout(() => setRefreshing(false), 600);
+  };
   if (store.user === undefined) return <LoadingScreen stage="auth" full />;
   if (store.demo && location.search.includes('loading')) return <LoadingScreen stage="data" full />;      // ?demo&loading previews the loading screen
   if (!store.user) return <SignIn />;
@@ -61,13 +69,6 @@ export default function App() {
     config: <Config />,
   };
   const name = store.user.displayName || store.user.email || '';
-  const [refreshing, setRefreshing] = useState(false);
-  const doRefresh = async () => {
-    setRefreshing(true);
-    const r = store.demo ? 'demo' : await refreshAll().catch(() => 'offline');
-    store.notify(r === 'demo' ? 'Demo data - nothing to refresh' : r === 'reload' ? 'A new version is available - reloading' : r === 'synced' ? `Up to date - refreshed ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Could not reach the server - showing the last data received');
-    setTimeout(() => setRefreshing(false), 600);
-  };
 
   return (
     <div className="app">

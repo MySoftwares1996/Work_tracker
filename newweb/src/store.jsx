@@ -298,13 +298,16 @@ export function DemoStore({ children }) {
   const calendar = useMemo(() => ({ holidays: [{ date: '2026-10-20', name: 'Sample holiday' }], leaveDays: [] }), []);
   const [templates, setTemplates] = useState([]);
   const [formats, setFormats] = useState([]);
+  // ?demo&slowauth: the user arrives a moment late, like a real sign-in, so the sign-in -> app switch is tested (hooks must not change between them).
+  const [authed, setAuthed] = useState(!location.search.includes('slowauth'));
+  useEffect(() => { if (authed) return undefined; const id = setTimeout(() => setAuthed(true), 500); return () => clearTimeout(id); }, [authed]);
   const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: { displayName: 'Demo user', email: 'demo@example.com' }, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, savedFormats: formats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: !location.search.includes('skeleton'), actions,      // ?demo&skeleton previews the placeholder rows
+    demo: true, notify: flash, user: authed ? { displayName: 'Demo user', email: 'demo@example.com' } : undefined, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, savedFormats: formats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: !location.search.includes('skeleton'), actions,      // ?demo&skeleton previews the placeholder rows
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
-  }), [visible, lists, calendar, links, templates, formats, actions]);
+  }), [authed, visible, lists, calendar, links, templates, formats, actions]);
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
 
