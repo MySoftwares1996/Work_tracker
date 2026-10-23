@@ -717,12 +717,12 @@ export default function WorkingDashboard() {
 
   /* ---------- AI Daily Report ---------- */
   const buildReport = (date = reportDate) => {
-    const model = buildReportModel({ entries, fixedActivities: wd.fixedActivities, activityLog: wd.activityLog, date, leaveDays: leaveList, holidays: holidayList, lists: plists,
+    const model = buildReportModel({ entries, fixedActivities: wd.fixedActivities, activityLog: wd.activityLog, date, reportPoints: wd.paymentIntro, leaveDays: leaveList, holidays: holidayList, lists: plists,
       // Every line is written from the entry's notes and Tally narration too - the same report as the website (the owner's choice).
       details: true });
     const formats = effectiveFormats(wd.reportFormats);
-    applyFormats(model, formats, {});
-    applyMoves(model, (wd.reportMoves || {})[date] || {}, { payLists: plists, formats, date, details: true });
+    applyFormats(model, formats, { darPaymentIntro: wd.paymentIntro });
+    applyMoves(model, (wd.reportMoves || {})[date] || {}, { lists: { darPaymentIntro: wd.paymentIntro }, payLists: plists, formats, date, details: true });
     if (reportOpts.subFields) addSubFields(model);
     setReportModel(model);
     // The AI rewrite is kept when this is the same date and the report's facts did not change (compared on the full-heading draft the AI was given).
@@ -890,24 +890,6 @@ export default function WorkingDashboard() {
       category: (
               <View style={{ flex: 1 }}><OptionPicker editChip={!phoneLayout} label="CATEGORY" source={SOURCES.wdCategory} value={entrySheet.category} onChange={(v) => setEntrySheet({ ...entrySheet, category: v })} placeholder={phoneLayout ? 'Select' : 'Select category'} /></View>
       ),
-      // Report points: the lines written on the website (Config > Entry form options); only the ticked ones go into the daily report. Payment categories only.
-      points: (/payment/i.test(entrySheet.category || '') && (wd.paymentIntro || []).length) ? (
-        <View style={{ marginBottom: 12 }}>
-          <Label>REPORT POINTS</Label>
-          {(wd.paymentIntro || []).map((x) => {
-            const on = (entrySheet.reportPoints || []).includes(x);
-            return (
-              <Pressable key={x} onPress={() => setEntrySheet((d) => ({ ...d, reportPoints: on ? (d.reportPoints || []).filter((y) => y !== x) : [...(d.reportPoints || []), x] }))} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
-                style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 }}>
-                <View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: on ? t.primary : t.fieldBorder || t.border, backgroundColor: on ? t.primary : t.surface, alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
-                  {on ? <Icon name="check" size={14} color={t.onAccent} stroke={3} /> : null}
-                </View>
-                <Text style={{ flex: 1, color: t.text, fontSize: t.fs(13.5), lineHeight: t.fs(19), fontWeight: '600' }}>{x}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null,
       priority: (
               phoneLayout
         ? <PrioritySegment options={SOURCES.wdPriority.read(data).map((o) => o.value)} value={entrySheet.priority} onChange={(v) => setEntrySheet({ ...entrySheet, priority: v })} />
@@ -1141,7 +1123,6 @@ export default function WorkingDashboard() {
           {f.title}
           {f.saveTemplate}
           <Row gap={10} style={{ alignItems: 'flex-start' }}>{f.category}{f.pendingWith}</Row>
-          {f.points}
           {f.priority}
           {f.due}
           {f.slot}
@@ -1197,7 +1178,6 @@ export default function WorkingDashboard() {
           {!!f.reminder && gridRow(cell(1, f.reminder, 'n'))}
           {gridRow(cell(1, f.recurrence, 'r'), cell(2, f.mail, 'm'))}
           {f.custom}
-          {f.points}
           {f.payment}
           {f.checklist}
           {f.notes}

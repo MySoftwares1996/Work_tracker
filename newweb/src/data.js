@@ -2,6 +2,7 @@ import { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, f
 export { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, findSubCategory, subCategoryMissing, addSubCategory, parseSubCategoryLines, addSubCategories, withCarrying, validateSubCategory, applySubCategoryEdit, removeSubCategory, addOption, removeOption } from '../../src/listsCore.js';
 import { noteWork, isUnstartedStatus } from '../../src/workingDashboardPayments.js';
 import { followUpPicks as followUpPicksCore } from '../../src/followUpPicks.js';
+import { normalizeReportPoints } from '../../src/reportPoints.js';
 /**
  * The task data, in the shape the phone app and the old website already share (users/<uid>/tasks, the "web app's task
  * document"): description, dueDate + dueTime, mailChain, status "Completed", deleted... Nothing here touches Firebase, so
@@ -72,7 +73,6 @@ export function fromDoc(id, d = {}) {
     keyPoints,
     seriesId: d.seriesId ? String(d.seriesId) : '',
     checklist: (Array.isArray(d.checklist) ? d.checklist : []).filter((c) => c && String(c.text || '').trim()).map((c) => ({ id: String(c.id || newId()), text: String(c.text), done: !!c.done })),
-    reportPoints: (Array.isArray(d.reportPoints) ? d.reportPoints : []).map((x) => String(x || '').trim()).filter(Boolean),
     attachments: (Array.isArray(d.attachments) ? d.attachments : []).filter((a) => a && /^https?:\/\//i.test(String(a.url || ''))).map((a) => ({ id: String(a.id || newId()), title: String(a.title || a.url), url: String(a.url) })),
     nextReminder: asDate(d.nextReminderAt),
     snoozeUntil: Number(d.snoozeUntil) || 0,
@@ -84,7 +84,7 @@ export function fromDoc(id, d = {}) {
     recurrenceEveryMin: Number(d.recurrenceEveryMin) || null,
     alertMode: d.alertMode === 'alarm' || d.alertMode === 'gentle' ? d.alertMode : '',
     // Which of these the document already had, so an empty list is written back only when it was there (or is being used).
-    has: { reportPoints: 'reportPoints' in d, checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d, snoozeUntil: 'snoozeUntil' in d, lastAckDate: 'lastAckDate' in d, skippedDates: 'skippedDates' in d },
+    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d, snoozeUntil: 'snoozeUntil' in d, lastAckDate: 'lastAckDate' in d, skippedDates: 'skippedDates' in d },
     createdAt: asDate(d.dateLogged),
     updatedAt: Number(d.updatedAt) || 0,
     // Kept as read, for the report (the phone app and the old website write them): the days worked on, the bank follow-ups, the Tally narration.
@@ -129,8 +129,6 @@ export function toDoc(t, now = new Date()) {
   if (keyPoints.length || has.keyPoints) doc.keyPoints = keyPoints;
   const checklist = (t.checklist || []).filter((c) => String(c.text || '').trim()).map((c) => ({ id: c.id, text: String(c.text).trim(), done: !!c.done }));
   if (checklist.length || has.checklist) doc.checklist = checklist;
-  const reportPoints = (t.reportPoints || []).map((x) => String(x || '').trim()).filter(Boolean);
-  if (reportPoints.length || has.reportPoints) doc.reportPoints = reportPoints;
   const attachments = (t.attachments || []).filter((a) => /^https?:\/\//i.test(a.url || '')).map((a) => ({ id: a.id, title: a.title || a.url, url: a.url }));
   if (attachments.length || has.attachments) doc.attachments = attachments;
   if ((t.nextReminder instanceof Date && !Number.isNaN(t.nextReminder.getTime())) || has.nextReminder) {
@@ -155,7 +153,7 @@ let seq = 0;
 export const newId = () => `web-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 export function blankTask() {
-  return { snoozeUntil: 0, lastAckDate: '', skippedDates: [], nextReminder: null, subCategory: '', subCategoryFields: {}, checklist: [], reportPoints: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
+  return { snoozeUntil: 0, lastAckDate: '', skippedDates: [], nextReminder: null, subCategory: '', subCategoryFields: {}, checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
 }
 
 export const isOpen = (t) => !t.done && !t.binned && !t.purged;
@@ -269,7 +267,7 @@ export function readLists(v) {
     if (Array.isArray(named.subCategories)) out.subCategories = normalizeSubCategories(named.subCategories);
     if (Array.isArray(named.subCategoryCategories)) out.subCategoryCategories = named.subCategoryCategories.map(String);
     if (Array.isArray(named.reminderCategories)) out.reminderCategories = named.reminderCategories.map(String);
-    if (Array.isArray(named.darPaymentIntro)) out.darPaymentIntro = named.darPaymentIntro.map((x) => String(x || '').trim()).filter(Boolean);
+    if (Array.isArray(named.darPaymentIntro)) out.darPaymentIntro = normalizeReportPoints(named.darPaymentIntro);
   } else if (Array.isArray(obj)) {
     ['categories', 'priorities', 'statuses', 'pendingWith'].forEach((k, i) => { if (Array.isArray(obj[i]) && obj[i].length) out[k] = obj[i].map(String); });
   }
@@ -307,7 +305,7 @@ export function writeListsValue(raw, lists) {
     if (Array.isArray(lists.subCategoryCategories)) out.subCategoryCategories = lists.subCategoryCategories;
     if (Array.isArray(lists.reminderCategories)) out.reminderCategories = lists.reminderCategories;
     if (Array.isArray(lists.narrationTypes)) out.narrationTypes = lists.narrationTypes;
-    if (Array.isArray(lists.darPaymentIntro)) out.darPaymentIntro = lists.darPaymentIntro;
+    if (Array.isArray(lists.darPaymentIntro)) out.darPaymentIntro = normalizeReportPoints(lists.darPaymentIntro);
     if ('assignees' in out) out.assignees = lists.pendingWith || [];
   }
   return asString ? JSON.stringify(out) : out;

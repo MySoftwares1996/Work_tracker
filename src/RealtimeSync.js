@@ -13,6 +13,7 @@ import { forAccount, saveUnsyncedBackup, takeUnsyncedBackup, mergeUnsynced } fro
 import { planFormatSetup, effectiveFormats } from './reportFormats';
 import { paymentLists } from './workingDashboardPayments';
 import { warnQuiet } from './quietCatch';
+import { normalizeReportPoints } from './reportPoints';
 
 const PUSH_DELAY_MS = 700;        // after the last change: one tap on Done reaches the web app in about a second
 const RETRY_MS = 15000;           // a push that failed (no signal) is tried again
@@ -189,8 +190,8 @@ export default function RealtimeSync() {
       const remoteTs = Number(patch.listsUpdatedAt) || 0;
       const phoneNewer = remoteTs > 0 && Number(w.listsUpdatedAt) > remoteTs;
       if (!phoneNewer) ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
-      // The website's Report points (the lines to tick on a payment task); an emptied list empties the phone's too.
-      if (Array.isArray(pl.darPaymentIntro)) next = { ...next, paymentIntro: pl.darPaymentIntro.map((x) => String(x || '').trim()).filter(Boolean) };
+      // The website's Report points ({ category, text }: the lines a Category adds to the report); an emptied list empties the phone's too.
+      if (Array.isArray(pl.darPaymentIntro)) next = { ...next, paymentIntro: normalizeReportPoints(pl.darPaymentIntro) };
       if (cal) next = { ...next, holidays: mergeHolidays(cal.holidays, normalizeHolidays(w.holidays)).holidays, leaveDays: normalizeLeaveDays([...cal.leaveDays, ...normalizeLeaveDays(w.leaveDays)]) };
       return next;
     });

@@ -17,6 +17,7 @@
  * Sections, in order: Other work completed, Payments, Followed up / in progress, Routine daily activities,
  * Other activities. A line already used elsewhere is dropped and counted.
  */
+import { normalizeReportPoints } from './reportPoints.js';
 import { toDateKey, isOpen, completedTime, isNonWorkingDay } from './workingDashboard';
 import { isBankFollowUpCategory, bankFollowUpReportLine, bankFollowUps, fmtFollowDate } from './bankFollowUp';
 import {
@@ -24,11 +25,27 @@ import {
   narrationSubText, buildNarrationText, taskPayee, payeeFromMail, stripPayeeFromMail, paymentLists,
 } from './workingDashboardPayments';
 
-/** The report points ticked on the tasks of a section's rows (Report points, chosen per task), once each, in the order first met. */
-export function reportPointsOf(rows) {
+/**
+ * Report points: lines the user writes in Config for a Category (`lists.darPaymentIntro`, items { category, text }; an older plain
+ * text has no category and is not used). A section shows the points of the Categories of its tasks, once each, above its lines.
+ * There are no built-in points.
+ */
+/** The points (texts) for the Categories of these rows, once each, in the order they were written. */
+export function reportPointsOf(rows, points) {
+  const cats = new Set((rows || []).map((r) => key(r.entry && r.entry.category)).filter(Boolean));
   const out = [];
-  (rows || []).forEach((r) => (Array.isArray(r.entry && r.entry.reportPoints) ? r.entry.reportPoints : []).forEach((x) => { const v = String(x || '').replace(/\s+/g, ' ').trim(); if (v && !out.includes(v)) out.push(v); }));
+  normalizeReportPoints(points).forEach((p) => { if (p.category && cats.has(key(p.category)) && !out.includes(p.text)) out.push(p.text); });
   return out;
+}
+
+/** Sets the intro lines of Other work, Payments and Followed up from the Category points of the rows now in each (call again after rows move). */
+export function applyReportPoints(model, points) {
+  ['oth', 'pay', 'fol'].forEach((k) => {
+    const sec = model.sections.find((x) => x.key === k);
+    if (sec) sec.intro = sec.rows.length ? reportPointsOf(sec.rows, points) : [];
+  });
+  if (model.data) model.data.bullets = model.sections.reduce((n, x) => n + x.rows.length + (x.intro ? x.intro.length : 0), 0);
+  return model;
 }
 
 /** Domestic / Urgent payments: left out of the report. */
@@ -225,7 +242,7 @@ export function collectReportData(entries = [], date, lists) {
  * `lists`: the payment lists (workingDashboardPayments.paymentLists).
  * `details` (web.app): each line also carries the entry's notes and its Tally narration.
  */
-export function buildReportModel({ entries = [], fixedActivities = [], activityLog = [], date, leaveDays = [], holidays = [], lists = paymentLists(), details = false } = {}) {
+export function buildReportModel({ entries = [], fixedActivities = [], activityLog = [], date, reportPoints, leaveDays = [], holidays = [], lists = paymentLists(), details = false } = {}) {
   // Routine activities are done on working days: a leave day or a holiday reported them as done anyway.
   // Sunday, a holiday the office is closed on (an open-office USD holiday is not one) or a leave day.
   const dayOff = isNonWorkingDay(date, holidays || [], leaveDays || []);
@@ -265,11 +282,12 @@ export function buildReportModel({ entries = [], fixedActivities = [], activityL
 
   const sections = [
     { key: 'oth', title: 'Other work completed', rows: otherRows },
-    { key: 'pay', title: 'Payments', intro: reportPointsOf(payRows), rows: payRows },
+    { key: 'pay', title: 'Payments', rows: payRows },
     { key: 'fol', title: 'Followed up / in progress', rows: followRows },
     { key: 'fix', title: 'Routine daily activities', rows: fixedRows },
     { key: 'gen', title: 'Other activities', rows: generalRows },
   ];
+  applyReportPoints({ sections }, reportPoints);
   const bullets = sections.reduce((n, sec) => n + sec.rows.length + (sec.intro ? sec.intro.length : 0), 0);
   return {
     date,

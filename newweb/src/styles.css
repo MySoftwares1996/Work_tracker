@@ -644,7 +644,8 @@ tr.is-selected td { background: var(--primary-tint); }
 .dash-head .head-text { display: flex; align-items: baseline; gap: 14px; flex: none; }
 .dash-head .sub { margin-top: 0; font-size: 13.5px; }
 
-.report-points { gap: 8px; }
-.report-points .rp { align-items: flex-start; font-weight: 600; font-size: 13.5px; line-height: 1.4; }
-.report-points .rp input { margin-top: 3px; flex: none; }
-.report-points small { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 13px; }
+
+.rp-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; font-weight: 600; line-height: 1.45; }
+.rp-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rp-add { display: flex; gap: 10px; align-items: flex-end; }
+.rp-add textarea { flex: 1; min-width: 0; }

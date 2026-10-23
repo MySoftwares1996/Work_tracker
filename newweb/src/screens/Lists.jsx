@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import Icon from '../icons';
 import { DONE_STATUS, applySubCategoryEdit, validateSubCategory, addSubCategories, addSubCategory, parseSubCategoryLines, withCarrying, removeSubCategory, addOption, newId, removeOption } from '../data';
 
-export const LIST_META = [['categories', 'Categories'], ['priorities', 'Priorities'], ['statuses', 'Statuses'], ['pendingWith', 'Pending with'], ['darPaymentIntro', 'Report points']];
+export const LIST_META = [['categories', 'Categories'], ['priorities', 'Priorities'], ['statuses', 'Statuses'], ['pendingWith', 'Pending with']];
 
 /** Add and delete the options of one list (Category, Priority, Status, Pending with). onAdd gets the new value, so a form can pick it. */
 export function ListManager({ listKey, label, lists, onAdd }) {

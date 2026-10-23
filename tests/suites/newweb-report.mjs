@@ -30,9 +30,12 @@ export async function run({ ck, section }) {
   const withFormats = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }, { ...done, completedAt: new Date(2026, 9, 16, 9, 0) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
   const paySec = withFormats.model.sections.find((x) => x.key === 'pay');
   ck('a task with a format goes under Payments, written from the format', paySec.rows.length === 1 && /^Vendor D: - Being amount paid against Invoice No\. INV-4471 towards \[Towards\]\.$/.test(paySec.rows[0].line));
-  ck('no fixed lines: Payments has none unless report points are ticked on the task', paySec.intro.length === 0 && /Payments/.test(withFormats.text));
-  const ticked = buildReport([{ ...pay, reportPoints: ['Checked the party statement.'], completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
-  ck('a ticked report point is the Payments intro', ticked.model.sections.find((x) => x.key === 'pay').intro.join() === 'Checked the party statement.' && /Checked the party statement\./.test(ticked.text));
+  ck('no fixed lines: Payments has none unless the Category has report points', paySec.intro.length === 0 && /Payments/.test(withFormats.text));
+  const pts = [{ category: 'Payments', text: 'Checked the party statement.' }, { category: 'Audit', text: 'Audit note.' }, { category: '', text: 'Old line without a category.' }];
+  const withPts = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [], darPaymentIntro: pts }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
+  ck('a Category\'s report points are the intro of the section its tasks are in', withPts.model.sections.find((x) => x.key === 'pay').intro.join() === 'Checked the party statement.' && /Checked the party statement\./.test(withPts.text) && !/Audit note|Old line/.test(withPts.text));
+  const lineIn = (group) => { const r = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: true, formats: SAMPLE_FORMATS, moves: group ? { p: group } : {} }); return r.model.sections.flatMap((x) => x.rows).map((x) => x.line).join('|'); };
+  ck('the same report line wherever the task is placed (Payments, Other work or Followed up)', lineIn(null) === lineIn('oth') && lineIn('oth') === lineIn('fol') && lineIn('pay') === lineIn(null) && /Being amount paid against Invoice No/.test(lineIn('oth')), lineIn('oth'));
   ck('a field with no value is reported as missing', withFormats.model.missing.length === 1 && withFormats.model.missing[0].marks[0] === 'Towards');
   ck('other tasks stay where they were', /Shared with the manager/.test(withFormats.text));
   const none = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: [] });

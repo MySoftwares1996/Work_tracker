@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEY = 'MPT_WD_ENTRY_DRAFT';
 // Typed or picked by the person; ids, stamps and the form's helper state are not kept.
-const FIELDS = ['title', 'category', 'subCategory', 'subCategoryFields', 'priority', 'status', 'pendingWith', 'reference', 'recurrence', 'recurrenceEveryMin', 'dueAt', 'deadlineAt', 'nextReminderAt', 'notes', 'alertMode', 'checklist', 'reportPoints', 'dar'];
+const FIELDS = ['title', 'category', 'subCategory', 'subCategoryFields', 'priority', 'status', 'pendingWith', 'reference', 'recurrence', 'recurrenceEveryMin', 'dueAt', 'deadlineAt', 'nextReminderAt', 'notes', 'alertMode', 'checklist', 'dar'];
 
 /** The part of a form worth keeping. */
 export const draftOf = (entry) => {

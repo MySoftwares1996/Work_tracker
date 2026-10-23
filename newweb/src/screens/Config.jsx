@@ -35,6 +35,7 @@ export default function Config() {
       </section>
     ) },
     { key: 'formats', title: 'Report formats', body: () => <ReportFormats /> },
+    { key: 'points', title: 'Report points', body: () => <ReportPoints lists={lists} /> },
     { key: 'gemini', title: 'Gemini key', body: () => <GeminiKey /> },
     { sep: true, key: 'export', title: 'Export a backup', body: () => <ExportBackup /> },
     { key: 'import', title: 'Import', body: () => <ImportBackup /> },
@@ -187,6 +188,64 @@ function ReportFormats() {
         {!rows.length && <p className="muted">Add Sub categories first (above), then give each a format.</p>}
       </div>
     </section>
+  );
+}
+
+/**
+ * Report points, Category by Category: lines the person writes for a Category. The daily report shows a Category's points once, above the
+ * lines of the section its tasks are in (Other work, Payments or Followed up). Nothing is built in.
+ */
+function ReportPoints({ lists }) {
+  const { saveLists } = useStore();
+  const points = lists.darPaymentIntro || [];
+  const [drafts, setDrafts] = useState({});
+  const save = (next) => saveLists({ ...lists, darPaymentIntro: next });
+  const add = (cat) => {
+    const text = (drafts[cat] || '').replace(/\s+/g, ' ').trim();
+    if (!text) return;
+    if (!points.some((p) => p.category === cat && p.text === text)) save([...points, { category: cat, text }]);
+    setDrafts({ ...drafts, [cat]: '' });
+  };
+  const del = (p) => { if (confirm(`Delete this report point?\n\n${p.text}`)) save(points.filter((x) => x !== p)); };
+  const loose = points.filter((p) => !lists.categories.includes(p.category));
+  return (
+    <>
+      <section className="card plain">
+        <h2 className="h2">Report points</h2>
+        <p className="muted">Write the lines a Category adds to the daily report. When a task of that Category is in the report, its points are shown once above that section's lines. Nothing is added by default.</p>
+      </section>
+      {lists.categories.map((cat) => {
+        const mine = points.filter((p) => p.category === cat);
+        return (
+          <section key={cat} className="card plain">
+            <h2 className="h2">{cat}</h2>
+            {!mine.length && <p className="muted">No report points for {cat}.</p>}
+            {mine.map((p) => (
+              <div key={p.text} className="rp-row"><span>{p.text}</span><button type="button" className="btn ghost" onClick={() => del(p)} aria-label={`Delete: ${p.text}`}>Delete</button></div>
+            ))}
+            <form className="rp-add" onSubmit={(e) => { e.preventDefault(); add(cat); }}>
+              <textarea className="auto" rows={2} value={drafts[cat] || ''} onChange={(e) => setDrafts({ ...drafts, [cat]: e.target.value })} placeholder={`A report point for ${cat}`} aria-label={`New report point for ${cat}`} />
+              <button className="btn primary" disabled={!(drafts[cat] || '').trim()}>Add</button>
+            </form>
+          </section>
+        );
+      })}
+      {loose.length > 0 && (
+        <section className="card plain">
+          <h2 className="h2">Not used yet</h2>
+          <p className="muted">These older lines have no Category, so the report does not use them. Give each a Category or delete it.</p>
+          {loose.map((p) => (
+            <div key={p.text} className="rp-row">
+              <span>{p.text}</span>
+              <select value="" onChange={(e) => e.target.value && save(points.map((x) => (x === p ? { ...x, category: e.target.value } : x)))} aria-label="Give this point a Category">
+                <option value="">Category...</option>{lists.categories.map((c) => <option key={c}>{c}</option>)}
+              </select>
+              <button type="button" className="btn ghost" onClick={() => del(p)}>Delete</button>
+            </div>
+          ))}
+        </section>
+      )}
+    </>
   );
 }
 

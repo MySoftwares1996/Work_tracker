@@ -162,4 +162,6 @@ The website's New entry form keeps what was typed in `localStorage` (`newweb/src
 
 ## Report points (no fixed lines in the report)
 
-The daily report has no built-in lines. The Payments section's intro is the user's own "Report points": a list written on the website (Config > Entry form options, `lists.darPaymentIntro`, synced in `meta/lists`; the phone keeps it as `wd.paymentIntro` and shows it read-only) and ticked per task in the entry form for a payment category (task field `reportPoints`, an array of the ticked lines, synced by `cloudSync.js` / `newweb/src/data.js`). `reportPointsOf(rows)` in `src/workingDashboardReport.js` builds the intro from the ticked points of the Payments rows; nothing ticked = no intro.
+The daily report has no built-in lines. "Report points" are written per Category on the website (Config > Report points; stored as `lists.darPaymentIntro` in `meta/lists`, items `{ category, text }`; an older plain text has no Category and is not used; the phone keeps it as `wd.paymentIntro` and uses it read-only). A section (Other work, Payments, Followed up) shows the points of the Categories of its tasks once, above its lines (`reportPointsOf` / `applyReportPoints` in `src/workingDashboardReport.js`, recomputed in `applyFormats` / `applyMoves` when rows move). Nothing is chosen per task.
+
+One report line wherever a task is placed: a task whose Sub Category has a Report format is written from it in Other work, Payments and Followed up alike (`applyMoves` in `src/reportExtras.js`; moving a row keeps its line).

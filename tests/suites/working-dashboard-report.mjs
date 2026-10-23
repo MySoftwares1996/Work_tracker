@@ -6,6 +6,7 @@ import { blankEntry } from '../../src/workingDashboard.js';
 import { paymentLists, DEFAULT_NARRATION_TYPES } from '../../src/workingDashboardPayments.js';
 
 const POINTS = ['Prepared the payment files after checking the details.', 'Verified the party statement before payment.'];
+const CAT_POINTS = POINTS.map((text) => ({ category: 'Vendor Payments', text }));
 
 export async function run({ ck, section }) {
   const date = '2026-10-03';
@@ -26,7 +27,7 @@ export async function run({ ck, section }) {
   ck('Past Due remark stamps, bullets and title repeats are taken out of the notes',
     notesForReport(e({ title: 'Call bank', notes: '[1 Oct] - spoke to RM\n* spoke to RM\nCall bank' })).join('|') === 'Spoke to RM.');
   const paid = e({
-    title: 'Pay Sample Vendor', category: 'Vendor Payments', reportPoints: POINTS, reference: 'SAMPLE: Purchase Order - Sample Vendor - INPO/PP/26-27/0155',
+    title: 'Pay Sample Vendor', category: 'Vendor Payments', reference: 'SAMPLE: Purchase Order - Sample Vendor - INPO/PP/26-27/0155',
     narration: narr('Advance against Purchase Order', { percent: '30', docNo: 'INPO/PP/26-27/0155' }),
   });
   ck('a narrated payment is a payment line', isPaymentEntry(paid, lists));
@@ -61,7 +62,7 @@ export async function run({ ck, section }) {
     { id: 'l1', title: 'Team standup', details: '', auto: false, at: at(10) },
     { id: 'l2', title: 'Auto note', details: '', auto: true, at: at(10) },
   ];
-  const m = buildReportModel({ entries, fixedActivities: fixed, activityLog: log, date, lists });
+  const m = buildReportModel({ entries, fixedActivities: fixed, activityLog: log, date, lists, reportPoints: CAT_POINTS });
   const rows = (k) => m.sections.find((x) => x.key === k).rows;
   ck('both payments are kept (never deduped)', m.data.payments === 2);
   ck('other work: the completed task, the import remittance and the duty payment', m.data.others === 3, JSON.stringify(rows('oth').map((r) => r.line)));

@@ -18,7 +18,7 @@ export function toEntry(t) {
     done: !!t.done, binned: !!t.binned, purged: !!t.purged, dar: t.dar !== false,
     dueAt: iso(t.due), completedAt: iso(t.completedAt), keyPoints: t.keyPoints || [],
     narration: t.narration || undefined, paymentDetails: t.paymentDetails || undefined,
-    workLog: t.workLog || [], bankFollowUps: t.bankFollowUps || [], escalation: t.escalation || undefined, reportPoints: t.reportPoints || [],
+    workLog: t.workLog || [], bankFollowUps: t.bankFollowUps || [], escalation: t.escalation || undefined,
   };
 }
 
@@ -36,7 +36,7 @@ const dateKeys = (list) => (Array.isArray(list) ? list.map((x) => (typeof x === 
 export function buildReport(tasks, lists, calendar, date, { headings = true, subFields = true, formats = [], moves = {} } = {}) {
   const entries = (tasks || []).map(toEntry);
   const model = buildReportModel({
-    entries, date, lists: reportLists(lists), details: true,
+    entries, date, lists: reportLists(lists), details: true, reportPoints: lists && lists.darPaymentIntro,
     holidays: (calendar && calendar.holidays) || [], leaveDays: dateKeys(calendar && calendar.leaveDays),
   });
   applyFormats(model, formats, lists);
