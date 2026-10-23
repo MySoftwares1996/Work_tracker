@@ -9,6 +9,8 @@ drops something must list it here and in the reply. Restoring any line below is 
 
 - Website Dashboard: the separate "Pending as on Today" tile and the "TODAY n tasks need you" wording were merged into one big panel titled "Pending as on Today" (as in the owner's picture, 2026-10-22); Next month moved up to the fifth tile.
 
+- The "PURE EV" / "PURE Energy" company name in code comments and test samples was replaced by a neutral "SAMPLE" (2026-10-23, owner asked; code only, no task data touched).
+
 ## Ledger redesign (2026-10-18) - things that went with it
 | What | Where | Note |
 |---|---|---|

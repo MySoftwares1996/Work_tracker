@@ -24,7 +24,7 @@ export async function run({ ck, section }) {
   ck('Past Due remark stamps, bullets and title repeats are taken out of the notes',
     notesForReport(e({ title: 'Call bank', notes: '[1 Oct] - spoke to RM\n* spoke to RM\nCall bank' })).join('|') === 'Spoke to RM.');
   const paid = e({
-    title: 'Pay G Power', category: 'Vendor Payments', reference: 'PURE EV: Purchase Order - G Power Auto Parts - INPO/PP/26-27/0155',
+    title: 'Pay G Power', category: 'Vendor Payments', reference: 'SAMPLE: Purchase Order - G Power Auto Parts - INPO/PP/26-27/0155',
     narration: narr('Advance against Purchase Order', { percent: '30', docNo: 'INPO/PP/26-27/0155' }),
   });
   ck('a narrated payment is a payment line', isPaymentEntry(paid, lists));
