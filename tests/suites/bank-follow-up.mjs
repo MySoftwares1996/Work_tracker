@@ -10,7 +10,7 @@ export async function run({ ck, section }) {
 
   const day1 = new Date(2026, 9, 5, 11, 0);
   const day2 = new Date(2026, 9, 8, 15, 30);
-  const base = { ...blankEntry(), id: 'bf1', title: 'LC amendment with SBI', category: "Bank Follow Up's", status: 'Not Yet Started', dueAt: new Date(2026, 9, 5, 10, 0).toISOString() };
+  const base = { ...blankEntry(), id: 'bf1', title: 'LC amendment with Bank C', category: "Bank Follow Up's", status: 'Not Yet Started', dueAt: new Date(2026, 9, 5, 10, 0).toISOString() };
   const next1 = new Date(2026, 9, 8, 10, 0).toISOString();
   const a = addBankFollowUp(base, { remarks: 'Documents received, under review with trade desk', next: next1 }, day1);
   ck('the follow-up is kept with the day and the next date', a.bankFollowUps.length === 1 && a.bankFollowUps[0].d === '2026-10-05' && a.bankFollowUps[0].next === next1);
@@ -21,7 +21,7 @@ export async function run({ ck, section }) {
   ck('later follow-ups add to the history', b.bankFollowUps.length === 2 && followUpsOn(b, '2026-10-08').length === 1);
 
   ck('the report line has the banker\'s update and the next date',
-    bankFollowUpReportLine(a, '2026-10-05') === "LC amendment with SBI: Followed up with the bank. Banker's update: Documents received, under review with trade desk. Next follow-up: 8 Oct 2026.",
+    bankFollowUpReportLine(a, '2026-10-05') === "LC amendment with Bank C: Followed up with the bank. Banker's update: Documents received, under review with trade desk. Next follow-up: 8 Oct 2026.",
     bankFollowUpReportLine(a, '2026-10-05'));
   ck('no line on a day without a follow-up', bankFollowUpReportLine(b, '2026-10-06') === '');
 

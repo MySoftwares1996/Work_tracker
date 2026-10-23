@@ -6,7 +6,7 @@ export async function run({ ck, section }) {
   section('New website: the Daily Report uses the phone app\'s report engine');
   const day = '2026-10-16';
   const done = fromDoc('a', { description: 'Prepared the monthly MIS', category: 'Reports', status: 'Completed', completedAt: '2026-10-16T09:00:00.000Z', darInclude: true, notes: 'Shared with the manager' });
-  const bank = fromDoc('b', { description: 'HDFC FD Statement Collation.', category: "Bank Follow-up's", status: 'Pending', subCategory: "Urgent Bank Follow Up's", subCategoryFields: { "Banker's Reply's:": 'Need to collect on an urgent basis' } });
+  const bank = fromDoc('b', { description: 'Bank A FD Statement Collation.', category: "Bank Follow-up's", status: 'Pending', subCategory: "Urgent Bank Follow Up's", subCategoryFields: { "Banker's Reply's:": 'Need to collect on an urgent basis' } });
   const worked = addFollowUp(bank, { remarks: 'Banker will share the statement tomorrow', next: new Date(2026, 9, 17, 10) }, new Date(2026, 9, 16, 11));
   ck('a follow-up is written to the work log and the follow-ups', worked.workLog.length === 1 && worked.workLog[0].d === day && worked.bankFollowUps.length === 1 && worked._wl && worked._bf);
   ck('the follow-up and work log are written back with the task', JSON.stringify(toDoc(worked).workLog) === JSON.stringify(worked.workLog) && toDoc(worked).bankFollowUps.length === 1);
@@ -26,10 +26,10 @@ export async function run({ ck, section }) {
   ck('toEntry keeps dates as ISO strings', typeof toEntry({ ...done, completedAt: new Date() }).completedAt === 'string');
 
   section('New website: report formats per Sub Category (Tally narration sheet)');
-  const pay = fromDoc('p', { description: 'Pay ACME', category: 'Payments', status: 'Completed', completedAt: '2026-10-16T09:30:00.000Z', darInclude: true, subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor': 'ACME Traders', 'Invoice No': 'INV-4471' } });
+  const pay = fromDoc('p', { description: 'Pay ACME', category: 'Payments', status: 'Completed', completedAt: '2026-10-16T09:30:00.000Z', darInclude: true, subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor': 'Vendor D', 'Invoice No': 'INV-4471' } });
   const withFormats = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }, { ...done, completedAt: new Date(2026, 9, 16, 9, 0) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
   const paySec = withFormats.model.sections.find((x) => x.key === 'pay');
-  ck('a task with a format goes under Payments, written from the format', paySec.rows.length === 1 && /^ACME Traders: - Being amount paid against Invoice No\. INV-4471 towards \[Towards\]\.$/.test(paySec.rows[0].line));
+  ck('a task with a format goes under Payments, written from the format', paySec.rows.length === 1 && /^Vendor D: - Being amount paid against Invoice No\. INV-4471 towards \[Towards\]\.$/.test(paySec.rows[0].line));
   ck('the standard payment lines come with it', paySec.intro.length >= 1 && /Payments/.test(withFormats.text));
   ck('a field with no value is reported as missing', withFormats.model.missing.length === 1 && withFormats.model.missing[0].marks[0] === 'Towards');
   ck('other tasks stay where they were', /Shared with the manager/.test(withFormats.text));

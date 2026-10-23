@@ -21,8 +21,8 @@ export function BankFollowUpForm({ entry, draft, onChange, title = 'BANK FOLLOW-
       <Small style={{ marginBottom: 10 }}>Each day's follow-up and the banker's update go into that day's Daily Activity Report. The task stays open and is due again on the next follow-up date.</Small>
       {phone && (
         <Row gap={10}>
-          <View style={{ flex: 1 }}><Field label="BANK" value={draft.bank || ''} onChangeText={(v) => onChange({ bank: v })} placeholder="e.g. SBI" /></View>
-          <View style={{ flex: 1 }}><Field label="BANKER NAME" value={draft.banker || ''} onChangeText={(v) => onChange({ banker: v })} placeholder="e.g. Mr. Rao" /></View>
+          <View style={{ flex: 1 }}><Field label="BANK" value={draft.bank || ''} onChangeText={(v) => onChange({ bank: v })} placeholder="e.g. Bank C" /></View>
+          <View style={{ flex: 1 }}><Field label="BANKER NAME" value={draft.banker || ''} onChangeText={(v) => onChange({ banker: v })} placeholder="e.g. Banker A" /></View>
         </Row>
       )}
       {/* "Both" (phone-width screens): one-tap remarks. Long-press one to remove it; "＋ Save" keeps what is typed as a new one. */}

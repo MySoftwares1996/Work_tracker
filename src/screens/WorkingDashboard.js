@@ -1356,7 +1356,7 @@ export default function WorkingDashboard() {
                 )}
               </>
             )}
-            {/* Quick add: type a sentence - "Pay ICICI invoice tomorrow 5pm high" - and the form opens filled in. */}
+            {/* Quick add: type a sentence - "Pay Bank B invoice tomorrow 5pm high" - and the form opens filled in. */}
             {formOn && !phoneLayout && <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
               <Row gap={8} style={{ alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>

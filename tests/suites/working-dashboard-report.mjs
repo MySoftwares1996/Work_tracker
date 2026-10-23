@@ -24,12 +24,12 @@ export async function run({ ck, section }) {
   ck('Past Due remark stamps, bullets and title repeats are taken out of the notes',
     notesForReport(e({ title: 'Call bank', notes: '[1 Oct] - spoke to RM\n* spoke to RM\nCall bank' })).join('|') === 'Spoke to RM.');
   const paid = e({
-    title: 'Pay G Power', category: 'Vendor Payments', reference: 'SAMPLE: Purchase Order - G Power Auto Parts - INPO/PP/26-27/0155',
+    title: 'Pay Sample Vendor', category: 'Vendor Payments', reference: 'SAMPLE: Purchase Order - Sample Vendor - INPO/PP/26-27/0155',
     narration: narr('Advance against Purchase Order', { percent: '30', docNo: 'INPO/PP/26-27/0155' }),
   });
   ck('a narrated payment is a payment line', isPaymentEntry(paid, lists));
   ck('...read "Vendor: narration", the vendor taken from the mail subject and the mail chain left out',
-    reportLineFor(paid, lists) === 'G Power Auto Parts: Being 30% Advance amount paid against Po No: INPO/PP/26-27/0155', reportLineFor(paid, lists));
+    reportLineFor(paid, lists) === 'Sample Vendor: Being 30% Advance amount paid against Po No: INPO/PP/26-27/0155', reportLineFor(paid, lists));
   const cod = e({ title: 'COD', category: 'Vendor Payments', narration: narr('COD Charges against Order Id', { docNo: 'OD123', fieldsValues: { 'Vendor Name': 'Devi Cargo' } }) });
   ck('a lead field (Vendor Name) leads the line and stays out of the narration', reportLineFor(cod, lists) === 'Devi Cargo: Being Amount Paid twds COD Charges Against Order Id: OD123', reportLineFor(cod, lists));
   const duty = e({ title: 'Duty for BOE', category: 'Duty Payment', done: true, notes: 'BOE No: 1234567' });
@@ -44,7 +44,7 @@ export async function run({ ck, section }) {
   const worked = (d = date, s = 'In-Progress') => [{ d, s }];
   const entries = [
     e({ id: '1', ...paid, dar: true, done: true, completedAt: at(11) }),
-    e({ id: '2', ...paid, title: 'Pay G Power again', dar: true, done: true, completedAt: at(12) }),       // same line - payments are never deduped
+    e({ id: '2', ...paid, title: 'Pay Sample Vendor again', dar: true, done: true, completedAt: at(12) }),       // same line - payments are never deduped
     e({ id: '3', title: 'Reconcile NOSTRO', notes: 'Done for the day', done: true, completedAt: at(9) }),   // in by default (the web app's "Done + DAR")
     e({ id: '4', title: 'Done only', notes: 'x', dar: false, done: true, completedAt: at(9) }),            // "Done": left out, counted
     e({ id: '5', title: 'Done yesterday', done: true, completedAt: at(9, 0, 2) }),
@@ -84,7 +84,7 @@ export async function run({ ck, section }) {
   ck('no section headings in the report itself', !/Payments \(2\)|Other work completed|Followed up \/ in progress|Routine daily activities/.test(text));
   const withHeadings = reportModelToText(m, { headings: true });
   ck('the AI draft keeps its headings: other work first, then payments, intro lines before the payment bullets',
-    withHeadings.indexOf('Other work completed') < withHeadings.indexOf('Payments (2)') && withHeadings.indexOf(DEFAULT_PAYMENT_INTRO[1]) < withHeadings.indexOf('* G Power Auto Parts:') && !withHeadings.includes('Payments made below'));
+    withHeadings.indexOf('Other work completed') < withHeadings.indexOf('Payments (2)') && withHeadings.indexOf(DEFAULT_PAYMENT_INTRO[1]) < withHeadings.indexOf('* Sample Vendor:') && !withHeadings.includes('Payments made below'));
   const routine = [{ id: 'f1', text: 'Daily NOSTRO reconciliation', active: true }];
   const fixedOf = (opts) => buildReportModel({ entries: [], fixedActivities: routine, date, ...opts }).sections.find((x) => x.key === 'fix').rows.length;
   ck('routine activities on a working day', fixedOf({}) === 1);

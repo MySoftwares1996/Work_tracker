@@ -78,7 +78,7 @@ export default function PastDueAlert() {
     () => (focusAlarm ? new Set(ringingEntries(wd.entries || [], focusAlarm, new Date(), alerts).map((e) => String(e.id))) : null),
     [focusAlarm],   // eslint-disable-line react-hooks/exhaustive-deps -- fixed when the alarm opened the screen
   );
-  const sample = useMemo(() => ({ ...blankEntry(), id: 'preview', title: 'Pay vendor invoice - ICICI Bank follow-up', category: 'Payments', priority: samplePrio === 'None' ? null : samplePrio, status: 'Pending', pendingWith: 'Self', reference: 'RE: Invoice INV/2026/118 - payment advice', dueAt: new Date(Date.now() - 20 * 60000).toISOString() }), [samplePrio]);
+  const sample = useMemo(() => ({ ...blankEntry(), id: 'preview', title: 'Pay vendor invoice - Bank B Bank follow-up', category: 'Payments', priority: samplePrio === 'None' ? null : samplePrio, status: 'Pending', pendingWith: 'Self', reference: 'RE: Invoice INV/2026/118 - payment advice', dueAt: new Date(Date.now() - 20 * 60000).toISOString() }), [samplePrio]);
   // A warning before the due time ("Due in 1 hour", deadline tomorrow) opens this screen too: its task is shown with the same
   // options, not sent to the dashboard. Only the task that rang is added; a done, binned, snoozed or silenced one is not.
   const warned = useMemo(() => {

@@ -30,7 +30,7 @@ object SmsFilter {
     RegexOption.IGNORE_CASE
   )
 
-  /** Whole words, so "Sent Rs.500" (HDFC's UPI template) qualifies. */
+  /** Whole words, so "Sent Rs.500" (Bank A's UPI template) qualifies. */
   private val TRANSACTIONAL = Regex(
     """\b(?:debited|credited|spent|paid|sent|received|withdrawn|deposited|transferred|purchase|txn|debit|credit)\b""" +
       """|\busing (?:your|the) [a-z ]{0,30}card\b""",
@@ -52,7 +52,7 @@ object SmsFilter {
   )
 
   /**
-   * No currency gate: SBI's UPI template is "debited by 250.0" with no Rs, INR
+   * No currency gate: Bank C's UPI template is "debited by 250.0" with no Rs, INR
    * or ₹ anywhere, and requiring one silently dropped every such message.
    * A digit is enough at this stage.
    */

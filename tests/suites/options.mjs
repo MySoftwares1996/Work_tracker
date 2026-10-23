@@ -5,14 +5,14 @@ export async function run({ ck, section }) {
     expenses: {
       txns: [
         { id: 1, type: 'spend', category: 'Food', sub: 'Lunch', main: 'Needs', mode: 'UPI', tags: ['office'], account: 'cash' },
-        { id: 2, type: 'income', category: 'Salary', main: 'Needs', mode: 'Bank Transfer', account: 'hdfc' },
+        { id: 2, type: 'income', category: 'Salary', main: 'Needs', mode: 'Bank Transfer', account: 'bank-a' },
         { id: 3, type: 'spend', category: 'Pets', main: 'Wants', mode: 'GPay', tags: ['home'], account: 'cash' },
       ],
       categories: ['Food', 'Travel', 'Salary'],
       spendCategories: ['Food', 'Travel', 'Gym'],
       mainCategories: ['Needs'],
       tags: ['office'],
-      accounts: [{ id: 'cash', name: 'Cash', kind: 'cash' }, { id: 'hdfc', name: 'HDFC', kind: 'bank' }],
+      accounts: [{ id: 'cash', name: 'Cash', kind: 'cash' }, { id: 'bank-a', name: 'Bank A', kind: 'bank' }],
       subCategories: {},
     },
     investments: { txns: [{ assetType: 'Stock', assetName: 'INFY' }], assetTypes: ['Mutual Fund'], assetNames: [] },

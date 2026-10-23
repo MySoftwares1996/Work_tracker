@@ -41,3 +41,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - New web: asks the server directly 4 s and 15 s after start when the live listener stays on the saved copy; clearer banner when saved tasks are shown. Web only.
 - New web: Glass is now a real glass finish (blue-to-lilac sky, frosted cards, glossy tiles and buttons) in light mode; the big Dashboard panel reads "Pending as on Today" and Next month is the fifth tile (all looks). Phone Glass is still colour only.
 - New web: the Dashboard head is two rows (top bar; then greeting + date, Quick add and New entry on one row). Web only.
+- Names (companies, banks, people) removed from code comments, placeholders, demo data and tests. Web demo data and phone placeholder texts only; no behaviour change.

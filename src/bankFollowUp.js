@@ -85,7 +85,7 @@ export function bankFollowUpReportLine(e, date) {
   if (!today.length) return escalated ? `${title}: Escalated to manager (open ${followUpAge(e, new Date(`${date}T12:00:00`)).days} days).` : '';
   const updates = today.map((f) => s(f.remarks).trim().replace(/[.;\s]+$/, '')).filter(Boolean);
   const last = today[today.length - 1];
-  // "Followed up with Mr. Rao, SBI." when the day's follow-up named who it was with.
+  // "Followed up with Banker A, Bank C." when the day's follow-up named who it was with.
   const withWho = today.map(followUpWho).filter(Boolean).pop() || '';
   let line = withWho ? `${title}: Followed up with ${withWho}.` : `${title}: Followed up with the bank.`;
   if (updates.length) line += ` Banker's update: ${updates.join('; ')}.`;
@@ -142,7 +142,7 @@ export function followUpsDueToday(entries = [], now = new Date()) {
 export const LONG_PENDING_DAYS = 15;
 export const isLongPending = (e, now = new Date()) => isBankFollowUpCategory(e?.category) && !e?.done && followUpAge(e, now).days >= LONG_PENDING_DAYS;
 
-/** "Mr. Rao, SBI" - who the follow-up was with, or ''. */
+/** "Banker A, Bank C" - who the follow-up was with, or ''. */
 export function followUpWho(f) {
   return [s(f?.banker).trim(), s(f?.bank).trim()].filter(Boolean).join(', ');
 }

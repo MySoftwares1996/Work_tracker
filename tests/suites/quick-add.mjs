@@ -17,10 +17,10 @@ export async function run(h) {
 async function runQuickAdd({ ck, section }) {
   section('Quick add: a sentence becomes a task');
   const now = new Date(2026, 9, 9, 10, 0);      // Fri 9 Oct 2026, 10:00
-  const opt = { now, categories: ['Payments', 'Tally'], assignees: ['Rahul', 'Self'] };
-  const a = parseQuickAdd('Pay ICICI invoice tomorrow 5pm high with Rahul Payments', opt);
-  ck('title is what is left', a.title === 'Pay ICICI invoice', a.title);
-  ck('priority, person and category are read', a.priority === 'High' && a.pendingWith === 'Rahul' && a.category === 'Payments');
+  const opt = { now, categories: ['Payments', 'Tally'], assignees: ['Person A', 'Self'] };
+  const a = parseQuickAdd('Pay Bank B invoice tomorrow 5pm high with Person A Payments', opt);
+  ck('title is what is left', a.title === 'Pay Bank B invoice', a.title);
+  ck('priority, person and category are read', a.priority === 'High' && a.pendingWith === 'Person A' && a.category === 'Payments');
   const d = new Date(a.dueAt);
   ck('tomorrow 5 pm', d.getDate() === 10 && d.getHours() === 17 && d.getMinutes() === 0);
   const b = parseQuickAdd('send report on monday', opt);
@@ -35,7 +35,7 @@ async function runQuickAdd({ ck, section }) {
   ck('a mail subject is the title and the mail chain', g.reference.startsWith('RE: Invoice') && g.title === 'Invoice INV/118 payment advice');
   const h = parseQuickAdd('plain task with nothing special', opt);
   ck('nothing recognised: all text stays the title', h.title === 'plain task with nothing special' && !h.dueAt && !h.priority);
-  ck('a readable summary', describeQuickAdd(a, now) === 'High · Tomorrow 5:00 PM · Payments · with Rahul', describeQuickAdd(a, now));
+  ck('a readable summary', describeQuickAdd(a, now) === 'High · Tomorrow 5:00 PM · Payments · with Person A', describeQuickAdd(a, now));
   const i = parseQuickAdd('review 25/12/2026', opt);
   ck('dd/mm/yyyy is day first', new Date(i.dueAt).getMonth() === 11 && new Date(i.dueAt).getDate() === 25);
   // A bare n-n / n/n is not a date any more: it needs "on/by/before/till" in front or a year after it.
@@ -56,7 +56,7 @@ async function runQuickAdd({ ck, section }) {
 import { templateFrom, applyTemplate, saveTemplate } from '../../src/templates.js';
 async function runTemplates({ ck, section }) {
   section('Templates');
-  const e = { id: 'x1', title: 'Month-end reconciliation', category: 'Accounts', priority: 'High', status: 'Pending', dueAt: '2026-10-31T10:00:00.000Z', reference: 'RE: old', keyPoints: [{ key: 'Bank', value: 'ICICI' }], notes: 'Check nostro' };
+  const e = { id: 'x1', title: 'Month-end reconciliation', category: 'Accounts', priority: 'High', status: 'Pending', dueAt: '2026-10-31T10:00:00.000Z', reference: 'RE: old', keyPoints: [{ key: 'Bank', value: 'Bank B' }], notes: 'Check nostro' };
   const t = templateFrom(e);
   ck('a template keeps the usual fields, not dates or mail chain', t.fields.category === 'Accounts' && !t.fields.dueAt && !t.fields.reference && t.name === 'Month-end reconciliation');
   ck('key points keep their labels but not their values', t.fields.keyPoints[0].key === 'Bank' && t.fields.keyPoints[0].value === '');
@@ -122,7 +122,7 @@ import { paymentsByVendor } from '../../src/workingDashboardReport.js';
 export async function runVendorTotals({ ck, section }) {
   section('Payments by vendor');
   const mk = (id, vendor, amt, done = '2026-10-05T10:00:00') => ({ id, title: `${vendor}: pay`, category: 'Payments', done: true, completedAt: new Date(done).toISOString(), keyPoints: amt ? [{ key: 'Amount', value: String(amt) }] : [], narration: { typeName: 'COD Charges against PO', fieldsValues: { 'Vendor Name': vendor } } });
-  const r = paymentsByVendor([mk('1', 'Tech Profuse', 45000), mk('2', 'Tech Profuse', 5000), mk('3', 'Acme', 20000), mk('4', 'Old', 9999, '2026-09-30T10:00:00'), { id: '5', title: 'x', category: 'Other', done: true, completedAt: '2026-10-05T10:00:00.000Z' }], undefined, '2026-10');
+  const r = paymentsByVendor([mk('1', 'Tech Profuse', 45000), mk('2', 'Tech Profuse', 5000), mk('3', 'Vendor D', 20000), mk('4', 'Old', 9999, '2026-09-30T10:00:00'), { id: '5', title: 'x', category: 'Other', done: true, completedAt: '2026-10-05T10:00:00.000Z' }], undefined, '2026-10');
   ck('this month only, payments only', r.count === 3 && r.total === 70000);
   ck('grouped by vendor, biggest first', r.rows[0].total === 50000 && r.rows[0].count === 2 && r.rows.length === 2, JSON.stringify(r.rows));
 }

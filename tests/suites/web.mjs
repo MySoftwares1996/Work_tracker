@@ -23,7 +23,7 @@ export async function run({ ck, section }) {
   const sample = [{ id: '1', title: 'ICEGATE', url: 'https://icegate.gov.in', folder: 'Govt' }, { id: '2', title: 'A & B', url: 'https://ab.com/x?a=1&b=2' }];
   const back = parseBookmarks(bookmarksHtml(sample));
   ck('export then import keeps title, address and folder', back.length === 2 && back[0].title === 'A & B' && back[0].url === 'https://ab.com/x?a=1&b=2' && back[1].folder === 'Govt');
-  ck('a browser file with folders is read', parseBookmarks('<DL><DT><H3>Banks</H3><DL><DT><A HREF="https://hdfc.com">HDFC</A></DL></DL>')[0].folder === 'Banks');
+  ck('a browser file with folders is read', parseBookmarks('<DL><DT><H3>Banks</H3><DL><DT><A HREF="https://bank-a.example">Bank A</A></DL></DL>')[0].folder === 'Banks');
   ck('bookmarklets are skipped', parseBookmarks('<A HREF="javascript:x()">x</A>').length === 0);
   const added = addLinks(sample, [{ title: 'dup', url: 'HTTPS://icegate.gov.in' }, { title: 'new', url: 'https://new.com' }]);
   ck('addresses already kept are not added twice', added.added === 1 && added.links.length === 3);

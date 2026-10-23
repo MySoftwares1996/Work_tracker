@@ -15,25 +15,25 @@ export async function run({ ck, section }) {
 
   section('Quick remarks');
   ck('a tapped remark fills empty remarks', withQuickRemark('', 'Under process') === 'Under process');
-  ck('...or is added after what is written', withQuickRemark('Spoke to Rao.', 'Under process') === 'Spoke to Rao; Under process');
+  ck('...or is added after what is written', withQuickRemark('Spoke to the banker.', 'Under process') === 'Spoke to the banker; Under process');
   ck('the same one twice is not repeated', withQuickRemark('Under process', 'under process') === 'Under process');
 
   section('Bank-wise view');
   const now = new Date(2026, 9, 8, 12, 0);
   const bf = (id, bank, created, due) => ({ ...blankEntry(), id, title: id, category: "Bank Follow Up's", createdAt: new Date(2026, 9, created).toISOString(), dueAt: new Date(2026, 9, due, 10).toISOString(),
     bankFollowUps: bank ? [{ d: '2026-10-05', at: new Date(2026, 9, 5).toISOString(), remarks: 'x', bank }] : [] });
-  const list = [bf('a', 'SBI', 1, 7), bf('b', 'sbi', 6, 9), bf('c', 'HDFC', 7, 9), bf('d', '', 7, 9)];
+  const list = [bf('a', 'Bank C', 1, 7), bf('b', 'bank c', 6, 9), bf('c', 'Bank A', 7, 9), bf('d', '', 7, 9)];
   const g = followUpsByBank(list, new Date(2026, 9, 30, 12));
-  ck('grouped by bank, most open first, unnamed last', g.map((x) => `${x.bank}:${x.open}`).join() === 'SBI:2,HDFC:1,Bank not named:1', g.map((x) => `${x.bank}:${x.open}`).join());
+  ck('grouped by bank, most open first, unnamed last', g.map((x) => `${x.bank}:${x.open}`).join() === 'Bank C:2,Bank A:1,Bank not named:1', g.map((x) => `${x.bank}:${x.open}`).join());
   ck('overdue and oldest counted', g[0].overdue === 2 && g[0].oldestDays === 29);
   const f = (bank) => filterEntries(list, { ...EMPTY_WD_FILTER, bank }, now).map((x) => x.id).join();
-  ck('Register filter by bank', f('SBI') === 'a,b' && f('-') === 'd');
-  ck('the bank filter counts as a filter', isWdFilterActive({ ...EMPTY_WD_FILTER, bank: 'SBI' }) && !isWdFilterActive(EMPTY_WD_FILTER));
+  ck('Register filter by bank', f('Bank C') === 'a,b' && f('-') === 'd');
+  ck('the bank filter counts as a filter', isWdFilterActive({ ...EMPTY_WD_FILTER, bank: 'Bank C' }) && !isWdFilterActive(EMPTY_WD_FILTER));
 
   section('Escalation');
-  const old = { ...bf('o', 'SBI', 1, 7), title: 'LC with SBI', priority: 'Medium', createdAt: new Date(2026, 8, 1).toISOString() };
+  const old = { ...bf('o', 'Bank C', 1, 7), title: 'LC with Bank C', priority: 'Medium', createdAt: new Date(2026, 8, 1).toISOString() };
   const up = noteWork({ ...old, priority: 'High', escalation: { asked: '2026-10-08', escalatedOn: '2026-10-08' } }, 'Escalated', now);
-  ck('the report line says so', bankFollowUpReportLine(up, '2026-10-08') === 'LC with SBI: Escalated to manager (open 37 days).', bankFollowUpReportLine(up, '2026-10-08'));
+  ck('the report line says so', bankFollowUpReportLine(up, '2026-10-08') === 'LC with Bank C: Escalated to manager (open 37 days).', bankFollowUpReportLine(up, '2026-10-08'));
   ck('...and it is in that day\'s report', reportModelToText(buildReportModel({ entries: [up], date: '2026-10-08' })).includes('Escalated to manager'));
   const both = noteWork({ ...addBankFollowUp(old, { remarks: 'Still pending' }, now), priority: 'High', escalation: { asked: '2026-10-08', escalatedOn: '2026-10-08' } }, 'Escalated', now);
   ck('with a follow-up the same day: added at the end', bankFollowUpReportLine(both, '2026-10-08').endsWith('Escalated to manager.'));

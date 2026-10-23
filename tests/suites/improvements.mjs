@@ -45,7 +45,7 @@ export async function run({ ck, section }) {
   ck('nothing is missing once filled', narrationMissing(nr, { percent: '30', fieldsValues: { 'Beneficiary Name': 'ACME' } }).length === 0);
 
   section('Bank follow-ups: days open, and the Dashboard\'s "Follow-ups today"');
-  const bf = { ...blankEntry(), id: 'b1', title: 'LC with SBI', category: "Bank Follow Up's", createdAt: new Date(2026, 8, 25, 9).toISOString(), dueAt: new Date(2026, 9, 7, 10).toISOString(),
+  const bf = { ...blankEntry(), id: 'b1', title: 'LC with Bank C', category: "Bank Follow Up's", createdAt: new Date(2026, 8, 25, 9).toISOString(), dueAt: new Date(2026, 9, 7, 10).toISOString(),
     bankFollowUps: [{ d: '2026-10-01', at: new Date(2026, 9, 1, 11).toISOString(), remarks: 'Under review' }, { d: '2026-10-05', at: new Date(2026, 9, 5, 11).toISOString(), remarks: 'Awaiting SWIFT' }] };
   ck('days open and follow-ups counted', followUpAge(bf, now).days === 12 && followUpAge(bf, now).count === 2);
   ck('card text', followUpAgeText(bf, now) === 'Open 12 days · 2 follow-ups', followUpAgeText(bf, now));

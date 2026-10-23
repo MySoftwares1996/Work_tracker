@@ -487,7 +487,7 @@ test('the due response follows the task\'s own alert choice', () => {
 });
 
 test('a template keeps the usual fields, never the dates, and starts a new task', () => {
-  const src = task({ title: 'Month-end reconciliation', category: 'Payments', priority: 'High', notes: 'Check ledgers', due: new Date(2026, 9, 31), keyPoints: [{ key: 'Ledger', value: 'HDFC' }], checklist: [{ id: 'a', text: 'Export', done: true }] });
+  const src = task({ title: 'Month-end reconciliation', category: 'Payments', priority: 'High', notes: 'Check ledgers', due: new Date(2026, 9, 31), keyPoints: [{ key: 'Ledger', value: 'Bank A' }], checklist: [{ id: 'a', text: 'Export', done: true }] });
   const tpl = templateFrom(src);
   assert.equal(tpl.name, 'Month-end reconciliation');
   assert.ok(!('due' in tpl.fields) && !('dueDate' in tpl.fields));
@@ -509,10 +509,10 @@ test('the Gemini API reply text is read from its parts', () => {
 });
 
 test('a report format fills its marks from the Sub Category fields, then Key Points, and shows what is missing', () => {
-  const e = { title: 'Pay ACME', subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor or suppler:': 'ACME Traders', 'Invoice No': 'INV-4471', 'Amount paid': '' }, keyPoints: [{ key: 'Amount', value: '4,35,000' }] };
+  const e = { title: 'Pay ACME', subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor or suppler:': 'Vendor D', 'Invoice No': 'INV-4471', 'Amount paid': '' }, keyPoints: [{ key: 'Amount', value: '4,35,000' }] };
   assert.deepEqual(placeholdersOf('{Name}: Being paid against {Invoice No} for {Amount} {Amount}'), ['Name', 'Invoice No', 'Amount']);
   const r = renderTemplate('{Name}: - Being amount paid against Invoice No. {Invoice No} towards {Towards}, amounting to ₹{Amount}.', e);
-  assert.equal(r.text, 'ACME Traders: - Being amount paid against Invoice No. INV-4471 towards [Towards], amounting to ₹4,35,000.');
+  assert.equal(r.text, 'Vendor D: - Being amount paid against Invoice No. INV-4471 towards [Towards], amounting to ₹4,35,000.');
   assert.deepEqual(r.missing, ['Towards']);
 });
 
@@ -531,9 +531,9 @@ test('marks with no field in the Sub Category are listed, so they can be added',
 test('the sample formats from the owner\'s sheet all have text and marks', () => {
   assert.ok(SAMPLE_FORMATS.length >= 25);
   assert.ok(SAMPLE_FORMATS.every((f) => f.subCategory && f.template.length > 20));
-  const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
+  const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Vendor C', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'Bank B', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
   assert.equal(imp.missing.length, 0);
-  assert.match(imp.text, /in favour of Orion Steel towards the 30% Advance payment against dispatch for USD 12,000 through ICICI, Reference No\. RF-9\. Current Status: Pending with bank for processing\./);
+  assert.match(imp.text, /in favour of Vendor C towards the 30% Advance payment against dispatch for USD 12,000 through Bank B, Reference No\. RF-9\. Current Status: Pending with bank for processing\./);
 });
 
 test('the setup from the formats creates only the missing categories and sub categories, with a field for each mark', () => {
@@ -709,7 +709,7 @@ test('bulk selection: toggling and keeping only the rows still shown', () => {
 test('bulk Done skips tasks whose Sub Category still needs fields', () => {
   const lists = { ...DEFAULT_LISTS, subCategories: [{ id: 's', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] }] };
   const needs = task({ id: 'n', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: {} });
-  const filled = task({ id: 'f', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: { 'Vendor Name': 'Acme' } });
+  const filled = task({ id: 'f', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: { 'Vendor Name': 'Vendor D' } });
   const plain = task({ id: 'p' });
   const { doable, skipped } = planBulkComplete([needs, filled, plain], lists);
   assert.deepEqual(doable.map((t) => t.id), ['f', 'p']);
