@@ -1,9 +1,11 @@
 import {
-  buildReportModel, reportModelToText, reportLineFor, isPaymentCategory, verifyAiRewrite, mergeAiReport, DEFAULT_PAYMENT_INTRO,
+  buildReportModel, reportModelToText, reportLineFor, isPaymentCategory, verifyAiRewrite, mergeAiReport,
   dutyBoeNo, importReportLine, notesForReport, isPaymentEntry,
 } from '../../src/workingDashboardReport.js';
 import { blankEntry } from '../../src/workingDashboard.js';
 import { paymentLists, DEFAULT_NARRATION_TYPES } from '../../src/workingDashboardPayments.js';
+
+const POINTS = ['Prepared the payment files after checking the details.', 'Verified the party statement before payment.'];
 
 export async function run({ ck, section }) {
   const date = '2026-10-03';
@@ -24,7 +26,7 @@ export async function run({ ck, section }) {
   ck('Past Due remark stamps, bullets and title repeats are taken out of the notes',
     notesForReport(e({ title: 'Call bank', notes: '[1 Oct] - spoke to RM\n* spoke to RM\nCall bank' })).join('|') === 'Spoke to RM.');
   const paid = e({
-    title: 'Pay Sample Vendor', category: 'Vendor Payments', reference: 'SAMPLE: Purchase Order - Sample Vendor - INPO/PP/26-27/0155',
+    title: 'Pay Sample Vendor', category: 'Vendor Payments', reportPoints: POINTS, reference: 'SAMPLE: Purchase Order - Sample Vendor - INPO/PP/26-27/0155',
     narration: narr('Advance against Purchase Order', { percent: '30', docNo: 'INPO/PP/26-27/0155' }),
   });
   ck('a narrated payment is a payment line', isPaymentEntry(paid, lists));
@@ -69,7 +71,7 @@ export async function run({ ck, section }) {
   ck('duty and import lines are marked as fixed wording', rows('oth').filter((r) => r.fixed).length === 2);
   ck('routine activities only include the active one', rows('fix').length === 1);
   ck('other activities only include the manual log entry', rows('gen').length === 1 && rows('gen')[0].line === 'Team standup');
-  ck('the payments section carries the intro lines', m.sections.find((x) => x.key === 'pay').intro.length === DEFAULT_PAYMENT_INTRO.length);
+  ck('the payments section carries the report points ticked on its tasks (none are fixed)', m.sections.find((x) => x.key === 'pay').intro.length === POINTS.length);
 
   section('Working Dashboard Report: duplicate lines are dropped outside Payments');
   const dm = buildReportModel({ entries: [
@@ -84,7 +86,7 @@ export async function run({ ck, section }) {
   ck('no section headings in the report itself', !/Payments \(2\)|Other work completed|Followed up \/ in progress|Routine daily activities/.test(text));
   const withHeadings = reportModelToText(m, { headings: true });
   ck('the AI draft keeps its headings: other work first, then payments, intro lines before the payment bullets',
-    withHeadings.indexOf('Other work completed') < withHeadings.indexOf('Payments (2)') && withHeadings.indexOf(DEFAULT_PAYMENT_INTRO[1]) < withHeadings.indexOf('* Sample Vendor:') && !withHeadings.includes('Payments made below'));
+    withHeadings.indexOf('Other work completed') < withHeadings.indexOf('Payments (2)') && withHeadings.indexOf(POINTS[1]) < withHeadings.indexOf('* Sample Vendor:') && !withHeadings.includes('Payments made below'));
   const routine = [{ id: 'f1', text: 'Daily NOSTRO reconciliation', active: true }];
   const fixedOf = (opts) => buildReportModel({ entries: [], fixedActivities: routine, date, ...opts }).sections.find((x) => x.key === 'fix').rows.length;
   ck('routine activities on a working day', fixedOf({}) === 1);
@@ -96,7 +98,7 @@ export async function run({ ck, section }) {
   const bullets = m.data.bullets;
   ck('the model counts every bullet (2 intro + 2 payments + 3 other + 1 followed + 1 routine + 1 other activity)', bullets === 10, String(bullets));
   const payBullets = rows('pay').map((r) => `* ${r.line}`);
-  const okRewrite = ['Payments (2)', ...DEFAULT_PAYMENT_INTRO.map((l) => `* ${l}`), ...payBullets, 'Other', '* a', '* b', '* c', '* d', '* e', '* f'].join('\n');
+  const okRewrite = ['Payments (2)', ...POINTS.map((l) => `* ${l}`), ...payBullets, 'Other', '* a', '* b', '* c', '* d', '* e', '* f'].join('\n');
   ck('a rewrite keeping every payment line and bullet count passes', verifyAiRewrite(m, okRewrite).ok === true);
   ck('a rewrite that changes a payment line is rejected', verifyAiRewrite(m, okRewrite.split(payBullets[0]).join('* Someone else entirely')).ok === false);
   ck('a rewrite with fewer bullets is rejected', verifyAiRewrite(m, payBullets.join('\n')).ok === false);

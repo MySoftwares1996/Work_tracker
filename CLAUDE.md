@@ -159,3 +159,7 @@ reply and add a line to `docs/REMOVED.md` in the same commit. That file is the c
 ## New entry draft (website)
 
 The website's New entry form keeps what was typed in `localStorage` (`newweb/src/entryDraft.js`, key `wd-entry-draft`) and puts it back on the next open; only Reset or Save clears it. Firestore uses a persistent local cache (`store.jsx`) so a task saved on a bad connection still goes up after a refresh. A failed save keeps its error on screen. The phone form does the same in `src/entryDraft.js` (AsyncStorage `MPT_WD_ENTRY_DRAFT`, Reset beside Cancel / Save).
+
+## Report points (no fixed lines in the report)
+
+The daily report has no built-in lines. The Payments section's intro is the user's own "Report points": a list written on the website (Config > Entry form options, `lists.darPaymentIntro`, synced in `meta/lists`; the phone keeps it as `wd.paymentIntro` and shows it read-only) and ticked per task in the entry form for a payment category (task field `reportPoints`, an array of the ticked lines, synced by `cloudSync.js` / `newweb/src/data.js`). `reportPointsOf(rows)` in `src/workingDashboardReport.js` builds the intro from the ticked points of the Payments rows; nothing ticked = no intro.

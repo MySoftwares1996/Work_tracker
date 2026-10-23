@@ -24,10 +24,12 @@ import {
   narrationSubText, buildNarrationText, taskPayee, payeeFromMail, stripPayeeFromMail, paymentLists,
 } from './workingDashboardPayments';
 
-export const DEFAULT_PAYMENT_INTRO = [
-  'Modified the respective party ledgers in Tally by passing the necessary payment entries to accurately record the payment initiation.',
-  'Prepared payment files after verifying beneficiary details (name, account number, IFSC), transaction dates, and payment purposes. Verified party Statements of Account (SOA) prior to payment to avoid reconciliation discrepancies and ensure accurate vendor tracking.',
-];
+/** The report points ticked on the tasks of a section's rows (Report points, chosen per task), once each, in the order first met. */
+export function reportPointsOf(rows) {
+  const out = [];
+  (rows || []).forEach((r) => (Array.isArray(r.entry && r.entry.reportPoints) ? r.entry.reportPoints : []).forEach((x) => { const v = String(x || '').replace(/\s+/g, ' ').trim(); if (v && !out.includes(v)) out.push(v); }));
+  return out;
+}
 
 /** Domestic / Urgent payments: left out of the report. */
 export const isSkippedPaymentCategory = (category) => isDomesticPaymentCategory(category) || isUrgentPaymentCategory(category);
@@ -223,8 +225,7 @@ export function collectReportData(entries = [], date, lists) {
  * `lists`: the payment lists (workingDashboardPayments.paymentLists).
  * `details` (web.app): each line also carries the entry's notes and its Tally narration.
  */
-export function buildReportModel({ entries = [], fixedActivities = [], activityLog = [], date, paymentIntro, leaveDays = [], holidays = [], lists = paymentLists(), details = false } = {}) {
-  const intro = (paymentIntro && paymentIntro.length ? paymentIntro : DEFAULT_PAYMENT_INTRO).map(clean).filter(Boolean);
+export function buildReportModel({ entries = [], fixedActivities = [], activityLog = [], date, leaveDays = [], holidays = [], lists = paymentLists(), details = false } = {}) {
   // Routine activities are done on working days: a leave day or a holiday reported them as done anyway.
   // Sunday, a holiday the office is closed on (an open-office USD holiday is not one) or a leave day.
   const dayOff = isNonWorkingDay(date, holidays || [], leaveDays || []);
@@ -264,7 +265,7 @@ export function buildReportModel({ entries = [], fixedActivities = [], activityL
 
   const sections = [
     { key: 'oth', title: 'Other work completed', rows: otherRows },
-    { key: 'pay', title: 'Payments', intro: payRows.length ? intro : [], rows: payRows },
+    { key: 'pay', title: 'Payments', intro: reportPointsOf(payRows), rows: payRows },
     { key: 'fol', title: 'Followed up / in progress', rows: followRows },
     { key: 'fix', title: 'Routine daily activities', rows: fixedRows },
     { key: 'gen', title: 'Other activities', rows: generalRows },

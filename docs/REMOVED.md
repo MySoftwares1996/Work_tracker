@@ -11,6 +11,8 @@ drops something must list it here and in the reply. Restoring any line below is 
 
 - Company, bank and person names in code comments, placeholders, demo data and test samples were replaced by neutral ones (Vendor A, Bank A, Banker A, Person A ...) (2026-10-23, owner asked; code only, no task data touched).
 
+- The two built-in lines at the top of the report's Payments section (the Tally ledger line and the "Prepared payment files..." line) are gone: the report has no fixed points now (2026-10-23, owner asked). Points are written in Config > Report points and ticked per task.
+
 ## Ledger redesign (2026-10-18) - things that went with it
 | What | Where | Note |
 |---|---|---|

@@ -30,7 +30,9 @@ export async function run({ ck, section }) {
   const withFormats = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }, { ...done, completedAt: new Date(2026, 9, 16, 9, 0) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
   const paySec = withFormats.model.sections.find((x) => x.key === 'pay');
   ck('a task with a format goes under Payments, written from the format', paySec.rows.length === 1 && /^Vendor D: - Being amount paid against Invoice No\. INV-4471 towards \[Towards\]\.$/.test(paySec.rows[0].line));
-  ck('the standard payment lines come with it', paySec.intro.length >= 1 && /Payments/.test(withFormats.text));
+  ck('no fixed lines: Payments has none unless report points are ticked on the task', paySec.intro.length === 0 && /Payments/.test(withFormats.text));
+  const ticked = buildReport([{ ...pay, reportPoints: ['Checked the party statement.'], completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: SAMPLE_FORMATS });
+  ck('a ticked report point is the Payments intro', ticked.model.sections.find((x) => x.key === 'pay').intro.join() === 'Checked the party statement.' && /Checked the party statement\./.test(ticked.text));
   ck('a field with no value is reported as missing', withFormats.model.missing.length === 1 && withFormats.model.missing[0].marks[0] === 'Towards');
   ck('other tasks stay where they were', /Shared with the manager/.test(withFormats.text));
   const none = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: [] });

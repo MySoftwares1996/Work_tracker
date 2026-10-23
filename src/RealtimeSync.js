@@ -189,7 +189,8 @@ export default function RealtimeSync() {
       const remoteTs = Number(patch.listsUpdatedAt) || 0;
       const phoneNewer = remoteTs > 0 && Number(w.listsUpdatedAt) > remoteTs;
       if (!phoneNewer) ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
-      if (Array.isArray(pl.darPaymentIntro) && pl.darPaymentIntro.some((x) => String(x || '').trim())) next = { ...next, paymentIntro: pl.darPaymentIntro.map((x) => String(x || '')) };
+      // The website's Report points (the lines to tick on a payment task); an emptied list empties the phone's too.
+      if (Array.isArray(pl.darPaymentIntro)) next = { ...next, paymentIntro: pl.darPaymentIntro.map((x) => String(x || '').trim()).filter(Boolean) };
       if (cal) next = { ...next, holidays: mergeHolidays(cal.holidays, normalizeHolidays(w.holidays)).holidays, leaveDays: normalizeLeaveDays([...cal.leaveDays, ...normalizeLeaveDays(w.leaveDays)]) };
       return next;
     });

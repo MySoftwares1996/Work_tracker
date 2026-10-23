@@ -643,3 +643,8 @@ tr.is-selected td { background: var(--primary-tint); }
 @media (max-width: 1100px) { .dash-head { flex-wrap: wrap; } .dash-head .head-actions { flex: 1 1 100%; } }
 .dash-head .head-text { display: flex; align-items: baseline; gap: 14px; flex: none; }
 .dash-head .sub { margin-top: 0; font-size: 13.5px; }
+
+.report-points { gap: 8px; }
+.report-points .rp { align-items: flex-start; font-weight: 600; font-size: 13.5px; line-height: 1.4; }
+.report-points .rp input { margin-top: 3px; flex: none; }
+.report-points small { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 13px; }

@@ -2,7 +2,7 @@
  * Report formats and the person's moves applied to a report model (shared by the phone app and the website). Pure.
  */
 import { findFormat, renderTemplate, isPaymentCategory } from './reportFormats.js';
-import { reportLineFor, withEntryNotes, DEFAULT_PAYMENT_INTRO } from './workingDashboardReport.js';
+import { reportLineFor, withEntryNotes, reportPointsOf } from './workingDashboardReport.js';
 
 /**
  * A task whose Sub Category has a format (Config > Report formats) is written from it, and goes under "Payments" with the other payment
@@ -28,7 +28,7 @@ export function applyFormats(model, formats, lists = {}) {
     });
   });
   moved.forEach(({ sec, row }) => { sec.rows.splice(sec.rows.indexOf(row), 1); pay.rows.push(row); });
-  if (pay.rows.length && !(pay.intro && pay.intro.length)) pay.intro = (lists.darPaymentIntro && lists.darPaymentIntro.length ? lists.darPaymentIntro : DEFAULT_PAYMENT_INTRO).map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
+  pay.intro = pay.rows.length ? reportPointsOf(pay.rows) : [];
   model.data.payments = pay.rows.length;
   model.data.others = model.sections.find((s) => s.key === 'oth').rows.length;
   model.data.followed = model.sections.find((s) => s.key === 'fol').rows.length;
@@ -77,7 +77,7 @@ export function applyMoves(model, moves = {}, { lists = {}, payLists = {}, forma
   const left = out.filter((e) => { const to = moves[e.id]; if (!to || to === 'out') return true; put(to, e, null); return false; });
   ['oth', 'pay', 'fol'].forEach((k) => { sec(k).rows.push(...placed[k]); });
   const pay = sec('pay');
-  if (pay.rows.length && !(pay.intro && pay.intro.length)) pay.intro = (lists.darPaymentIntro && lists.darPaymentIntro.length ? lists.darPaymentIntro : DEFAULT_PAYMENT_INTRO).map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
+  pay.intro = pay.rows.length ? reportPointsOf(pay.rows) : [];
   if (!pay.rows.length) pay.intro = [];
   const titles = new Set(model.sections.flatMap((x) => x.rows.map((r) => r.entry && r.entry.title)));
   model.missing = (model.missing || []).filter((m) => titles.has(m.title));

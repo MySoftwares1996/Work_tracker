@@ -181,7 +181,7 @@ export default function TaskForm({ initial, onClose }) {
   );
   const manager = managing && managing !== 'sub' && (
     <Popup title={LIST_META.find(([k]) => k === managing)[1]} sub="Add or delete the options" onClose={() => setManaging('')}>
-      <ListManager listKey={managing} label={LIST_META.find(([k]) => k === managing)[1]} lists={lists} onAdd={(v) => setT((d) => ({ ...d, [{ categories: 'category', priorities: 'priority', statuses: 'status', pendingWith: 'pendingWith' }[managing]]: v }))} />
+      <ListManager listKey={managing} label={LIST_META.find(([k]) => k === managing)[1]} lists={lists} onAdd={(v) => setT((d) => (managing === 'darPaymentIntro' ? { ...d, reportPoints: [...(d.reportPoints || []), v] } : { ...d, [{ categories: 'category', priorities: 'priority', statuses: 'status', pendingWith: 'pendingWith' }[managing]]: v }))} />
     </Popup>
   );
   const addStepNow = () => { if (step.trim()) { setT({ ...t, checklist: [...t.checklist, { id: newId(), text: step.trim(), done: false }] }); setStep(''); } };
@@ -219,6 +219,17 @@ export default function TaskForm({ initial, onClose }) {
               <h3 className="fcard-title">WHAT</h3>
               <label className="field full">Task description<AutoText value={t.title} onChange={set('title')} autoFocus placeholder="What needs doing?" /></label>
               <div className="two-f">{pick('categories', 'Category', 'category', true)}{pick('statuses', 'Status', 'status')}</div>
+              {/* Report points: lines the user wrote in Config; only the ticked ones go into the daily report (Payments). Nothing is added by default. */}
+              {/payment/i.test(t.category || '') && (
+                <div className="field full report-points">
+                  <span className="field-head">Report points<button type="button" className="mini" onClick={() => setManaging(managing === 'darPaymentIntro' ? '' : 'darPaymentIntro')}>{managing === 'darPaymentIntro' ? 'Done' : '+ / − Edit'}</button></span>
+                  {!(lists.darPaymentIntro || []).length && <small className="muted">No report points yet. Use + / − Edit to add the lines you want to tick for payments.</small>}
+                  {(lists.darPaymentIntro || []).map((x) => {
+                    const on = (t.reportPoints || []).includes(x);
+                    return <label key={x} className="check-row rp"><input type="checkbox" checked={on} onChange={() => setT((d) => ({ ...d, reportPoints: on ? (d.reportPoints || []).filter((y) => y !== x) : [...(d.reportPoints || []), x] }))} /><span>{x}</span></label>;
+                  })}
+                </div>
+              )}
               {prioritySeg}
               {subBlock}
               {manager}
