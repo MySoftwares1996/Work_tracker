@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
  * Reads the web app's note (users/<uid>/meta/presence: { webActiveAt, lastInputAt } in ms, written about once a
  * minute while it is open) from Firestore through the Firebase SDK the app already ships (React Native Firebase),
  * signed in as the same account. In use = the note is fresh (3 min) AND someone used the web app in the last
- * 15 minutes - the same rule as webActiveUntil in src/firebaseSyncCore.js. Anything unknown (not signed in,
+ * 45 minutes - the same rule as webActiveUntil in src/firebaseSyncCore.js. Anything unknown (not signed in,
  * offline, slow, an error) counts as not in use, so the phone rings.
  *
  * Firebase is reached by reflection, not compiled against: its libraries are built with a newer Kotlin than this
@@ -23,7 +23,7 @@ object WebPresence {
   private const val PREFS = "mpt_full_screen_alarms"
   private const val CHECK = "web_presence_check"
   private const val HEARTBEAT_MS = 3 * 60000L
-  private const val IDLE_MS = 15 * 60000L
+  private const val IDLE_MS = 45 * 60000L
 
   /** Config's "Ring on the phone only when the web app is not in use"; on unless switched off. */
   fun setEnabled(ctx: Context, on: Boolean) {

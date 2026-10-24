@@ -174,8 +174,8 @@ export async function runExtra2({ ck, section }) {
     const min = 60000;
     ck('web app open, note a minute old, used 2 minutes ago: in use for about 2 more minutes', webActiveUntil({ webActiveAt: now - min, lastInputAt: now - 2 * min }, now) === now - min + WEB_HEARTBEAT_MS);
     ck('note older than 3 minutes (closed, asleep, offline): not in use - the phone rings', webActiveUntil({ webActiveAt: now - 4 * min, lastInputAt: now - 4 * min }, now) === 0);
-    ck('open but nobody used it for 15 minutes (left open on an empty desk): not in use', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 16 * min }, now) === 0);
-    ck('used 14 minutes ago: in use until the 15 minutes run out', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 14 * min }, now) === now - 14 * min + WEB_IDLE_MS);
+    ck('open but nobody used it for 45 minutes (left open on an empty desk): not in use', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 46 * min }, now) === 0);
+    ck('used 44 minutes ago: in use until the 45 minutes run out', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 44 * min }, now) === now - 44 * min + WEB_IDLE_MS);
     ck('the idle time can be set: 12 minutes since the last input is idle with a 10 minute limit', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 12 * 60000 }, now, { idleMs: 10 * 60000 }) === 0 && webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 12 * 60000 }, now, { idleMs: 30 * 60000 }) > now);
     ck('closed (webActiveAt 0), or no note at all: not in use', webActiveUntil({ webActiveAt: 0, lastInputAt: now }, now) === 0 && webActiveUntil(null, now) === 0);
     ck('a computer clock far ahead cannot keep the phone quiet for long', webActiveUntil({ webActiveAt: now + 60 * min, lastInputAt: now + 60 * min }, now) === now + WEB_HEARTBEAT_MS);

@@ -159,11 +159,11 @@ export function LiveStore({ children }) {
   }, [user, hasLoaded]);
 
   // The "in use" note the phone reads (users/<you>/meta/presence): written every minute while this tab is open and was used in
-  // the last 15 minutes, and cleared when it closes. While it is fresh the phone only shows a notification; otherwise it rings.
+  // the last 45 minutes, and cleared when it closes. While it is fresh the phone shows no alarm and no notification; otherwise it rings.
   useEffect(() => {
     if (!user) return undefined;
     const ref = doc(dbOf(), 'users', user.uid, 'meta', 'presence');
-    const IDLE = 15 * 60000;
+    const IDLE = 45 * 60000;
     let lastInput = Date.now();
     let lastSent = 0;
     const put = (webActiveAt, lastInputAt) => setDoc(ref, { webActiveAt, lastInputAt }, { merge: true }).catch(() => {});

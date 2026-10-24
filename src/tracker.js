@@ -117,7 +117,7 @@ export async function setAlarmStyle(n = 1) {
 
 /**
  * Until when (ms) the web app counts as in use - 0 when it does not. While that is in the future, a Working
- * Dashboard alarm shows a quiet notification instead of ringing (AlarmReceiver.kt).
+ * Dashboard alarm shows nothing - no alarm, no notification (AlarmReceiver.kt).
  */
 export async function setWebActiveUntil(ms = 0) {
   if (!NativeTools?.setWebActiveUntil || Platform.OS !== 'android') return false;

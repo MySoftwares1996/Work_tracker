@@ -274,10 +274,10 @@ export function decodeCalendar(v) {
  * The web app's "in use" note (users/<you>/meta/presence): { webActiveAt, lastInputAt } in ms, written about once
  * a minute while the web app is open, and webActiveAt 0 when it closes. It counts as in use while the note is
  * fresh (the web app is open and awake) AND someone used it recently - a web app left open on an empty desk does
- * not keep the phone quiet.
+ * not keep the phone quiet. "Recently" is 45 minutes. While it counts as in use the phone shows no alarm and no notification.
  */
 export const WEB_HEARTBEAT_MS = 3 * 60000;
-export const WEB_IDLE_MS = 15 * 60000;
+export const WEB_IDLE_MS = 45 * 60000;
 
 /** Until when (ms) the web app counts as in use, from its note; 0 when it does not (closed, asleep, idle, unknown). */
 export function webActiveUntil(presence, now = Date.now(), { heartbeatMs = WEB_HEARTBEAT_MS, idleMs = WEB_IDLE_MS } = {}) {

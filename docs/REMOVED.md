@@ -13,6 +13,8 @@ drops something must list it here and in the reply. Restoring any line below is 
 
 - The two built-in lines at the top of the report's Payments section (the Tally ledger line and the "Prepared payment files..." line) are gone: the report has no fixed points now (2026-10-23, owner asked). Points are written in Config > Report points and ticked per task.
 
+- The phone's "quiet notification" for task alerts while the web app is in use (it was only in unreleased Kotlin): the phone now shows nothing while the desktop is in use, as the owner asked (2026-10-24).
+
 ## Ledger redesign (2026-10-18) - things that went with it
 | What | Where | Note |
 |---|---|---|

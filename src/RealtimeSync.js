@@ -110,12 +110,12 @@ export default function RealtimeSync() {
 
   /*
    * web.app only: tells the phone the web app is in use. While this tab is open and has had a click, key press, touch
-   * or scroll in the last 15 minutes, a note is written every minute; the phone keeps its task alerts silent while the
+   * or scroll in the last 45 minutes, a note is written every minute; the phone shows no alarm or notification for task alerts while the
    * note is fresh (3 minutes) and rings again as soon as it is not - the tab closed, the computer asleep or idle.
    */
   useEffect(() => {
     if (Platform.OS !== 'web' || !ready || !signedUid || wd.accountUid !== signedUid || typeof globalThis.addEventListener !== 'function') return undefined;
-    const IDLE = 15 * 60000;
+    const IDLE = 45 * 60000;
     let lastInput = Date.now();
     let lastSent = 0;
     const send = (force) => {
