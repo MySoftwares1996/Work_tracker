@@ -1,5 +1,6 @@
 import { buildBackupExport, backupExportName, backupExportText } from '../../src/backupExport.js';
 import { toDoc } from './data.js';
+import { formatsBackupText } from './reportFormats.js';
 
 /** The export file for the website's data: tasks in the document shape (what Import reads as it is), plus lists, calendar, links, templates and the saved report formats. */
 export function webBackup({ tasks = [], lists = {}, calendar = {}, links = [], templates = [], savedFormats = [] } = {}, now = new Date()) {
@@ -34,6 +35,16 @@ export function downloadFormatsFile(formats, now = new Date()) {
   const a = document.createElement('a');
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
   a.href = url; a.download = `report-formats-${now.toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return (formats || []).filter((f) => f && String(f.template || '').trim()).length;
+}
+
+/** Downloads a restorable backup (JSON) of every current report format; returns how many. */
+export function downloadFormatsBackup(formats, now = new Date()) {
+  const a = document.createElement('a');
+  const url = URL.createObjectURL(new Blob([formatsBackupText(formats, now)], { type: 'application/json;charset=utf-8' }));
+  a.href = url; a.download = `report-formats-backup-${now.toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   return (formats || []).filter((f) => f && String(f.template || '').trim()).length;

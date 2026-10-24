@@ -203,6 +203,7 @@ test('a point on the dial becomes an hour or a minute', () => {
 
 import { readFileSync } from 'node:fs';
 import { formatsText } from '../src/exportBackup.js';
+import { formatsBackupText, planFormatsRestore } from '../src/reportFormats.js';
 import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.js';
 const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
 const contrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
@@ -742,4 +743,17 @@ test('Download all formats: every format as readable text', () => {
   assert.match(txt, /^Report formats - 1 \(2026-10-24\)/);
   assert.match(txt, /1\. Invoice Payment\n   Category: Payments\n   Format: Being amount paid against Invoice No\. \{Invoice No\}\./);
   assert.ok(!/Empty/.test(txt));
+});
+
+test('Backup formats: a backup restores onto the saved list, replacing the same Sub Category and keeping the rest', () => {
+  const now = [{ id: 'a', subCategory: 'Invoice Payment', category: 'Payments', template: 'Old {Invoice No}.' }, { id: 'b', subCategory: 'Other One', category: 'Payments', template: 'Keep me.' }];
+  const file = formatsBackupText([{ id: 'a', subCategory: 'Invoice Payment', category: 'Payments', template: 'New {Invoice No}.' }, { id: 'c', subCategory: 'Fresh', category: 'Audit', template: 'Fresh line.' }], new Date('2026-10-24T10:00:00Z'));
+  const plan = planFormatsRestore(now, file, 1000);
+  assert.equal(plan.count, 2);
+  const by = (n) => plan.saved.filter((f) => f.subCategory === n && f.template).map((f) => f.template);
+  assert.deepEqual(by('Invoice Payment'), ['New {Invoice No}.']);
+  assert.deepEqual(by('Other One'), ['Keep me.']);
+  assert.deepEqual(by('Fresh'), ['Fresh line.']);
+  assert.ok(planFormatsRestore(now, 'not json').error);
+  assert.ok(planFormatsRestore(now, JSON.stringify({ kind: 'something else', formats: [] })).error);
 });

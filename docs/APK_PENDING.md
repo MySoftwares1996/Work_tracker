@@ -45,3 +45,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - Report points are per Category (written on the website, Config > Report points); the report shows a Category's points above the section its tasks are in, and a task's report line is the same in every section (Report format used wherever it is placed). The phone's report follows both; editing the points is on the website only.
 - Web in use = phone shows nothing: the website's "in use" window is 45 minutes (was 15), set on the website (live after the web deploy; the phone's JS part comes with the next phone update). Kotlin (AlarmReceiver / WebPresence: no quiet notification, 45 min) needs the next APK build.
 - New web: Config > Report formats has a Download all formats button (text file). Web only.
+- New web: Config > Report formats has Backup formats (JSON) and Restore formats (from that file). Web only.

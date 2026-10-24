@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { planImport } from '../importBackup';
-import { exportBackupFile, downloadFormatsFile } from '../exportBackup';
+import { exportBackupFile, downloadFormatsFile, downloadFormatsBackup } from '../exportBackup';
 import NotifyExplainer from '../NotifyExplainer';
 import { loadAlertSettings, saveAlertSettings } from '../alerts';
 import { THEMES, TEXT_SIZES, applyTheme, applyScheme, applyTextSize, savedTheme, savedScheme, savedTextSize } from '../themes';
 import { PageHead } from '../ui';
 import { useStore } from '../store';
-import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
+import { planFormatsRestore, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
 import { categoryAsksReminder, toggleReminderCategory } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
 
@@ -126,7 +126,18 @@ function ImportBackup() {
 
 /** Config > Report formats: the line the Daily report writes for a task, per Sub Category, with {Field name} marks filled from the task. */
 function ReportFormats() {
-  const { lists, saveLists, tasks, reportFormats, savedFormats, reportFormatsCustom, saveReportFormats } = useStore();
+  const { lists, saveLists, tasks, reportFormats, savedFormats, reportFormatsCustom, saveReportFormats, notify } = useStore();
+  // Restore: formats in the backup file are saved for their Sub Categories (replacing the current ones); every other format stays.
+  const restoreFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const plan = planFormatsRestore(savedFormats, await file.text());
+    if (plan.error) { alert(plan.error); return; }
+    if (!confirm(`Restore ${plan.count} report formats from ${file.name}? Formats in the file replace the current ones for the same Sub Category; the others stay.`)) return;
+    saveReportFormats(plan.saved);
+    notify(`Restored ${plan.count} report formats`);
+  };
   const [open, setOpen] = useState('');
   const [draft, setDraft] = useState('');
   const subs = lists.subCategories || [];
@@ -143,7 +154,14 @@ function ReportFormats() {
   const sample = (row) => { const mine = tasks.filter((t) => t.subCategory && row.sc && t.subCategory === row.sc.name && Object.keys(t.subCategoryFields || {}).length); return mine.length ? mine[0] : { subCategoryFields: {} }; };
   return (
     <section className="card plain">
-      <div className="fmt-head"><h2 className="h2">Report formats</h2><button type="button" className="btn" onClick={() => downloadFormatsFile(reportFormats)} disabled={!reportFormats.length}>Download all formats</button></div>
+      <div className="fmt-head">
+        <h2 className="h2">Report formats</h2>
+        <span className="fmt-actions">
+          <button type="button" className="btn" onClick={() => downloadFormatsFile(reportFormats)} disabled={!reportFormats.length}>Download all formats</button>
+          <button type="button" className="btn" onClick={() => notify(`Backup saved: ${downloadFormatsBackup(reportFormats)} formats`)} disabled={!reportFormats.length}>Backup formats</button>
+          <label className="btn">Restore formats<input type="file" accept="application/json,.json" hidden onChange={restoreFile} /></label>
+        </span>
+      </div>
       <p className="muted">The line the Daily report writes for a task in each Sub Category. Write the sentence and put a task's own value where it goes in {'{'}braces{'}'} - for example <code>Being amount paid against Invoice No. {'{'}Invoice No{'}'}, amounting to ₹{'{'}Amount{'}'}.</code> Each {'{'}mark{'}'} is filled from the task's Sub Category field with that name (then its Key Points); a missing value shows as [mark] in the report. The sample formats from your Tally narration sheet are used until you change one.{reportFormatsCustom ? ' (Your own formats are saved.)' : ''}</p>
       <div className={`fmt-setup${missingCount ? ' todo' : ''}`}>
         {missingCount ? (

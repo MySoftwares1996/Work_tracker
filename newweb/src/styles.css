@@ -651,3 +651,5 @@ tr.is-selected td { background: var(--primary-tint); }
 .rp-add textarea { flex: 1; min-width: 0; }
 
 .fmt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.fmt-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.fmt-actions label.btn { cursor: pointer; }
