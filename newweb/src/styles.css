@@ -688,7 +688,9 @@ tr.is-selected td { background: var(--primary-tint); }
 .cfg-page .h2 { font-size: 16.5px; }
 .cfg-note { font-size: 13.5px; line-height: 1.45; }
 .cfg-note b { color: var(--ink); }
-.cfg-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 12px; align-items: start; }
+.cfg-lists { columns: 2 320px; column-gap: 12px; }
+.cfg-lists > section, .cfg-points > section { break-inside: avoid; margin-bottom: 12px; }
+.cfg-points { columns: 3 340px; column-gap: 12px; }
 .cfg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr)); column-gap: 44px; row-gap: 2px; align-items: start; }
 .cfg-grid > h2, .cfg-grid > p, .cfg-grid > div, .cfg-grid > .snooze-row { grid-column: 1 / -1; }
 @media (max-width: 760px) {
@@ -698,3 +700,16 @@ tr.is-selected td { background: var(--primary-tint); }
   .cfg-head { flex-wrap: wrap; }
 }
 .cfg-grid .tg-row { padding: 8px 0; border-top: 1px solid var(--soft); }
+
+/* Config lists and formats: use the width (several columns instead of one long, mostly empty column). */
+.cfg-page .fmt-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr)); gap: 8px; align-items: start; }
+.cfg-page .fmt-row.open { grid-column: 1 / -1; }
+.cfg-page .fmt-head { padding: 9px 12px; }
+.cfg-page .fmt-setup { padding: 9px 12px; }
+.rp-add { flex-direction: column; align-items: stretch; gap: 6px; }
+.rp-add textarea { height: 54px; min-height: 0; }
+.rp-add .btn { align-self: flex-end; }
+.cfg-points .rp-row { font-size: 13.5px; }
+.cfg-page .manager { display: block; columns: 2 440px; column-gap: 12px; }
+.cfg-page .manager > .muted { column-span: all; }
+.cfg-page .cat-group { break-inside: avoid; margin-bottom: 12px; }

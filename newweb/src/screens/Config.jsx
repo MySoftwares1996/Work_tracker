@@ -268,6 +268,7 @@ function ReportPoints({ lists }) {
         <h2 className="h2">Report points</h2>
         <p className="muted">Write the lines a Category adds to the daily report. When a task of that Category is in the report, its points are shown once above that section's lines. Nothing is added by default.</p>
       </section>
+      <div className="cfg-points">
       {lists.categories.map((cat) => {
         const mine = points.filter((p) => p.category === cat);
         return (
@@ -299,6 +300,7 @@ function ReportPoints({ lists }) {
           ))}
         </section>
       )}
+      </div>
     </>
   );
 }
