@@ -5,6 +5,8 @@ import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
 import EmptyState, { SkeletonRows } from './EmptyState';
 import { PageHead, Chip, priTone, priDot } from './ui';
+import Onboarding from './Onboarding';
+import BackupReminder from './BackupReminder';
 import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveDueDate } from './bulk';
 
 import { copyText } from './clipboard';
@@ -83,6 +85,8 @@ export default function App() {
         </nav>
         <div className="who">
           {store.demo && <span className="pill demo">Demo data</span>}
+          {!store.demo && store.saving > 0 && <span className="pill demo" role="status">Saving...</span>}
+          {!store.demo && store.saving === 0 && store.justSaved && <span className="pill ok-pill" role="status">Saved</span>}
           {!store.demo && store.hasLoaded && !store.synced && <span className="pill demo" role="status" title="Offline: showing the last data received. Changes are sent when the connection returns.">Offline</span>}
           {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? `In sync${store.lastSyncAt ? ` - last update from the server ${new Date(store.lastSyncAt).toLocaleTimeString()}` : ''}` : store.hasLoaded ? 'Offline - showing the last data received' : 'Syncing...'} />}
           <button type="button" className={`refresh-btn${refreshing ? ' spin' : ''}`} onClick={doRefresh} disabled={refreshing} aria-label="Refresh" title="Refresh: read the latest from the server and check for a new version"><Icon name="refresh" size={20} /></button>
@@ -91,6 +95,7 @@ export default function App() {
       </header>
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
+        <BackupReminder />
         {!store.demo && store.slow && !store.hasLoaded && !store.error && <div className="banner err" role="status">{store.tasks.length ? 'Showing your saved tasks - the server has not answered yet. Check your internet connection; new changes are kept and sent when it does.' : 'Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.'}</div>}
         {booting && !['dashboard', 'register'].includes(tab) ? <LoadingScreen stage="data" /> : <Suspense fallback={<LoadingScreen stage="data" />}>{screens[tab]}</Suspense>}
       </main>
@@ -140,9 +145,17 @@ function Stat({ tone, label, value, loading, onClick }) {
 }
 
 function Dashboard({ onEdit, onNew, go }) {
-  const { tasks, actions, user } = useStore();
+  const store = useStore();
+  const { tasks, actions, user, lists } = store;
   const loading = useLoading();
   const [quick, setQuick] = useState('');
+  // The first-run guide: shown to an account that is new (no Category, no tasks) once everything has loaded, until it is closed or a task exists.
+  const [guide, setGuide] = useState(false);
+  useEffect(() => {
+    let seen = false;
+    try { seen = !!localStorage.getItem('wd-onboarded'); } catch { /* not remembered */ }
+    if (store.hasLoaded && store.metaReady && !lists.categories.length && !tasks.length && !seen && (!store.demo || location.search.includes('newaccount'))) setGuide(true);
+  }, [store.hasLoaded, store.metaReady]); // eslint-disable-line react-hooks/exhaustive-deps
   const now = useMinute();
   const s = useMemo(() => stats(tasks, now), [tasks, now]);
   const open = tasks.filter(isOpen);
@@ -167,6 +180,7 @@ function Dashboard({ onEdit, onNew, go }) {
   const pct = dayTotal ? Math.round((s.doneToday / dayTotal) * 100) : 0;
   return (
     <div className="dash">
+      {guide && !tasks.length && <Onboarding go={go} onDone={() => { try { localStorage.setItem('wd-onboarded', '1'); } catch { /* not remembered */ } setGuide(false); }} />}
       {/* Two lines in all: the top bar, then greeting + date, Quick add and New entry on one row. */}
       <PageHead className="dash-head" title={`Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}${first ? `, ${first}` : ''}`} sub={now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} onNew={onNew}>
         <form className="quick" onSubmit={addQuick}>

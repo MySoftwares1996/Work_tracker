@@ -169,3 +169,7 @@ One report line wherever a task is placed: a task whose Sub Category has a Repor
 ## Starting lists for a new account
 
 A new account (no tasks and no `meta/lists` document) starts with no Category, no Sub Category and nobody under Pending with; Priority and Status keep their usual choices (`DEFAULT_LISTS` in `newweb/src/data.js`; the phone's `assignees` starts empty). An existing account keeps what it has: a lists document missing a key falls back to `LEGACY_DEFAULT_LISTS`, an account with tasks but no lists document gets the older Categories, and the one-time Categories / Sub Categories created from the report formats (`store.jsx`) run only for an existing account. Demo data (`?demo`) uses the older lists.
+
+## Website extras (first-run guide, backup reminder, saving badge)
+
+`newweb/src/Onboarding.jsx` (a new account's first-run guide, shown until Done or a first task; `?demo&empty&newaccount` previews it), `BackupReminder.jsx` (weekly, `wd-last-backup` in localStorage, set by `exportBackupFile`), a "Saving... / Saved" pill in the top bar (`saving` / `justSaved` in `store.jsx`) and Config > Alerts "Keep the phone quiet while this window is visible" (`quietWhileVisible` in `alerts.js`; the presence heartbeat then counts a visible window as in use).

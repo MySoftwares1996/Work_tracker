@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, persistentLocalCache, persistentMultipleTabManager, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
+import { loadAlertSettings } from './alerts';
 import { readReportFormats, planFormatSetup, effectiveFormats } from './reportFormats';
 import { DEFAULT_LISTS, LEGACY_DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
 import { demoTasks } from './demo';
@@ -81,6 +82,9 @@ export function LiveStore({ children }) {
   const [note, setNote] = useState('');
   const [synced, setSynced] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);     // the first server snapshot has arrived; after that, going offline never replaces the screen
+  const [saving, setSaving] = useState(0);              // saves sent but not yet confirmed by the server
+  const [justSaved, setJustSaved] = useState(false);
+  const savedTimer = useRef(null);
   const [slow, setSlow] = useState(false);              // no answer from the server after 12 s (offline?)
   const [lastSyncAt, setLastSyncAt] = useState(0);       // when data last arrived from the server (shown on the sync dot)
   const tasksRef = useRef([]);
@@ -171,6 +175,8 @@ export function LiveStore({ children }) {
     const put = (webActiveAt, lastInputAt) => setDoc(ref, { webActiveAt, lastInputAt }, { merge: true }).catch(() => {});
     const send = (force) => {
       const now = Date.now();
+      // Config > Alerts: "keep the phone quiet while this window is visible" counts a visible window as in use even without input.
+      if (loadAlertSettings().quietWhileVisible && document.visibilityState === 'visible') lastInput = now;
       if (now - lastInput > IDLE) return;
       if (!force && now - lastSent < 50000) return;
       lastSent = now;
@@ -233,7 +239,12 @@ export function LiveStore({ children }) {
     const commit = (t) => {
       if (!user) return;
       // A failed save stays on screen (the next save no longer hides it): the task would otherwise just disappear later.
-      setDoc(doc(dbOf(), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true }).catch((e) => setError(`A task could not be saved: ${friendlyError(e)}`));
+      // "Saving..." until the server has it, then "Saved" for a moment (a save made offline stays "Saving..." until the connection returns).
+      setSaving((n) => n + 1);
+      setDoc(doc(dbOf(), 'users', user.uid, 'tasks', String(t.id)), toDoc(t), { merge: true })
+        .then(() => { setJustSaved(true); clearTimeout(savedTimer.current); savedTimer.current = setTimeout(() => setJustSaved(false), 2500); })
+        .catch((e) => setError(`A task could not be saved: ${friendlyError(e)}`))
+        .finally(() => setSaving((n) => Math.max(0, n - 1)));
     };
     return makeActions(commit, () => tasksRef.current, flash);
   }, [user, flash]);
@@ -246,7 +257,7 @@ export function LiveStore({ children }) {
       setFormats(next);
       setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { reportFormats: next, stamps: { reportFormats: now }, ts: now }, { merge: true }).catch((e) => setError(friendlyError(e)));
     },
-    error, synced, hasLoaded, slow, lastSyncAt, actions, notify: flash,
+    error, synced, hasLoaded, metaReady, slow, lastSyncAt, saving, justSaved, actions, notify: flash,
     // Written with its own stamp in meta/tools, the way the phone stamps it, so the newest edit wins on both.
     saveTemplates: (next) => {
       if (!user) return;
@@ -276,7 +287,7 @@ export function LiveStore({ children }) {
     },
     signIn: async () => { setError(''); try { await signInWithPopup(getAuth(firebaseApp()), new GoogleAuthProvider()); } catch (e) { setError(e?.code === 'auth/unauthorized-domain' ? `This web address is not allowed to sign in yet. Firebase console -> Authentication -> Settings -> Authorized domains -> add ${location.hostname}.` : (e?.message || String(e))); } },
     signOut: () => signOut(getAuth(firebaseApp())),
-  }), [user, tasks, lists, calendar, links, templates, formats, error, synced, hasLoaded, slow, lastSyncAt, actions, persistLists]);
+  }), [user, tasks, lists, calendar, links, templates, formats, error, synced, hasLoaded, metaReady, slow, lastSyncAt, saving, justSaved, actions, persistLists]);
 
   return <Ctx.Provider value={value}>{children}<Toast note={note} /></Ctx.Provider>;
 }
@@ -284,7 +295,7 @@ export function LiveStore({ children }) {
 export function DemoStore({ children }) {
   const [tasks, setTasks] = useState(() => (location.search.includes('empty') ? [] : demoTasks));      // ?demo&empty previews a user with no tasks
   const [lists, setLists] = useState({
-    ...LEGACY_DEFAULT_LISTS,
+    ...(location.search.includes('newaccount') ? DEFAULT_LISTS : LEGACY_DEFAULT_LISTS),     // ?demo&empty&newaccount previews a brand-new account
     subCategories: [
       { id: 'p1', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }, { label: 'Invoice No' }] },
       { id: 'p2', name: 'Urgent Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] },
@@ -318,7 +329,7 @@ export function DemoStore({ children }) {
   const allFormats = useMemo(() => effectiveFormats(formats), [formats]);
   const links = useMemo(() => [{ id: '1', title: 'Firebase console', url: 'https://console.firebase.google.com', folder: 'Work' }, { id: '2', title: 'Gmail', url: 'https://mail.google.com', folder: '' }], []);
   const value = useMemo(() => ({
-    demo: true, notify: flash, user: authed ? { displayName: 'Demo user', email: 'demo@example.com' } : undefined, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, savedFormats: formats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: !location.search.includes('skeleton'), actions,      // ?demo&skeleton previews the placeholder rows
+    demo: true, hasLoaded: true, metaReady: true, notify: flash, user: authed ? { displayName: 'Demo user', email: 'demo@example.com' } : undefined, tasks: visible, lists, saveLists: setLists, calendar, links, templates, saveTemplates: setTemplates, reportFormats: allFormats, savedFormats: formats, reportFormatsCustom: formats.length > 0, saveReportFormats: setFormats, error: '', synced: true, hasLoaded: !location.search.includes('skeleton'), actions,      // ?demo&skeleton previews the placeholder rows
     importPlan: async (plan) => { plan.tasks.forEach((x) => actions.save(fromDoc(x.id, x.doc))); setLists((l) => ({ ...l, ...plan.lists })); },
     signIn: () => {}, signOut: () => { location.search = ''; },
   }), [authed, visible, lists, calendar, links, templates, formats, actions]);

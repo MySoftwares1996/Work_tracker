@@ -1,7 +1,7 @@
 /** Alert settings and the list of alerts already shown, kept on this device (localStorage, never required). */
 const SETTINGS = 'wd-alert-settings';
 const HANDLED = 'wd-alerts-handled';
-const DEFAULTS = { popup: true, sound: true, notify: false };
+const DEFAULTS = { popup: true, sound: true, notify: false, quietWhileVisible: false };
 
 export function loadAlertSettings() {
   try { return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(SETTINGS)) || {}) }; } catch { return { ...DEFAULTS }; }

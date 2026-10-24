@@ -10,6 +10,10 @@ export function webBackup({ tasks = [], lists = {}, calendar = {}, links = [], t
   }, now);
 }
 
+const LAST_BACKUP = 'wd-last-backup';
+/** When a backup was last downloaded from this browser (ms), or 0. */
+export function lastBackupAt() { try { return Number(localStorage.getItem(LAST_BACKUP)) || 0; } catch { return 0; } }
+
 /** Downloads the export as a file; returns how many tasks it holds. */
 export function exportBackupFile(store, now = new Date()) {
   const payload = webBackup(store, now);
@@ -18,6 +22,7 @@ export function exportBackupFile(store, now = new Date()) {
   a.href = url; a.download = backupExportName(now);
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+  try { localStorage.setItem(LAST_BACKUP, String(Date.now())); } catch { /* not remembered */ }
   return payload.data.workingDashboard.entries.length;
 }
 

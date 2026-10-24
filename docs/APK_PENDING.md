@@ -47,3 +47,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - New web: Config > Report formats has a Download all formats button (text file). Web only.
 - New web: Config > Report formats has Backup formats (JSON) and Restore formats (from that file). Web only.
 - New accounts start with no Category, Sub Category or Pending with (website: live after the web deploy; phone: Pending with no longer starts with "Self", goes out with the next phone update). Existing accounts keep their lists. A new account = no tasks and no meta/lists document.
+- New web: first-run guide for new accounts (Categories, Pending with, usual set), weekly "download a backup" reminder, "Saving... / Saved" badge, Config > Alerts "Keep the phone quiet while this window is visible". Web only.
