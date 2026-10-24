@@ -202,6 +202,7 @@ test('a point on the dial becomes an hour or a minute', () => {
 });
 
 import { readFileSync } from 'node:fs';
+import { formatsText } from '../src/exportBackup.js';
 import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.js';
 const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
 const contrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
@@ -734,4 +735,11 @@ test('bulk Move date keeps the time of day, clears a snooze and ignores bad date
   assert.equal(moveDueDate(task({ due: null }), '2026-10-20').hasTime, false);
   assert.equal(moveDueDate(timed, 'nonsense'), timed);
   assert.equal(moveDueDate(timed, '2026-02-31'), timed);
+});
+
+test('Download all formats: every format as readable text', () => {
+  const txt = formatsText([{ subCategory: 'Invoice Payment', category: 'Payments', template: 'Being amount paid against Invoice No. {Invoice No}.' }, { subCategory: 'Empty', template: '  ' }], new Date('2026-10-24T10:00:00Z'));
+  assert.match(txt, /^Report formats - 1 \(2026-10-24\)/);
+  assert.match(txt, /1\. Invoice Payment\n   Category: Payments\n   Format: Being amount paid against Invoice No\. \{Invoice No\}\./);
+  assert.ok(!/Empty/.test(txt));
 });

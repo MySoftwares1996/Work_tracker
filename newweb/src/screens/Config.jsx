@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { planImport } from '../importBackup';
-import { exportBackupFile } from '../exportBackup';
+import { exportBackupFile, downloadFormatsFile } from '../exportBackup';
 import NotifyExplainer from '../NotifyExplainer';
 import { loadAlertSettings, saveAlertSettings } from '../alerts';
 import { THEMES, TEXT_SIZES, applyTheme, applyScheme, applyTextSize, savedTheme, savedScheme, savedTextSize } from '../themes';
@@ -143,7 +143,7 @@ function ReportFormats() {
   const sample = (row) => { const mine = tasks.filter((t) => t.subCategory && row.sc && t.subCategory === row.sc.name && Object.keys(t.subCategoryFields || {}).length); return mine.length ? mine[0] : { subCategoryFields: {} }; };
   return (
     <section className="card plain">
-      <h2 className="h2">Report formats</h2>
+      <div className="fmt-head"><h2 className="h2">Report formats</h2><button type="button" className="btn" onClick={() => downloadFormatsFile(reportFormats)} disabled={!reportFormats.length}>Download all formats</button></div>
       <p className="muted">The line the Daily report writes for a task in each Sub Category. Write the sentence and put a task's own value where it goes in {'{'}braces{'}'} - for example <code>Being amount paid against Invoice No. {'{'}Invoice No{'}'}, amounting to ₹{'{'}Amount{'}'}.</code> Each {'{'}mark{'}'} is filled from the task's Sub Category field with that name (then its Key Points); a missing value shows as [mark] in the report. The sample formats from your Tally narration sheet are used until you change one.{reportFormatsCustom ? ' (Your own formats are saved.)' : ''}</p>
       <div className={`fmt-setup${missingCount ? ' todo' : ''}`}>
         {missingCount ? (

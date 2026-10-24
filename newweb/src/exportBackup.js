@@ -19,3 +19,22 @@ export function exportBackupFile(store, now = new Date()) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   return payload.data.workingDashboard.entries.length;
 }
+
+/** Every report format as readable text: Sub Category, Category and the sentence with its {Field} marks. */
+export function formatsText(formats = [], now = new Date()) {
+  const list = (formats || []).filter((f) => f && String(f.template || '').trim());
+  const head = `Report formats - ${list.length} (${now.toISOString().slice(0, 10)})`;
+  const body = list.map((f, i) => [`${i + 1}. ${f.subCategory || '(no Sub Category)'}`, `   Category: ${f.category || '-'}`, `   Format: ${String(f.template).trim()}`].join('\n'));
+  return [head, '='.repeat(head.length), '', ...body.flatMap((b) => [b, ''])].join('\n');
+}
+
+/** Downloads every current report format as a text file; returns how many. */
+export function downloadFormatsFile(formats, now = new Date()) {
+  const text = formatsText(formats, now);
+  const a = document.createElement('a');
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  a.href = url; a.download = `report-formats-${now.toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return (formats || []).filter((f) => f && String(f.template || '').trim()).length;
+}

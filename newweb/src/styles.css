@@ -649,3 +649,5 @@ tr.is-selected td { background: var(--primary-tint); }
 .rp-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .rp-add { display: flex; gap: 10px; align-items: flex-end; }
 .rp-add textarea { flex: 1; min-width: 0; }
+
+.fmt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
