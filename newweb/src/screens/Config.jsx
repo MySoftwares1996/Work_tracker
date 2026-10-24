@@ -20,11 +20,8 @@ export default function Config() {
     { key: 'look', title: 'Appearance', body: () => <Appearance /> },
     { key: 'entry', title: 'Entry form options', body: () => (
       <>
-        <section className="card plain">
-          <h2 className="h2">Entry form options</h2>
-          <p className="muted">Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
-        </section>
-        <div className="two">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
+        <p className="muted cfg-note"><b>Entry form options.</b> Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+        <div className="cfg-lists">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
       </>
     ) },
     { key: 'subs', title: 'Sub categories', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><p className="muted">Sub categories and their fields, kept under each category.</p><SubCategoryManager lists={lists} /></section> },
@@ -45,23 +42,22 @@ export default function Config() {
   const open = topics.find((x) => x.key === topic) || topics[1];
   return (
     <>
-      <PageHead title="Config" sub="Alerts, colours and the lists the entry form uses." />
-      <div className="cols cfg">
-        <div className="cfg-side">
-          <section className="card plain cfg-account">
-            <span className="cfg-avatar" aria-hidden="true">{(user.displayName || user.email || '?').trim().charAt(0).toUpperCase()}</span>
-            <span className="cfg-who"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span></span>
-            <button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
-          </section>
-          <nav className="menu" aria-label="Config topics">
-            {topics.map((x) => (
-              <span key={x.key} className="menu-item">
-                {x.sep && <hr />}
-                <button type="button" className={open.key === x.key ? 'on' : ''} aria-current={open.key === x.key ? 'page' : undefined} onClick={() => setTopic(x.key)}>{x.title}</button>
-              </span>
-            ))}
-          </nav>
-        </div>
+      <PageHead className="cfg-head" title="Config" sub="Alerts, colours and the lists the entry form uses.">
+        <span className="cfg-me">
+          <span className="cfg-avatar" aria-hidden="true">{(user.displayName || user.email || '?').trim().charAt(0).toUpperCase()}</span>
+          <span className="cfg-who"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span></span>
+          <button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
+        </span>
+      </PageHead>
+      <div className="cfg">
+        <nav className="menu" aria-label="Config topics">
+          {topics.map((x) => (
+            <span key={x.key} className="menu-item">
+              {x.sep && <hr />}
+              <button type="button" className={open.key === x.key ? 'on' : ''} aria-current={open.key === x.key ? 'page' : undefined} onClick={() => setTopic(x.key)}>{x.title}</button>
+            </span>
+          ))}
+        </nav>
         <div className="pn cfg-page">{open.body()}</div>
       </div>
     </>
@@ -194,7 +190,7 @@ function ReportFormats() {
   const sample = (row) => { const mine = tasks.filter((t) => t.subCategory && row.sc && t.subCategory === row.sc.name && Object.keys(t.subCategoryFields || {}).length); return mine.length ? mine[0] : { subCategoryFields: {} }; };
   return (
     <section className="card plain">
-      <div className="fmt-head">
+      <div className="fmt-top">
         <h2 className="h2">Report formats</h2>
         <span className="fmt-actions">
           <button type="button" className="btn" onClick={() => downloadFormatsFile(reportFormats)} disabled={!reportFormats.length}>Download all formats</button>
@@ -352,7 +348,7 @@ function AlertSettings() {
   const answered = (r) => { setExplain(false); if (r === 'later') return; setPerm(r); set({ notify: r === 'granted' }); };
   const enableNotify = () => { if (perm === 'granted') set({ notify: true }); else setExplain(true); };
   return (
-    <section className="card plain">
+    <section className="card plain cfg-grid">
       <h2 className="h2">Alerts</h2>
       <p className="muted">How a due task reaches you while this tab is open. When a task is due (or its next reminder time comes), an alert appears with the task's details and the choices to mark it done, snooze, skip or move it. Keep this page open to get alerts; the phone app rings by itself.</p>
       <label className="row tg-row"><span>Pop up a due alert<small>A window with Done, DAR, Snooze, Move and Skip.</small></span><input type="checkbox" role="switch" className="tg" checked={s.popup} onChange={(e) => set({ popup: e.target.checked })} /></label>

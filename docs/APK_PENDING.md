@@ -52,3 +52,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - Phone sync: merge on receive is field by field over an unsent phone edit (JS only, goes out with the next phone update). Needs a real-device check: edit one field on the phone offline and another on the website, then reconnect.
 - New web: Config > Setup file (download my setup / load a setup file: lists, Sub Categories, Report points, formats, templates; adds what is missing, replaces nothing). Web only.
 - Phone Glass now has the frosted finish (translucent cards over soft blue / lilac / pink glows, JS only, no new library): goes out with the next phone update.
+- New web: the Config tab is rearranged to use less space (one header row with the account, a narrow topic list, denser panels, two-column Alerts, four lists across). Web only.
