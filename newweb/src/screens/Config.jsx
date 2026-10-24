@@ -6,6 +6,7 @@ import { loadAlertSettings, saveAlertSettings } from '../alerts';
 import { THEMES, TEXT_SIZES, applyTheme, applyScheme, applyTextSize, savedTheme, savedScheme, savedTextSize } from '../themes';
 import { PageHead } from '../ui';
 import { useStore } from '../store';
+import { setupText, planSetupLoad } from '../setupFile';
 import { planFormatsRestore, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
 import { categoryAsksReminder, toggleReminderCategory, SNOOZES } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
@@ -37,7 +38,8 @@ export default function Config() {
     { key: 'formats', title: 'Report formats', body: () => <ReportFormats /> },
     { key: 'points', title: 'Report points', body: () => <ReportPoints lists={lists} /> },
     { key: 'gemini', title: 'Gemini key', body: () => <GeminiKey /> },
-    { sep: true, key: 'export', title: 'Export a backup', body: () => <ExportBackup /> },
+    { sep: true, key: 'setup', title: 'Setup file', body: () => <SetupFile /> },
+    { key: 'export', title: 'Export a backup', body: () => <ExportBackup /> },
     { key: 'import', title: 'Import', body: () => <ImportBackup /> },
   ];
   const open = topics.find((x) => x.key === topic) || topics[1];
@@ -67,6 +69,44 @@ export default function Config() {
 }
 
 /** Config > Export a backup: every task (done and binned too) with the lists, links, templates and report formats, as one JSON file the Import below reads back. */
+/** Config > Setup file: take your lists, report formats, report points and templates (no tasks) from this account to another one. */
+function SetupFile() {
+  const { lists, savedFormats, templates, saveLists, saveReportFormats, saveTemplates, notify } = useStore();
+  const download = () => {
+    const a = document.createElement('a');
+    const url = URL.createObjectURL(new Blob([setupText({ lists, savedFormats, templates })], { type: 'application/json;charset=utf-8' }));
+    a.href = url; a.download = `working-dashboard-setup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    notify('Setup file saved');
+  };
+  const load = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const plan = planSetupLoad({ lists, savedFormats, templates }, await file.text());
+    if (plan.error) { alert(plan.error); return; }
+    const c = plan.counts;
+    const total = c.options + c.subCategories + c.points + c.formats + c.templates;
+    if (!total) { alert('Nothing to add: this account already has everything in that file.'); return; }
+    if (!confirm(`Add from ${file.name}?\n\n${c.options} list options, ${c.subCategories} Sub Categories, ${c.points} report points, ${c.formats} report formats, ${c.templates} templates.\n\nNothing you already have is changed or removed.`)) return;
+    saveLists(plan.lists);
+    if (c.formats) saveReportFormats(plan.formats);
+    if (c.templates) saveTemplates(plan.templates);
+    notify(`Added ${total} items from the setup file`);
+  };
+  return (
+    <section className="card plain">
+      <h2 className="h2">Setup file</h2>
+      <p className="muted">Your Categories, Priorities, Statuses, Pending with, Sub Categories, Report points, Report formats and templates, without any tasks. Download it here and load it into another account (a new one starts empty). Loading only adds what is missing; nothing the account already has is replaced or removed.</p>
+      <div className="fmt-actions">
+        <button type="button" className="btn primary" onClick={download}>Download my setup</button>
+        <label className="btn">Load a setup file<input type="file" accept="application/json,.json" hidden onChange={load} /></label>
+      </div>
+    </section>
+  );
+}
+
 function ExportBackup() {
   const { tasks, lists, calendar, links, templates, savedFormats } = useStore();
   const [msg, setMsg] = useState('');

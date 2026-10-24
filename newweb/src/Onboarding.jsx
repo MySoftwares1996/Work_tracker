@@ -13,7 +13,7 @@ export default function Onboarding({ go, onDone }) {
   return (
     <section className="card plain onboard" aria-label="Get started">
       <h2 className="h2">Welcome - set up your lists</h2>
-      <p className="muted">Your account starts empty. Add what you use; you can change it any time in Config.</p>
+      <p className="muted">Your account starts empty. Add what you use; you can change it any time in Config. Already set up another account? Config &gt; Setup file loads its lists, formats and templates here.</p>
       <ol className="onboard-steps">
         <li>
           <b>Category</b>

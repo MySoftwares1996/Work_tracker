@@ -173,3 +173,5 @@ A new account (no tasks and no `meta/lists` document) starts with no Category, n
 ## Website extras (first-run guide, backup reminder, saving badge)
 
 `newweb/src/Onboarding.jsx` (a new account's first-run guide, shown until Done or a first task; `?demo&empty&newaccount` previews it), `BackupReminder.jsx` (weekly, `wd-last-backup` in localStorage, set by `exportBackupFile`), a "Saving... / Saved" pill in the top bar (`saving` / `justSaved` in `store.jsx`) and Config > Alerts "Keep the phone quiet while this window is visible" (`quietWhileVisible` in `alerts.js`; the presence heartbeat then counts a visible window as in use).
+
+`newweb/src/setupFile.js`: Config > Setup file (download / load an account's lists, Sub Categories, Report points, report formats and templates; loading only adds what is missing). The phone skips an alert the website is in use for and logs it (`AlarmStore.logSkip`, Config > Alerts > "Skipped on this phone"; Kotlin, next APK build).

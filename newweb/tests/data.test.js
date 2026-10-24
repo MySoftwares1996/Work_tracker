@@ -207,6 +207,7 @@ test('a point on the dial becomes an hour or a minute', () => {
 import { readFileSync } from 'node:fs';
 import { formatsText } from '../src/exportBackup.js';
 import { snoozeFor } from '../src/alerts.js';
+import { setupText, planSetupLoad } from '../src/setupFile.js';
 import { formatsBackupText, planFormatsRestore } from '../src/reportFormats.js';
 import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.js';
 const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
@@ -769,4 +770,22 @@ test('Snooze starts at the length set for the task\'s priority', () => {
   assert.equal(snoozeFor('low', cfg), 120);
   assert.equal(snoozeFor('', cfg), 30);
   assert.equal(snoozeFor('High', { snoozeHigh: 0 }), 30);
+});
+
+test('Setup file: loads into a new account what is missing and never replaces what exists', () => {
+  const from = { lists: { categories: ['Payments', 'Audit'], priorities: ['High'], statuses: ['Pending'], pendingWith: ['Accounts'], subCategories: [{ id: 's1', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Invoice No' }] }], darPaymentIntro: [{ category: 'Payments', text: 'Checked the statement.' }, { category: '', text: 'old' }] },
+    savedFormats: [{ id: 'f1', category: 'Payments', subCategory: 'Invoice Payment', template: 'Paid {Invoice No}.' }], templates: [{ id: 't1', name: 'Month end', fields: { title: 'Close books' } }] };
+  const file = setupText(from, new Date('2026-10-25T10:00:00Z'));
+  const fresh = planSetupLoad({ lists: { categories: [], priorities: ['High', 'Medium', 'Low'], statuses: ['Pending'], pendingWith: [] }, savedFormats: [], templates: [] }, file, 1000);
+  assert.deepEqual(fresh.lists.categories, ['Payments', 'Audit']);
+  assert.deepEqual(fresh.lists.pendingWith, ['Accounts']);
+  assert.equal(fresh.lists.subCategories.length, 1);
+  assert.deepEqual(fresh.lists.darPaymentIntro, [{ category: 'Payments', text: 'Checked the statement.' }]);
+  assert.equal(fresh.formats.filter((f) => f.template).length, 1);
+  assert.equal(fresh.templates.length, 1);
+  const again = planSetupLoad({ lists: fresh.lists, savedFormats: fresh.formats, templates: fresh.templates }, file, 2000);
+  assert.deepEqual(again.counts, { options: 0, subCategories: 0, points: 0, formats: 0, templates: 0 });
+  const mine = planSetupLoad({ lists: { ...fresh.lists }, savedFormats: [{ id: 'm', category: 'Payments', subCategory: 'Invoice Payment', template: 'My own wording.' }], templates: [] }, file, 3000);
+  assert.equal(mine.formats.find((f) => f.subCategory === 'Invoice Payment').template, 'My own wording.', 'an existing format is not replaced');
+  assert.ok(planSetupLoad({}, 'nope').error);
 });

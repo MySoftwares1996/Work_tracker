@@ -30,7 +30,7 @@ const failures = [];
 const ok = (name, cond, extra = '') => { console.log(`${cond ? '  ok  ' : '  FAIL'} ${name}${cond ? '' : ` ${extra}`}`); if (!cond) failures.push(name); };
 
 const TABS = ['Dashboard', 'Register', 'Completed', 'Holidays', 'Bin', 'Report', 'Links', 'Config'];
-const TOPICS = ['Alerts', 'Appearance', 'Entry form options', 'Sub categories', 'Next reminder', 'Report formats', 'Report points', 'Gemini key', 'Export a backup', 'Import'];
+const TOPICS = ['Alerts', 'Appearance', 'Entry form options', 'Sub categories', 'Next reminder', 'Report formats', 'Report points', 'Gemini key', 'Setup file', 'Export a backup', 'Import'];
 
 const browser = await chromium.launch({ executablePath: exe });
 for (const [label, width, height] of [['desktop', 1360, 900], ['phone width', 390, 800]]) {
