@@ -153,7 +153,7 @@ export function EntryRow({ entry, mode = 'open', onPress, onToggleDar, onAct, ri
   ) : null;
   const row = (
     <Pressable onPress={onPress} style={({ pressed }) => ({ marginBottom: 10, transform: [{ scale: pressed ? 0.985 : 1 }], ...(GRID ? { flex: 1 } : null) })}>
-      <View style={{ backgroundColor: t.surface, borderRadius: 16, paddingVertical: 14, paddingHorizontal: GRID ? 10 : 14, borderWidth: 0.5, borderColor: overdue ? t.danger + '66' : t.border, ...t.shadow, ...(GRID ? { flex: 1 } : null) }}>
+      <View style={{ backgroundColor: t.cardFill, borderRadius: 16, paddingVertical: 14, paddingHorizontal: GRID ? 10 : 14, borderWidth: 0.5, borderColor: overdue ? t.danger + '66' : t.border, ...t.shadow, ...(GRID ? { flex: 1 } : null) }}>
         <Row style={{ alignItems: GRID ? 'stretch' : 'flex-start', gap: GRID ? 8 : 10, ...(GRID ? { flex: 1 } : null) }}>
           <View style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, backgroundColor: inDone ? t.ok : pc, opacity: inDone ? 0.7 : 1 }} />
           <View style={{ flex: 1 }}>
@@ -420,7 +420,7 @@ export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
     </Pressable>
   );
   return (
-    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 14, paddingHorizontal: 16, gap: 10 }}>
+    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.cardFill, borderWidth: 1, borderColor: t.cardEdge, paddingVertical: 14, paddingHorizontal: 16, gap: 10 }}>
       <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 7 }}>
         <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
         <Row style={{ alignItems: 'center', gap: 7 }}>
@@ -450,7 +450,7 @@ export function PhoneDoneRow({ entry, onPress, onReopen }) {
   const time = ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
   const facts = [time || 'Done', entry.dar !== false ? 'In report' : 'Done only', entry.category].filter(Boolean).join(' · ');
   return (
-    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 13, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.cardFill, borderWidth: 1, borderColor: t.cardEdge, paddingVertical: 13, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="check" size={18} color={t.primary} stroke={2.4} />
       </View>

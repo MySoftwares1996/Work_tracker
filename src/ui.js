@@ -216,6 +216,18 @@ export function useAboveBottomBar() {
   return wide ? 24 : Math.max(insets.bottom, 12) + 4 + 66;
 }
 
+/** Glass: soft blue, lilac and pink glows behind the page (no native gradient library needed), so the frosted cards have something to frost. */
+function GlassBackdrop() {
+  const t = useTheme();
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <View style={{ position: 'absolute', top: -140, left: -120, width: 420, height: 420, borderRadius: 210, backgroundColor: t.glow[0], opacity: 0.55 }} />
+      <View style={{ position: 'absolute', top: 160, right: -160, width: 420, height: 420, borderRadius: 210, backgroundColor: t.glow[1], opacity: 0.5 }} />
+      <View style={{ position: 'absolute', bottom: -160, left: -60, width: 460, height: 460, borderRadius: 230, backgroundColor: t.glow[2], opacity: 0.5 }} />
+    </View>
+  );
+}
+
 export function Screen({ children, scroll = true, padded = true, headerless = false, bottomBar = false, onRefresh }) {
   const t = useTheme();
   // Pull down to refresh (phone): the spinner shows while onRefresh runs, and at least a moment so it reads as done.
@@ -227,6 +239,7 @@ export function Screen({ children, scroll = true, padded = true, headerless = fa
   const sides = padded ? (wide ? 28 : 20) : 0;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }} edges={edges}>
+      {t.glass && <GlassBackdrop />}
       <Body
         style={{ flex: 1 }}
         contentContainerStyle={scroll ? [
@@ -264,10 +277,10 @@ export function Card({ children, style, onPress, tone }) {
   const fixedStyle = flat.backgroundColor ? [style, { backgroundColor: opaque(flat.backgroundColor, t.surface) }] : style;
   style = fixedStyle;
   const base = {
-    backgroundColor: opaque(tone || t.surface, t.surface),
+    backgroundColor: tone ? opaque(tone, t.surface) : t.cardFill,      // Glass: frosted, translucent over its backdrop
     borderRadius: t.radius,
     borderWidth: 1,
-    borderColor: t.border,
+    borderColor: t.cardEdge,
     padding: 16,
     ...t.shadow,
   };

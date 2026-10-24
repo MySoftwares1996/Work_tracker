@@ -19,6 +19,8 @@ export async function run({ ck, section }) {
   ck('the ones that map sensibly keep their colour family', themeKeyOf('ocean') === 'harbour' && themeKeyOf('violet') === 'plum' && themeKeyOf('lilac') === 'plum' && themeKeyOf('sunset') === 'ember' && themeKeyOf('night') === 'ink');
   ck('a current key stays itself', keys.every((k) => themeKeyOf(k) === k));
 
+  ck('Glass is frosted (translucent cards over a backdrop); every other theme and Glass in the dark keep plain cards', THEMES.glass.glass === true && /^rgba/.test(THEMES.glass.cardFill) && keys.filter((k) => k !== 'glass').every((k) => !THEMES[k].glass && THEMES[k].cardFill === THEMES[k].surface) && !darkTheme('glass').glass);
+
   section('Ledger: text passes 4.5:1 in every theme, light and dark');
   const bad = [];
   const need = (name, a, b, min = 4.5) => { if (ratio(a, b) < min) bad.push(`${name} ${a} on ${b} = ${ratio(a, b).toFixed(2)}`); };

@@ -75,8 +75,13 @@ export const build = (key, dark) => {
     btnRadius: 14,
     fieldRadius: 14,
     sheetRadius: 24,
-    // Flat: a 1px line does the separating. Only the + button has a soft shadow (fabShadow).
-    shadow: {},
+    // Cards read cardFill / cardEdge (Glass: frosted white over its tinted backdrop, see Screen in ui.js; every other theme: the plain surface and line).
+    glass: !!(key === 'glass' && !dark),
+    glow: ['#9CCBFF', '#C5B8FF', '#F3C9E4'],      // Glass's backdrop glows: blue, lilac, pink
+    cardFill: key === 'glass' && !dark ? 'rgba(255,255,255,0.66)' : g.surface,
+    cardEdge: key === 'glass' && !dark ? 'rgba(255,255,255,0.9)' : g.border,
+    // Flat: a 1px line does the separating. Only the + button has a soft shadow (fabShadow); Glass cards have a soft tinted one.
+    shadow: key === 'glass' && !dark ? { shadowColor: c.primary, shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 } : {},
     fabShadow: { shadowColor: c.primary, shadowOpacity: dark ? 0.3 : 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
     // The priority dots: High red, Medium amber, Low green.
     prioDot: { High: s.danger, Medium: s.amber, Low: s.ok },
