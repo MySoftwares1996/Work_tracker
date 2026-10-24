@@ -129,7 +129,10 @@ test('lists, calendar and links are read from their documents', () => {
   assert.deepEqual(readLists({ categories: ['A'], priorities: ['P'], statuses: ['S'], pendingWith: ['X'] }), { categories: ['A'], priorities: ['P'], statuses: ['S'], pendingWith: ['X'] });
   assert.deepEqual(readLists(JSON.stringify({ categories: ['A'], assignees: ['Z'] })).pendingWith, ['Z']);
   assert.deepEqual(readLists([['A'], ['P'], ['S'], ['X']]).categories, ['A']);
-  assert.ok(readLists(null).categories.length > 0);
+  assert.deepEqual(readLists(null).categories, [], 'a new account starts with no Category');
+  assert.deepEqual(readLists(null).pendingWith, [], 'and nobody under Pending with');
+  assert.ok(readLists(null).priorities.length > 0 && readLists(null).statuses.length > 0, 'Priority and Status keep their usual choices');
+  assert.ok(readLists({ priorities: ['P'] }).categories.length > 0, 'an existing account whose lists document has no categories keeps the older starting ones');
   assert.deepEqual(readCalendar({ holidays: ['2026-01-26', { date: '2026-08-15', name: 'Independence Day' }], leaveDays: [] }).holidays, [{ date: '2026-01-26', name: '' }, { date: '2026-08-15', name: 'Independence Day' }]);
   assert.equal(readLinks({ links: [{ id: '1', title: 'G', url: 'https://g.co' }, { id: '2', url: 'javascript:alert(1)' }] }).length, 1);
 });

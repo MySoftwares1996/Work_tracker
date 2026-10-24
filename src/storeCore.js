@@ -166,7 +166,7 @@ export const DEFAULT_DB = {
     categories: [],
     priorities: ['High', 'Medium', 'Low'],
     statuses: ['Not Yet Started', 'In-Progress', 'Pending'],
-    assignees: ['Self'],
+    assignees: [],      // a new account starts with nobody under Pending with; existing accounts keep their own list
     holidays: [],
     // web.app's Links tab: { id, title, url, folder? } - follows the account (meta/tools).
     links: [],

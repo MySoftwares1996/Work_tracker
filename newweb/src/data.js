@@ -14,12 +14,16 @@ export const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDa
 export const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, d.getHours(), d.getMinutes());
 
 export const DONE_STATUS = /^(completed|complete|done|closed|resolved|finished)$/i;
+// A new account starts with no Category and nobody under Pending with: the person adds their own (Config > Entry form options). Priorities and
+// Statuses keep their usual choices. Accounts that already exist keep the older starting lists (LEGACY_DEFAULT_LISTS) wherever their own list
+// does not say otherwise, so nothing they see changes.
 export const DEFAULT_LISTS = {
-  categories: ['Payments', 'Bank', 'Audit', 'Meeting', 'Follow-up', 'Other'],
+  categories: [],
   priorities: ['High', 'Medium', 'Low'],
   statuses: ['Not Yet Started', 'Pending', 'In Progress', 'Waiting', 'Completed'],
   pendingWith: [],
 };
+export const LEGACY_DEFAULT_LISTS = { ...DEFAULT_LISTS, categories: ['Payments', 'Bank', 'Audit', 'Meeting', 'Follow-up', 'Other'] };
 export const RECURRENCES = ["Doesn't repeat", 'Hourly', 'Custom', 'Daily', 'Weekdays', 'Weekly', 'Monthly'];
 export const LIST_KEYS = ['categories', 'priorities', 'statuses', 'pendingWith'];
 
@@ -260,7 +264,8 @@ export function nextOccurrence(t, existing = [], now = new Date()) {
 export function readLists(v) {
   let obj = v;
   if (typeof v === 'string') { try { obj = JSON.parse(v); } catch { obj = null; } }
-  const out = { ...DEFAULT_LISTS };
+  // A lists document means an existing account: it keeps the older starting lists for anything its document leaves out.
+  const out = { ...(obj && typeof obj === 'object' ? LEGACY_DEFAULT_LISTS : DEFAULT_LISTS) };
   if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
     const named = { ...obj, pendingWith: Array.isArray(obj.pendingWith) ? obj.pendingWith : obj.assignees };
     Object.keys(DEFAULT_LISTS).forEach((k) => { if (Array.isArray(named[k])) out[k] = named[k].map(String); });

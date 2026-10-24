@@ -3,7 +3,7 @@ import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signO
 import { collection, doc, getDocsFromServer, getFirestore, initializeFirestore, onSnapshot, persistentLocalCache, persistentMultipleTabManager, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from './firebase';
 import { readReportFormats, planFormatSetup, effectiveFormats } from './reportFormats';
-import { DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
+import { DEFAULT_LISTS, LEGACY_DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
 import { demoTasks } from './demo';
 
 const Ctx = createContext(null);
@@ -85,7 +85,9 @@ export function LiveStore({ children }) {
   const [lastSyncAt, setLastSyncAt] = useState(0);       // when data last arrived from the server (shown on the sync dot)
   const tasksRef = useRef([]);
 
+  const listsDocSeen = useRef(false);        // the account has a lists document (meta/lists): an existing account
   useEffect(() => onAuthStateChanged(getAuth(firebaseApp()), (u) => {
+    listsDocSeen.current = false;
     setUser(u); setSynced(false); setHasLoaded(false);
     if (!u) { setTaskMap({}); setLists(DEFAULT_LISTS); rawLists.current = null; setCalendar({ holidays: [], leaveDays: [] }); setLinks([]); setTemplates([]); setFormats([]); setSetupDone(false); }
   }), []);
@@ -94,7 +96,7 @@ export function LiveStore({ children }) {
     const db = dbOf();
     const onErr = (e) => setError(friendlyError(e));
     const applyMeta = (id, d) => {
-      if (id === 'lists') { rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
+      if (id === 'lists') { listsDocSeen.current = true; rawLists.current = d.lists ?? null; setLists(readLists(d.lists)); }
       if (id === 'calendar') setCalendar(readCalendar(d));
       if (id === 'tools') { setLinks(readLinks(d)); setTemplates(readTemplates(d)); setFormats(readReportFormats(d)); setSetupDone(!!d.formatSetupAt); }
     };
@@ -201,10 +203,13 @@ export function LiveStore({ children }) {
   // changed). The flag (meta/tools.formatSetupAt) stops it running again, so a category deleted later stays deleted; Config > Report formats
   // has the button for doing it again.
   const setupRan = useRef(false);
+  // An account with no tasks and no lists document is new: it starts with no Category, Sub Category or Pending with, so nothing is
+  // created for it (the flag is set so it does not run later; Config > Report formats has the button). An existing account keeps its lists.
+  const existingAccount = listsDocSeen.current || Object.keys(taskMap).length > 0;
   useEffect(() => {
-    if (!user || !metaReady || setupDone || setupRan.current) return;
+    if (!user || !hasLoaded || !metaReady || setupDone || setupRan.current) return;
     setupRan.current = true;
-    const plan = planFormatSetup(lists, allFormats);
+    const plan = existingAccount ? planFormatSetup(lists, allFormats) : { categories: [], subCategories: [] };
     if (plan.categories.length || plan.subCategories.length) {
       persistLists(plan.lists);
       setNote(`Added ${plan.categories.length} categor${plan.categories.length === 1 ? 'y' : 'ies'} and ${plan.subCategories.length} sub categor${plan.subCategories.length === 1 ? 'y' : 'ies'} from your report formats`);
@@ -212,8 +217,12 @@ export function LiveStore({ children }) {
     }
     setDoc(doc(dbOf(), 'users', user.uid, 'meta', 'tools'), { formatSetupAt: Date.now() }, { merge: true }).catch(() => {});
     setSetupDone(true);
-  }, [user, metaReady, setupDone, lists, formats, persistLists]);
+  }, [user, hasLoaded, metaReady, setupDone, lists, formats, persistLists]);
   useEffect(() => { setupRan.current = false; setMetaReady(false); }, [user]);
+  // An existing account that never saved its lists (no meta/lists document) but has tasks keeps the older starting Categories.
+  useEffect(() => {
+    if (user && hasLoaded && metaReady && !listsDocSeen.current && Object.keys(taskMap).length > 0) setLists((cur) => (cur.categories.length ? cur : { ...cur, categories: LEGACY_DEFAULT_LISTS.categories }));
+  }, [user, hasLoaded, metaReady, taskMap]);
 
   const tasks = useMemo(() => Object.values(taskMap).filter((t) => !t.purged), [taskMap]);
   tasksRef.current = tasks;
@@ -275,7 +284,7 @@ export function LiveStore({ children }) {
 export function DemoStore({ children }) {
   const [tasks, setTasks] = useState(() => (location.search.includes('empty') ? [] : demoTasks));      // ?demo&empty previews a user with no tasks
   const [lists, setLists] = useState({
-    ...DEFAULT_LISTS,
+    ...LEGACY_DEFAULT_LISTS,
     subCategories: [
       { id: 'p1', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }, { label: 'Invoice No' }] },
       { id: 'p2', name: 'Urgent Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] },

@@ -165,3 +165,7 @@ The website's New entry form keeps what was typed in `localStorage` (`newweb/src
 The daily report has no built-in lines. "Report points" are written per Category on the website (Config > Report points; stored as `lists.darPaymentIntro` in `meta/lists`, items `{ category, text }`; an older plain text has no Category and is not used; the phone keeps it as `wd.paymentIntro` and uses it read-only). A section (Other work, Payments, Followed up) shows the points of the Categories of its tasks once, above its lines (`reportPointsOf` / `applyReportPoints` in `src/workingDashboardReport.js`, recomputed in `applyFormats` / `applyMoves` when rows move). Nothing is chosen per task.
 
 One report line wherever a task is placed: a task whose Sub Category has a Report format is written from it in Other work, Payments and Followed up alike (`applyMoves` in `src/reportExtras.js`; moving a row keeps its line).
+
+## Starting lists for a new account
+
+A new account (no tasks and no `meta/lists` document) starts with no Category, no Sub Category and nobody under Pending with; Priority and Status keep their usual choices (`DEFAULT_LISTS` in `newweb/src/data.js`; the phone's `assignees` starts empty). An existing account keeps what it has: a lists document missing a key falls back to `LEGACY_DEFAULT_LISTS`, an account with tasks but no lists document gets the older Categories, and the one-time Categories / Sub Categories created from the report formats (`store.jsx`) run only for an existing account. Demo data (`?demo`) uses the older lists.

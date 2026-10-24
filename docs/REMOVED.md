@@ -15,6 +15,8 @@ drops something must list it here and in the reply. Restoring any line below is 
 
 - The phone's "quiet notification" for task alerts while the web app is in use (it was only in unreleased Kotlin): the phone now shows nothing while the desktop is in use, as the owner asked (2026-10-24).
 
+- Starting lists for NEW accounts: no default Categories (was Payments, Bank, Audit, Meeting, Follow-up, Other), nobody under Pending with (the phone's "Self"), and no automatic Categories / Sub Categories from the report formats. Existing accounts keep everything they have (2026-10-24, owner asked).
+
 ## Ledger redesign (2026-10-18) - things that went with it
 | What | Where | Note |
 |---|---|---|
