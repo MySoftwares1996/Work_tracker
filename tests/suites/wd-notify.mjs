@@ -144,4 +144,9 @@ export async function runExtra({ ck, section }) {
   ck('the live copy is completed, storage is left to the app', liveWd.entries[0].done && !(await stored()).some((e) => e.id === 'c'));
   setLiveWdUpdater(null);
   await cancelAllScheduledNotificationsAsync();
+  section('Skipped alerts are listed');
+  const fsr = (await import('fs')).readFileSync;
+  const recv = fsr('modules/native-tools/android/src/main/java/expo/modules/nativetools/AlarmReceiver.kt', 'utf8');
+  ck('the phone logs an alert it skips (website in use, or already answered there)', recv.includes('AlarmStore.logSkip(context, title, "The website was in use")') && recv.includes('AlarmStore.logSkip(context, title, "Already answered on the website")'));
+  ck('Config > Alerts shows the skipped list with Clear', fsr('src/screens/WdAlertSettings.js', 'utf8').includes('Skipped on this phone') && fsr('modules/native-tools/index.js', 'utf8').includes('skippedAlerts'));
 }

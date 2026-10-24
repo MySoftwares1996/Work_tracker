@@ -124,6 +124,16 @@ export async function setWebActiveUntil(ms = 0) {
   try { return await NativeTools.setWebActiveUntil(Math.max(0, Number(ms) || 0)); } catch { return false; }
 }
 
+/** The alerts this phone skipped, newest first: [{ at, title, why }] (the website was in use / already answered there). */
+export async function skippedAlerts() {
+  if (!NativeTools?.skippedAlerts || Platform.OS !== 'android') return [];
+  try { const l = await NativeTools.skippedAlerts(); return Array.isArray(l) ? l : []; } catch { return []; }
+}
+export async function clearSkippedAlerts() {
+  if (!NativeTools?.clearSkippedAlerts || Platform.OS !== 'android') return false;
+  try { return await NativeTools.clearSkippedAlerts(); } catch { return false; }
+}
+
 /**
  * Config's "Ring on the phone only when the web app is not in use". On: when an alert fires, the alarm reads the
  * web app's "in use" note from Firestore itself and stays silent while it is in use (WebPresence.kt) - even with

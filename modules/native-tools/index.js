@@ -61,6 +61,9 @@ export default Native
       listFullScreenAlarms: async () => (Native.listFullScreenAlarms ? parse(await Native.listFullScreenAlarms(), []) : []),
       // An older build without it simply keeps ringing (the safe side).
       setWebActiveUntil: (ms) => (Native.setWebActiveUntil ? Native.setWebActiveUntil(Math.max(0, Number(ms) || 0)) : Promise.resolve(false)),
+      // The alerts the phone skipped (the website was in use / already answered there): [{ at, title, why }]. An older build has none.
+      skippedAlerts: async () => (Native.skippedAlerts ? parse(await Native.skippedAlerts(), []) : []),
+      clearSkippedAlerts: () => (Native.clearSkippedAlerts ? Native.clearSkippedAlerts() : Promise.resolve(false)),
       // Config's "Ring on the phone only when the web app is not in use": the alarm checks Firestore when it fires.
       setWebPresenceCheck: (on) => (Native.setWebPresenceCheck ? Native.setWebPresenceCheck(!!on) : Promise.resolve(false)),
     }

@@ -9,7 +9,7 @@ import { readAlertLog, clearAlertLog } from '../alertLog';
 import { useRealtimeStatus } from '../realtimeStatus';
 import {
   trackerAvailable, isExactAlarmAllowed, requestExactAlarmPermission, isBatteryOptimised, requestBatteryExemption,
-  isFullScreenIntentAllowed, requestFullScreenIntentPermission, setAlarmStyle, setAlarmDelivery, setAlarmBanner, canDrawOverlays, requestOverlayPermission, scheduleFullScreenAlarm,
+  isFullScreenIntentAllowed, requestFullScreenIntentPermission, setAlarmStyle, setAlarmDelivery, setAlarmBanner, canDrawOverlays, requestOverlayPermission, scheduleFullScreenAlarm, skippedAlerts, clearSkippedAlerts,
 } from '../tracker';
 import { WEB_ALARM_STYLES, previewWebAlarm } from '../WebAlarm';
 import { warnQuiet } from '../quietCatch';
@@ -49,7 +49,8 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
   const t = useTheme();
   const nav = useNavigation();
   const [log, setLog] = useState([]);
-  useEffect(() => { readAlertLog().then(setLog).catch(warnQuiet('WdAlertSettings')); }, []);
+  const [skipped, setSkipped] = useState([]);      // alerts this phone did not show because the website was in use / had answered them
+  useEffect(() => { readAlertLog().then(setLog).catch(warnQuiet('WdAlertSettings')); skippedAlerts().then(setSkipped).catch(warnQuiet('WdAlertSettings')); }, []);
   const a = { ...DEFAULT_ALERTS, ...(alerts || {}) };
   const set = (patch) => onChange({ ...a, ...patch });
   const leads = new Set((a.dueLeadMin || []).map(Number));
@@ -255,6 +256,19 @@ export default function WdAlertSettings({ alerts, onChange, priorities = [] }) {
           </Row>
           {!log.length ? <Small style={{ marginTop: 4 }}>Nothing went wrong with an alert.</Small> : log.slice(0, 12).map((x, i) => (
             <Small key={i} style={{ marginTop: 4 }}>{new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {x.text}</Small>
+          ))}
+        </Card>
+      )}
+
+      {Platform.OS !== 'web' && (
+        <Card style={{ marginBottom: 12 }}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ color: t.text, fontWeight: '700' }}>Skipped on this phone</Text>
+            <Pressable onPress={async () => { await clearSkippedAlerts(); setSkipped([]); }} hitSlop={8}><Small style={{ color: t.primary, fontWeight: '800' }}>Clear</Small></Pressable>
+          </Row>
+          <Small style={{ marginTop: 2 }}>Alerts the phone stayed silent for, because the website was in use or had already answered them.</Small>
+          {!skipped.length ? <Small style={{ marginTop: 4 }}>Nothing skipped.</Small> : skipped.slice(0, 12).map((x, i) => (
+            <Small key={i} style={{ marginTop: 4 }}>{new Date(x.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {x.title} - {x.why}</Small>
           ))}
         </Card>
       )}

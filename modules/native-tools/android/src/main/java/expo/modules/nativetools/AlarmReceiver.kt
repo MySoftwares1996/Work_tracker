@@ -34,7 +34,7 @@ class AlarmReceiver : BroadcastReceiver() {
     // minutes): the web app alerts at the desk, so the phone shows nothing - no alarm, no notification (and nothing at
     // all for a task already answered on the web app). Outside that window (or when it cannot tell) it rings full screen.
     val isAlert = taskId.startsWith("wd:") || taskId.startsWith("nudge:")
-    if (isAlert && AlarmStore.webInUse(context)) return
+    if (isAlert && AlarmStore.webInUse(context)) { AlarmStore.logSkip(context, title, "The website was in use"); return }
     if (isAlert && WebPresence.enabled(context)) {
       // The app may not have run for hours, so what it last passed on is stale: ask Firestore now. Off the main
       // thread, a few seconds at most (goAsync keeps the receiver alive); unknown = ring.
@@ -42,8 +42,8 @@ class AlarmReceiver : BroadcastReceiver() {
       Thread {
         try {
           // Silent while the web app is in use, and for a task already answered on the web app (booked here before).
-          if (WebPresence.taskHandled(context, taskId)) { /* answered on the web app: nothing to show */ }
-          else if (WebPresence.inUseNow(context)) { /* the web app is in use: it alerts at the desk, the phone shows nothing */ }
+          if (WebPresence.taskHandled(context, taskId)) AlarmStore.logSkip(context, title, "Already answered on the website")      // nothing to show
+          else if (WebPresence.inUseNow(context)) AlarmStore.logSkip(context, title, "The website was in use")      // it alerts at the desk, the phone shows nothing
           else ring(context, taskId, title, body)
         } catch (_: Throwable) {
           ring(context, taskId, title, body)
