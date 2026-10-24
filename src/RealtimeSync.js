@@ -191,7 +191,8 @@ export default function RealtimeSync() {
       const phoneNewer = remoteTs > 0 && Number(w.listsUpdatedAt) > remoteTs;
       if (!phoneNewer) ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
       // The website's Report points ({ category, text }: the lines a Category adds to the report); an emptied list empties the phone's too.
-      if (Array.isArray(pl.darPaymentIntro)) next = { ...next, paymentIntro: normalizeReportPoints(pl.darPaymentIntro) };
+      // Not while the phone's own edit is still waiting to be sent (paymentIntroDirty).
+      if (Array.isArray(pl.darPaymentIntro) && !w.paymentIntroDirty) next = { ...next, paymentIntro: normalizeReportPoints(pl.darPaymentIntro) };
       if (cal) next = { ...next, holidays: mergeHolidays(cal.holidays, normalizeHolidays(w.holidays)).holidays, leaveDays: normalizeLeaveDays([...cal.leaveDays, ...normalizeLeaveDays(w.leaveDays)]) };
       return next;
     });
@@ -282,13 +283,18 @@ export default function RealtimeSync() {
       entries: w.entries || [],
       lists: [w.categories, w.priorities, w.statuses, w.assignees],
       // The payment lists the phone edits (Report formats > Add to my lists, Next reminder): only those it has, so it never clears the web app's.
-      extraLists: Object.fromEntries(['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].filter((k) => Array.isArray(w[k])).map((k) => [k, w[k]])),
+      extraLists: {
+        ...Object.fromEntries(['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].filter((k) => Array.isArray(w[k])).map((k) => [k, w[k]])),
+        // The Report points, only when this phone changed them (so a stale copy never overwrites the website's).
+        ...(w.paymentIntroDirty && Array.isArray(w.paymentIntro) ? { darPaymentIntro: w.paymentIntro } : null),
+      },
       listsUpdatedAt: w.listsUpdatedAt || 0,
       deletedIds: w.deletedIds || [],
     }).then((res) => {
       clearTimeout(retryTimer.current);
       // lastPushAt only when something really reached the server (a no-op or an offline timeout is not a push).
       setRealtimeStatus({ pushError: '', ...(res && res.wrote ? { lastPushAt: Date.now() } : null) });
+      if (res && res.wrote && wdRef.current.paymentIntroDirty) updateWd((x) => ({ ...x, paymentIntroDirty: false }));
       if (res && res.deleted && res.deleted.length) updateWd((x) => ({ ...x, deletedIds: (x.deletedIds || []).filter((id) => !res.deleted.includes(id)) }));
     }).catch((e) => {
       setRealtimeStatus({ pushError: e?.message || 'Could not reach the web app - will try again.' });

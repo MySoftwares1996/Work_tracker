@@ -43,7 +43,7 @@ import { PaymentFields, NarrationForm } from './WdPaymentFields';
 import { PrioritySegment, DetailChip } from './WdFormBits';
 import WdAlertSettings from './WdAlertSettings';
 import WdReportFormats from './WdReportFormats';
-import { ListsEditor, SubCategories, ReminderCategories } from './WdLists';
+import { ListsEditor, SubCategories, ReminderCategories, ReportPoints } from './WdLists';
 import WdGeminiKey from './WdGeminiKey';
 import WdCalendar from './WdCalendar';
 import WdBinTab from './WdBinTab';
@@ -1991,6 +1991,7 @@ export default function WorkingDashboard() {
             { key: 'lists', icon: 'list', title: 'Entry form options', body: <ListsEditor wd={wd} save={saveLists} /> },
             { key: 'subs', icon: 'folder', title: 'Sub categories', body: <SubCategories wd={wd} lists={plists} save={saveLists} /> },
             { key: 'reminder', icon: 'clock', title: 'Next reminder', body: <ReminderCategories wd={wd} save={saveLists} /> },
+            { key: 'points', icon: 'checklist', title: 'Report points', body: <ReportPoints wd={wd} save={saveLists} /> },
             { key: 'formats', icon: 'report', title: 'Report formats', body: <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={saveLists} /> },
             { key: 'gemini', icon: 'sparkle', title: 'Gemini (AI) key', body: <WdGeminiKey /> },
           ];

@@ -116,4 +116,9 @@ export async function run({ ck, section }) {
   ck('...duty and import lines are put back word for word', merged.text.includes('through ICEGATE wallet recharge') && merged.text.includes('Initiated an outward remittance transaction'));
   ck('...a section the AI left out keeps the standard wording', merged.text.includes('* Team standup') && merged.kept >= 1);
   ck('a reply with no section headings is not used', mergeAiReport(m, '* just bullets', []) === null);
+  const pm = { date: '2026-10-16', data: { bullets: 2 }, sections: [{ key: 'fol', title: 'Followed up / in progress', intro: ['Always check the bank portal first.'], rows: [{ line: 'Followed up with the bank.', entry: {} }] }] };
+  const pr = mergeAiReport(pm, 'Followed up / in progress\n* Always check the bank portal first (reworded).\n* Rang the bank about the LC.', []);
+  ck('report points stay exactly as written when the AI rewrites a section', pr && pr.ai === 1 && pr.text.includes('* Always check the bank portal first.') && pr.text.includes('Rang the bank about the LC.'));
+  const pr2 = mergeAiReport(pm, 'Followed up / in progress\n* Always check the bank portal first.\n* Rang the bank about the LC.', []);
+  ck('...and the AI copying a point is not repeated', (pr2.text.match(/Always check the bank portal first\./g) || []).length === 1);
 }

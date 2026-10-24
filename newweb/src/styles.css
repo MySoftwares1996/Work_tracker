@@ -663,3 +663,8 @@ tr.is-selected td { background: var(--primary-tint); }
 .onboard-steps form { display: flex; gap: 8px; }
 .onboard-steps input { flex: 1; min-width: 0; }
 .onboard-foot { display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
+.report-cats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.report-cats .chip b { margin-left: 4px; }
+.snooze-row { align-items: flex-start; }
+.snooze-pick { display: flex; gap: 12px; flex-wrap: wrap; }
+.snooze-pick label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 800; color: var(--muted); }

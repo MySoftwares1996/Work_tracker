@@ -196,7 +196,8 @@ export const DEFAULT_DB = {
       walk: { enabled: false, start: '11:00', end: '19:30', everyMin: 90 },
       water: { enabled: false, start: '10:00', end: '19:30', everyMin: 60 },
     },
-    paymentIntro: null, // null = use workingDashboardReport.js's DEFAULT_PAYMENT_INTRO
+    paymentIntro: null, // the Report points ({ category, text }), from the website's lists; null until received
+    paymentIntroDirty: false, // edited on this phone and not yet sent
     // The web app's payment lists, received with Realtime Sync (null until then - see
     // workingDashboardPayments.paymentLists for the defaults): Sub Categories with their rule fields, the
     // categories that need one when completed, and the Tally narration types.

@@ -1,13 +1,20 @@
 /** Alert settings and the list of alerts already shown, kept on this device (localStorage, never required). */
 const SETTINGS = 'wd-alert-settings';
 const HANDLED = 'wd-alerts-handled';
-const DEFAULTS = { popup: true, sound: true, notify: false, quietWhileVisible: false };
+const DEFAULTS = { popup: true, sound: true, notify: false, quietWhileVisible: false, snoozeHigh: 15, snoozeMedium: 30, snoozeLow: 60 };
 
 export function loadAlertSettings() {
   try { return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(SETTINGS)) || {}) }; } catch { return { ...DEFAULTS }; }
 }
 export function saveAlertSettings(s) {
   try { localStorage.setItem(SETTINGS, JSON.stringify(s)); } catch { /* not remembered */ }
+}
+
+/** The Snooze length (minutes) an alert starts with for a task's priority: set in Config > Alerts (High 15, Medium 30, Low 60 unless changed). */
+export function snoozeFor(priority, settings = loadAlertSettings()) {
+  const k = /^high/i.test(priority || '') ? 'snoozeHigh' : /^low/i.test(priority || '') ? 'snoozeLow' : 'snoozeMedium';
+  const v = Number(settings[k]);
+  return v > 0 ? v : 30;
 }
 
 /** Keys of alerts already shown (and when), so reloading the page does not show them again. Older than two days are dropped. */

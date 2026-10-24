@@ -7,7 +7,7 @@ import { THEMES, TEXT_SIZES, applyTheme, applyScheme, applyTextSize, savedTheme,
 import { PageHead } from '../ui';
 import { useStore } from '../store';
 import { planFormatsRestore, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
-import { categoryAsksReminder, toggleReminderCategory } from '../data';
+import { categoryAsksReminder, toggleReminderCategory, SNOOZES } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
 
 /** Config: a side menu of topics, and the chosen topic's panels beside it. */
@@ -318,6 +318,11 @@ function AlertSettings() {
       <label className="row tg-row"><span>Pop up a due alert<small>A window with Done, DAR, Snooze, Move and Skip.</small></span><input type="checkbox" role="switch" className="tg" checked={s.popup} onChange={(e) => set({ popup: e.target.checked })} /></label>
       <label className="row tg-row"><span>Play a sound<small>Starts after your first click or key press on the page.</small></span><input type="checkbox" role="switch" className="tg" checked={s.sound} onChange={(e) => set({ sound: e.target.checked })} /></label>
       <label className="row tg-row"><span>Desktop notification when this tab is in the background<small>{perm === 'denied' ? 'Blocked in the browser settings.' : 'Shows even when this tab is in the background.'}</small></span><input type="checkbox" role="switch" className="tg" checked={s.notify && perm === 'granted'} disabled={perm === 'unsupported' || perm === 'denied'} onChange={(e) => (e.target.checked ? enableNotify() : set({ notify: false }))} /></label>
+      <div className="row snooze-row"><span>Snooze starts at<small>The length an alert's Snooze starts with, by the task's priority. You can still pick another on the alert.</small></span>
+        <span className="snooze-pick">{[['snoozeHigh', 'High'], ['snoozeMedium', 'Medium'], ['snoozeLow', 'Low']].map(([k, label]) => (
+          <label key={k}>{label}<select value={s[k]} onChange={(e) => set({ [k]: Number(e.target.value) })} aria-label={`Snooze for ${label} priority`}>{SNOOZES.map(([m, l]) => <option key={m} value={m}>{l}</option>)}</select></label>
+        ))}</span>
+      </div>
       <label className="row tg-row"><span>Keep the phone quiet while this window is visible<small>The phone already stays silent for 45 minutes after you last used this page. With this on, a window you can see counts as in use even without clicks or keys.</small></span><input type="checkbox" role="switch" className="tg" checked={!!s.quietWhileVisible} onChange={(e) => set({ quietWhileVisible: e.target.checked })} /></label>
       <div><button type="button" className="btn" onClick={() => window.dispatchEvent(new Event('wd-test-alert'))}>Show a test alert</button></div>
       {explain && <NotifyExplainer onDone={answered} />}

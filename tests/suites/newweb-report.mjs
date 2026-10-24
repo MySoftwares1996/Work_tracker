@@ -1,6 +1,7 @@
 import { buildReport, toEntry, mergeAi } from '../../newweb/src/reportEngine.js';
 import { fromDoc, addFollowUp, logWork, toDoc } from '../../newweb/src/data.js';
 import { SAMPLE_FORMATS } from '../../newweb/src/reportFormats.js';
+import { categorySummary } from '../../src/reportExtras.js';
 
 export async function run({ ck, section }) {
   section('New website: the Daily Report uses the phone app\'s report engine');
@@ -38,6 +39,8 @@ export async function run({ ck, section }) {
   ck('the same report line wherever the task is placed (Payments, Other work or Followed up)', lineIn(null) === lineIn('oth') && lineIn('oth') === lineIn('fol') && lineIn('pay') === lineIn(null) && /Being amount paid against Invoice No/.test(lineIn('oth')), lineIn('oth'));
   ck('a field with no value is reported as missing', withFormats.model.missing.length === 1 && withFormats.model.missing[0].marks[0] === 'Towards');
   ck('other tasks stay where they were', /Shared with the manager/.test(withFormats.text));
+  const cats = categorySummary(withFormats.model);
+  ck('the report counts its lines per Category', cats.length >= 1 && cats.reduce((n, c) => n + c.count, 0) === withFormats.model.sections.filter((x) => ['oth', 'pay', 'fol'].includes(x.key)).reduce((n, x) => n + x.rows.length, 0) && cats.some((c) => c.category === 'Payments' && c.count === 1), JSON.stringify(cats));
   const none = buildReport([{ ...pay, completedAt: new Date(2026, 9, 16, 9, 30) }], { categories: [] }, {}, day, { headings: true, subFields: false, formats: [] });
   ck('without formats the task is written as before', !/Being amount paid/.test(none.text));
   const changed = mergeAi(withFormats.model, withFormats.text.replace('Being amount paid', 'Paid'));

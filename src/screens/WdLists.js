@@ -3,6 +3,7 @@ import { View, Text, Pressable, Alert } from 'react-native';
 import { Card, Small, Btn, Field, Row } from '../ui';
 import { useTheme } from '../theme';
 import Icon from '../icons';
+import { normalizeReportPoints } from '../reportPoints';
 import { addOption, removeOption, addSubCategory, addSubCategories, parseSubCategoryLines, applySubCategoryEdit, validateSubCategory, removeSubCategory, withCarrying } from '../listsCore';
 
 const DONE_STATUS = /^(completed?|done|closed)$/i;
@@ -63,6 +64,54 @@ export function ReminderCategories({ wd, save }) {
         {(wd.categories || []).map((c) => { const on = cur.includes(c); return <Chip key={c} label={c} on={on} onPress={() => save({ reminderCategories: on ? cur.filter((x) => x !== c) : [...cur, c] })} />; })}
       </View>
       {!(wd.categories || []).length && <Small style={{ color: t.textDim }}>Add categories first (Entry form options).</Small>}
+    </View>
+  );
+}
+
+/** Config > Report points: lines written per Category; the daily report shows a Category's points above the section its tasks are in. Shared with the website. */
+export function ReportPoints({ wd, save }) {
+  const t = useTheme();
+  const [text, setText] = useState({});
+  const points = normalizeReportPoints(wd.paymentIntro);
+  const cats = wd.categories || [];
+  const write = (next) => save({ paymentIntro: next, paymentIntroDirty: true });
+  const add = (cat) => {
+    const v = String(text[cat] || '').replace(/\s+/g, ' ').trim();
+    if (!v) return;
+    if (!points.some((p) => p.category === cat && p.text === v)) write([...points, { category: cat, text: v }]);
+    setText({ ...text, [cat]: '' });
+  };
+  const del = (p) => Alert.alert('Delete this report point?', p.text, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => write(points.filter((x) => x !== p)) }]);
+  const loose = points.filter((p) => !cats.includes(p.category));
+  return (
+    <View>
+      <Small style={{ marginBottom: 10 }}>Write the lines a Category adds to the daily report. When a task of that Category is in the report, its points show once above that section's lines. Nothing is added by default.</Small>
+      {!cats.length && <Small style={{ color: t.textDim }}>Add categories first (Entry form options).</Small>}
+      {cats.map((cat) => (
+        <View key={cat} style={{ marginBottom: 14 }}>
+          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), marginBottom: 6 }}>{cat}</Text>
+          {points.filter((p) => p.category === cat).map((p) => (
+            <View key={p.text} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 }}>
+              <Text style={{ flex: 1, color: t.text, fontSize: t.fs(13.5), lineHeight: t.fs(19), fontWeight: '600' }}>{p.text}</Text>
+              <Pressable onPress={() => del(p)} hitSlop={8} accessibilityLabel={`Delete: ${p.text}`}><Icon name="close" size={15} color={t.danger} stroke={2.4} /></Pressable>
+            </View>
+          ))}
+          <Field multiline compact value={text[cat] || ''} onChangeText={(v) => setText({ ...text, [cat]: v })} placeholder={`A report point for ${cat}`} />
+          <Btn kind="soft" title="Add" disabled={!String(text[cat] || '').trim()} onPress={() => add(cat)} />
+        </View>
+      ))}
+      {loose.length > 0 && (
+        <View>
+          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), marginBottom: 6 }}>Not used yet</Text>
+          <Small style={{ marginBottom: 6 }}>These older lines have no Category, so the report does not use them. Give each a Category on the website, or delete it.</Small>
+          {loose.map((p) => (
+            <View key={p.text} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 }}>
+              <Text style={{ flex: 1, color: t.textDim, fontSize: t.fs(13.5), lineHeight: t.fs(19) }}>{p.text}</Text>
+              <Pressable onPress={() => del(p)} hitSlop={8} accessibilityLabel={`Delete: ${p.text}`}><Icon name="close" size={15} color={t.danger} stroke={2.4} /></Pressable>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }

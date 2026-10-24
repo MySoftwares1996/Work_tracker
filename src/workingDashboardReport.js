@@ -363,6 +363,9 @@ export function mergeAiReport(model, aiText, mails = [], { headings = false } = 
     if (!sec.rows.length) return;
     out.push('');
     let body = (got[sec.key] || []).map(strip);
+    // The section's report points are the person's own words: they stay exactly as written, above whatever the AI wrote for the lines.
+    const points = sec.intro || [];
+    body = body.filter((l) => !points.some((p) => key(l.replace(/^\s*\*\s+/, '')) === key(p)));
     while (body.length && !body[0].trim()) body.shift();
     while (body.length && !body[body.length - 1].trim()) body.pop();
     if (sec.rows.some((r) => r.fixed)) {
@@ -389,6 +392,8 @@ export function mergeAiReport(model, aiText, mails = [], { headings = false } = 
       if (sec.key !== 'pay') kept++;
     } else {
       if (headings) out.push(sec.title);
+      points.forEach((pt, i) => { if (i) out.push(''); out.push(`* ${pt}`); });
+      if (points.length) out.push('');
       out.push(...body.map((l) => l.trim()));
       ai++;
     }

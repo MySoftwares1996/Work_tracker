@@ -128,8 +128,8 @@ Expo build; its own tests are `cd newweb && npm test`, and it is what the "Deplo
 
 ## Checks before a deploy or build
 
-`npm run verify` (static checks + tests) · `npx expo export -p web` then `npm run smoke:web` (a real browser walks every tab and
-Config section at desktop and phone width; also the "Website smoke test" workflow) · `npm run compile:native` (the Kotlin compiled
+`npm run verify` (static checks + tests) · `cd newweb && npx vite build` then `npm run smoke:web` (a real browser walks every tab and
+Config topic of the website at desktop and phone width; also the "Website smoke test" workflow) · `npm run compile:native` (the Kotlin compiled
 with a real compiler against the Android API) · the APK itself is only proven by the CI build. The dashboard's cards and rows live in
 `src/screens/wdCards.js`; the screen in `WorkingDashboard.js`.
 

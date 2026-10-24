@@ -109,3 +109,15 @@ export function addSubFields(model) {
   });
   return model;
 }
+
+/** The report's lines counted per Category: [{ category, count }], most lines first (lines without a Category are "No Category"). */
+export function categorySummary(model) {
+  const counts = new Map();
+  (model.sections || []).filter((sec) => sec.key === 'oth' || sec.key === 'pay' || sec.key === 'fol').forEach((sec) => {
+    sec.rows.forEach((r) => {
+      const c = String((r.entry && r.entry.category) || '').trim() || 'No Category';
+      counts.set(c, (counts.get(c) || 0) + 1);
+    });
+  });
+  return [...counts].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+}

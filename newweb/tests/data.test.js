@@ -206,6 +206,7 @@ test('a point on the dial becomes an hour or a minute', () => {
 
 import { readFileSync } from 'node:fs';
 import { formatsText } from '../src/exportBackup.js';
+import { snoozeFor } from '../src/alerts.js';
 import { formatsBackupText, planFormatsRestore } from '../src/reportFormats.js';
 import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.js';
 const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
@@ -759,4 +760,13 @@ test('Backup formats: a backup restores onto the saved list, replacing the same 
   assert.deepEqual(by('Fresh'), ['Fresh line.']);
   assert.ok(planFormatsRestore(now, 'not json').error);
   assert.ok(planFormatsRestore(now, JSON.stringify({ kind: 'something else', formats: [] })).error);
+});
+
+test('Snooze starts at the length set for the task\'s priority', () => {
+  const cfg = { snoozeHigh: 15, snoozeMedium: 30, snoozeLow: 120 };
+  assert.equal(snoozeFor('High', cfg), 15);
+  assert.equal(snoozeFor('Medium', cfg), 30);
+  assert.equal(snoozeFor('low', cfg), 120);
+  assert.equal(snoozeFor('', cfg), 30);
+  assert.equal(snoozeFor('High', { snoozeHigh: 0 }), 30);
 });
