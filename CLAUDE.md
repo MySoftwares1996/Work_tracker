@@ -111,7 +111,7 @@ app bar on every phone screen with the search and meeting-mode circles (`PhoneHe
 Today / Week chips, cards with Done / DAR), the entry form (2-up category / pending, priority buttons, due row, notes, MORE DETAILS pills opening popups, sticky Cancel / Save), Report (day strip,
 four count boxes, white report card, Copy report / Rewrite with AI bar), Done, More (dark profile card), Config, the full-screen alert (colour by priority) and Welcome (`WdFormBits.js` has the form's pills).
 
-Sync: a phone push sends only the fields that changed since the phone last saw the server's copy (`diffWebDoc` in `firebaseSyncCore.js`, snapshot `MPT_RT_SNAP_<uid>`), so an offline phone no longer undoes web edits; unsent work for an account that is signed out is kept under `MPT_UNSYNCED_<uid>` (`account.js`).
+Sync: a phone push sends only the fields that changed since the phone last saw the server's copy (`diffWebDoc` in `firebaseSyncCore.js`, snapshot `MPT_RT_SNAP_<uid>`), so an offline phone no longer undoes web edits; a web copy that arrives over an edit the phone has not sent yet is merged field by field (`mergeEntryFieldwise`, with the snapshot read before it is overwritten: `prevHashes` from `firebaseSync.js` to `RealtimeSync.js`; whole-entry rule as the fallback); unsent work for an account that is signed out is kept under `MPT_UNSYNCED_<uid>` (`account.js`).
 
 ## Phone updates (over the air) - `docs/PHONE_UPDATES.md`
 

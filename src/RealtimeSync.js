@@ -3,10 +3,10 @@ import { AppState, Platform } from 'react-native';
 import { useStore } from './store';
 import { watchAuthState, listen as listenRealtime, push as pushRealtime, pushPresence, pushTools, saveDeviceToken } from './firebaseSync';
 import { toolsFromRemote, toolsValue, TOOL_KEYS } from './links';
-import { mergeRemoteEntries, applyRemovedIds, listsOnReceive, webActiveUntil, dirtyToolKeys } from './firebaseSyncCore';
+import { mergeRemoteEntries, mergeEntryFieldwise, applyRemovedIds, listsOnReceive, webActiveUntil, dirtyToolKeys } from './firebaseSyncCore';
 import { setWebActiveUntil, setWebPresenceCheck, stopAlarmRinging } from './tracker';
 import { DEFAULT_ALERTS, isSnoozed, isSilencedToday } from './workingDashboard';
-import { fromWebDocOver, mergeHolidays } from './cloudSync';
+import { fromWebDocOver, toWebTask, mergeHolidays } from './cloudSync';
 import { blankEntry, withCompletedAt, normalizeCalendar, normalizeHolidays, normalizeLeaveDays } from './workingDashboard';
 import { setRealtimeStatus, useRealtimeStatus } from './realtimeStatus';
 import { forAccount, saveUnsyncedBackup, takeUnsyncedBackup, mergeUnsynced } from './account';
@@ -173,13 +173,33 @@ export default function RealtimeSync() {
       if (patch.remote) {
         const blank = blankEntry();
         const have = new Map((w.entries || []).map((e) => [String(e.id), e]));
-        const incoming = patch.remote.incoming.map((d) => fromWebDocOver(have.get(String(d.id)), d, blank)).filter(Boolean).map(withCompletedAt);
+        // An entry this phone has an edit on that was not sent yet, and a web copy that arrived over it: merged field by field with what
+        // the phone last saw (`prevHashes`), so a web edit to one field and a phone edit to another both survive. Anything unexpected
+        // falls back to the whole-entry rule (the newer side wins).
+        const prev = patch.remote.prevHashes || {};
+        const fieldMerged = new Map();
+        const wholeDocs = [];
+        patch.remote.incoming.forEach((d) => {
+          const local = have.get(String(d.id));
+          const docStamp = Number(d.updatedAt && new Date(d.updatedAt).getTime()) || 0;
+          if (local && prev[String(d.id)] && Number(local.localEditAt) > docStamp) {
+            try {
+              const r = mergeEntryFieldwise(toWebTask(local), d, prev[String(d.id)], local.localEditAt, docStamp);
+              const merged = fromWebDocOver(local, r.doc, blank);
+              if (merged) { fieldMerged.set(String(d.id), withCompletedAt({ ...merged, updatedAt: local.updatedAt, localEditAt: local.localEditAt })); return; }
+            } catch { /* the whole-entry rule below */ }
+          }
+          wholeDocs.push(d);
+        });
+        const incoming = wholeDocs.map((d) => fromWebDocOver(have.get(String(d.id)), d, blank)).filter(Boolean).map(withCompletedAt);
+        incoming.push(...fieldMerged.values());
         // Done, binned, snoozed or silenced on the web app: an alarm ringing on the phone for it stops now
         // (its booked alerts are re-planned when the entries change).
         const now = new Date();
         incoming.forEach((e) => { if (e.done || e.binned || isSnoozed(e, now) || isSilencedToday(e, now)) stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('RealtimeSync')); });
         const kept = applyRemovedIds(w.entries || [], (patch.remote.removedIds || []).map(String)).entries;
-        next = { ...next, entries: mergeRemoteEntries(kept, incoming, w.deletedIds || []).entries };
+        const wholeEntries = mergeRemoteEntries(kept, incoming.filter((e) => !fieldMerged.has(String(e.id))), w.deletedIds || []).entries;
+        next = { ...next, entries: wholeEntries.map((e) => fieldMerged.get(String(e.id)) || e) };
       }
       if (mergedLists) next = { ...next, categories: mergedLists[0], priorities: mergedLists[1], statuses: mergedLists[2], assignees: mergedLists[3] };
       // The web app's payment lists (Sub Categories, Tally narration types, the report's payment lines): the web

@@ -118,6 +118,53 @@ export function diffWebDoc(fullDoc = {}, prevHashes = null) {
   return out;
 }
 
+/**
+ * Field-wise merge of a web document that arrives over an entry this phone has an unsent edit on.
+ * All three inputs are in the web app's field names: `localDoc` is the phone's entry as `toWebTask` writes it,
+ * `incomingDoc` the document that arrived, `snapshotHashes` what the server held when the phone last saw it
+ * (`docHashes`, MPT_RT_SNAP_<uid>). Per field: only the server changed -> the server's value; only the phone
+ * changed -> the phone's; both changed to different values -> the one with the newer stamp (`localEditAt` against
+ * `docStamp`; the phone wins a tie only if strictly newer, as in mergeRemoteEntries). `id` and `updatedAt` come from
+ * the incoming document (the caller decides the stamp). A deleted-forever (`purged`) or binned (`deleted`) document
+ * always wins whole. With no snapshot the old whole-entry rule applies: the phone's copy if its edit is newer than
+ * the document, else the document laid over it.
+ * Returns { doc, localFields } - the merged document and the fields where the phone's value was kept.
+ * Pure. The listener (firebaseSync.js) reads the snapshot before it remembers the incoming document and hands the old
+ * hashes on (`prevHashes`), so RealtimeSync can run this merge with what the phone last saw.
+ */
+export function mergeEntryFieldwise(localDoc = {}, incomingDoc = {}, snapshotHashes = null, localEditAt = 0, docStamp = 0) {
+  const local = localDoc || {};
+  const incoming = incomingDoc || {};
+  if (incoming.purged === true || incoming.purged === 'true') return { doc: { ...incoming }, localFields: [] };
+  const phoneNewer = Number(localEditAt) > Number(docStamp);
+  if (!snapshotHashes || typeof snapshotHashes !== 'object') {
+    return phoneNewer ? { doc: { ...local }, localFields: Object.keys(local) } : { doc: { ...local, ...incoming }, localFields: [] };
+  }
+  const serverWasDeleted = (v) => v === true || v === 'true';
+  if (serverWasDeleted(incoming.deleted) && snapshotHashes.deleted !== fieldHash(normField('deleted', incoming.deleted))) {
+    return { doc: { ...local, ...incoming }, localFields: [] };      // binned on the web app since the phone last saw it
+  }
+  const doc = {};
+  const localFields = [];
+  const keys = new Set([...Object.keys(local), ...Object.keys(incoming)]);
+  keys.forEach((k) => {
+    if (k === 'id' || k === 'updatedAt') { if (k in incoming) doc[k] = incoming[k]; else if (k in local) doc[k] = local[k]; return; }
+    const was = k in snapshotHashes ? snapshotHashes[k] : fieldHash(normField(k, undefined));
+    const hl = fieldHash(normField(k, local[k]));
+    const hi = fieldHash(normField(k, incoming[k]));
+    const serverChanged = hi !== was;
+    const phoneChanged = k in local && hl !== was;       // a field the phone does not write at all (not in its document) is not a phone change
+    let useLocal;
+    if (!serverChanged) useLocal = true;               // the server still has what it had: the phone's value (changed or not)
+    else if (!phoneChanged) useLocal = false;
+    else useLocal = hl !== hi && phoneNewer;           // both changed: the same value either way, else the newer stamp
+    const src = useLocal ? local : incoming;
+    if (useLocal && hl !== hi) localFields.push(k);
+    if (k in src) doc[k] = src[k];
+  });
+  return { doc, localFields };
+}
+
 /** Runs read-modify-write jobs for one key one after another, each on the freshly loaded value (no lost updates). */
 export function createMutator(load, save) {
   const chains = new Map();

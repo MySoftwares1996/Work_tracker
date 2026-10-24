@@ -146,10 +146,19 @@ export function listen(uid, { getEntries, getTombstones = () => [], onRemoteChan
     const afterRemoval = applyRemovedIds(current, removedIds);
     const merged = mergeRemoteEntries(afterRemoval.entries, incoming, getTombstones());
     mutateAck(uid, (a) => ackAfterSnapshot(a, incoming, merged.entries)).catch(() => {});
-    rememberDocs(uid, incoming, removedIds);
-    // Hand over what arrived, not a finished list: the caller merges it into the entries as they are
-    // when it is applied, so an edit made in the meantime is not overwritten by a stale copy.
-    onRemoteChange({ remote: { incoming, removedIds } });
+    // What the phone last saw of each arriving document is read BEFORE the snapshot is overwritten with the new copy, and handed on
+    // (`prevHashes`): with it the caller can merge field by field over an edit the phone has not sent yet.
+    const prevHashes = {};
+    mutateSnap(uid, (s) => {
+      const next = { ...s };
+      incoming.forEach((d) => { if (d && d.id !== undefined && d.id !== null) { const id = String(d.id); if (s[id]) prevHashes[id] = s[id]; next[id] = docHashes(d); } });
+      removedIds.forEach((id) => { delete next[String(id)]; });
+      return next;
+    })
+      .catch(() => {})
+      // Hand over what arrived, not a finished list: the caller merges it into the entries as they are
+      // when it is applied, so an edit made in the meantime is not overwritten by a stale copy.
+      .then(() => onRemoteChange({ remote: { incoming, removedIds, prevHashes } }));
   }, (e) => { if (onError) onError(e); });
 
   const unsubMeta = onSnapshot(metaCol, (snap) => {

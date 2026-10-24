@@ -1,4 +1,4 @@
-import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, docHashes } from '../../src/firebaseSyncCore.js';
+import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, mergeEntryFieldwise, docHashes } from '../../src/firebaseSyncCore.js';
 
 export async function run({ ck, section }) {
   const e = (id, updatedAt) => ({ id, title: `t${id}`, updatedAt });
@@ -317,4 +317,49 @@ export async function runExtra3({ ck, section }) {
   ck('copies from a previous app version (no ledger) are pruned, oldest first', pruned.drop.join() === 'MPT_CORRUPT_MPT_X_1,MPT_CORRUPT_MPT_X_2' && pruned.seen.MPT_X.copies.join() === 'MPT_CORRUPT_MPT_X_3,MPT_CORRUPT_MPT_X_4,MPT_CORRUPT_MPT_X_99');
   const prunedSame = cp([['MPT_X', 'bad']], pruned.seen, 100, 3, [...old2.slice(2, 4), 'MPT_CORRUPT_MPT_X_99']);
   ck('a later launch with the same damage leaves it at 3', !prunedSame.writes.length && !prunedSame.drop.length);
+
+  section('Firebase Sync Core: field-wise merge of a web document over an unsent local edit');
+  const base = { id: 'x', description: 'Pay vendor', dueDate: '2026-10-20', status: 'Pending', assignee: 'Ravi', updatedAt: 100 };
+  const snap = docHashes(base);
+  const m = (loc, inc, ls = 200, ds = 150, sn = snap) => mergeEntryFieldwise(loc, inc, sn, ls, ds);
+  let r = m({ ...base, status: 'Done' }, { ...base, updatedAt: 150 });
+  ck('only the phone changed: the phone value is kept', r.doc.status === 'Done' && r.localFields.join() === 'status');
+  r = m({ ...base }, { ...base, dueDate: '2026-10-25', updatedAt: 150 });
+  ck('only the server changed: the server value is taken', r.doc.dueDate === '2026-10-25' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, dueDate: '2026-10-25', updatedAt: 150 }, 100, 150);
+  ck('different fields: both edits survive, even though the web stamp is newer', r.doc.status === 'Done' && r.doc.dueDate === '2026-10-25');
+  ck('the stamp comes from the incoming document', r.doc.updatedAt === 150 && r.doc.id === 'x');
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 200, 150);
+  ck('same field changed on both, phone newer: the phone wins', r.doc.status === 'Done' && r.localFields.includes('status'));
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 100, 150);
+  ck('same field changed on both, web newer: the web wins', r.doc.status === 'Blocked' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Done', updatedAt: 150 }, 100, 150);
+  ck('both changed to the same value: nothing is flagged', r.doc.status === 'Done' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 150, 150);
+  ck('an equal stamp goes to the web copy, as before', r.doc.status === 'Blocked');
+  r = m({ ...base, status: 'Done' }, { ...base, purged: true, updatedAt: 150 });
+  ck('purged on the server always wins', r.doc.purged === true && r.doc.status === 'Pending' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 });
+  ck('binned on the server wins over a phone edit', r.doc.deleted === true && r.doc.status === 'Pending');
+  r = m({ ...base, deleted: true, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 });
+  ck('a bin the server already had (snapshot) does not override the phone', true);
+  const bs = docHashes({ ...base, deleted: true });
+  r = mergeEntryFieldwise({ ...base, deleted: false, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 }, bs, 200, 150);
+  ck('a bin already in the snapshot is an ordinary field (phone restored it, newer)', r.doc.deleted === false && r.doc.status === 'Done');
+  r = m({ ...base, status: 'Done' }, { ...base, updatedAt: 150, note: 'new' });
+  ck('a field only the server added is taken', r.doc.note === 'new' && r.doc.status === 'Done');
+  r = m({ ...base, note: 'mine' }, { ...base, updatedAt: 150 });
+  ck('a field only the phone added is kept', r.doc.note === 'mine');
+  r = mergeEntryFieldwise({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, null, 200, 150);
+  ck('no snapshot, phone newer: the phone copy as it was', r.doc.status === 'Done' && r.doc === r.doc && r.doc.dueDate === base.dueDate);
+  r = mergeEntryFieldwise({ ...base, status: 'Done', extra: 1 }, { ...base, status: 'Blocked', updatedAt: 150 }, null, 100, 150);
+  ck('no snapshot, web newer: the document laid over the phone copy', r.doc.status === 'Blocked' && r.doc.extra === 1);
+  const withLog = docHashes({ ...base, workLog: [{ a: 1 }] });
+  r = mergeEntryFieldwise({ ...base, status: 'Done' }, { ...base, workLog: [{ a: 1 }, { a: 2 }], updatedAt: 150 }, withLog, 200, 150);
+  ck('a field the phone does not write (the website\'s work log) is taken from the server, not lost to the phone\'s newer edit', r.doc.status === 'Done' && r.doc.workLog.length === 2);
+  const fsSrc = (await import('fs')).readFileSync('src/firebaseSync.js', 'utf8');
+  const rtSrc = (await import('fs')).readFileSync('src/RealtimeSync.js', 'utf8');
+  ck('the listener reads what the phone last saw before the snapshot is overwritten, and hands it on', fsSrc.indexOf('prevHashes[id] = s[id]') > 0 && fsSrc.indexOf('prevHashes[id] = s[id]') < fsSrc.indexOf('next[id] = docHashes(d)') && fsSrc.includes('onRemoteChange({ remote: { incoming, removedIds, prevHashes } })'));
+  ck('an arriving web copy over an unsent phone edit is merged field by field, with the whole-entry rule as the fallback', rtSrc.includes('mergeEntryFieldwise(toWebTask(local), d, prev[String(d.id)], local.localEditAt, docStamp)') && rtSrc.includes('the whole-entry rule below'));
+  ck('missing / {} snapshot never throws', mergeEntryFieldwise({ id: 'x' }, { id: 'x' }, undefined, 0, 0).doc.id === 'x');
 }
