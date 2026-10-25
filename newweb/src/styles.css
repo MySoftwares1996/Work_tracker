@@ -709,3 +709,15 @@ tr.is-selected td { background: var(--primary-tint); }
 .cfg-page .manager { display: block; columns: 2 440px; column-gap: 12px; }
 .cfg-page .manager > .muted { column-span: all; }
 .cfg-page .cat-group { break-inside: avoid; margin-bottom: 12px; }
+
+/* Soft feel: one easing curve, gentle transitions on everything you touch, a soft page enter, a light press, and long lists that
+   skip painting what is off screen. (prefers-reduced-motion switches all of it off, above.) */
+:root { --ease: cubic-bezier(0.22, 0.61, 0.36, 1); }
+.btn, .tab, .chip, .card, .arow, .mt, .st, .cnt-box, .sq-btn, .icon-btn, .refresh-btn, .pill-btn, .menu-item button, .fmt-row, input:not([type=checkbox]), select, textarea {
+  transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease), color 0.18s var(--ease), box-shadow 0.22s var(--ease), transform 0.18s var(--ease), opacity 0.18s var(--ease), filter 0.18s var(--ease);
+}
+.btn:active:not(:disabled), .tab:active, .chip:active, .st:active, .mt:active, .cnt-box:active, .sq-btn:active, .pill-btn:active { transform: scale(0.97); }
+@keyframes wdSoftIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+main.page > * { animation: wdSoftIn 0.26s var(--ease) both; }
+.card.task, .arow { content-visibility: auto; contain-intrinsic-size: auto 132px; }
+html { scroll-behavior: smooth; }

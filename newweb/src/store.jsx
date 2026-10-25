@@ -5,7 +5,7 @@ import { firebaseApp } from './firebase';
 import { loadAlertSettings } from './alerts';
 import { readReportFormats, planFormatSetup, effectiveFormats } from './reportFormats';
 import { DEFAULT_LISTS, LEGACY_DEFAULT_LISTS, fromDoc, nextOccurrence, readCalendar, readLinks, readLists, readTemplates, toDoc, isOpen, writeListsValue, logWork } from './data';
-import { demoTasks } from './demo';
+import { demoTasks, manyDemoTasks } from './demo';
 
 const Ctx = createContext(null);
 export const useStore = () => useContext(Ctx);
@@ -293,7 +293,7 @@ export function LiveStore({ children }) {
 }
 
 export function DemoStore({ children }) {
-  const [tasks, setTasks] = useState(() => (location.search.includes('empty') ? [] : demoTasks));      // ?demo&empty previews a user with no tasks
+  const [tasks, setTasks] = useState(() => (location.search.includes('empty') ? [] : manyDemoTasks(Number((location.search.match(/many=(\d+)/) || [])[1]) || 0)));      // ?demo&empty previews a user with no tasks
   const [lists, setLists] = useState({
     ...(location.search.includes('newaccount') ? DEFAULT_LISTS : LEGACY_DEFAULT_LISTS),     // ?demo&empty&newaccount previews a brand-new account
     subCategories: [

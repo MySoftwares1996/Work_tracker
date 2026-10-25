@@ -175,3 +175,7 @@ A new account (no tasks and no `meta/lists` document) starts with no Category, n
 `newweb/src/Onboarding.jsx` (a new account's first-run guide, shown until Done or a first task; `?demo&empty&newaccount` previews it), `BackupReminder.jsx` (weekly, `wd-last-backup` in localStorage, set by `exportBackupFile`), a "Saving... / Saved" pill in the top bar (`saving` / `justSaved` in `store.jsx`) and Config > Alerts "Keep the phone quiet while this window is visible" (`quietWhileVisible` in `alerts.js`; the presence heartbeat then counts a visible window as in use).
 
 `newweb/src/setupFile.js`: Config > Setup file (download / load an account's lists, Sub Categories, Report points, report formats and templates; loading only adds what is missing). The phone skips an alert the website is in use for and logs it (`AlarmStore.logSkip`, Config > Alerts > "Skipped on this phone"; Kotlin, next APK build).
+
+## Soft feel
+
+Website: the last block of `newweb/src/styles.css` (one easing curve `--ease`, soft transitions, `wdSoftIn` page enter, light press, `content-visibility` on task cards); `?demo&many=800` builds a big demo account for timing pages. Phone: `softLayout()` in `src/ui.js` (LayoutAnimation, off on the website and with reduced motion) is called before a row leaves (`act` in `WorkingDashboard.js`, `hide` in `PastDueAlert.js`). The phone paginates its lists (5 rows, +20 per Show more), so it does not render hundreds of rows at once.

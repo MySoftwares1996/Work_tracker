@@ -27,3 +27,13 @@ export const demoTasks = [
   ...(typeof location !== 'undefined' && location.search.includes('alert') ? [mk('test', { d: 0, h: now.getHours(), m: now.getMinutes() - 1, category: 'Follow-up', priority: 'High', pendingWith: 'Pending at Bank', status: 'Pending', reference: '3333333333', subCategory: "Urgent Bank Follow Up's", subCategoryFields: {} })] : []),
   mk('Old reminder', { d: -8, category: 'Other', priority: 'Low', binned: true, binnedAt: at(-1) }),
 ];
+
+/** ?demo&many=600: the sample tasks plus extra ones, to see how the pages behave with a big account (a developer's check, never written anywhere). */
+export function manyDemoTasks(extra = 0) {
+  const base = demoTasks;
+  if (!extra) return base;
+  const cats = ['Payments', 'Bank', 'Audit', 'Meeting', 'Follow-up', 'Other'];
+  const pris = ['High', 'Medium', 'Low'];
+  const more = Array.from({ length: extra }, (_, i) => ({ ...blankTask(), id: `demo-x${i}`, title: `Sample task ${i} - ${cats[i % cats.length]} follow up for vendor ${i % 37}`, category: cats[i % cats.length], priority: pris[i % 3], pendingWith: i % 4 ? 'Accounts' : '', status: i % 5 ? 'Pending' : 'In Progress', createdAt: at(-(i % 30)), due: at((i % 40) - 12, 9 + (i % 8), 0), hasTime: true }));
+  return [...base, ...more];
+}

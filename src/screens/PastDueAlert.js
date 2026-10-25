@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, TextInput, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Btn, Row, Sheet, Choices, DateTimeField, PickerButton } from '../ui';
+import { Btn, Row, Sheet, Choices, DateTimeField, PickerButton, softLayout } from '../ui';
 import Icon from '../icons';
 import { display } from '../fonts';
 import { useTheme, ALARM_COLORS } from '../theme';
@@ -132,7 +132,7 @@ export default function PastDueAlert() {
 
   const closed = useMemo(() => list.map((e) => ({ e, c: closedOn(e, wd.holidays, wd.leaveDays) })), [list, wd.holidays, wd.leaveDays]);
   const closedList = closed.filter((x) => x.c);
-  const hide = (id) => { if (!preview) setGone((s) => new Set([...s, id])); };      // the preview's sample stays
+  const hide = (id) => { if (!preview) { softLayout(); setGone((s) => new Set([...s, id])); } };      // the preview's sample stays
   const edit = (id, fn) => update((db) => ({ ...db, workingDashboard: { ...db.workingDashboard, entries: db.workingDashboard.entries.map((x) => (x.id === id ? fn(x) : x)) } }));
   const live = (e) => (wd.entries || []).find((x) => x.id === e.id) || e;
 

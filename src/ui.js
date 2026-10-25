@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, Pressable, TextInput, ScrollView, Modal, StyleSheet, Platform,
-  Alert, Keyboard, useWindowDimensions, Animated, PanResponder, Easing, AccessibilityInfo, RefreshControl,
+  Alert, Keyboard, useWindowDimensions, Animated, PanResponder, Easing, AccessibilityInfo, RefreshControl, LayoutAnimation, UIManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import TabIcon from './tabIcons';
@@ -1044,6 +1044,14 @@ AccessibilityInfo.isReduceMotionEnabled?.().then((v) => { reduceMotionCache = !!
 /** Fades its children in while rising into place; `delay` staggers a list. Skipped when the phone asks for reduced motion. */
 /** The phone's "reduce motion" setting, as last read: animations are skipped when it is on. */
 export const prefersReducedMotion = () => reduceMotionCache;
+
+// Android needs this switched on once for LayoutAnimation (newer React Native builds ignore it).
+try { if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true); } catch { /* the rows just move without animation */ }
+/** Call right before a change that adds or removes rows (Done, Move, Snooze...): the list closes the gap softly instead of jumping. */
+export function softLayout() {
+  if (Platform.OS === 'web' || reduceMotionCache) return;
+  try { LayoutAnimation.configureNext(LayoutAnimation.create(240, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)); } catch { /* optional */ }
+}
 
 export function FadeInUp({ children, delay = 0, distance = 18, duration = 420, style }) {
   const v = React.useRef(new Animated.Value(reduceMotionCache ? 1 : 0)).current;

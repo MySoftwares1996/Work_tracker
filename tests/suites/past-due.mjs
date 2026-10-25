@@ -59,4 +59,9 @@ export async function run({ ck, section }) {
   const pdSrc = (await import('fs')).readFileSync('src/screens/PastDueAlert.js', 'utf8');
   ck('Set reminder saves the date with a fresh edit stamp (so it syncs), books the alert, stops the ring and closes the card', /const setReminder = \(shown\) => \{[\s\S]*nextReminderAt: when\.toISOString\(\)[\s\S]*\.\.\.editedNow\(\)[\s\S]*scheduleEntryAlert\(next[\s\S]*stopAlarmRinging[\s\S]*hide\(e\.id\)/.test(pdSrc) && pdSrc.includes('onPress={() => setReminder(entry)}'));
   ck('it asks for a date still ahead instead of doing nothing', pdSrc.includes('Pick the reminder date and time first') && pdSrc.includes('Pick a time that is still ahead'));
+  section('Soft feel: rows leave and slide up instead of jumping');
+  const uiSrc = (await import('fs')).readFileSync('src/ui.js', 'utf8');
+  const dashSrc = (await import('fs')).readFileSync('src/screens/WorkingDashboard.js', 'utf8');
+  ck('softLayout animates a list change, but not on the website or with reduced motion', /export function softLayout\(\) \{\s*if \(Platform\.OS === 'web' \|\| reduceMotionCache\) return;[\s\S]*LayoutAnimation\.configureNext/.test(uiSrc));
+  ck('Done / DAR / Move... on a card and every alert action that closes a card use it', /const act = \(shown, kind, opts = \{\}\) => \{\s*softLayout\(\)/.test(dashSrc) && pdSrc.includes('softLayout(); setGone'));
 }

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AnimatedLogo from '../AnimatedLogo';
 import * as Clipboard from 'expo-clipboard';
-import { EmptyState, BottomTabs, SearchField, Toggle, Group, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Label, Btn, Row, Field, Sheet, Segmented, Chip, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
+import { softLayout, EmptyState, BottomTabs, SearchField, Toggle, Group, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Label, Btn, Row, Field, Sheet, Segmented, Chip, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
 import Icon from '../icons';
 import { display } from '../fonts';
 import { SOURCES } from '../optionSources';
@@ -520,6 +520,7 @@ export default function WorkingDashboard() {
   };
 
   const act = (shown, kind, opts = {}) => {
+    softLayout();      // the row leaves softly, the ones below slide up
     // A short tap-buzz on the phone when a task is completed (the built-in vibrator: no extra library).
     if (Platform.OS !== 'web' && kind === 'complete') { try { Vibration.vibrate(12); } catch { /* no vibrator */ } }
     // web.app: ✓ or DAR on a task with a checklist opens the checklist first, to tick the steps before it is completed.
