@@ -56,3 +56,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - New web: Config lists, report formats, report points and sub categories use several columns instead of one long column. Web only.
 - Phone: the full-screen alert's Set reminder now saves, syncs, books the reminder alert, closes the card and says so (JS only: next phone update).
 - Clean-up: the unused expo-device package is out of package.json (takes effect at the next APK build); an unused alarm-chain function and a text component are gone (JS only).
+- Phone: More > Check for an update now (and the app-bar Refresh) offer "Restart now" in the dialog itself when a new version was downloaded (JS only: next phone update).

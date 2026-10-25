@@ -16,7 +16,7 @@ import { shareCsv } from '../csv';
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
 import { newId } from '../ids';
 import { refreshWdAlerts } from '../workingDashboardActions';
-import { checkForPhoneUpdate } from '../updateStatus';
+import { checkForPhoneUpdateResult, restartApp } from '../updateStatus';
 import WdAlarmIntro from './WdAlarmIntro';
 import { warnQuiet } from '../quietCatch';
 import { seenWebFields } from '../cloudSync';
@@ -309,10 +309,13 @@ export default function WorkingDashboard() {
   const headerRefresh = async () => {
     setHeaderBusy(true);
     let msg = 'Latest data loaded.';
+    let newVersion = false;
     try { await pullRefresh(); } catch (e) { msg = `Could not reach the server: ${e && e.message ? e.message : 'no connection?'}`; }
-    if (Platform.OS !== 'web') { try { msg += ` ${await checkForPhoneUpdate()}`; } catch { /* the update check is optional */ } }
+    if (Platform.OS !== 'web') { try { const r = await checkForPhoneUpdateResult(); msg += ` ${r.text}`; newVersion = r.downloaded; } catch { /* the update check is optional */ } }
     setHeaderBusy(false);
-    Alert.alert('Refresh', msg);
+    // A new version waiting: the restart is offered right here.
+    if (newVersion) Alert.alert('Refresh', `${msg} Restart to use it.`, [{ text: 'Later', style: 'cancel' }, { text: 'Restart now', onPress: restartApp }]);
+    else Alert.alert('Refresh', msg);
   };
   const goTab = (k) => { setTab(k); setVisibleCount(5); if (k === 'report' && (!reportModel || reportKind === 'day')) buildReport(); };
   // The narration form starts from the entry's saved narration ("Include mail chain" off for a new one; an older
