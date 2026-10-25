@@ -294,11 +294,6 @@ export function Card({ children, style, onPress, tone }) {
   return <View style={[base, style]}>{children}</View>;
 }
 
-export function H2({ children, style, numberOfLines }) {
-  const t = useTheme();
-  return <Text numberOfLines={numberOfLines} style={[{ fontSize: t.fs(16), fontWeight: '800', color: t.text, marginBottom: 8 }, style]}>{children}</Text>;
-}
-
 export function P({ children, dim, style, numberOfLines }) {
   const t = useTheme();
   return (

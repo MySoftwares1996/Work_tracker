@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import plugin from '../../plugins/withAlarmMainActivity.js';
 import NativeTools, { __setFullScreenIntentAllowed, __setInitialAlarmAction, __scheduledAlarms } from '../stubs/native-tools.mjs';
 import * as tracker from '../../src/tracker.js';
-import { scheduleAlarmSeries, cancelForTask } from '../../src/notify.js';
+import { cancelForTask } from '../../src/notify.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -53,9 +53,9 @@ export async function run({ ck, section }) {
   __setInitialAlarmAction({ taskId: 't4', action: null });
   ck('a plain "open" tap (no action button) carries a null action', (await tracker.consumeInitialAlarmAction()).action === null);
 
-  section('Full-screen task alarms: wired through notify.js alongside the notification chain');
-  await scheduleAlarmSeries({ taskId: 't5', title: 'Medium Priority', body: 'Water the plants', dueAt: new Date(Date.now() + 3600_000) });
-  ck('scheduleAlarmSeries also arms exactly one native alarm', __scheduledAlarms().t5 !== undefined);
+  section('Full-screen task alarms: cancelling through notify.js');
+  await tracker.scheduleFullScreenAlarm('t5', new Date(Date.now() + 3600_000), 'Medium Priority', 'Water the plants');
+  ck('a booked native alarm is there', __scheduledAlarms().t5 !== undefined);
   await cancelForTask('t5');
   ck('cancelForTask also cancels the native alarm', __scheduledAlarms().t5 === undefined);
 

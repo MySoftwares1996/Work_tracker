@@ -17,6 +17,8 @@ drops something must list it here and in the reply. Restoring any line below is 
 
 - Starting lists for NEW accounts: no default Categories (was Payments, Bank, Audit, Meeting, Follow-up, Other), nobody under Pending with (the phone's "Self"), and no automatic Categories / Sub Categories from the report formats. Existing accounts keep everything they have (2026-10-24, owner asked).
 
+- Clean-up of unused code (2026-10-25, owner asked), nothing the person sees: the old "keep ringing" notification chain `scheduleAlarmSeries` (src/notify.js; nothing used it since Tasks & reminders were removed), the unused `H2` text component (src/ui.js), the unused `expo-device` package (package.json; the next APK build leaves it out), and the old Config layout's leftover styles (`.cfg-side`, `.cfg-account`).
+
 ## Ledger redesign (2026-10-18) - things that went with it
 | What | Where | Note |
 |---|---|---|

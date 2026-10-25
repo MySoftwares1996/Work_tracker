@@ -388,12 +388,9 @@ tr.is-selected td { background: var(--primary-tint); }
 
 /* ---- Config ---- */
 .cfg { gap: 24px; }
-.cfg-side { flex: 0 0 260px; max-width: 100%; display: flex; flex-direction: column; gap: 14px; }
-.cfg-account { flex-direction: row; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; }
 .cfg-avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 16px; color: var(--on-primary); background: var(--primary); flex: none; }
 .cfg-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .cfg-who .muted { overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
-.cfg-account .btn { padding: 8px 14px; font-size: 13px; flex: 1 0 100%; }
 .menu { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
 .menu-item hr { border: 0; border-top: 1px solid var(--soft); margin: 6px 8px; }
 .menu-item button { display: block; width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px; border: 0; background: none; font-size: 14.5px; font-weight: 700; color: var(--ink); }
@@ -567,7 +564,6 @@ tr.is-selected td { background: var(--primary-tint); }
   .alert-title { font-size: 24px; }
   .alert-bell { width: 48px; height: 48px; }
   .alert-bar { padding: 12px 16px; }
-  .cfg-side { flex-basis: 100%; }
 }
 @media (max-width: 560px) {
   .me-name { display: none; }
