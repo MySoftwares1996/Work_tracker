@@ -8,7 +8,7 @@ import { softLayout, EmptyState, BottomTabs, SearchField, Toggle, Group, useLayo
 import Icon from '../icons';
 import { display } from '../fonts';
 import { SOURCES } from '../optionSources';
-import { useTheme, blend, THEME_SWATCHES, themeKeyOf } from '../theme';
+import { useTheme, blend } from '../theme';
 import { useStore, uid } from '../store';
 import { applyDraft, clearEntryDraft, loadEntryDraft, saveEntryDraft } from '../entryDraft';
 import { shareCsv } from '../csv';
@@ -1954,24 +1954,8 @@ export default function WorkingDashboard() {
 
         {tab === 'config' && (() => {
           // Appearance (Ledger): the colour theme swatches, the dark-mode switch and the text size.
-          const themeNow = themeKeyOf(data.settings?.theme);
           const appearanceBody = (
             <View style={{ gap: 16 }}>
-              <View>
-                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), marginBottom: 12 }}>Colour theme</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                  {THEME_SWATCHES.map((sw) => {
-                    const on = themeNow === sw.key;
-                    return (
-                      <Pressable key={sw.key} onPress={() => update({ settings: { theme: sw.key } })} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${sw.label} theme`}
-                        style={{ width: '31%', flexGrow: 1, gap: 7, borderRadius: 16, padding: 8, borderWidth: 2, borderColor: on ? t.primary : t.border }}>
-                        <View style={{ height: 34, borderRadius: 10, backgroundColor: sw.color }} />
-                        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(12) }}>{sw.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
               <Row style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                 <Text style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: t.fs(14) }}>Follow the phone's dark mode</Text>
                 <Toggle label="Follow the phone's dark mode" value={data.settings?.followDark !== false} onChange={(v) => update({ settings: { followDark: v } })} />

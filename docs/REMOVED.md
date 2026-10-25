@@ -21,6 +21,8 @@ drops something must list it here and in the reply. Restoring any line below is 
 
 - The owner's "Pearl" look (2026-10-25) replaces Ledger's warm paper ground and Forest as the default: cool grey page, solid white cards, violet accent, solid colour tiles, pill buttons, teal switches. Forest and the other colours are still choices (Config > Appearance); only Forest as the default and the warm paper ground are gone. Fonts and layouts were not changed.
 
+- ALL colour themes were removed from the phone and the website (2026-10-25, owner asked): Forest, Harbour, Plum, Ember, Ink, Glass and Rose, with the "Colour theme" choices in Config > Appearance, the frosted Glass finish and the code that kept a chosen colour. "Pearl" is now the only look (with its dark twin, "Follow the phone's / computer's dark mode" and Text size, which stay). A colour someone had chosen earlier is ignored.
+
 ## Ledger redesign (2026-10-18) - things that went with it
 | What | Where | Note |
 |---|---|---|

@@ -43,21 +43,14 @@ const SIGNAL = {
 // The solid tool tiles: a flat colour with white text / icon (Home's counts).
 const TILES = { red: '#E8503C', amber: '#B04E0A', navy: '#2F55D4', violet: '#7B3FD0', teal: '#0E8F83', ink: '#14132B', pink: '#E24A82', grey: '#5E6173' };
 
-// The six colour themes: [light, dark] values of primary / primaryDark / primaryTint / tint text / mint / soft text on the dark panels.
+// The one colour theme, Pearl: [light, dark] values of primary / primaryDark / primaryTint / tint text / mint / soft text on the dark panels.
 const COLOURS = {
-  pearl: { label: 'Pearl', swatch: '#4B33C8', light: { primary: '#4B33C8', primaryDark: '#14132B', tint: '#ECE9FB', tintText: '#3A27A0', mint: '#2EC4B6', heroDim: '#C9C6E8' }, dark: { primary: '#A48BFF', primaryDark: '#2B2470', tint: '#26204F', tintText: '#CFC5FF', mint: '#2EC4B6', heroDim: '#C9C6E8' } },
-  forest: { label: 'Forest', swatch: '#0B6B52', light: { primary: '#0B6B52', primaryDark: '#123A2F', tint: '#E3F1EC', tintText: '#0B5A45', mint: '#9BD3BF', heroDim: '#D4EBE1' }, dark: { primary: '#3FBF98', primaryDark: '#1B4A3C', tint: '#1C3A31', tintText: '#8FE0C4', mint: '#9BD3BF', heroDim: '#D4EBE1' } },
-  harbour: { label: 'Harbour', swatch: '#2457C5', light: { primary: '#2457C5', primaryDark: '#14284F', tint: '#E4ECFA', tintText: '#1C4399', mint: '#A9C4F5', heroDim: '#D3E1FA' }, dark: { primary: '#7FA6F5', primaryDark: '#1E3A75', tint: '#1D2B4A', tintText: '#B4CCFA', mint: '#B4CCFA', heroDim: '#D3E1FA' } },
-  plum: { label: 'Plum', swatch: '#8A3FD1', light: { primary: '#8A3FD1', primaryDark: '#3A1B57', tint: '#F0E6FA', tintText: '#6B2BA8', mint: '#D6B4F2', heroDim: '#EBDAF8' }, dark: { primary: '#C08EF0', primaryDark: '#4D2A73', tint: '#2E2040', tintText: '#DFC3F7', mint: '#D6B4F2', heroDim: '#EBDAF8' } },
-  ember: { label: 'Ember', swatch: '#C2410C', light: { primary: '#C2410C', primaryDark: '#5A200A', tint: '#FBE9DF', tintText: '#9A3412', mint: '#F4B896', heroDim: '#F9D9C6' }, dark: { primary: '#F58A52', primaryDark: '#7A2F0F', tint: '#3A2216', tintText: '#FBBE9C', mint: '#F4B896', heroDim: '#F9D9C6' } },
-  ink: { label: 'Ink', swatch: '#16231F', light: { primary: '#16231F', primaryDark: '#0E1513', tint: '#E9ECEB', tintText: '#16231F', mint: '#B8C7C1', heroDim: '#D3DDD9' }, dark: { primary: '#B8C7C1', primaryDark: '#26332F', tint: '#243029', tintText: '#D3DDD9', mint: '#B8C7C1', heroDim: '#D3DDD9' } },
-  glass: { label: 'Glass', swatch: '#4B4CD8', light: { primary: '#4B4CD8', primaryDark: '#232566', tint: '#E8E9FF', tintText: '#3638A8', mint: '#B9BBFF', heroDim: '#DCDDFF', ground: { bg: '#EBEFFC', surface: '#F7F9FF', surfaceAlt: '#EDF0FC', border: '#C9D3F1', fieldBorder: '#B8C4EA', chevron: '#8A94B8' } }, dark: { primary: '#9A9BFF', primaryDark: '#2B2D78', tint: '#25264A', tintText: '#C9CAFF', mint: '#B9BBFF', heroDim: '#DCDDFF' } },
-  rose: { label: 'Rose', swatch: '#B42318', light: { primary: '#B42318', primaryDark: '#5C1A14', tint: '#FBE7E4', tintText: '#8E1F15', mint: '#F2B1AA', heroDim: '#F7D2CD' }, dark: { primary: '#F27A6F', primaryDark: '#7A2820', tint: '#3C2220', tintText: '#F7B3AB', mint: '#F2B1AA', heroDim: '#F7D2CD' } },
+  pearl: { label: 'Pearl', light: { primary: '#4B33C8', primaryDark: '#14132B', tint: '#ECE9FB', tintText: '#3A27A0', mint: '#2EC4B6', heroDim: '#C9C6E8' }, dark: { primary: '#A48BFF', primaryDark: '#2B2470', tint: '#26204F', tintText: '#CFC5FF', mint: '#2EC4B6', heroDim: '#C9C6E8' } },
 };
 
 export const build = (key, dark) => {
   const c = COLOURS[key][dark ? 'dark' : 'light'];
-  const g = { ...(dark ? GROUND.dark : GROUND.light), ...(c.ground || {}) };
+  const g = dark ? GROUND.dark : GROUND.light;
   const s = dark ? SIGNAL.dark : SIGNAL.light;
   return {
     key,
@@ -84,13 +77,8 @@ export const build = (key, dark) => {
     onTile: '#FFFFFF',    // ... and the text / icon on them
     toggleOn: dark ? '#2EC4B6' : '#2EC4B6',   // switches: on is teal
     toggleOff: dark ? '#34406A' : '#D5D8E6',
-    // Cards read cardFill / cardEdge (Glass: frosted white over its tinted backdrop, see Screen in ui.js; every other theme: the plain surface and line).
-    glass: !!(key === 'glass' && !dark),
-    glow: ['#9CCBFF', '#C5B8FF', '#F3C9E4'],      // Glass's backdrop glows: blue, lilac, pink
-    cardFill: key === 'glass' && !dark ? 'rgba(255,255,255,0.66)' : g.surface,
-    cardEdge: key === 'glass' && !dark ? 'rgba(255,255,255,0.9)' : g.border,
-    // Flat: a 1px line does the separating. Only the + button has a soft shadow (fabShadow); Glass cards have a soft tinted one.
-    shadow: key === 'glass' && !dark ? { shadowColor: c.primary, shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 } : {},
+    // Flat: a 1px line does the separating. Only the + button has a soft shadow (fabShadow).
+    shadow: {},
     fabShadow: { shadowColor: c.primary, shadowOpacity: dark ? 0.3 : 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
     // The priority dots: High red, Medium amber, Low green.
     prioDot: { High: s.danger, Medium: s.amber, Low: s.ok },
@@ -105,15 +93,9 @@ export const build = (key, dark) => {
 /** The themes, as the light version of each (the dark twin is built from the same key when the phone is in dark mode). */
 export const THEMES = Object.fromEntries(Object.keys(COLOURS).map((k) => [k, build(k, false)]));
 export const DEFAULT_THEME = 'pearl';
-/** Config > Appearance: the colour swatches. */
-export const THEME_SWATCHES = Object.entries(COLOURS).map(([key, v]) => ({ key, label: v.label, color: v.swatch }));
 /** The dark twin of a theme (home-screen widgets and the like read it directly). */
 export const darkTheme = (key) => build(COLOURS[key] ? key : DEFAULT_THEME, true);
 
-// Themes stored by earlier looks: the ones that map sensibly keep their colour family, everything else becomes Pearl.
-const OLD_THEME_KEYS = { ocean: 'harbour', violet: 'plum', lilac: 'plum', sunset: 'ember', night: 'ink' };
-/** A stored theme key (possibly one from an earlier look) as one of the six. */
-export const themeKeyOf = (stored) => (COLOURS[stored] ? stored : OLD_THEME_KEYS[stored] || DEFAULT_THEME);
 
 // Four font-size levels from the spec.
 export const FONT_LEVELS = { 1: 0.9, 2: 1.0, 3: 1.15, 4: 1.3 };

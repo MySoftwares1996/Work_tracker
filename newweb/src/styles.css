@@ -402,12 +402,6 @@ tr.is-selected td { background: var(--primary-tint); }
 .pn .card.plain { padding: 24px 26px; gap: 18px; border-radius: 24px; }
 .pn .card.plain > .h2 { margin: 0; }
 .pn .card.plain > p.muted { font-size: 13.5px; line-height: 1.5; margin-top: -8px; }
-.sw { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
-.sw-card { display: flex; flex-direction: column; gap: 8px; border: 2px solid var(--line); border-radius: 18px; padding: 10px; background: var(--card); color: var(--ink); font-weight: 700; font-size: 13px; text-align: left; }
-.sw-card:hover { border-color: var(--line2); }
-.sw-card[aria-pressed="true"] { border-color: var(--primary); }
-.sw-card i { height: 44px; border-radius: 12px; display: block; position: relative; }
-.sw-card i b { position: absolute; right: 6px; bottom: 6px; width: 16px; height: 16px; border-radius: 5px; }
 .tg-row { cursor: pointer; }
 .key-row { flex-wrap: wrap; gap: 8px; }
 .key-row input { flex: 1; min-width: 260px; }
@@ -602,34 +596,6 @@ tr.is-selected td { background: var(--primary-tint); }
 @keyframes refresh-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .refresh-btn.spin svg { animation: none; opacity: 0.5; } }
 
-/* "Glass" (light mode): a blue-to-lilac sky, frosted translucent cards with a bright edge, glossy coloured tiles and buttons.
-   Dark mode keeps the plain dark colours. */
-:root[data-theme="glass"][data-mode="light"] body { background: linear-gradient(160deg, #9CCBFF 0%, #C5B8FF 48%, #F3C9E4 100%) fixed; min-height: 100vh; }
-:root[data-theme="glass"][data-mode="light"] .top { background: rgba(255, 255, 255, 0.55); -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); border-bottom: 1px solid rgba(255, 255, 255, 0.7); }
-:root[data-theme="glass"][data-mode="light"] .card,
-:root[data-theme="glass"][data-mode="light"] .arow,
-:root[data-theme="glass"][data-mode="light"] .mt,
-:root[data-theme="glass"][data-mode="light"] .wr,
-:root[data-theme="glass"][data-mode="light"] .quick input,
-:root[data-theme="glass"][data-mode="light"] .me { background: rgba(255, 255, 255, 0.55); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid rgba(255, 255, 255, 0.8); box-shadow: 0 10px 30px rgba(75, 76, 216, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.9); }
-:root[data-theme="glass"][data-mode="light"] .quick input { background: rgba(255, 255, 255, 0.85); }
-/* Glossy tiles: a light band across the top and an inner edge. */
-:root[data-theme="glass"][data-mode="light"] .hero,
-:root[data-theme="glass"][data-mode="light"] .st { border: 1px solid rgba(255, 255, 255, 0.55); box-shadow: 0 14px 30px rgba(35, 37, 102, 0.28), inset 0 2px 0 rgba(255, 255, 255, 0.45), inset 0 -10px 24px rgba(0, 0, 0, 0.12); color: #fff; }
-:root[data-theme="glass"][data-mode="light"] .hero { background: linear-gradient(160deg, #3B5BB8 0%, #1C2F6B 100%); }
-:root[data-theme="glass"][data-mode="light"] .hero-k { color: #D5E0FF; }
-:root[data-theme="glass"][data-mode="light"] .st.danger { background: linear-gradient(160deg, #D9534F 0%, #A11C1C 100%); }
-:root[data-theme="glass"][data-mode="light"] .st.amber { background: linear-gradient(160deg, #C57A2A 0%, #8A4500 100%); }
-:root[data-theme="glass"][data-mode="light"] .st.slate { background: linear-gradient(160deg, #9156D6 0%, #6A2FAE 100%); }
-:root[data-theme="glass"][data-mode="light"] .st.green { background: linear-gradient(160deg, #2E9A5B 0%, #146B2F 100%); }
-:root[data-theme="glass"][data-mode="light"] .st.blue { background: linear-gradient(160deg, #3F7CF0 0%, #1B4FC4 100%); }
-:root[data-theme="glass"][data-mode="light"] .btn.primary,
-:root[data-theme="glass"][data-mode="light"] .btn.ok { background: linear-gradient(180deg, #2E9A5B 0%, #146B2F 100%); color: #fff; box-shadow: 0 4px 10px rgba(20, 107, 47, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
-:root[data-theme="glass"][data-mode="light"] .btn.primary { background: linear-gradient(180deg, #4F6FF0 0%, #2338B8 100%); box-shadow: 0 4px 12px rgba(35, 56, 184, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
-:root[data-theme="glass"][data-mode="light"] .btn.ok.soft,
-:root[data-theme="glass"][data-mode="light"] .btn.tint { background: linear-gradient(180deg, #4F6FF0 0%, #2338B8 100%); color: #fff; box-shadow: 0 4px 12px rgba(35, 56, 184, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
-:root[data-theme="glass"][data-mode="light"] .tabs a.on, :root[data-theme="glass"][data-mode="light"] .tab.on { background: linear-gradient(180deg, #4F6FF0 0%, #2338B8 100%); color: #fff; box-shadow: 0 3px 10px rgba(35, 56, 184, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
-:root[data-theme="glass"][data-mode="light"] .sheet, :root[data-theme="glass"][data-mode="light"] .menu { background: rgba(255, 255, 255, 0.94); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); border: 1px solid rgba(255, 255, 255, 0.9); }
 
 /* Dashboard head: greeting + date, Quick add and New entry share one row (wraps on a narrow window). */
 .dash-head { flex-wrap: nowrap; align-items: center; gap: 24px; }

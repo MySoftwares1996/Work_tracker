@@ -28,34 +28,22 @@ const TILES = { red: '#E8503C', amber: '#B04E0A', navy: '#2F55D4', violet: '#7B3
 // Per theme: primary (buttons, links), dark (hero panels, selected chips, bulk bar), tint (+ its text) and mint (accent on the dark panels).
 export const THEMES = [
   { id: 'pearl', name: 'Pearl', light: { primary: '#4B33C8', dark: '#14132B', tint: '#ECE9FB', tintInk: '#3A27A0', mint: '#2EC4B6' }, night: { primary: '#A48BFF', dark: '#2B2470', tint: '#26204F', tintInk: '#CFC5FF', mint: '#2EC4B6' } },
-  { id: 'forest', name: 'Forest', light: { primary: '#0B6B52', dark: '#123A2F', tint: '#E3F1EC', tintInk: '#0B5A45', mint: '#9BD3BF' }, night: { primary: '#4CC9A4', dark: '#14443A', tint: '#183B31', tintInk: '#9FE0C8', mint: '#9BD3BF' } },
-  { id: 'harbour', name: 'Harbour', light: { primary: '#2457C5', dark: '#14284F', tint: '#E4ECFA', tintInk: '#1B418F', mint: '#A9C4F5' }, night: { primary: '#86AAF5', dark: '#1B3468', tint: '#1C2C52', tintInk: '#B8CDF8', mint: '#A9C4F5' } },
-  { id: 'plum', name: 'Plum', light: { primary: '#8A3FD1', dark: '#3A1B57', tint: '#F0E6FA', tintInk: '#6A2CA3', mint: '#D2B2F0' }, night: { primary: '#C79AF2', dark: '#4A2470', tint: '#35214A', tintInk: '#DDC0F6', mint: '#D2B2F0' } },
-  { id: 'ember', name: 'Ember', light: { primary: '#C2410C', dark: '#5A200A', tint: '#FBE9DF', tintInk: '#99330A', mint: '#F5B896' }, night: { primary: '#F28F5E', dark: '#6E2D10', tint: '#43271A', tintInk: '#F6C3A6', mint: '#F5B896' } },
-  { id: 'ink', name: 'Ink', light: { primary: '#16231F', dark: '#0E1513', tint: '#E9ECEB', tintInk: '#16231F', mint: '#B9C7C1' }, night: { primary: '#CFDCD6', dark: '#2A3832', tint: '#26312D', tintInk: '#D2DDD8', mint: '#B9C7C1' } },
-  { id: 'glass', name: 'Glass', light: { primary: '#4B4CD8', dark: '#232566', tint: '#E8E9FF', tintInk: '#3638A8', mint: '#B9BBFF', ground: '#EBEFFC', card: '#F7F9FF', soft: '#EDF0FC', line: '#C9D3F1', line2: '#B8C4EA' }, night: { primary: '#9A9BFF', dark: '#2B2D78', tint: '#25264A', tintInk: '#C9CAFF', mint: '#B9BBFF' } },
-  { id: 'rose', name: 'Rose', light: { primary: '#B42318', dark: '#5C1A14', tint: '#FBE7E4', tintInk: '#8E1F15', mint: '#F2A9A0' }, night: { primary: '#F58A7F', dark: '#6E2019', tint: '#43211E', tintInk: '#F6BDB7', mint: '#F2A9A0' } },
 ];
 
 export const DEFAULT_THEME = 'pearl';
-export const themeIds = THEMES.map((t) => t.id);
 export const TEXT_SIZES = [['small', 'Small', 0.92], ['normal', 'Normal', 1], ['large', 'Large', 1.1], ['xl', 'XL', 1.2]];
 
-const THEME_KEY = 'wd-theme';
 const SCHEME_KEY = 'wd-scheme';       // 'auto' (follow the computer), 'light' or 'dark'
 const SIZE_KEY = 'wd-text-size';
 const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k, v) => { try { localStorage.setItem(k, v); } catch { /* the choice just is not remembered */ } };
 
-/** A theme key saved by an older look (violet, aqua, ocean ...) becomes Pearl. */
-export const normalizeTheme = (id) => (themeIds.includes(id) ? id : DEFAULT_THEME);
-export const savedTheme = () => normalizeTheme(read(THEME_KEY));
 export const savedScheme = () => { const v = read(SCHEME_KEY); return v === 'light' || v === 'dark' ? v : 'auto'; };
 export const savedTextSize = () => { const v = read(SIZE_KEY); return TEXT_SIZES.some(([k]) => k === v) ? v : 'normal'; };
 
 /** The CSS variables of a theme in 'light' or 'dark' mode, as { '--name': value }. */
 export function themeVars(id, mode = 'light') {
-  const t = THEMES.find((x) => x.id === normalizeTheme(id));
+  const t = THEMES[0];      // Pearl is the one look
   const b = BASE[mode === 'dark' ? 'dark' : 'light'];
   const p = t[mode === 'dark' ? 'night' : 'light'];
   const o = mode === 'dark' ? {} : p;
@@ -84,14 +72,6 @@ function paint() {
   if (meta) meta.setAttribute('content', vars['--primary']);
 }
 
-/** Sets the colour theme (remembered) and paints it. */
-export function applyTheme(id) {
-  state.theme = normalizeTheme(id);
-  write(THEME_KEY, state.theme);
-  paint();
-  return state.theme;
-}
-
 /** 'auto' follows the computer's dark mode; 'light' / 'dark' stay put. */
 export function applyScheme(scheme) {
   state.scheme = scheme === 'light' || scheme === 'dark' ? scheme : 'auto';
@@ -110,7 +90,6 @@ export function applyTextSize(key) {
 
 /** Called once before the first paint: the saved look, and a live follow of the computer's dark mode. */
 export function startTheme() {
-  state.theme = savedTheme();
   state.scheme = savedScheme();
   paint();
   applyTextSizeQuiet(savedTextSize());

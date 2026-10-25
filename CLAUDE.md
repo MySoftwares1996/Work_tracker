@@ -51,9 +51,8 @@ Several sessions have changed the alert code; check this list before changing it
 
 ## Look and feel - the phone follows the website
 
-- One look, "Ledger" (the owner approved the redesign; the older Pearl / Glass / Warm looks and the "Classic" switch are gone, stored theme
-  keys are mapped by `themeKeyOf`): warm paper ground, flat white cards with a 1px line, Fraunces titles and big numbers, Manrope for the rest,
-  the sliding accent pill kept only for the tablet / side bar. Shared pieces: `src/themeTokens.js` (tokens, six themes, dark twins; plain data so
+- One look, "Pearl" (the only colour theme: the owner had every other theme removed, there is no theme switch and no stored theme key): cool grey ground, flat white cards with a 1px line, Fraunces titles and big numbers, Manrope for the rest,
+  the sliding accent pill kept only for the tablet / side bar. Shared pieces: `src/themeTokens.js` (tokens, the Pearl theme and its dark twin; plain data so
   the tests read it) re-exported by `src/theme.js` (provider), `src/icons.js` (the line icons), `src/fonts.js`, `src/ui.js` (PhoneBar, Card, Btn,
   Field, Chip, Segmented, Sheet, Group / Item, EmptyState, SearchField, Toggle), `src/screens/wdCards.js` (PhoneHeader, PhoneKpi, PhoneRow, PhoneDoneRow, Fab).
 - Website only: macOS frosted side bar, sticky top bar, hover lift, Links / Narration tabs, wide-screen dashboard columns.
@@ -99,9 +98,8 @@ The due date quick picks also offer "Month end -1 ... -5" (a drop-down): the las
 
 The owner chose the "UI Studio" designs: Dashboard = Option 1 (Classic Enhanced: 11 pastel tiles, this / next month breakdown cards, Needs attention / Due today rows with Done and DAR buttons) and Register = plain card grid ("A": three across on the website; the phone has All / Overdue / Today chips). The phone has no Quick add bar (the owner asked).
 
-Look - "Pearl" (Ledger layouts and fonts, Pearl colours; Pearl is the default colour): page #F0F1F7, card #FFFFFF, soft fill #F4F6FA, line #E6E8F1, ink #14132B, muted #62667C (the design's #6B6F85 a hair darker to keep 4.5:1),
-primary #4B33C8, primaryDark #14132B (hero panel, selected chips), tint #ECE9FB / #3A27A0, mint (teal) #2EC4B6; dark twin "Aurora dark": #0C1228 / #161E3B / #1D2648 / line #2A3459, text #F2F4FF, accent #A48BFF; solid tiles `t.tile` (red #E8503C, brown #B04E0A, navy #2F55D4, violet #7B3FD0, teal #0E8F83) with white text; switches teal #2EC4B6; cards radius 22, hero 26, pill buttons (`btnRadius` 999), fields 16, no shadows (only the + button has a soft one). A phone still on the old default (Forest) moves to Pearl once (`lookPearl` in `theme.js`); the website only moves people who never picked a colour. Config > Appearance has six colour
-swatches (Forest, Harbour, Plum, Ember, Ink, Glass, Rose - Glass also swaps the ground to a periwinkle tint (frosted-glass finish: the website in `newweb/src/styles.css`, the phone through `t.glass` / `t.cardFill` / `t.glow` in `themeTokens.js`, the backdrop glows in `Screen` and the translucent `Card` in `ui.js`; light mode only); each swaps primary / primaryDark / tint), "Follow the phone's dark mode" (`settings.followDark`, every theme has a dark twin) and
+Look - "Pearl" (Ledger layouts and fonts, Pearl colours; Pearl is the only colour): page #F0F1F7, card #FFFFFF, soft fill #F4F6FA, line #E6E8F1, ink #14132B, muted #62667C (the design's #6B6F85 a hair darker to keep 4.5:1),
+primary #4B33C8, primaryDark #14132B (hero panel, selected chips), tint #ECE9FB / #3A27A0, mint (teal) #2EC4B6; dark twin "Aurora dark": #0C1228 / #161E3B / #1D2648 / line #2A3459, text #F2F4FF, accent #A48BFF; solid tiles `t.tile` (red #E8503C, brown #B04E0A, navy #2F55D4, violet #7B3FD0, teal #0E8F83) with white text; switches teal #2EC4B6; cards radius 22, hero 26, pill buttons (`btnRadius` 999), fields 16, no shadows (only the + button has a soft one). Config > Appearance has no colour choices (all colour themes were removed: Pearl is the only look); it keeps "Follow the phone's dark mode" (`settings.followDark`, every theme has a dark twin) and
 Text size (`settings.fontLevel`). Tokens and the 4.5:1 contrast check live in `src/themeTokens.js` / `tests/suites/ledger-theme.mjs`; screens read `t.*` only (`t.primary`, `t.primaryDark`,
 `t.tint`, `t.tintText`, `t.mint`, `t.heroDim`, `t.dangerTint`, `t.prioDot`, `t.fontDisplay`). Fonts: `@expo-google-fonts/fraunces` (titles, big numbers: `display()`) and `manrope`
 (`src/fonts.js` loads them with `useAppFonts` in `App.js` - never blocking, the system font is the fallback - and `patchText()` gives every `<Text>` without a family the Manrope

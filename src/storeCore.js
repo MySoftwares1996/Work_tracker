@@ -42,8 +42,6 @@ export const DEFAULT_DB = {
     emergencyName: '', emergencyPhone: '', allergies: '', conditions: '',
   },
   settings: {
-    theme: 'pearl',       // colour theme: pearl, forest, harbour, plum, ember, ink, glass or rose (earlier keys are mapped by themeKeyOf in theme.js)
-    lookPearl: false,     // set once the Pearl look was applied (theme.js moves a phone still on the old default, Forest, to Pearl)
     followDark: true,      // follow the phone's dark mode (Config > Appearance)
     fontLevel: 2,
     office: { lat: null, lng: null, radius: DEFAULTS.geofenceRadiusM, label: 'Office' },
