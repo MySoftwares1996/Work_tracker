@@ -54,3 +54,4 @@ so the old list was cleared on 2026-10-17. From now on, add a line here with eac
 - Phone Glass now has the frosted finish (translucent cards over soft blue / lilac / pink glows, JS only, no new library): goes out with the next phone update.
 - New web: the Config tab is rearranged to use less space (one header row with the account, a narrow topic list, denser panels, two-column Alerts, four lists across). Web only.
 - New web: Config lists, report formats, report points and sub categories use several columns instead of one long column. Web only.
+- Phone: the full-screen alert's Set reminder now saves, syncs, books the reminder alert, closes the card and says so (JS only: next phone update).

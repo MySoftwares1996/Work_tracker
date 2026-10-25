@@ -185,6 +185,22 @@ export default function PastDueAlert() {
     fx.stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('PastDueAlert'));
     if (new Date(iso) > new Date()) hide(e.id);
   };
+  // "Set reminder" (categories that ask for a next reminder): saved on the task with a fresh edit stamp (so it reaches the web app and is not
+  // overwritten by its older copy), booked as an alert, the ringing stopped, and the alert closed - as when a task is moved to a later time.
+  const setReminder = (shown) => {
+    const e = live(shown);
+    const picked = nextRem[e.id] !== undefined ? nextRem[e.id] : e.nextReminderAt;
+    if (!picked) { Alert.alert('Pick the reminder date and time first'); return; }
+    const when = new Date(picked);
+    if (Number.isNaN(when.getTime()) || when <= new Date()) { Alert.alert('Pick a time that is still ahead', 'The next reminder has to be later than now.'); return; }
+    const next = { ...withRemark(e, remarks[e.id]), nextReminderAt: when.toISOString(), audit: addAudit(e.audit, 'Next reminder set (alert)', 'phone'), ...editedNow() };
+    edit(e.id, () => next);
+    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    fx.stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('PastDueAlert'));
+    setNextRem((m) => { const rest = { ...m }; delete rest[e.id]; return rest; });
+    hide(e.id);
+    Alert.alert('Reminder set', `You will be reminded on ${when.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.`);
+  };
   // 🔔 Alarm / 🔕 Reminder for this task, as on its card: a Reminder stops ringing and is not nagged again.
   const switchMode = (shown) => {
     const e = live(shown);
@@ -315,7 +331,7 @@ export default function PastDueAlert() {
                     <Text style={lab}>NEXT REMINDER</Text>
                     <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 10 }}>
                       <DateTimeField clearable value={nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt} onChange={(v) => setNextRem((m) => ({ ...m, [e.id]: v || '' }))} />
-                      <Btn title="Set reminder" onPress={() => { const iso = nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt; const next = { ...live(entry), nextReminderAt: iso || null }; edit(e.id, () => next); fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert')); }} />
+                      <Btn title="Set reminder" onPress={() => setReminder(entry)} />
                     </View>
                   </View>
                 )}

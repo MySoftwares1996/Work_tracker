@@ -55,4 +55,8 @@ export async function run({ ck, section }) {
 
   const silenced = moveEntry(e('s', at(3, 10, 0), { snoozeUntil: 5, lastAckDate: '2026-10-03', deadlineAckDate: '2026-10-03', skippedDates: ['2026-10-03', '2026-10-01'] }), at(3, 18, 0), now);
   ck('Move clears snooze, silence and today\'s skip', !silenced.snoozeUntil && !silenced.lastAckDate && !silenced.deadlineAckDate && silenced.skippedDates.join() === '2026-10-01', JSON.stringify(silenced));
+  section('Past Due Alert: Set reminder');
+  const pdSrc = (await import('fs')).readFileSync('src/screens/PastDueAlert.js', 'utf8');
+  ck('Set reminder saves the date with a fresh edit stamp (so it syncs), books the alert, stops the ring and closes the card', /const setReminder = \(shown\) => \{[\s\S]*nextReminderAt: when\.toISOString\(\)[\s\S]*\.\.\.editedNow\(\)[\s\S]*scheduleEntryAlert\(next[\s\S]*stopAlarmRinging[\s\S]*hide\(e\.id\)/.test(pdSrc) && pdSrc.includes('onPress={() => setReminder(entry)}'));
+  ck('it asks for a date still ahead instead of doing nothing', pdSrc.includes('Pick the reminder date and time first') && pdSrc.includes('Pick a time that is still ahead'));
 }
