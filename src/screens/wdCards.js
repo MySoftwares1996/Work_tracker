@@ -384,7 +384,8 @@ export function SectionHead({ title, action, onAction, style }) {
  */
 export function PhoneKpi({ label, value, tone, onPress, wide }) {
   const t = useTheme();
-  const colours = { red: [t.dangerTint, t.dangerText], amber: [t.warnTint, t.warnText], slate: [t.slateTint, t.slateText] }[tone];
+  // Solid tiles with white text (the design's tool tiles); in the dark look they are the same colours.
+  const colours = { red: [t.tile.red, t.onTile], amber: [t.tile.amber, t.onTile], slate: [t.tile.navy, t.onTile] }[tone];
   const bg = colours ? colours[0] : t.surface;
   const fg = colours ? colours[1] : t.text;
   return (
@@ -415,7 +416,7 @@ export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
   const dueText = due ? (late >= 2 ? `Overdue ${late} d` : relativeDue(due)) : 'No date';
   const facts = [entry.priority, entry.category, entry.pendingWith, entry.recurrence && entry.recurrence !== 'none' ? `↻ ${recurrenceLabel(entry)}` : '', checklistText(entry) ? `☑ ${checklistText(entry)}` : ''].filter(Boolean).join(' · ');
   const btn = (label, bg, ink, fn) => (
-    <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 11, borderRadius: 14, alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
+    <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 11, borderRadius: 999, alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
       <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(14) }}>{label}</Text>
     </Pressable>
   );
@@ -458,7 +459,7 @@ export function PhoneDoneRow({ entry, onPress, onReopen }) {
         <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(14.5), lineHeight: t.fs(19) }} numberOfLines={2}>{entry.title}</Text>
         <Text style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(12.5) }} numberOfLines={1}>{facts}</Text>
       </Pressable>
-      <Pressable onPress={onReopen} accessibilityRole="button" accessibilityLabel="Reopen" style={({ pressed }) => ({ paddingVertical: 9, paddingHorizontal: 12, borderRadius: 12, backgroundColor: t.tint, opacity: pressed ? 0.85 : 1 })}>
+      <Pressable onPress={onReopen} accessibilityRole="button" accessibilityLabel="Reopen" style={({ pressed }) => ({ paddingVertical: 9, paddingHorizontal: 12, borderRadius: 999, backgroundColor: t.tint, opacity: pressed ? 0.85 : 1 })}>
         <Text style={{ color: t.tintText, fontWeight: '800', fontSize: t.fs(13) }}>Reopen</Text>
       </Pressable>
     </View>

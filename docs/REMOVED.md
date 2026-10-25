@@ -19,6 +19,8 @@ drops something must list it here and in the reply. Restoring any line below is 
 
 - Clean-up of unused code (2026-10-25, owner asked), nothing the person sees: the old "keep ringing" notification chain `scheduleAlarmSeries` (src/notify.js; nothing used it since Tasks & reminders were removed), the unused `H2` text component (src/ui.js), the unused `expo-device` package (package.json; the next APK build leaves it out), and the old Config layout's leftover styles (`.cfg-side`, `.cfg-account`).
 
+- The owner's "Pearl" look (2026-10-25) replaces Ledger's warm paper ground and Forest as the default: cool grey page, solid white cards, violet accent, solid colour tiles, pill buttons, teal switches. Forest and the other colours are still choices (Config > Appearance); only Forest as the default and the warm paper ground are gone. Fonts and layouts were not changed.
+
 ## Ledger redesign (2026-10-18) - things that went with it
 | What | Where | Note |
 |---|---|---|

@@ -1,11 +1,12 @@
 /* "Ledger": cream ground, white cards with 1px lines, serif titles, one green accent. The values below are Forest / light, the starting point;
    src/themes.js sets the same variables for the other themes and for dark mode before the first paint. */
 :root {
-  --ground: #F7F5EF; --card: #FFFFFF; --soft: #EFEBDF; --line: #E4E0D4; --line2: #D9D4C5; --ink: #16231F; --muted: #5E6B66; --off: #C9C3B0;
-  --danger: #B42318; --on-danger: #FFFFFF; --danger-tint: #FBE7E4; --danger-ink: #8E1F15; --danger-line: #E9A9A2;
-  --amber: #C27A0E; --amber-tint: #FBF0DC; --amber-ink: #7A4E08;
-  --slate-tint: #E6ECF2; --slate-ink: #27435B; --scrim: rgba(18, 30, 26, 0.55);
-  --primary: #0B6B52; --on-primary: #FFFFFF; --primary-dark: #123A2F; --primary-tint: #E3F1EC; --primary-ink: #0B5A45; --mint: #9BD3BF;
+  --ground: #F0F1F7; --card: #FFFFFF; --soft: #F4F6FA; --line: #E6E8F1; --line2: #DADDEA; --ink: #14132B; --muted: #62667C; --off: #C9CDDD;
+  --danger: #C23B28; --on-danger: #FFFFFF; --danger-tint: #FDE9E5; --danger-ink: #9E2C1C; --danger-line: #F0B1A6;
+  --amber: #E89A00; --amber-tint: #FFF1D6; --amber-ink: #7A4700;
+  --slate-tint: #E8ECFA; --slate-ink: #2342A8; --scrim: rgba(20, 19, 43, 0.55);
+  --tile-red: #E8503C; --tile-amber: #B04E0A; --tile-navy: #2F55D4; --tile-violet: #7B3FD0; --tile-teal: #0E8F83; --toggle-on: #2EC4B6; --toggle-off: #D5D8E6;
+  --primary: #4B33C8; --on-primary: #FFFFFF; --primary-dark: #14132B; --primary-tint: #ECE9FB; --primary-ink: #3A27A0; --mint: #2EC4B6;
   --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
   --sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C8B85' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -29,7 +30,7 @@ h1, h2, h3, p { margin: 0; }
 .top { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 14px clamp(24px, 2.6vw, 56px); background: var(--card); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; white-space: nowrap; }
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
-.tab { border: 0; background: transparent; padding: 9px 14px; border-radius: 12px; font-weight: 700; font-size: 14px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.tab { border: 0; background: transparent; padding: 9px 14px; border-radius: 999px; font-weight: 700; font-size: 14px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 .tab:hover { color: var(--ink); }
 .tab.on { background: var(--primary-tint); color: var(--primary-ink); }
 .count { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: var(--soft); color: var(--ink); line-height: 1.3; }
@@ -64,7 +65,7 @@ h1, h2, h3, p { margin: 0; }
 .more-row { display: flex; justify-content: center; padding: 8px 0 24px; }
 
 /* ---- buttons, chips, fields ---- */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); border-radius: 14px; padding: 10px 16px; font-weight: 800; font-size: 14px; line-height: 1.2; text-decoration: none; text-align: center; transition: border-color 0.15s, background 0.15s; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); border-radius: 999px; padding: 10px 16px; font-weight: 800; font-size: 14px; line-height: 1.2; text-decoration: none; text-align: center; transition: border-color 0.15s, background 0.15s; }
 .btn:hover:not(:disabled) { border-color: var(--primary); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn.big { padding: 13px 20px; }
@@ -112,9 +113,9 @@ input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 22px; 
 input[type=checkbox]:checked { background: var(--primary); border-color: var(--primary); }
 input[type=checkbox]:checked::after { content: ''; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid var(--on-primary); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
 input[type=checkbox]:disabled { opacity: 0.5; cursor: default; }
-input[type=checkbox].tg { width: 48px; height: 29px; border-radius: 15px; border: 0; background: var(--off); transition: background 0.15s; }
+input[type=checkbox].tg { width: 48px; height: 29px; border-radius: 15px; border: 0; background: var(--toggle-off); transition: background 0.15s; }
 input[type=checkbox].tg::after { content: ''; position: absolute; left: 3px; top: 3px; width: 23px; height: 23px; border-radius: 50%; background: #fff; border: 0; transform: none; transition: left 0.15s; }
-input[type=checkbox].tg:checked { background: var(--primary); }
+input[type=checkbox].tg:checked { background: var(--toggle-on); }
 input[type=checkbox].tg:checked::after { left: 22px; border: 0; transform: none; }
 .check-row { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
 
@@ -141,7 +142,7 @@ input[type=checkbox].tg:checked::after { left: 22px; border: 0; transform: none;
 .quick { display: flex; gap: 10px; flex-wrap: wrap; margin-top: -6px; }
 .quick input { flex: 1 1 280px; height: 46px; }
 .tiles { display: grid; grid-template-columns: minmax(0, 2fr) repeat(5, minmax(0, 1fr)); gap: 16px; }
-.hero { background: var(--primary-dark); color: #fff; border-radius: 24px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.hero { background: var(--primary-dark); color: #fff; border-radius: 26px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .hero-k { font-size: 11px; letter-spacing: 1.4px; font-weight: 800; color: var(--mint); }
 .hero-n { display: flex; align-items: baseline; gap: 12px; border: 0; background: none; padding: 0; color: inherit; text-align: left; flex-wrap: wrap; }
 .hero-n b { font-family: var(--serif); font-weight: 600; font-size: 72px; line-height: 0.9; letter-spacing: -2.5px; }
@@ -155,11 +156,12 @@ input[type=checkbox].tg:checked::after { left: 22px; border: 0; transform: none;
 .st span { font-size: 13px; font-weight: 700; }
 .st b { font-family: var(--serif); font-size: 40px; font-weight: 600; line-height: 1; }
 .st:hover { filter: brightness(0.97); }
-.st.danger { background: var(--danger-tint); color: var(--danger-ink); }
-.st.amber { background: var(--amber-tint); color: var(--amber-ink); }
-.st.slate { background: var(--slate-tint); color: var(--slate-ink); }
-.st.green { background: var(--primary-tint); color: var(--primary-ink); }
-.st.blue { background: var(--primary-tint); color: var(--primary-ink); }
+/* The solid tool tiles: a flat colour with white text. */
+.st.danger { background: var(--tile-red); color: #fff; }
+.st.amber { background: var(--tile-amber); color: #fff; }
+.st.slate { background: var(--tile-navy); color: #fff; }
+.st.green { background: var(--tile-violet); color: #fff; }
+.st.blue { background: var(--tile-teal); color: #fff; }
 .more-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: -8px; }
 .mt { display: flex; align-items: baseline; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px 16px; text-align: left; color: var(--ink); min-width: 0; }
 .mt:hover { border-color: var(--primary); }

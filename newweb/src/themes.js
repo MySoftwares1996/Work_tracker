@@ -1,30 +1,33 @@
 /**
- * The "Ledger" look: six colour themes (Config > Appearance), each with a light and a dark twin. This file is the single source of the
+ * The "Pearl" look (Ledger structure): eight colour themes (Config > Appearance), each with a light and a dark twin. This file is the single source of the
  * colours: `themeVars(id, mode)` gives the CSS variables, `applyTheme` / `applyScheme` write them on <html>, and styles.css only
- * keeps the Forest / light values as the starting point before the script runs. The choice is kept on this device (localStorage).
+ * keeps the Pearl / light values as the starting point before the script runs. The choice is kept on this device (localStorage).
  * Every text / background pair here is checked for 4.5:1 contrast in tests/data.test.js.
  */
 
 // Shared by every theme: the ground, cards, lines, text and the three status colours.
 const BASE = {
   light: {
-    ground: '#F7F5EF', card: '#FFFFFF', soft: '#EFEBDF', line: '#E4E0D4', line2: '#D9D4C5', ink: '#16231F', muted: '#5E6B66', off: '#C9C3B0',
-    danger: '#B42318', onDanger: '#FFFFFF', dangerTint: '#FBE7E4', dangerInk: '#8E1F15', dangerLine: '#E9A9A2',
-    amber: '#C27A0E', amberTint: '#FBF0DC', amberInk: '#7A4E08',
-    slateTint: '#E6ECF2', slateInk: '#27435B',
-    scrim: 'rgba(18, 30, 26, 0.55)',
+    ground: '#F0F1F7', card: '#FFFFFF', soft: '#F4F6FA', line: '#E6E8F1', line2: '#DADDEA', ink: '#14132B', muted: '#62667C', off: '#C9CDDD',
+    danger: '#C23B28', onDanger: '#FFFFFF', dangerTint: '#FDE9E5', dangerInk: '#9E2C1C', dangerLine: '#F0B1A6',
+    amber: '#E89A00', amberTint: '#FFF1D6', amberInk: '#7A4700',
+    slateTint: '#E8ECFA', slateInk: '#2342A8',
+    scrim: 'rgba(20, 19, 43, 0.55)',
   },
   dark: {
-    ground: '#0F1714', card: '#17211D', soft: '#1F2B26', line: '#2A3832', line2: '#38483F', ink: '#EAF2EE', muted: '#9DB0A8', off: '#46564E',
-    danger: '#FF8A7E', onDanger: '#3A0F0B', dangerTint: '#3A1D1A', dangerInk: '#FFB4AB', dangerLine: '#7A3A34',
-    amber: '#E8A23A', amberTint: '#3A2D12', amberInk: '#F2C877',
-    slateTint: '#1F2E3B', slateInk: '#A9C4DE',
+    ground: '#0C1228', card: '#161E3B', soft: '#1D2648', line: '#2A3459', line2: '#34406A', ink: '#F2F4FF', muted: '#A3ACCB', off: '#46507A',
+    danger: '#FF8A7E', onDanger: '#3A0F0B', dangerTint: '#3A1D2A', dangerInk: '#FFB4AB', dangerLine: '#7A3A4C',
+    amber: '#EE9A13', amberTint: '#3A2B10', amberInk: '#F2C877',
+    slateTint: '#1D2648', slateInk: '#A9B8F0',
     scrim: 'rgba(0, 0, 0, 0.65)',
   },
 };
+// The solid tool tiles (white text on them) and the switches: the same in light and dark.
+const TILES = { red: '#E8503C', amber: '#B04E0A', navy: '#2F55D4', violet: '#7B3FD0', teal: '#0E8F83' };
 
 // Per theme: primary (buttons, links), dark (hero panels, selected chips, bulk bar), tint (+ its text) and mint (accent on the dark panels).
 export const THEMES = [
+  { id: 'pearl', name: 'Pearl', light: { primary: '#4B33C8', dark: '#14132B', tint: '#ECE9FB', tintInk: '#3A27A0', mint: '#2EC4B6' }, night: { primary: '#A48BFF', dark: '#2B2470', tint: '#26204F', tintInk: '#CFC5FF', mint: '#2EC4B6' } },
   { id: 'forest', name: 'Forest', light: { primary: '#0B6B52', dark: '#123A2F', tint: '#E3F1EC', tintInk: '#0B5A45', mint: '#9BD3BF' }, night: { primary: '#4CC9A4', dark: '#14443A', tint: '#183B31', tintInk: '#9FE0C8', mint: '#9BD3BF' } },
   { id: 'harbour', name: 'Harbour', light: { primary: '#2457C5', dark: '#14284F', tint: '#E4ECFA', tintInk: '#1B418F', mint: '#A9C4F5' }, night: { primary: '#86AAF5', dark: '#1B3468', tint: '#1C2C52', tintInk: '#B8CDF8', mint: '#A9C4F5' } },
   { id: 'plum', name: 'Plum', light: { primary: '#8A3FD1', dark: '#3A1B57', tint: '#F0E6FA', tintInk: '#6A2CA3', mint: '#D2B2F0' }, night: { primary: '#C79AF2', dark: '#4A2470', tint: '#35214A', tintInk: '#DDC0F6', mint: '#D2B2F0' } },
@@ -34,7 +37,7 @@ export const THEMES = [
   { id: 'rose', name: 'Rose', light: { primary: '#B42318', dark: '#5C1A14', tint: '#FBE7E4', tintInk: '#8E1F15', mint: '#F2A9A0' }, night: { primary: '#F58A7F', dark: '#6E2019', tint: '#43211E', tintInk: '#F6BDB7', mint: '#F2A9A0' } },
 ];
 
-export const DEFAULT_THEME = 'forest';
+export const DEFAULT_THEME = 'pearl';
 export const themeIds = THEMES.map((t) => t.id);
 export const TEXT_SIZES = [['small', 'Small', 0.92], ['normal', 'Normal', 1], ['large', 'Large', 1.1], ['xl', 'XL', 1.2]];
 
@@ -44,7 +47,7 @@ const SIZE_KEY = 'wd-text-size';
 const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k, v) => { try { localStorage.setItem(k, v); } catch { /* the choice just is not remembered */ } };
 
-/** A theme key saved by an older look (violet, aqua, ocean ...) becomes Forest. */
+/** A theme key saved by an older look (violet, aqua, ocean ...) becomes Pearl. */
 export const normalizeTheme = (id) => (themeIds.includes(id) ? id : DEFAULT_THEME);
 export const savedTheme = () => normalizeTheme(read(THEME_KEY));
 export const savedScheme = () => { const v = read(SCHEME_KEY); return v === 'light' || v === 'dark' ? v : 'auto'; };
@@ -60,6 +63,7 @@ export function themeVars(id, mode = 'light') {
     '--ground': o.ground || b.ground, '--card': o.card || b.card, '--soft': o.soft || b.soft, '--line': o.line || b.line, '--line2': o.line2 || b.line2, '--ink': b.ink, '--muted': b.muted, '--off': b.off,
     '--danger': b.danger, '--on-danger': b.onDanger, '--danger-tint': b.dangerTint, '--danger-ink': b.dangerInk, '--danger-line': b.dangerLine,
     '--amber': b.amber, '--amber-tint': b.amberTint, '--amber-ink': b.amberInk, '--slate-tint': b.slateTint, '--slate-ink': b.slateInk, '--scrim': b.scrim,
+    '--tile-red': TILES.red, '--tile-amber': TILES.amber, '--tile-navy': TILES.navy, '--tile-violet': TILES.violet, '--tile-teal': TILES.teal, '--toggle-on': '#2EC4B6', '--toggle-off': mode === 'dark' ? '#34406A' : '#D5D8E6',
     '--primary': p.primary, '--on-primary': mode === 'dark' ? '#0B1511' : '#FFFFFF', '--primary-dark': p.dark, '--primary-tint': p.tint, '--primary-ink': p.tintInk, '--mint': p.mint,
   };
 }

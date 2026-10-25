@@ -1,6 +1,6 @@
 // Ledger's colours, fonts and the six themes as plain data - no React, so the tests can read them (theme.js adds the provider).
 /**
- * "Ledger" - the one look of the app (Forest is the default). Six colour themes share one structure: a warm paper ground,
+ * "Ledger" structure with the "Pearl" colours - the one look of the app (Pearl is the default). Six colour themes share one structure: a warm paper ground,
  * flat white cards with a 1px line, Fraunces for titles and big numbers, Manrope for everything else. A theme only swaps
  * its primary / primaryDark / primaryTint (and the mint on dark panels); every theme has a dark twin that follows the
  * phone's dark mode (Config > Appearance can turn that off).
@@ -16,31 +16,36 @@ export const fontFor = (weight) => {
   return FONT_BY_WEIGHT[Math.max(400, Math.min(900, Math.round(w / 100) * 100))] || FONT_BY_WEIGHT[400];
 };
 
-// The light and dark ground shared by every colour theme.
+// The light and dark ground shared by every colour theme: "Pearl" (flat, calm: a cool grey page, solid white cards, one violet accent) and its dark
+// twin "Aurora dark". Secondary text is #62667C (a hair darker than the design's #6B6F85) so it keeps 4.5:1 on the page colour.
 const GROUND = {
-  light: { bg: '#F7F5EF', surface: '#FFFFFF', surfaceAlt: '#EFEBDF', border: '#E4E0D4', fieldBorder: '#D9D4C5', text: '#16231F', textDim: '#5E6B66', chevron: '#9AA39F', dark: false },
-  dark: { bg: '#0F1714', surface: '#17211D', surfaceAlt: '#1F2B26', border: '#2A3832', fieldBorder: '#34453E', text: '#EAF2EE', textDim: '#9DB0A8', chevron: '#6F8279', dark: true },
+  light: { bg: '#F0F1F7', surface: '#FFFFFF', surfaceAlt: '#F4F6FA', border: '#E6E8F1', fieldBorder: '#DADDEA', text: '#14132B', textDim: '#62667C', chevron: '#9AA0B8', dark: false },
+  dark: { bg: '#0C1228', surface: '#161E3B', surfaceAlt: '#1D2648', border: '#2A3459', fieldBorder: '#34406A', text: '#F2F4FF', textDim: '#A3ACCB', chevron: '#7C86AB', dark: true },
 };
-// Signal colours: the plain colour (dots, fills), the tint behind it and the text on that tint.
+// Signal colours: the plain colour (dots, text), the tint behind it and the text on that tint. The design's own brighter reds / ambers /
+// teal are the solid tiles (`tile`, below), where white text sits on them.
 const SIGNAL = {
   light: {
-    danger: '#B42318', dangerTint: '#FBE7E4', dangerText: '#8E1F15',
-    amber: '#C27A0E', warn: '#8F5806', warnTint: '#FBF0DC', warnText: '#7A4E08',
-    slateTint: '#E6ECF2', slateText: '#27435B', accent2: '#27435B',
-    ok: '#13795B', okTint: '#E3F1EC', okText: '#0B5A45',
-    indigo: '#4F46B8', teal: '#0F766E', pink: '#B4236B', purple: '#7E3FB8',
+    danger: '#C23B28', dangerTint: '#FDE9E5', dangerText: '#9E2C1C',
+    amber: '#E89A00', warn: '#9A5B00', warnTint: '#FFF1D6', warnText: '#7A4700',
+    slateTint: '#E8ECFA', slateText: '#2342A8', accent2: '#0B7A70',
+    ok: '#0B7A70', okTint: '#DDF3F0', okText: '#0A5F57',
+    indigo: '#4B33C8', teal: '#0B7A70', pink: '#C23872', purple: '#7B3FD0',
   },
   dark: {
-    danger: '#FF8A7E', dangerTint: '#3D1F1B', dangerText: '#FFB4AB',
-    amber: '#E5A23A', warn: '#E5A23A', warnTint: '#3A2B10', warnText: '#F2C679',
-    slateTint: '#1E2B38', slateText: '#A9C4DD', accent2: '#A9C4DD',
-    ok: '#4FD08F', okTint: '#1C3A31', okText: '#8FE0C4',
-    indigo: '#A5A0F0', teal: '#5CCFC3', pink: '#F08BB8', purple: '#C9A0F2',
+    danger: '#FF8A7E', dangerTint: '#3A1D2A', dangerText: '#FFB4AB',
+    amber: '#EE9A13', warn: '#EE9A13', warnTint: '#3A2B10', warnText: '#F2C679',
+    slateTint: '#1D2648', slateText: '#A9B8F0', accent2: '#2EC4B6',
+    ok: '#3FD0C2', okTint: '#14383B', okText: '#8FE6DC',
+    indigo: '#A99BFF', teal: '#2EC4B6', pink: '#F2668B', purple: '#C9A0F2',
   },
 };
+// The solid tool tiles: a flat colour with white text / icon (Home's counts).
+const TILES = { red: '#E8503C', amber: '#B04E0A', navy: '#2F55D4', violet: '#7B3FD0', teal: '#0E8F83', ink: '#14132B', pink: '#E24A82', grey: '#5E6173' };
 
 // The six colour themes: [light, dark] values of primary / primaryDark / primaryTint / tint text / mint / soft text on the dark panels.
 const COLOURS = {
+  pearl: { label: 'Pearl', swatch: '#4B33C8', light: { primary: '#4B33C8', primaryDark: '#14132B', tint: '#ECE9FB', tintText: '#3A27A0', mint: '#2EC4B6', heroDim: '#C9C6E8' }, dark: { primary: '#A48BFF', primaryDark: '#2B2470', tint: '#26204F', tintText: '#CFC5FF', mint: '#2EC4B6', heroDim: '#C9C6E8' } },
   forest: { label: 'Forest', swatch: '#0B6B52', light: { primary: '#0B6B52', primaryDark: '#123A2F', tint: '#E3F1EC', tintText: '#0B5A45', mint: '#9BD3BF', heroDim: '#D4EBE1' }, dark: { primary: '#3FBF98', primaryDark: '#1B4A3C', tint: '#1C3A31', tintText: '#8FE0C4', mint: '#9BD3BF', heroDim: '#D4EBE1' } },
   harbour: { label: 'Harbour', swatch: '#2457C5', light: { primary: '#2457C5', primaryDark: '#14284F', tint: '#E4ECFA', tintText: '#1C4399', mint: '#A9C4F5', heroDim: '#D3E1FA' }, dark: { primary: '#7FA6F5', primaryDark: '#1E3A75', tint: '#1D2B4A', tintText: '#B4CCFA', mint: '#B4CCFA', heroDim: '#D3E1FA' } },
   plum: { label: 'Plum', swatch: '#8A3FD1', light: { primary: '#8A3FD1', primaryDark: '#3A1B57', tint: '#F0E6FA', tintText: '#6B2BA8', mint: '#D6B4F2', heroDim: '#EBDAF8' }, dark: { primary: '#C08EF0', primaryDark: '#4D2A73', tint: '#2E2040', tintText: '#DFC3F7', mint: '#D6B4F2', heroDim: '#EBDAF8' } },
@@ -69,12 +74,16 @@ export const build = (key, dark) => {
     bgAlt: g.surfaceAlt,
     accent: c.primary,
     // Text on a primary-coloured button: white on the light themes, near-black on the lightened dark primaries.
-    onAccent: dark ? '#0B1A15' : '#FFFFFF',
-    radius: 20,
-    heroRadius: 24,
-    btnRadius: 14,
-    fieldRadius: 14,
-    sheetRadius: 24,
+    onAccent: dark ? '#0C1228' : '#FFFFFF',
+    radius: 22,
+    heroRadius: 26,
+    btnRadius: 999,       // pill buttons
+    fieldRadius: 16,
+    sheetRadius: 26,
+    tile: TILES,          // solid tiles ...
+    onTile: '#FFFFFF',    // ... and the text / icon on them
+    toggleOn: dark ? '#2EC4B6' : '#2EC4B6',   // switches: on is teal
+    toggleOff: dark ? '#34406A' : '#D5D8E6',
     // Cards read cardFill / cardEdge (Glass: frosted white over its tinted backdrop, see Screen in ui.js; every other theme: the plain surface and line).
     glass: !!(key === 'glass' && !dark),
     glow: ['#9CCBFF', '#C5B8FF', '#F3C9E4'],      // Glass's backdrop glows: blue, lilac, pink
@@ -95,13 +104,13 @@ export const build = (key, dark) => {
 
 /** The themes, as the light version of each (the dark twin is built from the same key when the phone is in dark mode). */
 export const THEMES = Object.fromEntries(Object.keys(COLOURS).map((k) => [k, build(k, false)]));
-export const DEFAULT_THEME = 'forest';
+export const DEFAULT_THEME = 'pearl';
 /** Config > Appearance: the colour swatches. */
 export const THEME_SWATCHES = Object.entries(COLOURS).map(([key, v]) => ({ key, label: v.label, color: v.swatch }));
 /** The dark twin of a theme (home-screen widgets and the like read it directly). */
 export const darkTheme = (key) => build(COLOURS[key] ? key : DEFAULT_THEME, true);
 
-// Themes stored by earlier looks: the ones that map sensibly keep their colour family, everything else becomes Forest.
+// Themes stored by earlier looks: the ones that map sensibly keep their colour family, everything else becomes Pearl.
 const OLD_THEME_KEYS = { ocean: 'harbour', violet: 'plum', lilac: 'plum', sunset: 'ember', night: 'ink' };
 /** A stored theme key (possibly one from an earlier look) as one of the six. */
 export const themeKeyOf = (stored) => (COLOURS[stored] ? stored : OLD_THEME_KEYS[stored] || DEFAULT_THEME);

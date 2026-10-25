@@ -416,8 +416,8 @@ export function Toggle({ value, onChange, label }) {
   const t = useTheme();
   return (
     <Pressable onPress={() => onChange(!value)} accessibilityRole="switch" accessibilityState={{ checked: !!value }} accessibilityLabel={label} hitSlop={8}
-      style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: value ? t.primary : t.fieldBorder, justifyContent: 'center' }}>
-      <View style={{ position: 'absolute', top: 3, left: value ? 21 : 3, width: 22, height: 22, borderRadius: 11, backgroundColor: value ? t.onAccent : '#fff' }} />
+      style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: value ? t.toggleOn : t.toggleOff, justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', top: 3, left: value ? 21 : 3, width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' }} />
     </Pressable>
   );
 }

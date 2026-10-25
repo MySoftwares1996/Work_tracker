@@ -213,28 +213,33 @@ import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.
 const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
 const contrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-test('the six Ledger themes: Forest is the default and an old saved theme key becomes Forest', () => {
-  assert.deepEqual(THEMES.map((t) => t.id), ['forest', 'harbour', 'plum', 'ember', 'ink', 'glass', 'rose']);
-  assert.equal(DEFAULT_THEME, 'forest');
-  ['violet', 'aqua', 'ocean', 'sunset', 'lilac', 'night', '', null, undefined].forEach((old) => assert.equal(normalizeTheme(old), 'forest'));
+test('the Pearl look: Pearl is the default and an old saved theme key becomes Pearl', () => {
+  assert.deepEqual(THEMES.map((t) => t.id), ['pearl', 'forest', 'harbour', 'plum', 'ember', 'ink', 'glass', 'rose']);
+  assert.equal(DEFAULT_THEME, 'pearl');
+  ['violet', 'aqua', 'ocean', 'sunset', 'lilac', 'night', '', null, undefined].forEach((old) => assert.equal(normalizeTheme(old), 'pearl'));
   THEMES.forEach((t) => assert.equal(normalizeTheme(t.id), t.id));
-  const f = themeVars('forest', 'light');
-  assert.equal(f['--primary'], '#0B6B52');
-  assert.equal(f['--primary-dark'], '#123A2F');
-  assert.equal(f['--primary-tint'], '#E3F1EC');
+  const f = themeVars('pearl', 'light');
+  assert.equal(f['--ground'], '#F0F1F7');
+  assert.equal(f['--card'], '#FFFFFF');
+  assert.equal(f['--line'], '#E6E8F1');
+  assert.equal(f['--ink'], '#14132B');
+  assert.equal(f['--primary'], '#4B33C8');
+  assert.equal(f['--mint'], '#2EC4B6');
+  assert.equal(f['--tile-navy'], '#2F55D4');
+  assert.equal(f['--toggle-on'], '#2EC4B6');
   assert.equal(themeVars('rose', 'light')['--primary'], '#B42318');
-  assert.equal(themeVars('violet', 'light')['--primary'], '#0B6B52');
+  assert.equal(themeVars('violet', 'light')['--primary'], '#4B33C8');
 });
 
-test('every theme has a dark twin with the same tokens, and the CSS starts from the Forest / light values', () => {
+test('every theme has a dark twin with the same tokens (Aurora dark), and the CSS starts from the Pearl / light values', () => {
   const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
   const root = /:root \{([^}]*)\}/.exec(css)[1];
-  const light = themeVars('forest', 'light');
+  const light = themeVars('pearl', 'light');
   Object.entries(light).forEach(([k, v]) => assert.ok(new RegExp(`${k}:\\s*${v.replace(/[()]/g, '\\$&')}`, 'i').test(root), `styles.css :root has ${k}: ${v}`));
   THEMES.forEach((t) => {
     assert.deepEqual(Object.keys(themeVars(t.id, 'dark')).sort(), Object.keys(light).sort(), t.id);
-    assert.equal(themeVars(t.id, 'dark')['--ground'], '#0F1714');
-    assert.equal(themeVars(t.id, 'dark')['--card'], '#17211D');
+    assert.equal(themeVars(t.id, 'dark')['--ground'], '#0C1228');
+    assert.equal(themeVars(t.id, 'dark')['--card'], '#161E3B');
   });
 });
 

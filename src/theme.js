@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { useEffect, createContext, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import { useStore } from './store';
 import { THEMES, FONT_LEVELS, themeKeyOf, build } from './themeTokens';
@@ -9,7 +9,14 @@ export * from './themeTokens';
 const ThemeCtx = createContext(null);
 
 export function ThemeProvider({ children }) {
-  const { data } = useStore();
+  const { data, ready, update } = useStore();
+  // One time, when the Pearl look arrived: a phone still on the old default (Forest) moves to Pearl; any other colour the person chose stays.
+  const lookDone = !!data?.settings?.lookPearl;
+  useEffect(() => {
+    if (!ready || lookDone) return;
+    const cur = data?.settings?.theme;
+    update({ settings: { lookPearl: true, ...(!cur || cur === 'forest' ? { theme: 'pearl' } : null) } });
+  }, [ready, lookDone]);      // eslint-disable-line react-hooks/exhaustive-deps
   const themeKey = themeKeyOf(data?.settings?.theme);
   const fontLevel = data?.settings?.fontLevel || 2;
   // "Follow the phone's dark mode" (Config > Appearance): on unless switched off.
