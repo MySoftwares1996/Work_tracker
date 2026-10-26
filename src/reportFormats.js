@@ -5,6 +5,8 @@
  * is shown as [Field name] so it is noticed. Pure: no React, no storage.
  */
 
+import { latestDayNotes } from './notesLatest.js';
+
 const STOP = new Set(['of', 'the', 'a', 'an', 'no', 'number', 'for', 'to', 'and']);
 // Plural "s" is ignored ("Imports" = "Import", "Advance's" = "Advance") so a small difference in spelling still finds the format.
 const tokens = (s) => String(s || '').toLowerCase().replace(/'s\b/g, '').replace(/[^a-z0-9%&]+/g, ' ').split(' ').filter((w) => w && !STOP.has(w)).map((w) => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w));
@@ -44,7 +46,7 @@ export function fieldValue(entry, mark) {
   const kps = (entry && Array.isArray(entry.keyPoints) ? entry.keyPoints : []).filter((k) => k && clean(k.value));
   kps.forEach((k) => { const sc = score(mark, k.key); if (sc > 0 && (!best || sc > best.sc)) best = { sc, v: clean(k.value) }; });
   if (best) return best.v;
-  const own = { title: entry && entry.title, category: entry && entry.category, 'sub category': entry && entry.subCategory, mail: entry && entry.reference, notes: entry && entry.notes };
+  const own = { title: entry && entry.title, category: entry && entry.category, 'sub category': entry && entry.subCategory, mail: entry && entry.reference, notes: entry && latestDayNotes(entry.notes) };
   const key = String(mark).trim().toLowerCase();
   return own[key] ? clean(own[key]) : '';
 }

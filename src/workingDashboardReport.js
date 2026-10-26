@@ -18,6 +18,7 @@
  * Other activities. A line already used elsewhere is dropped and counted.
  */
 import { normalizeReportPoints } from './reportPoints.js';
+import { latestDayNotes } from './notesLatest.js';
 import { toDateKey, isOpen, completedTime, isNonWorkingDay } from './workingDashboard';
 import { isBankFollowUpCategory, bankFollowUpReportLine, bankFollowUps, fmtFollowDate } from './bankFollowUp';
 import {
@@ -138,7 +139,7 @@ export function notesForReport(e) {
   const title = key(e.title);
   const seen = new Set();
   const out = [];
-  String(e.notes || '').split(/\r?\n+/).forEach((raw) => {
+  latestDayNotes(e.notes).split(/\r?\n+/).forEach((raw) => {
     let l = clean(raw).replace(/^\[[^\]]{3,40}\]\s*/, '').replace(/^(?:[-*•>]+|\d+[.)])\s*/, '').replace(/^(?:notes?|remarks?)\s*[:\-–]\s*/i, '');
     if (e.reference && String(e.reference).trim()) l = clean(l.split(String(e.reference).trim()).join(''));
     const k = key(l);

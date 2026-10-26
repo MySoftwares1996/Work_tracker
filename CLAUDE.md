@@ -161,6 +161,8 @@ The website's New entry form keeps what was typed in `localStorage` (`newweb/src
 
 The daily report has no built-in lines. "Report points" are written per Category on the website (Config > Report points; stored as `lists.darPaymentIntro` in `meta/lists`, items `{ category, text }`; an older plain text has no Category and is not used; the phone keeps it as `wd.paymentIntro` and uses it read-only). A section (Other work, Payments, Followed up) shows the points of the Categories of its tasks once, above its lines (`reportPointsOf` / `applyReportPoints` in `src/workingDashboardReport.js`, recomputed in `applyFormats` / `applyMoves` when rows move). Nothing is chosen per task.
 
+Notes written day by day (`[24-10-2026] ...` stamps) count for the report by their last day only (`latestDayNotes` in `src/notesLatest.js`, used by `notesForReport` and the `{Notes}` mark of a Report format).
+
 One report line wherever a task is placed: a task whose Sub Category has a Report format is written from it in Other work, Payments and Followed up alike (`applyMoves` in `src/reportExtras.js`; moving a row keeps its line).
 
 ## Starting lists for a new account
