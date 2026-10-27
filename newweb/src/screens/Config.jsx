@@ -3,7 +3,7 @@ import { planImport } from '../importBackup';
 import { exportBackupFile, downloadFormatsFile, downloadFormatsBackup } from '../exportBackup';
 import NotifyExplainer from '../NotifyExplainer';
 import { loadAlertSettings, saveAlertSettings } from '../alerts';
-import { TEXT_SIZES, applyScheme, applyTextSize, savedScheme, savedTextSize } from '../themes';
+import { THEMES, TEXT_SIZES, applyTheme, applyScheme, applyTextSize, savedTheme, savedScheme, savedTextSize } from '../themes';
 import { PageHead } from '../ui';
 import { useStore } from '../store';
 import { setupText, planSetupLoad } from '../setupFile';
@@ -372,9 +372,13 @@ function AlertSettings() {
 function Appearance() {
   const [scheme, setScheme] = useState(savedScheme);
   const [size, setSize] = useState(savedTextSize);
+  const [look, setLook] = useState(savedTheme);
   return (
     <section className="card plain">
       <h2 className="h2">Appearance</h2>
+      <div><div className="row"><span>Look<small>Pearl is the default; Gradient is the colourful look of the phone app. Kept on this computer.</small></span></div>
+        <div className="seg" role="group" aria-label="Look">{THEMES.map((x) => <button key={x.id} type="button" className={look === x.id ? 'on' : ''} aria-pressed={look === x.id} onClick={() => setLook(applyTheme(x.id))}>{x.name}{x.id === 'pearl' ? ' (default)' : ''}</button>)}</div>
+      </div>
       <label className="row tg-row"><span>Follow the computer's dark mode<small>{scheme === 'auto' ? 'Switches automatically with your computer.' : 'Off: the colours stay as chosen below.'}</small></span><input type="checkbox" role="switch" className="tg" checked={scheme === 'auto'} onChange={(e) => setScheme(applyScheme(e.target.checked ? 'auto' : 'light'))} /></label>
       {scheme !== 'auto' && (
         <div><div className="row"><span>Colours</span></div>

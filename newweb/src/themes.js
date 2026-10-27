@@ -8,14 +8,14 @@
 // Shared by every theme: the ground, cards, lines, text and the three status colours.
 const BASE = {
   light: {
-    ground: '#F5F3FF', card: '#FFFFFF', soft: '#F1EEFB', line: '#ECE8FA', line2: '#DDD7F3', ink: '#1E1B4B', muted: '#5F6381', off: '#C9C4E3',
+    ground: '#F0F1F7', card: '#FFFFFF', soft: '#F4F6FA', line: '#E6E8F1', line2: '#DADDEA', ink: '#14132B', muted: '#62667C', off: '#C9CDDD',
     danger: '#C23B28', onDanger: '#FFFFFF', dangerTint: '#FDE9E5', dangerInk: '#9E2C1C', dangerLine: '#F0B1A6',
     amber: '#E89A00', amberTint: '#FFF1D6', amberInk: '#7A4700',
     slateTint: '#E8ECFA', slateInk: '#2342A8',
     scrim: 'rgba(20, 19, 43, 0.55)',
   },
   dark: {
-    ground: '#110E27', card: '#1B1736', soft: '#241F45', line: '#2F2957', line2: '#3A3368', ink: '#F4F2FF', muted: '#B3ADD8', off: '#4A4378',
+    ground: '#0C1228', card: '#161E3B', soft: '#1D2648', line: '#2A3459', line2: '#34406A', ink: '#F2F4FF', muted: '#A3ACCB', off: '#46507A',
     danger: '#FF8A7E', onDanger: '#3A0F0B', dangerTint: '#3A1D2A', dangerInk: '#FFB4AB', dangerLine: '#7A3A4C',
     amber: '#EE9A13', amberTint: '#3A2B10', amberInk: '#F2C877',
     slateTint: '#1D2648', slateInk: '#A9B8F0',
@@ -27,31 +27,47 @@ const TILES = { red: '#E8503C', amber: '#B04E0A', navy: '#2F55D4', violet: '#7B3
 
 // Per theme: primary (buttons, links), dark (hero panels, selected chips, bulk bar), tint (+ its text) and mint (accent on the dark panels).
 export const THEMES = [
-  { id: 'pearl', name: 'Gradient', light: { primary: '#6D28D9', dark: '#1E1B4B', tint: '#EDE9FE', tintInk: '#5B21B6', mint: '#A7F3D0' }, night: { primary: '#B79CFF', dark: '#2B1F66', tint: '#2B2260', tintInk: '#D9CCFF', mint: '#A7F3D0' } },
+  { id: 'pearl', name: 'Pearl', light: { primary: '#4B33C8', dark: '#14132B', tint: '#ECE9FB', tintInk: '#3A27A0', mint: '#2EC4B6' }, night: { primary: '#A48BFF', dark: '#2B2470', tint: '#26204F', tintInk: '#CFC5FF', mint: '#2EC4B6' } },
+  // "Gradient" (G, the owner's second look, chosen in Config > Appearance): a lavender page and indigo ink, violet-pink gradients
+  // (the [data-theme="gradient"] block at the end of styles.css), a colour icon per category.
+  {
+    id: 'gradient', name: 'Gradient', toggle: '#7C3AED',
+    light: { primary: '#6D28D9', dark: '#1E1B4B', tint: '#EDE9FE', tintInk: '#5B21B6', mint: '#A7F3D0', ground: '#F5F3FF', card: '#FFFFFF', soft: '#F1EEFB', line: '#ECE8FA', line2: '#DDD7F3', ink: '#1E1B4B', muted: '#5F6381', off: '#C9C4E3' },
+    night: { primary: '#B79CFF', dark: '#2B1F66', tint: '#2B2260', tintInk: '#D9CCFF', mint: '#A7F3D0', ground: '#110E27', card: '#1B1736', soft: '#241F45', line: '#2F2957', line2: '#3A3368', ink: '#F4F2FF', muted: '#B3ADD8', off: '#4A4378' },
+  },
 ];
 
 export const DEFAULT_THEME = 'pearl';
 export const TEXT_SIZES = [['small', 'Small', 0.92], ['normal', 'Normal', 1], ['large', 'Large', 1.1], ['xl', 'XL', 1.2]];
 
+const THEME_KEY = 'wd-theme';        // 'pearl' (default) or 'gradient'
 const SCHEME_KEY = 'wd-scheme';       // 'auto' (follow the computer), 'light' or 'dark'
 const SIZE_KEY = 'wd-text-size';
 const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k, v) => { try { localStorage.setItem(k, v); } catch { /* the choice just is not remembered */ } };
 
+export const savedTheme = () => { const v = read(THEME_KEY); return THEMES.some((t) => t.id === v) ? v : DEFAULT_THEME; };
+/** The look: Pearl (default) or Gradient. Kept on this computer. */
+export function applyTheme(id) {
+  state.theme = THEMES.some((t) => t.id === id) ? id : DEFAULT_THEME;
+  write(THEME_KEY, state.theme);
+  paint();
+  return state.theme;
+}
 export const savedScheme = () => { const v = read(SCHEME_KEY); return v === 'light' || v === 'dark' ? v : 'auto'; };
 export const savedTextSize = () => { const v = read(SIZE_KEY); return TEXT_SIZES.some(([k]) => k === v) ? v : 'normal'; };
 
 /** The CSS variables of a theme in 'light' or 'dark' mode, as { '--name': value }. */
 export function themeVars(id, mode = 'light') {
-  const t = THEMES[0];      // Pearl is the one look
+  const t = THEMES.find((x) => x.id === id) || THEMES[0];      // Pearl is the default; an unknown saved key falls back to it
   const b = BASE[mode === 'dark' ? 'dark' : 'light'];
   const p = t[mode === 'dark' ? 'night' : 'light'];
-  const o = mode === 'dark' ? {} : p;
+  const o = p;
   return {
-    '--ground': o.ground || b.ground, '--card': o.card || b.card, '--soft': o.soft || b.soft, '--line': o.line || b.line, '--line2': o.line2 || b.line2, '--ink': b.ink, '--muted': b.muted, '--off': b.off,
+    '--ground': o.ground || b.ground, '--card': o.card || b.card, '--soft': o.soft || b.soft, '--line': o.line || b.line, '--line2': o.line2 || b.line2, '--ink': o.ink || b.ink, '--muted': o.muted || b.muted, '--off': o.off || b.off,
     '--danger': b.danger, '--on-danger': b.onDanger, '--danger-tint': b.dangerTint, '--danger-ink': b.dangerInk, '--danger-line': b.dangerLine,
     '--amber': b.amber, '--amber-tint': b.amberTint, '--amber-ink': b.amberInk, '--slate-tint': b.slateTint, '--slate-ink': b.slateInk, '--scrim': b.scrim,
-    '--tile-red': TILES.red, '--tile-amber': TILES.amber, '--tile-navy': TILES.navy, '--tile-violet': TILES.violet, '--tile-teal': TILES.teal, '--toggle-on': '#7C3AED', '--toggle-off': mode === 'dark' ? '#34406A' : '#D5D8E6',
+    '--tile-red': TILES.red, '--tile-amber': TILES.amber, '--tile-navy': TILES.navy, '--tile-violet': TILES.violet, '--tile-teal': TILES.teal, '--toggle-on': t.toggle || '#2EC4B6', '--toggle-off': mode === 'dark' ? '#34406A' : '#D5D8E6',
     '--primary': p.primary, '--on-primary': mode === 'dark' ? '#0B1511' : '#FFFFFF', '--primary-dark': p.dark, '--primary-tint': p.tint, '--primary-ink': p.tintInk, '--mint': p.mint,
   };
 }
@@ -91,6 +107,7 @@ export function applyTextSize(key) {
 /** Called once before the first paint: the saved look, and a live follow of the computer's dark mode. */
 export function startTheme() {
   state.scheme = savedScheme();
+  state.theme = savedTheme();
   paint();
   applyTextSizeQuiet(savedTextSize());
   try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.scheme === 'auto') paint(); }); } catch { /* an old browser: the look is set at load */ }

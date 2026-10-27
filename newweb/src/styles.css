@@ -1,12 +1,12 @@
 /* "Ledger": cream ground, white cards with 1px lines, serif titles, one green accent. The values below are Forest / light, the starting point;
    src/themes.js sets the same variables for the other themes and for dark mode before the first paint. */
 :root {
-  --ground: #F5F3FF; --card: #FFFFFF; --soft: #F1EEFB; --line: #ECE8FA; --line2: #DDD7F3; --ink: #1E1B4B; --muted: #5F6381; --off: #C9C4E3;
+  --ground: #F0F1F7; --card: #FFFFFF; --soft: #F4F6FA; --line: #E6E8F1; --line2: #DADDEA; --ink: #14132B; --muted: #62667C; --off: #C9CDDD;
   --danger: #C23B28; --on-danger: #FFFFFF; --danger-tint: #FDE9E5; --danger-ink: #9E2C1C; --danger-line: #F0B1A6;
   --amber: #E89A00; --amber-tint: #FFF1D6; --amber-ink: #7A4700;
   --slate-tint: #E8ECFA; --slate-ink: #2342A8; --scrim: rgba(20, 19, 43, 0.55);
-  --tile-red: #E8503C; --tile-amber: #B04E0A; --tile-navy: #2F55D4; --tile-violet: #7B3FD0; --tile-teal: #0E8F83; --toggle-on: #7C3AED; --toggle-off: #D5D8E6;
-  --primary: #6D28D9; --on-primary: #FFFFFF; --primary-dark: #1E1B4B; --primary-tint: #EDE9FE; --primary-ink: #5B21B6; --mint: #A7F3D0;
+  --tile-red: #E8503C; --tile-amber: #B04E0A; --tile-navy: #2F55D4; --tile-violet: #7B3FD0; --tile-teal: #0E8F83; --toggle-on: #2EC4B6; --toggle-off: #D5D8E6;
+  --primary: #4B33C8; --on-primary: #FFFFFF; --primary-dark: #14132B; --primary-tint: #ECE9FB; --primary-ink: #3A27A0; --mint: #2EC4B6;
   --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
   --sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C8B85' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -698,9 +698,12 @@ html { scroll-behavior: smooth; }
 .file-name small { color: var(--muted); font-weight: 600; margin-left: 6px; }
 .file-pick { cursor: pointer; align-self: flex-start; }
 
-/* ---- "Gradient bento" (G, the owner's pick, 27 Oct): the same look as the phone app. Lavender page, white cards with a soft lift
+/* Category and tile icons belong to the Gradient look only. */
+.cat-ico, .st-ico { display: none; }
+.card-head { display: flex; align-items: center; gap: 12px; }
+/* ---- "Gradient" look (G): Config > Appearance > Look (Pearl stays the default). The same look as the phone app. Lavender page, white cards with a soft lift
    instead of a line, bold sans titles, violet-pink gradients on the hero, the count tiles, the main buttons and the chosen tab. ---- */
-:root {
+:root[data-theme="gradient"] {
   --serif: var(--sans);
   --g-brand: linear-gradient(135deg, #8B5CF6, #DB2777);
   --g-hero: linear-gradient(135deg, #6D28D9 0%, #A21CAF 55%, #DB2777 100%);
@@ -711,26 +714,29 @@ html { scroll-behavior: smooth; }
   --g-teal: linear-gradient(135deg, #14B8A6, #0E7490);
   --lift: 0 4px 16px rgba(59, 42, 140, 0.07);
 }
-:root[data-mode="dark"] { --lift: none; }
-.h1, .empty-title, .sheet-head h2 { font-weight: 800; letter-spacing: -1px; }
-.hero-n b, .st b, .mt b, .li b { font-weight: 800; }
-.card, .arow, .mt { border-color: transparent; box-shadow: var(--lift); }
-:root[data-mode="dark"] .card, :root[data-mode="dark"] .arow, :root[data-mode="dark"] .mt { border-color: var(--line); }
-.hero { background: var(--g-hero); box-shadow: 0 16px 32px rgba(162, 28, 175, 0.28); position: relative; overflow: hidden; }
-.hero::after { content: ''; position: absolute; right: -50px; bottom: -70px; width: 220px; height: 220px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); pointer-events: none; }
-.hero-k { color: #F5E8FF; }
-.st { position: relative; overflow: hidden; border-radius: 24px; }
-.st.danger { background: var(--g-red); box-shadow: 0 10px 22px rgba(225, 29, 72, 0.26); }
-.st.amber { background: var(--g-orange); box-shadow: 0 10px 22px rgba(234, 88, 12, 0.26); }
-.st.slate { background: var(--g-blue); box-shadow: 0 10px 22px rgba(37, 99, 235, 0.26); }
-.st.green { background: var(--g-violet); box-shadow: 0 10px 22px rgba(109, 40, 217, 0.26); }
-.st.blue { background: var(--g-teal); box-shadow: 0 10px 22px rgba(14, 116, 144, 0.26); }
-.st-ico { position: absolute; right: 14px; top: 14px; width: 36px; height: 36px; border-radius: 12px; background: rgba(255, 255, 255, 0.24); display: grid; place-items: center; color: #fff; }
-.btn.primary, .btn.ok:not(.soft) { background: var(--g-brand); color: #fff; box-shadow: 0 8px 18px rgba(162, 28, 175, 0.24); border-radius: 14px; }
-.btn.ok.soft { border-radius: 14px; }
-.tab.on { background: var(--g-brand); color: #fff; box-shadow: 0 6px 14px rgba(162, 28, 175, 0.25); }
-.tab.on .count { background: rgba(255, 255, 255, 0.26); color: #fff; }
-.chip.toggle.on, .seg button.on { background: var(--g-brand); border-color: transparent; color: #fff; }
-.cat-ico { flex: none; display: inline-grid; place-items: center; border-radius: 13px; color: #fff; }
-.card-head { display: flex; align-items: center; gap: 12px; }
-.arow { flex-wrap: nowrap; }
+:root[data-theme="gradient"][data-mode="dark"] { --lift: none; }
+:root[data-theme="gradient"] .h1, :root[data-theme="gradient"] .empty-title, :root[data-theme="gradient"] .sheet-head h2 { font-weight: 800; letter-spacing: -1px; }
+:root[data-theme="gradient"] .hero-n b, :root[data-theme="gradient"] .st b, :root[data-theme="gradient"] .mt b, :root[data-theme="gradient"] .li b { font-weight: 800; }
+:root[data-theme="gradient"] .card, :root[data-theme="gradient"] .arow, :root[data-theme="gradient"] .mt { border-color: transparent; box-shadow: var(--lift); }
+:root[data-theme="gradient"][data-mode="dark"] .card, :root[data-theme="gradient"][data-mode="dark"] .arow, :root[data-theme="gradient"][data-mode="dark"] .mt { border-color: var(--line); }
+:root[data-theme="gradient"] .hero { background: var(--g-hero); box-shadow: 0 16px 32px rgba(162, 28, 175, 0.28); position: relative; overflow: hidden; }
+:root[data-theme="gradient"] .hero::after { content: ''; position: absolute; right: -50px; bottom: -70px; width: 220px; height: 220px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); pointer-events: none; }
+:root[data-theme="gradient"] .hero-k { color: #F5E8FF; }
+:root[data-theme="gradient"] .st { position: relative; overflow: hidden; border-radius: 24px; }
+:root[data-theme="gradient"] .st.danger { background: var(--g-red); box-shadow: 0 10px 22px rgba(225, 29, 72, 0.26); }
+:root[data-theme="gradient"] .st.amber { background: var(--g-orange); box-shadow: 0 10px 22px rgba(234, 88, 12, 0.26); }
+:root[data-theme="gradient"] .st.slate { background: var(--g-blue); box-shadow: 0 10px 22px rgba(37, 99, 235, 0.26); }
+:root[data-theme="gradient"] .st.green { background: var(--g-violet); box-shadow: 0 10px 22px rgba(109, 40, 217, 0.26); }
+:root[data-theme="gradient"] .st.blue { background: var(--g-teal); box-shadow: 0 10px 22px rgba(14, 116, 144, 0.26); }
+:root[data-theme="gradient"] .st-ico { position: absolute; right: 14px; top: 14px; width: 36px; height: 36px; border-radius: 12px; background: rgba(255, 255, 255, 0.24); display: grid; place-items: center; color: #fff; }
+:root[data-theme="gradient"] .btn.primary, :root[data-theme="gradient"] .btn.ok:not(.soft) { background: var(--g-brand); color: #fff; box-shadow: 0 8px 18px rgba(162, 28, 175, 0.24); border-radius: 14px; }
+:root[data-theme="gradient"] .btn.ok.soft { border-radius: 14px; }
+:root[data-theme="gradient"] .tab.on { background: var(--g-brand); color: #fff; box-shadow: 0 6px 14px rgba(162, 28, 175, 0.25); }
+:root[data-theme="gradient"] .tab.on .count { background: rgba(255, 255, 255, 0.26); color: #fff; }
+:root[data-theme="gradient"] .chip.toggle.on, :root[data-theme="gradient"] .seg button.on { background: var(--g-brand); border-color: transparent; color: #fff; }
+:root[data-theme="gradient"] .cat-ico { flex: none; display: inline-grid; place-items: center; border-radius: 13px; color: #fff; }
+:root[data-theme="gradient"] .card-head { display: flex; align-items: center; gap: 12px; }
+:root[data-theme="gradient"] .arow { flex-wrap: nowrap; }
+
+:root[data-theme="gradient"] .cat-ico { display: inline-grid; }
+:root[data-theme="gradient"] .st-ico { display: grid; }
