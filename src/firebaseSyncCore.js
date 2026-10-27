@@ -248,7 +248,7 @@ function encodeMeta(parts, format, names) {
 // The web app's lists document names the fourth list pendingWith; the phone calls it assignees.
 const WEB_LIST_NAMES = ['categories', 'priorities', 'statuses', 'pendingWith'];
 // The web app's payment lists, carried in the same document: read by the phone, never written back.
-export const PAYMENT_LIST_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories', 'darPaymentIntro'];
+export const PAYMENT_LIST_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories', 'fileCategories', 'darPaymentIntro'];
 
 /**
  * meta/lists `lists` field -> { lists: [categories, priorities, statuses, assignees] | null, format, extra }.

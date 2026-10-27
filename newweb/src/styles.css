@@ -689,3 +689,11 @@ tr.is-selected td { background: var(--primary-tint); }
 main.page > * { animation: wdSoftIn 0.26s var(--ease) both; }
 .card.task, .arow { content-visibility: auto; contain-intrinsic-size: auto 132px; }
 html { scroll-behavior: smooth; }
+
+/* Attached PDFs / images: the button and "Not required" in Who & notes, the list in the popup */
+.files-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; }
+.files-row.need .pill-btn { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger-tint); }
+.file-item { display: flex; align-items: center; gap: 8px; }
+.file-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; font-weight: 700; }
+.file-name small { color: var(--muted); font-weight: 600; margin-left: 6px; }
+.file-pick { cursor: pointer; align-self: flex-start; }

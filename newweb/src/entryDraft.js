@@ -2,7 +2,8 @@
 // Only "Reset" in the form (or a saved entry) clears it.
 const KEY = 'wd-entry-draft';
 
-const strip = ({ id, due, nextReminder, ...rest }) => rest;
+// Attached files are not kept in the draft (they are large and could crowd out the typed text).
+const strip = ({ id, due, nextReminder, files, ...rest }) => rest;
 
 /** The saved draft as { t, date, time, remDate, remTime }, or null. */
 export function loadDraft() {

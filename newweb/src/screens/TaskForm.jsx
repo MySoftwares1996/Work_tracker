@@ -6,6 +6,8 @@ import { useStore } from '../store';
 import { finalNarration } from '../reportFormats';
 import { monthEndOptions } from '../../../src/monthEnd.js';
 import { isOffDay, templateFrom, applyTemplate, saveTemplate, categoryAsksReminder, reminderFrom, toggleReminderCategory, categoryCarriesSubCategory, subCategoriesFor, findSubCategory, subCategoryMissing, RECURRENCES, DONE_STATUS, dayKey, pad, newId, timeLabel } from '../data';
+import { categoryNeedsFile, toggleFileCategory, fileRuleMessage, fileSizeLabel, filesChars, MAX_FILES_CHARS } from '../../../src/taskFiles.js';
+import { readAttachment, openAttachment } from '../fileAttach';
 import { loadDraft, saveDraft, clearDraft, withDraft } from '../entryDraft';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
 
@@ -91,19 +93,23 @@ export default function TaskForm({ initial, onClose }) {
   const [remDate, setRemDate] = useState(draft0 ? draft0.remDate || '' : initial.nextReminder ? dayKey(initial.nextReminder) : '');
   const [remTime, setRemTime] = useState(draft0 ? draft0.remTime || '' : initial.nextReminder ? `${pad(initial.nextReminder.getHours())}:${pad(initial.nextReminder.getMinutes())}` : '');
   const [remClock, setRemClock] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [fileMsg, setFileMsg] = useState('');          // why Save was refused, or why a file was not added
+  const [fileBusy, setFileBusy] = useState(false);
   const { saveLists, templates, saveTemplates, notify, calendar } = useStore();
   useEffect(() => { if (draftOn) saveDraft(initial, t, { date, time, remDate, remTime }); }, [draftOn, initial, t, date, time, remDate, remTime]);
-  const reset = () => { setT(initial); setDate(toInputDate(initial.due)); setTime(toInputTime(initial)); setRemDate(''); setRemTime(''); setStep(''); clearDraft(); notify('Form reset'); };
+  const reset = () => { setFileMsg(''); setT(initial); setDate(toInputDate(initial.due)); setTime(toInputTime(initial)); setRemDate(''); setRemTime(''); setStep(''); clearDraft(); notify('Form reset'); };
   const monthEnd = useMemo(() => monthEndOptions(new Date(), (k) => isOffDay(k, calendar), 5), [calendar]);
   const [tplName, setTplName] = useState(null);      // null = closed; a string = naming the template being saved
   // Escape and a click on the backdrop close only the topmost popup; the form itself closes when none is open.
   const popups = useRef({});
-  const anyPopup = () => { const p = popups.current; return !!(p.remClock || p.clockOpen || p.subOpen || p.managing || p.remOpen || p.stepsOpen || p.mailOpen || p.tplName !== null); };
+  const anyPopup = () => { const p = popups.current; return !!(p.remClock || p.clockOpen || p.subOpen || p.managing || p.remOpen || p.stepsOpen || p.mailOpen || p.filesOpen || p.tplName !== null); };
   const closeTopPopup = () => {
     const p = popups.current;
     if (p.remClock || p.clockOpen) return;          // a clock closes itself on Escape
     if (p.subOpen) closeSubRef.current(true);
     else if (p.mailOpen) setMailOpen(false);
+    else if (p.filesOpen) setFilesOpen(false);
     else if (p.stepsOpen) setStepsOpen(false);
     else if (p.remOpen) setRemOpen(false);
     else if (p.managing) setManaging('');
@@ -122,6 +128,9 @@ export default function TaskForm({ initial, onClose }) {
     if (!t.title.trim()) return;
     if (/^completed$/i.test(t.status)) { const msg = subCategoryMissing(t, lists); if (msg) { setSubError(msg); if (sc && sc.fields.length) openSub(); return; } }
     setSubError('');
+    const ruleMsg = fileRuleMessage(t, lists);
+    if (ruleMsg) { setFileMsg(ruleMsg); return; }
+    setFileMsg('');
     const [h, m] = time ? time.split(':').map(Number) : [0, 0];
     const due = date ? new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m) : null;
     const next = { ...t, title: t.title.trim(), due, hasTime: !!(date && time), nextReminder: reminderFrom(remDate, remTime) };
@@ -147,6 +156,19 @@ export default function TaskForm({ initial, onClose }) {
       </div>
     </div>
   );
+  const needFile = categoryNeedsFile(lists, t.category);
+  const files = t.files || [];
+  const addFiles = async (list) => {
+    setFileBusy(true); setFileMsg('');
+    let have = files;
+    for (const f of Array.from(list || [])) {
+      const r = await readAttachment(f, have);
+      if (r.error) { setFileMsg(r.error); continue; }
+      have = [...have, r.file];
+    }
+    setT((d) => ({ ...d, files: have, filesNotRequired: have.length ? false : d.filesNotRequired }));
+    setFileBusy(false);
+  };
   const subs = subCategoriesFor(lists, t.category);
   const sc = findSubCategory(lists, t.subCategory);
   const needSub = categoryCarriesSubCategory(lists, t.category);
@@ -160,7 +182,7 @@ export default function TaskForm({ initial, onClose }) {
   const openSub = () => { subSnap.current = t.subCategoryFields || {}; setSubOpen(true); };
   const closeSub = (cancel) => { if (cancel) setT((d) => ({ ...d, subCategoryFields: subSnap.current })); setSubOpen(false); setSubError(''); };
   closeSubRef.current = closeSub;
-  popups.current = { remClock, clockOpen, subOpen: subOpen && !!sc, managing, remOpen, stepsOpen, mailOpen, tplName };
+  popups.current = { remClock, clockOpen, subOpen: subOpen && !!sc, managing, remOpen, stepsOpen, mailOpen, filesOpen, tplName };
   const subFilled = sc ? sc.fields.filter((f) => String((t.subCategoryFields || {})[f.label] || '').trim()).length : 0;
   const subBlock = (
     <div className="sub-panel">
@@ -275,6 +297,10 @@ export default function TaskForm({ initial, onClose }) {
                 <button type="button" className="mini" disabled={!t.reference.trim()} aria-label="Copy the mail chain" onClick={async () => { notify((await copyText(t.reference)) ? 'Mail chain copied' : 'Could not copy the mail chain'); }}>Copy</button>
               </span>
               <NarrationBox t={t} />
+              <div className={`files-row${needFile && !t.filesNotRequired && !files.length ? ' need' : ''}`}>
+                <button type="button" className="pill-btn o" onClick={() => setFilesOpen(true)} title="Attach a PDF or an image to this task"><Icon name="paperclip" />Attach PDF / image{needFile ? ' *' : ''}{files.length > 0 ? <b>{files.length} attached</b> : null}</button>
+                <label className="field check"><input type="checkbox" checked={!!t.filesNotRequired} disabled={files.length > 0} onChange={(e) => { setFileMsg(''); setT({ ...t, filesNotRequired: e.target.checked }); }} /> Not required</label>
+              </div>
               <label className="field check"><input type="checkbox" checked={t.dar} onChange={(e) => setT({ ...t, dar: e.target.checked })} /> Include in the daily report when done (DAR)</label>
               {stepsOpen && (
                 <Popup title="Checklist" sub="Steps to tick before the task is done" onClose={() => setStepsOpen(false)}>
@@ -285,6 +311,23 @@ export default function TaskForm({ initial, onClose }) {
                     </div>
                   ))}
                   <div className="add-row"><input value={step} onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStepNow(); } }} placeholder="Add a step..." /><button type="button" className="btn" onClick={addStepNow} disabled={!step.trim()}>Add</button></div>
+                </Popup>
+              )}
+              {filesOpen && (
+                <Popup title="Attach PDF / image" sub={`The files stay inside the task - up to about ${fileSizeLabel(MAX_FILES_CHARS * 0.75)} in all`} onClose={() => setFilesOpen(false)}>
+                  {t.category && (
+                    <label className="field check"><input type="checkbox" checked={needFile} onChange={() => saveLists(toggleFileCategory(lists, t.category))} /> Ask for an attachment (or "Not required") under {t.category}</label>
+                  )}
+                  {files.map((f) => (
+                    <div key={f.id} className="row file-item">
+                      <span className="file-name"><Icon name="paperclip" size={16} /> {f.name}<small>{fileSizeLabel(f.size)}</small></span>
+                      <button type="button" className="mini" onClick={() => openAttachment(f)}>Open</button>
+                      <button type="button" className="icon-btn" onClick={() => setT({ ...t, files: files.filter((x) => x.id !== f.id) })} aria-label={`Remove ${f.name}`}><Icon name="x" size={16} /></button>
+                    </div>
+                  ))}
+                  <label className="btn file-pick">{fileBusy ? 'Adding...' : 'Choose PDF or image'}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif" multiple hidden disabled={fileBusy} onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} /></label>
+                  <small className="muted">Used {fileSizeLabel(filesChars(files) * 0.75)} of {fileSizeLabel(MAX_FILES_CHARS * 0.75)}. Photos are shrunk to fit; a PDF is kept as it is.</small>
+                  {fileMsg && <p className="banner err" role="alert">{fileMsg}</p>}
                 </Popup>
               )}
               {mailOpen && (
@@ -298,6 +341,7 @@ export default function TaskForm({ initial, onClose }) {
             </div>
           </div>
           {subError && <div className="banner err" role="alert">{subError}</div>}
+          {fileMsg && !filesOpen && <div className="banner err" role="alert">{fileMsg}</div>}
         </div>
         <div className="sheet-foot">
           {!isNew && !t.binned && <button type="button" className="btn danger" onClick={() => { actions.bin(t); onClose(); }}>Move to bin</button>}

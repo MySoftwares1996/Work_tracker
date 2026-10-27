@@ -51,6 +51,8 @@ import WdLinksTab from './WdLinksTab';
 import WdMoreTab from './WdMoreTab';
 import WdHolidaysTab from './WdHolidaysTab';
 import WdHolidaySheet from './WdHolidaySheet';
+import { FilesPanel, FileCategories } from './WdFiles';
+import { cleanFiles, categoryNeedsFile, fileRuleMessage } from '../taskFiles';
 import { BankFollowUpForm } from './WdBankFollowUp';
 import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, followUpWho, followUpsByBank } from '../bankFollowUp';
 import { buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, checkFacts } from '../reportStyle';
@@ -426,6 +428,8 @@ export default function WorkingDashboard() {
     if (!d.title.trim()) return Alert.alert('A task description is needed');
     const paymentError = validatePaymentDetails(finalizeDraft(d), plists);
     if (paymentError) return Alert.alert('Almost there', paymentError);
+    const fileRule = fileRuleMessage({ category: d.category, files: d.files, filesNotRequired: d.filesNotRequired }, { fileCategories: wd.fileCategories });
+    if (fileRule) return Alert.alert('Attachment needed', fileRule);
     if (d.recurrence === 'custom' && !(Number(d.recurrenceEveryMin) >= 1)) return Alert.alert('Enter how many minutes between repeats');
     if (d.recurrence !== 'none' && !d.dueAt) return Alert.alert('A repeating entry needs a due date and time');
     // "Both" (phone-width screens): a new task with the title and category of one already open is asked about first.
@@ -1117,10 +1121,12 @@ export default function WorkingDashboard() {
       // person side by side, priority as three buttons, the due row, notes, then the MORE DETAILS pills that open popups.
       const steps = checklistOf(entrySheet);
       const stepsDone = steps.filter((c) => c.done).length;
+      const needFile = categoryNeedsFile({ fileCategories: wd.fileCategories }, entrySheet.category);
+      const fileCount = cleanFiles(entrySheet.files).length;
       const showReminder = Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(entrySheet.category);
       const alertMode = ALERT_MODES.find((m) => m.key === alertModeOf(entrySheet, wd.alerts)) || ALERT_MODES[0];
       const dateShort = (iso) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
-      const detailTitle = { alert: 'Alert', deadline: 'Deadline', reminder: 'Next reminder', mail: 'Mail chain', history: 'History' }[detailSheet] || '';
+      const detailTitle = { alert: 'Alert', deadline: 'Deadline', reminder: 'Next reminder', mail: 'Mail chain', files: 'Attach PDF / image', history: 'History' }[detailSheet] || '';
       return (
         <View>
           {f.templates}
@@ -1139,6 +1145,7 @@ export default function WorkingDashboard() {
             <DetailChip icon="calendar" label={entrySheet.deadlineAt ? `Deadline · ${dateShort(entrySheet.deadlineAt)}` : 'Deadline'} filled={!!entrySheet.deadlineAt} onPress={() => setDetailSheet('deadline')} />
             {showReminder && <DetailChip icon="clock" label={entrySheet.nextReminderAt ? `Next reminder · ${dateShort(entrySheet.nextReminderAt)}` : 'Next reminder'} filled={!!entrySheet.nextReminderAt} onPress={() => setDetailSheet('reminder')} />}
             <DetailChip icon="checklist" label={steps.length ? `Checklist · ${stepsDone} of ${steps.length}` : 'Checklist'} filled={!!steps.length} onPress={() => setStepsOpen(true)} />
+            <DetailChip icon="paperclip" label={fileCount ? `Files · ${fileCount}` : entrySheet.filesNotRequired ? 'Files · Not required' : `Attach PDF / image${needFile ? ' *' : ''}`} filled={!!fileCount || !!entrySheet.filesNotRequired} onPress={() => setDetailSheet('files')} />
             <DetailChip icon="mail" label="Mail chain" filled={!!String(entrySheet.reference || '').trim()} onPress={() => setDetailSheet('mail')} />
             {!!f.history && <DetailChip icon="list" label={`History · ${(entrySheet.audit || []).length}`} onPress={() => setDetailSheet('history')} />}
           </View>
@@ -1155,6 +1162,7 @@ export default function WorkingDashboard() {
             {detailSheet === 'deadline' && f.deadline}
             {detailSheet === 'reminder' && f.reminder}
             {detailSheet === 'mail' && f.mail}
+            {detailSheet === 'files' && <FilesPanel entry={entrySheet} setEntry={setEntrySheet} needed={needFile} />}
             {detailSheet === 'history' && f.history}
             <Btn style={{ marginTop: 14 }} title="Done" onPress={() => setDetailSheet(null)} />
           </Sheet>
@@ -1979,13 +1987,14 @@ export default function WorkingDashboard() {
             { key: 'lists', icon: 'list', title: 'Entry form options', body: <ListsEditor wd={wd} save={saveLists} /> },
             { key: 'subs', icon: 'folder', title: 'Sub categories', body: <SubCategories wd={wd} lists={plists} save={saveLists} /> },
             { key: 'reminder', icon: 'clock', title: 'Next reminder', body: <ReminderCategories wd={wd} save={saveLists} /> },
+            { key: 'files', icon: 'paperclip', title: 'Attachments', body: <FileCategories wd={wd} save={saveLists} /> },
             { key: 'points', icon: 'checklist', title: 'Report points', body: <ReportPoints wd={wd} save={saveLists} /> },
             { key: 'formats', icon: 'report', title: 'Report formats', body: <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={saveLists} /> },
             { key: 'gemini', icon: 'sparkle', title: 'Gemini (AI) key', body: <WdGeminiKey /> },
           ];
           const groups = [
             ['General', [['alerts', 'When and how a due task alerts you'], ['appearance', 'Theme and colours']]],
-            ['Entry form', [['lists', 'Categories, priorities, statuses, pending with'], ['subs', 'Sub categories and their fields'], ['reminder', 'Which categories ask for a next reminder']]],
+            ['Entry form', [['lists', 'Categories, priorities, statuses, pending with'], ['subs', 'Sub categories and their fields'], ['reminder', 'Which categories ask for a next reminder'], ['files', 'Which categories must have a PDF or image attached']]],
             ['Reports', [['formats', 'The sentence each sub category writes'], ['gemini', 'Your own key, used only when the free route is busy']]],
           ];
           const byKey = Object.fromEntries(panels.map((x) => [x.key, x]));

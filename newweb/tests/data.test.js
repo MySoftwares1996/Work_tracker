@@ -790,3 +790,21 @@ test('Setup file: loads into a new account what is missing and never replaces wh
   assert.equal(mine.formats.find((f) => f.subCategory === 'Invoice Payment').template, 'My own wording.', 'an existing format is not replaced');
   assert.ok(planSetupLoad({}, 'nope').error);
 });
+
+test('attached PDFs / images and "Not required" round-trip; a task without them writes neither', () => {
+  const pdf = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const t = fromDoc('f1', { description: 'x', status: 'Pending', files: [{ id: 'a', name: 'inv.pdf', type: 'application/pdf', size: 10, data: pdf }, { id: 'bad', name: 'x.exe', data: 'data:application/x-msdownload;base64,AAAA' }], filesNotRequired: false });
+  assert.equal(t.files.length, 1);
+  const out = toDoc(t, NOW);
+  assert.equal(out.files.length, 1);
+  assert.equal(out.files[0].data, pdf);
+  const nr = toDoc(fromDoc('f2', { description: 'x', status: 'Pending', filesNotRequired: true }), NOW);
+  assert.equal(nr.filesNotRequired, true);
+  const plain = toDoc(task({}), NOW);
+  ['files', 'filesNotRequired'].forEach((k) => assert.ok(!(k in plain), k));
+});
+test('the categories that need an attachment are read and written with the lists', () => {
+  const lists = readLists({ categories: ['Payments', 'Audit'], fileCategories: ['Payments'] });
+  assert.deepEqual(lists.fileCategories, ['Payments']);
+  assert.deepEqual(writeListsValue({ narrationTypes: ['n'] }, { ...lists, fileCategories: ['Audit'] }).fileCategories, ['Audit']);
+});

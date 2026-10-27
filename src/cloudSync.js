@@ -112,7 +112,7 @@ const asObject = (v) => {
  * Import Payment details, the Tally narration, the work log the Daily Activity Report reads, the days a
  * Daily task was skipped, and the repeating series it belongs to.
  */
-const WEB_OBJECT_FIELDS = [['subcategoryfields', 'subCategoryFields'], ['paymentdetails', 'paymentDetails'], ['narration', 'narration'], ['worklog', 'workLog'], ['skippeddates', 'skippedDates'], ['bankfollowups', 'bankFollowUps'], ['escalation', 'escalation'], ['checklist', 'checklist'], ['attachments', 'attachments'], ['audit', 'audit']];
+const WEB_OBJECT_FIELDS = [['subcategoryfields', 'subCategoryFields'], ['paymentdetails', 'paymentDetails'], ['narration', 'narration'], ['worklog', 'workLog'], ['skippeddates', 'skippedDates'], ['bankfollowups', 'bankFollowUps'], ['escalation', 'escalation'], ['checklist', 'checklist'], ['attachments', 'attachments'], ['files', 'files'], ['audit', 'audit']];
 const WEB_TEXT_FIELDS = [['subcategory', 'subCategory'], ['seriesid', 'seriesId'], ['emailid', 'emailId'], ['nextreminderat', 'nextReminderAt']];
 
 /** Field names seen on the web app's task documents - shown when DAR marks cannot be found. */
@@ -183,6 +183,7 @@ export function normalizeSheetTask(raw, blank) {
   if (deadlineAck !== undefined) row.deadlineAckDate = text(deadlineAck) || null;
   WEB_OBJECT_FIELDS.forEach(([k, name]) => { const v = asObject(byKey[k]); if (v !== undefined) row[name] = v; });
   WEB_TEXT_FIELDS.forEach(([k, name]) => { const v = byKey[k]; if (v !== undefined && v !== null && v !== '') row[name] = String(v); });
+  if (byKey.filesnotrequired !== undefined) row.filesNotRequired = asBool(byKey.filesnotrequired);
   if (row.narration === null) delete row.narration;
   // Deleted forever on the web app (it keeps the row, flagged): never shown, and removed if the phone has it.
   if (asBool(pick('purged', 'ispurged'))) row.purged = true;
@@ -284,7 +285,7 @@ export function toWebTask(e) {
     keyPoints: normalizeKeyPoints(e.keyPoints),
   };
   // The payment fields go only once the entry has them, so a phone that never saw them cannot clear the web app's.
-  ['subCategory', 'subCategoryFields', 'paymentDetails', 'narration', 'workLog', 'skippedDates', 'bankFollowUps', 'escalation', 'checklist', 'attachments', 'audit', 'seriesId', 'emailId'].forEach((k) => { if (k in e && e[k] !== undefined) doc[k] = e[k]; });
+  ['subCategory', 'subCategoryFields', 'paymentDetails', 'narration', 'workLog', 'skippedDates', 'bankFollowUps', 'escalation', 'checklist', 'attachments', 'files', 'filesNotRequired', 'audit', 'seriesId', 'emailId'].forEach((k) => { if (k in e && e[k] !== undefined) doc[k] = e[k]; });
   if ('nextReminderAt' in e) doc.nextReminderAt = e.nextReminderAt || null;      // the website's "Next reminder"
   if (e.recurrence === 'custom') doc.recurrenceEveryMin = Number(e.recurrenceEveryMin) || null;
   if (e.alertMode === 'alarm' || e.alertMode === 'gentle') doc.alertMode = e.alertMode;

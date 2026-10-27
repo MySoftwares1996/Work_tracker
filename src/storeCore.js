@@ -201,6 +201,7 @@ export const DEFAULT_DB = {
     // workingDashboardPayments.paymentLists for the defaults): Sub Categories with their rule fields, the
     // categories that need one when completed, and the Tally narration types.
     subCategories: null,
+    fileCategories: null,       // the categories that ask for an attached PDF / image (or "Not required"); follows the account's lists
     reminderCategories: null,   // the categories that ask for a next reminder date and time (null = none yet); follows the account's lists
     subCategoryCategories: null,
     narrationTypes: null,

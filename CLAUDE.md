@@ -165,6 +165,10 @@ Notes written day by day (`[24-10-2026] ...` stamps) count for the report by the
 
 One report line wherever a task is placed: a task whose Sub Category has a Report format is written from it in Other work, Payments and Followed up alike (`applyMoves` in `src/reportExtras.js`; moving a row keeps its line).
 
+## Attached files (PDF / images) and "Not required"
+
+A task can carry PDFs / images inside itself: `files` `[{ id, name, type, size, data }]` (data URLs, all of a task's files share about 520 KB because a Firestore document may not pass 1 MiB; website photos are shrunk, the phone refuses a big one) and `filesNotRequired`. Which Categories must have one (or "Not required") before Save is `lists.fileCategories` in `meta/lists` (website: tick in the Attach popup; phone: Config > Attachments). Rules and helpers: `src/taskFiles.js` (shared); website `newweb/src/fileAttach.js` + TaskForm; phone `src/screens/WdFiles.js`. The draft does not keep files. Tests: `tests/suites/task-files.mjs`, `newweb/tests/e2e/files.mjs`.
+
 ## Starting lists for a new account
 
 A new account (no tasks and no `meta/lists` document) starts with no Category, no Sub Category and nobody under Pending with; Priority and Status keep their usual choices (`DEFAULT_LISTS` in `newweb/src/data.js`; the phone's `assignees` starts empty). An existing account keeps what it has: a lists document missing a key falls back to `LEGACY_DEFAULT_LISTS`, an account with tasks but no lists document gets the older Categories, and the one-time Categories / Sub Categories created from the report formats (`store.jsx`) run only for an existing account. Demo data (`?demo`) uses the older lists.

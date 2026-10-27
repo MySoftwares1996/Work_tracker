@@ -17,6 +17,7 @@ export function setupText({ lists = {}, savedFormats = [], templates = [] } = {}
   out.lists.subCategories = normalizeSubCategories(lists.subCategories || []);
   out.lists.subCategoryCategories = Array.isArray(lists.subCategoryCategories) ? lists.subCategoryCategories.map(String) : undefined;
   out.lists.reminderCategories = Array.isArray(lists.reminderCategories) ? lists.reminderCategories.map(String) : undefined;
+  out.lists.fileCategories = Array.isArray(lists.fileCategories) ? lists.fileCategories.map(String) : undefined;
   out.lists.darPaymentIntro = normalizeReportPoints(lists.darPaymentIntro);
   out.reportFormats = (savedFormats || []).filter((f) => f && String(f.template || '').trim()).map((f) => ({ id: f.id || '', category: f.category || '', subCategory: f.subCategory || '', template: String(f.template).trim() }));
   out.templates = (templates || []).filter((x) => x && x.name && x.fields);
@@ -42,6 +43,7 @@ export function planSetupLoad({ lists = {}, savedFormats = [], templates = [] } 
   const union = (a, b) => [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : []).map(String)])];
   if (Array.isArray(data.lists.subCategoryCategories)) next.subCategoryCategories = union(next.subCategoryCategories, data.lists.subCategoryCategories);
   if (Array.isArray(data.lists.reminderCategories)) next.reminderCategories = union(next.reminderCategories, data.lists.reminderCategories);
+  if (Array.isArray(data.lists.fileCategories)) next.fileCategories = union(next.fileCategories, data.lists.fileCategories);
   const havePts = normalizeReportPoints(next.darPaymentIntro);
   const newPts = normalizeReportPoints(data.lists.darPaymentIntro).filter((p) => p.category && !havePts.some((x) => x.category === p.category && x.text === p.text));
   next.darPaymentIntro = [...havePts, ...newPts];

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "test": "node --test tests/data.test.js",
-    "test:e2e": "node tests/e2e/entry-form.mjs && node tests/e2e/bulk.mjs && node tests/e2e/auth-switch.mjs && node tests/e2e/draft.mjs && node tests/e2e/onboarding.mjs"
+    "test:e2e": "node tests/e2e/entry-form.mjs && node tests/e2e/bulk.mjs && node tests/e2e/auth-switch.mjs && node tests/e2e/draft.mjs && node tests/e2e/onboarding.mjs && node tests/e2e/files.mjs"
   },
   "dependencies": {
     "firebase": "^12.19.0",

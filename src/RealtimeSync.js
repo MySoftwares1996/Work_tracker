@@ -209,7 +209,7 @@ export default function RealtimeSync() {
       // A document with no time of its own (an older writer) cannot be told older than the phone's edit: it is taken.
       const remoteTs = Number(patch.listsUpdatedAt) || 0;
       const phoneNewer = remoteTs > 0 && Number(w.listsUpdatedAt) > remoteTs;
-      if (!phoneNewer) ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
+      if (!phoneNewer) ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories', 'fileCategories'].forEach((k) => { if (Array.isArray(pl[k])) next = { ...next, [k]: pl[k] }; });
       // The website's Report points ({ category, text }: the lines a Category adds to the report); an emptied list empties the phone's too.
       // Not while the phone's own edit is still waiting to be sent (paymentIntroDirty).
       if (Array.isArray(pl.darPaymentIntro) && !w.paymentIntroDirty) next = { ...next, paymentIntro: normalizeReportPoints(pl.darPaymentIntro) };
@@ -304,7 +304,7 @@ export default function RealtimeSync() {
       lists: [w.categories, w.priorities, w.statuses, w.assignees],
       // The payment lists the phone edits (Report formats > Add to my lists, Next reminder): only those it has, so it never clears the web app's.
       extraLists: {
-        ...Object.fromEntries(['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'].filter((k) => Array.isArray(w[k])).map((k) => [k, w[k]])),
+        ...Object.fromEntries(['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories', 'fileCategories'].filter((k) => Array.isArray(w[k])).map((k) => [k, w[k]])),
         // The Report points, only when this phone changed them (so a stale copy never overwrites the website's).
         ...(w.paymentIntroDirty && Array.isArray(w.paymentIntro) ? { darPaymentIntro: w.paymentIntro } : null),
       },
@@ -337,7 +337,7 @@ export default function RealtimeSync() {
     if (!ready || !uid) return undefined;
     const timer = setTimeout(() => pushRef.current(), PUSH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [ready, uid, wd.entries, wd.categories, wd.priorities, wd.statuses, wd.assignees, wd.subCategories, wd.subCategoryCategories, wd.reminderCategories, wd.listsUpdatedAt, wd.deletedIds]);
+  }, [ready, uid, wd.entries, wd.categories, wd.priorities, wd.statuses, wd.assignees, wd.subCategories, wd.subCategoryCategories, wd.reminderCategories, wd.fileCategories, wd.listsUpdatedAt, wd.deletedIds]);
 
   // Leaving the app (or coming back) is also a moment to send anything not yet sent.
   useEffect(() => {
