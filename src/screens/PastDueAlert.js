@@ -6,6 +6,7 @@ import { Btn, Row, Sheet, Choices, DateTimeField, PickerButton, softLayout } fro
 import Icon from '../icons';
 import { display } from '../fonts';
 import { useTheme, ALARM_COLORS } from '../theme';
+import { Gradient } from '../gradient';
 import { useStore } from '../store';
 import { effectiveFormats, finalNarration } from '../reportFormats';
 import { isSnoozed, isSilencedToday, RECURRENCES, RECURRENCE_LABELS, recurrenceLabel, completeEntry, nextRecurringEntry, editedNow, DEFAULT_ALERTS, snoozeEntry, silenceEntryToday, alertModeOf, normalizeHolidays, normalizeLeaveDays } from '../workingDashboard';
@@ -227,6 +228,7 @@ export default function PastDueAlert() {
   return (
     // Ledger: one flat deep colour that follows the priority of the task that rang - red High, amber-brown Medium, green Low, slate otherwise.
     <View style={{ flex: 1, backgroundColor: pal.bottom }}>
+      <Gradient colors={pal.grad || [pal.top, pal.bottom]} />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right', 'bottom']}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: 20, paddingHorizontal: 24, paddingBottom: 28, gap: 18 }} keyboardShouldPersistTaps="handled">
           <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
@@ -240,8 +242,10 @@ export default function PastDueAlert() {
               </Pressable>
             </Row>
           </Row>
-          <View style={{ width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
-            <Icon name="bell" size={38} color="#fff" stroke={1.8} />
+          <View style={{ alignSelf: 'center', width: 132, height: 132, borderRadius: 46, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
+            <View style={{ width: 100, height: 100, borderRadius: 34, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="alarm" size={44} color="#fff" stroke={1.9} />
+            </View>
           </View>
           {preview && <View style={{ backgroundColor: G.fillStrong, borderRadius: 12, padding: 10 }}><Text style={{ color: G.text, fontWeight: '700', fontSize: t.fs(12.5) }}>PREVIEW - how an alarm opens full screen. A sample task; nothing here is saved or changed.</Text>
             <Row gap={6} style={{ marginTop: 8 }}>{['High', 'Medium', 'Low', 'None'].map((pr) => <Pressable key={pr} onPress={() => setSamplePrio(pr)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: samplePrio === pr ? '#fff' : G.fill }}><Text style={{ color: samplePrio === pr ? pal.bottom : G.text, fontWeight: '800' }}>{pr}</Text></Pressable>)}</Row></View>}

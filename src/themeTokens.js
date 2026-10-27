@@ -8,7 +8,7 @@
  */
 
 // The families loaded by src/fonts.js (@expo-google-fonts). Fraunces for titles and big numbers; Manrope picked by weight for the rest.
-export const FONT_DISPLAY = 'Fraunces_600SemiBold';
+export const FONT_DISPLAY = 'Manrope_800ExtraBold';      // titles and big numbers: bold sans (G); Fraunces is no longer used
 export const FONT_BY_WEIGHT = { 400: 'Manrope_500Medium', 500: 'Manrope_500Medium', 600: 'Manrope_600SemiBold', 700: 'Manrope_700Bold', 800: 'Manrope_800ExtraBold', 900: 'Manrope_800ExtraBold' };
 /** The Manrope family for a fontWeight ('700', 'bold', 600 ...). */
 export const fontFor = (weight) => {
@@ -18,9 +18,10 @@ export const fontFor = (weight) => {
 
 // The light and dark ground shared by every colour theme: "Pearl" (flat, calm: a cool grey page, solid white cards, one violet accent) and its dark
 // twin "Aurora dark". Secondary text is #62667C (a hair darker than the design's #6B6F85) so it keeps 4.5:1 on the page colour.
+// "Gradient bento" (the owner's pick, G): a soft lavender page, white cards, deep indigo ink.
 const GROUND = {
-  light: { bg: '#F0F1F7', surface: '#FFFFFF', surfaceAlt: '#F4F6FA', border: '#E6E8F1', fieldBorder: '#DADDEA', text: '#14132B', textDim: '#62667C', chevron: '#9AA0B8', dark: false },
-  dark: { bg: '#0C1228', surface: '#161E3B', surfaceAlt: '#1D2648', border: '#2A3459', fieldBorder: '#34406A', text: '#F2F4FF', textDim: '#A3ACCB', chevron: '#7C86AB', dark: true },
+  light: { bg: '#F5F3FF', surface: '#FFFFFF', surfaceAlt: '#F1EEFB', border: '#ECE8FA', fieldBorder: '#DDD7F3', text: '#1E1B4B', textDim: '#5F6381', chevron: '#9AA0B4', dark: false },
+  dark: { bg: '#110E27', surface: '#1B1736', surfaceAlt: '#241F45', border: '#2F2957', fieldBorder: '#3A3368', text: '#F4F2FF', textDim: '#B3ADD8', chevron: '#8580AE', dark: true },
 };
 // Signal colours: the plain colour (dots, text), the tint behind it and the text on that tint. The design's own brighter reds / ambers /
 // teal are the solid tiles (`tile`, below), where white text sits on them.
@@ -40,12 +41,32 @@ const SIGNAL = {
     indigo: '#A99BFF', teal: '#2EC4B6', pink: '#F2668B', purple: '#C9A0F2',
   },
 };
+/*
+ * The gradients of the "Gradient bento" look (two or three stops, top-left to bottom-right): the brand violet-pink (the + button,
+ * Save, the chosen chip), the hero card, the four count tiles and one per category (catGrads, picked by name in src/gradient.js).
+ * White text sits on them; the ends are dark enough for the big bold numbers and labels.
+ */
+export const GRADS = {
+  brand: ['#8B5CF6', '#DB2777'],
+  hero: ['#6D28D9', '#A21CAF', '#DB2777'],
+  red: ['#FF5A6E', '#E11D48'],
+  orange: ['#F59E0B', '#EA580C'],
+  blue: ['#0EA5E9', '#2563EB'],
+  green: ['#10B981', '#047857'],
+  teal: ['#14B8A6', '#0E7490'],
+  violet: ['#A78BFA', '#6D28D9'],
+  pink: ['#F472B6', '#BE185D'],
+  slate: ['#94A3B8', '#475569'],
+  done: ['#10B981', '#0891B2'],
+};
+export const CAT_GRADS = [['#8B5CF6', '#DB2777'], ['#F97316', '#DC2626'], ['#06B6D4', '#2563EB'], ['#10B981', '#4D7C0F'], ['#EC4899', '#9333EA'], ['#F59E0B', '#C2410C'], ['#14B8A6', '#0E7490'], ['#6366F1', '#7C3AED']];
+
 // The solid tool tiles: a flat colour with white text / icon (Home's counts).
 const TILES = { red: '#E8503C', amber: '#B04E0A', navy: '#2F55D4', violet: '#7B3FD0', teal: '#0E8F83', ink: '#14132B', pink: '#E24A82', grey: '#5E6173' };
 
 // The one colour theme, Pearl: [light, dark] values of primary / primaryDark / primaryTint / tint text / mint / soft text on the dark panels.
 const COLOURS = {
-  pearl: { label: 'Pearl', light: { primary: '#4B33C8', primaryDark: '#14132B', tint: '#ECE9FB', tintText: '#3A27A0', mint: '#2EC4B6', heroDim: '#C9C6E8' }, dark: { primary: '#A48BFF', primaryDark: '#2B2470', tint: '#26204F', tintText: '#CFC5FF', mint: '#2EC4B6', heroDim: '#C9C6E8' } },
+  pearl: { label: 'Gradient', light: { primary: '#6D28D9', primaryDark: '#1E1B4B', tint: '#EDE9FE', tintText: '#5B21B6', mint: '#A7F3D0', heroDim: '#F5E8FF' }, dark: { primary: '#B79CFF', primaryDark: '#2B1F66', tint: '#2B2260', tintText: '#D9CCFF', mint: '#A7F3D0', heroDim: '#F0E4FF' } },
 };
 
 export const build = (key, dark) => {
@@ -70,16 +91,21 @@ export const build = (key, dark) => {
     onAccent: dark ? '#0C1228' : '#FFFFFF',
     radius: 22,
     heroRadius: 26,
-    btnRadius: 999,       // pill buttons
+    btnRadius: 16,        // rounded-square buttons (G)
     fieldRadius: 16,
     sheetRadius: 26,
     tile: TILES,          // solid tiles ...
     onTile: '#FFFFFF',    // ... and the text / icon on them
-    toggleOn: dark ? '#2EC4B6' : '#2EC4B6',   // switches: on is teal
+    toggleOn: dark ? '#A78BFA' : '#7C3AED',   // switches: on is violet
+    grad: GRADS,
+    catGrads: CAT_GRADS,
     toggleOff: dark ? '#34406A' : '#D5D8E6',
     // Flat: a 1px line does the separating. Only the + button has a soft shadow (fabShadow).
     shadow: {},
-    fabShadow: { shadowColor: c.primary, shadowOpacity: dark ? 0.3 : 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+    fabShadow: { shadowColor: '#A21CAF', shadowOpacity: dark ? 0.4 : 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+    // The soft coloured lift under a gradient tile or a white card (G).
+    glow: (color) => ({ shadowColor: color, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 }),
+    lift: { shadowColor: '#3B2A8C', shadowOpacity: dark ? 0 : 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: dark ? 0 : 2 },
     // The priority dots: High red, Medium amber, Low green.
     prioDot: { High: s.danger, Medium: s.amber, Low: s.ok },
     bar: g.surface,
@@ -116,11 +142,13 @@ export const SPLASH = { bg: '#0B1220', spinner: '#4F8CFF' };
 // whatever the app theme, like an alarm clock's.
 export const ALARM_COLORS = {
   // The phone's full-screen alert (PastDueAlert): its background follows the task's priority (deep red / amber-brown / green / slate).
+  // "Gradient bento": a gradient by priority - High rose to violet, Medium orange to violet, Low green to indigo, otherwise violet to pink.
+  // `bottom` is the deep end (the text colour on the white main button), `dim` the soft text on the gradient.
   priority: {
-    High: { top: '#4A1712', bottom: '#4A1712', dim: '#F6CFC9', label: 'HIGH PRIORITY', icon: '🚨' },
-    Medium: { top: '#4A2E0A', bottom: '#4A2E0A', dim: '#F3DDB4', label: 'MEDIUM PRIORITY', icon: '⏰' },
-    Low: { top: '#123A2F', bottom: '#123A2F', dim: '#CFE8DD', label: 'LOW PRIORITY', icon: '🔔' },
-    None: { top: '#1F2F3F', bottom: '#1F2F3F', dim: '#C9D8E6', label: 'TASK', icon: '🔔' },
+    High: { top: '#E11D48', bottom: '#5B21B6', grad: ['#E11D48', '#A21CAF', '#5B21B6'], dim: '#FCE7F3', label: 'HIGH PRIORITY', icon: '🚨' },
+    Medium: { top: '#EA580C', bottom: '#6D28D9', grad: ['#EA580C', '#BE185D', '#6D28D9'], dim: '#FFEDD5', label: 'MEDIUM PRIORITY', icon: '⏰' },
+    Low: { top: '#047857', bottom: '#3730A3', grad: ['#047857', '#0E7490', '#3730A3'], dim: '#D1FAE5', label: 'LOW PRIORITY', icon: '🔔' },
+    None: { top: '#6D28D9', bottom: '#5B21B6', grad: ['#7C3AED', '#A21CAF', '#BE185D'], dim: '#F3E8FF', label: 'TASK', icon: '🔔' },
   },
   glass: { fill: 'rgba(255,255,255,0.14)', fillStrong: 'rgba(255,255,255,0.26)', line: 'rgba(255,255,255,0.28)', text: '#FFFFFF', dim: 'rgba(255,255,255,0.78)', paper: 'rgba(255,255,255,0.96)', ink: '#1F2937' },
   dark: { surface: '#111827', surfaceAlt: '#1F2937', text: '#F9FAFB', textDim: '#9CA3AF', border: '#374151', title: '#F87171', link: '#93C5FD' },

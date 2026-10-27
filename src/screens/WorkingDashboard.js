@@ -41,6 +41,7 @@ import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportMod
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
 import { PaymentFields, NarrationForm } from './WdPaymentFields';
 import { PrioritySegment, DetailChip } from './WdFormBits';
+import { GradBox, GradIcon, Ring, categoryLook } from '../gradient';
 import WdAlertSettings from './WdAlertSettings';
 import WdReportFormats from './WdReportFormats';
 import { ListsEditor, SubCategories, ReminderCategories, ReportPoints } from './WdLists';
@@ -89,15 +90,14 @@ const makeBarTabs = (narration) => [
   ...(narration ? [{ key: 'narration', label: 'Narration', icon: 'list' }] : []),
   { key: 'links', label: 'Links', icon: 'links' },
 ];
-// The phone's bottom bar: five tabs; Holidays, Bin and Config are reached from More.
+// The phone's bottom bar ("Gradient bento"): Home, Tasks, the + button, Report, More; Completed, Holidays, Bin and Config are reached from More.
 const PHONE_TABS = [
   { key: 'dashboard', label: 'Home' },
   { key: 'register', label: 'Tasks' },
   { key: 'report', label: 'Report' },
-  { key: 'done', label: 'Done' },
   { key: 'more', label: 'More' },
 ];
-const MORE_PAGES = ['holidays', 'bin', 'config', 'links'];      // pages opened from More: the header shows a back arrow to it
+const MORE_PAGES = ['holidays', 'bin', 'config', 'links', 'done'];      // pages opened from More: the header shows a back arrow to it
 const TAB_TITLES = { more: 'More', dashboard: 'Dashboard', register: 'Register', done: 'Completed', holidays: 'Holidays', config: 'Config', bin: 'Bin', narration: 'Tally Narration', links: 'Links', report: 'Daily Report' };
 // The phone's own screen titles (Ledger): the serif title at the top of each screen.
 const PHONE_TITLES = { more: 'More', register: 'Tasks', done: 'Completed', holidays: 'Holidays & leave', config: 'Config', bin: 'Bin', links: 'Links', report: 'Daily report' };
@@ -1231,11 +1231,11 @@ export default function WorkingDashboard() {
       {/* The phone's app bar: the search and meeting-mode buttons, the signed-in name chip, then the serif title. */}
       {phoneLayout && (
         <PhoneHeader
-          title={tab === 'dashboard' ? (new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening') : PHONE_TITLES[tab] || TAB_TITLES[tab]}
+          title={PHONE_TITLES[tab] || TAB_TITLES[tab]}
+          greeting={tab === 'dashboard' ? (new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening') : undefined}
           subtitle={phoneSubtitle}
           userLabel={userLabel}
           onRefresh={headerRefresh}
-          onNew={formOn && (tab === 'dashboard' || tab === 'register') ? openNewEntry : undefined}
           refreshing={headerBusy}
           onSearch={() => setPaletteOpen(true)}
           onBell={() => setMeetingOpen(true)}
@@ -1382,36 +1382,36 @@ export default function WorkingDashboard() {
             </Card>}
             {phoneLayout ? (
               <View style={{ gap: 14 }}>
-                {/* The hero panel: how many tasks need you today, and how the day is going. */}
+                {/* The hero card ("Gradient bento"): Pending as on today, the day's progress ring, and how the day is going. */}
                 {(() => {
                   const need = stats.pendingAsOnToday;
                   const total = doneTodayCount + need;
                   const pct = total ? Math.round((doneTodayCount / total) * 100) : 0;
                   return (
-                    <Pressable onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} accessibilityRole="button" accessibilityLabel={`Today: ${need} ${need === 1 ? 'task needs' : 'tasks need'} you. Open them in Tasks`}
-                      style={({ pressed }) => ({ backgroundColor: t.primaryDark, borderRadius: t.heroRadius, paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 14, opacity: pressed ? 0.94 : 1 })}>
-                      <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.4 }}>TODAY</Text>
-                      <Row gap={10} style={{ alignItems: 'baseline' }}>
-                        <Text style={{ color: '#fff', fontFamily: display(), fontWeight: '600', fontSize: t.fs(64), lineHeight: t.fs(62), letterSpacing: -2 }}>{need}</Text>
-                        <Text style={{ color: t.heroDim, fontWeight: '600', fontSize: t.fs(15) }}>{need === 1 ? 'task needs you' : 'tasks need you'}</Text>
+                    <GradBox colors={t.grad.hero} radius={28} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} accessibilityLabel={`Pending as on today: ${need}. Open them in Tasks`} contentStyle={{ paddingTop: 18, paddingHorizontal: 20, paddingBottom: 18 }}>
+                      <View style={{ position: 'absolute', right: -34, bottom: -46, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.12)' }} />
+                      <Row style={{ alignItems: 'center' }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: t.heroDim, fontWeight: '800', fontSize: t.fs(11.5), letterSpacing: 1.3 }}>PENDING AS ON TODAY</Text>
+                          <Text style={{ color: t.onTile, fontWeight: '800', fontSize: t.fs(62), lineHeight: t.fs(66), letterSpacing: -2 }}>{need}</Text>
+                          <Text style={{ color: t.onTile, fontWeight: '600', fontSize: t.fs(15) }}>{need === 1 ? 'task needs you' : 'tasks need you'} · {stats.overdue} overdue</Text>
+                        </View>
+                        <Ring pct={pct} size={78} />
                       </Row>
-                      <View style={{ height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
-                        <View style={{ height: 8, borderRadius: 4, backgroundColor: t.mint, width: `${pct}%` }} />
-                      </View>
-                      <Row style={{ justifyContent: 'space-between' }}>
-                        <Text style={{ color: t.heroDim, fontWeight: '700', fontSize: t.fs(12) }}>{doneTodayCount} of {total} done today</Text>
-                        <Text style={{ color: t.heroDim, fontWeight: '700', fontSize: t.fs(12) }}>{darTodayCount} in the daily report</Text>
+                      <Row style={{ justifyContent: 'space-between', marginTop: 12 }}>
+                        <Text style={{ color: t.heroDim, fontWeight: '700', fontSize: t.fs(12.5) }}>{doneTodayCount} of {total} done today</Text>
+                        <Text style={{ color: t.heroDim, fontWeight: '700', fontSize: t.fs(12.5) }}>{darTodayCount} in the daily report</Text>
                       </Row>
-                    </Pressable>
+                    </GradBox>
                   );
                 })()}
                 <Row gap={10}>
-                  <PhoneKpi tone="red" label="Pending as on Today" value={stats.pendingAsOnToday} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
+                  <PhoneKpi tone="red" label="Overdue" value={stats.overdue} onPress={() => { openRegister({ dueWithin: 'Overdue' }); }} />
+                  <PhoneKpi tone="orange" label="Due today" value={stats.dueToday} onPress={() => { openRegister({ dueWithin: 'Today' }); }} />
                 </Row>
                 <Row gap={10}>
-                  <PhoneKpi tone="red" label="Overdue" value={stats.overdue} onPress={() => { openRegister({ dueWithin: 'Overdue' }); }} />
-                  <PhoneKpi tone="amber" label="Due today" value={stats.dueToday} onPress={() => { openRegister({ dueWithin: 'Today' }); }} />
-                  <PhoneKpi tone="slate" label="Next 7 days" value={stats.next7Days} onPress={() => { openRegister({ dueWithin: 'Next 7 Days' }); }} />
+                  <PhoneKpi tone="blue" label="Next 7 days" value={stats.next7Days} onPress={() => { openRegister({ dueWithin: 'Next 7 Days' }); }} />
+                  <PhoneKpi tone="green" label="Done today" value={doneTodayCount} onPress={() => goTab('done')} />
                 </Row>
                 <View>
                   <Pressable onPress={() => setMoreCounts((v) => !v)} hitSlop={8} accessibilityRole="button" accessibilityState={{ expanded: moreCounts }} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -1426,7 +1426,7 @@ export default function WorkingDashboard() {
                       <PhoneKpi wide label="Pending" value={stats.pending} onPress={() => { openRegister({ status: 'Pending' }); }} />
                       <PhoneKpi wide label="High priority" value={openEntries.filter((e) => e.priority === 'High').length} onPress={() => { openRegister({ priority: 'High' }); }} />
                       <PhoneKpi wide label="Open tasks" value={openEntries.length} onPress={() => { openRegister({}); }} />
-                      <PhoneKpi wide label="Done today" value={doneTodayCount} onPress={() => goTab('done')} />
+                      <PhoneKpi wide label="Pending as on today" value={stats.pendingAsOnToday} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
                     </View>
                   )}
                 </View>
@@ -1574,6 +1574,24 @@ export default function WorkingDashboard() {
                 <Icon name="sliders" size={20} color={showFilters || isWdFilterActive(filters) ? t.tintText : t.text} stroke={1.9} />
               </Pressable>
             </Row>
+            {phoneLayout && (() => {
+              // G: the open tasks by category as gradient tiles (All, then the three biggest); a tap filters the list.
+              const byCat = {};
+              openEntries.forEach((e) => { if (e.category) byCat[e.category] = (byCat[e.category] || 0) + 1; });
+              const top = Object.entries(byCat).sort((x, y) => y[1] - x[1]).slice(0, 3);
+              const cur = filters.category === ANY ? '' : filters.category;
+              return (
+                <Row gap={8} style={{ marginBottom: 12 }}>
+                  {[['', 'All', openEntries.length], ...top.map(([c, n]) => [c, c, n])].map(([c, label, n]) => (
+                    <GradBox key={c || 'all'} colors={c ? categoryLook(t, c).colors : [t.primaryDark, t.primaryDark]} radius={18} glow={!!c} onPress={() => setFilter({ category: c && cur !== c ? c : ANY })} accessibilityLabel={`${label}, ${n}`} accessibilityState={{ selected: cur === c }}
+                      style={{ flex: 1, opacity: cur && cur !== c ? 0.55 : 1 }} contentStyle={{ paddingVertical: 11, paddingHorizontal: 10 }}>
+                      <Text style={{ color: t.onTile, fontWeight: '800', fontSize: t.fs(21) }}>{n}</Text>
+                      <Text numberOfLines={1} style={{ color: t.onTile, fontWeight: '700', fontSize: t.fs(11.5) }}>{label}</Text>
+                    </GradBox>
+                  ))}
+                </Row>
+              );
+            })()}
             {phoneLayout && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, marginBottom: 14 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
                 {[['', 'All', filteredOpen.length], ['late', 'Overdue', quickCounts.late], ['today', 'Today', quickCounts.today], ['week', 'Week', quickCounts.week]].map(([k, label, n]) => (
@@ -1654,11 +1672,20 @@ export default function WorkingDashboard() {
               // Completed this week: tasks completed since this Monday (local time).
               const mon = new Date(); mon.setHours(0, 0, 0, 0); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
               const n = allDone.filter((e) => (completedTime(e) || 0) >= mon.getTime()).length;
+              // A bar per day of this week (Mon..Sun): how many were completed that day; today's bar is white.
+              const per = Array.from({ length: 7 }, (_, i) => { const d0 = mon.getTime() + i * 86400000; return allDone.filter((e) => { const c = completedTime(e) || 0; return c >= d0 && c < d0 + 86400000; }).length; });
+              const max = Math.max(1, ...per);
+              const todayIx = (new Date().getDay() + 6) % 7;
               return (
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: t.tint, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16, marginBottom: 12 }}>
-                  <Text style={{ color: t.tintText, fontWeight: '700', fontSize: t.fs(13) }}>Completed this week</Text>
-                  <Text style={{ color: t.tintText, fontFamily: display(), fontWeight: '600', fontSize: t.fs(30), lineHeight: t.fs(32) }}>{n}</Text>
-                </View>
+                <GradBox colors={t.grad.done} radius={24} style={{ marginBottom: 12 }} contentStyle={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 18 }}>
+                  <View>
+                    <Text style={{ color: t.onTile, fontWeight: '800', fontSize: t.fs(44), lineHeight: t.fs(48), letterSpacing: -1.5 }}>{n}</Text>
+                    <Text style={{ color: t.onTile, fontWeight: '700', fontSize: t.fs(14) }}>completed this week</Text>
+                  </View>
+                  <Row gap={6} style={{ alignItems: 'flex-end', height: 56 }}>
+                    {per.map((c, i) => <View key={i} style={{ width: 11, height: Math.max(6, Math.round((c / max) * 56)), borderRadius: 5, backgroundColor: i === todayIx ? t.onTile : 'rgba(255,255,255,0.4)' }} />)}
+                  </Row>
+                </GradBox>
               );
             })()}
             <Row gap={10} style={{ alignItems: 'center', marginBottom: 12 }}>
@@ -1817,13 +1844,23 @@ export default function WorkingDashboard() {
                     {days.map((d) => {
                       const k = toDateKey(d);
                       const on = dayOn(k);
-                      return (
-                        <Pressable key={k} onPress={() => { setReportDate(k); buildReport(k); }} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-                          style={{ flex: 1, alignItems: 'center', gap: 2, paddingVertical: 8, borderRadius: 14, backgroundColor: on ? t.primaryDark : t.surface, borderWidth: 1, borderColor: on ? t.primaryDark : t.border }}>
-                          <Text style={{ color: on ? t.heroDim : t.text, fontWeight: '700', fontSize: t.fs(11) }}>{d.toLocaleDateString([], { weekday: 'short' })}</Text>
-                          <Text style={{ color: on ? '#fff' : t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(16) }}>{d.getDate()}</Text>
-                        </Pressable>
+                      const go = () => { setReportDate(k); buildReport(k); };
+                      const label = d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+                      const inner = (
+                        <>
+                          <Text style={{ color: on ? t.onTile : t.textDim, fontWeight: '700', fontSize: t.fs(11) }}>{d.toLocaleDateString([], { weekday: 'short' })}</Text>
+                          <Text style={{ color: on ? t.onTile : t.text, fontWeight: '800', fontSize: t.fs(17) }}>{d.getDate()}</Text>
+                        </>
                       );
+                      // G: the chosen day is the violet-pink gradient, the others white.
+                      return on
+                        ? <GradBox key={k} colors={t.grad.brand} radius={16} onPress={go} accessibilityLabel={label} accessibilityState={{ selected: true }} style={{ flex: 1 }} contentStyle={{ alignItems: 'center', gap: 1, paddingVertical: 8 }}>{inner}</GradBox>
+                        : (
+                          <Pressable key={k} onPress={go} accessibilityRole="button" accessibilityState={{ selected: false }} accessibilityLabel={label}
+                            style={[{ flex: 1, alignItems: 'center', gap: 1, paddingVertical: 8, borderRadius: 16, backgroundColor: t.surface, borderWidth: t.dark ? 1 : 0, borderColor: t.border }, t.lift]}>
+                            {inner}
+                          </Pressable>
+                        );
                     })}
                   </Row>
                   <Row gap={8} style={{ alignItems: 'center' }}>
@@ -1839,11 +1876,11 @@ export default function WorkingDashboard() {
             })()}
             {reportKind === 'day' && !!reportModel && (
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-                {[['oth', 'Other work', reportModel.data.others], ['pay', 'Payments', reportModel.data.payments], ['fol', 'Followed up', reportModel.data.followed], ['out', 'Left out', reportModel.data.excluded]].map(([key, label, n]) => (
-                  <Pressable key={key} onPress={() => setGroupOpen(key)} accessibilityRole="button" accessibilityLabel={`${n} ${label} - show the tasks`} style={({ pressed }) => ({ flex: 1, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.85 : 1 })}>
-                    <Text style={{ color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(24), lineHeight: t.fs(27) }}>{n}</Text>
-                    <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(10.5) }} numberOfLines={1}>{label}</Text>
-                  </Pressable>
+                {[['oth', 'Other work', reportModel.data.others, t.grad.green], ['pay', 'Payments', reportModel.data.payments, t.grad.brand], ['fol', 'Followed up', reportModel.data.followed, t.grad.orange], ['out', 'Left out', reportModel.data.excluded, t.grad.blue]].map(([key, label, n, g]) => (
+                  <GradBox key={key} colors={g} radius={18} onPress={() => setGroupOpen(key)} accessibilityLabel={`${n} ${label} - show the tasks`} style={{ flex: 1 }} contentStyle={{ paddingVertical: 10, paddingHorizontal: 10 }}>
+                    <Text style={{ color: t.onTile, fontWeight: '800', fontSize: t.fs(24) }}>{n}</Text>
+                    <Text style={{ color: t.onTile, fontWeight: '700', fontSize: t.fs(11) }} numberOfLines={1}>{label}</Text>
+                  </GradBox>
                 ))}
               </View>
             )}
@@ -1956,7 +1993,7 @@ export default function WorkingDashboard() {
           </View>
         )}
 
-        {tab === 'more' && <WdMoreTab googleUser={googleUser} waiting={waiting} realtimeError={realtimeError} binnedEntries={binnedEntries} setTab={setTab} wd={wd} data={data} update={update} />}
+        {tab === 'more' && <WdMoreTab googleUser={googleUser} waiting={waiting} realtimeError={realtimeError} binnedEntries={binnedEntries} setTab={setTab} wd={wd} data={data} update={update} doneCount={allDone.length} />}
 
         {tab === 'holidays' && <WdHolidaysTab entries={entries} holidayList={holidayList} leaveList={leaveList} openEditEntry={openEditEntry} openNewHoliday={openNewHoliday} setHolidaySheet={setHolidaySheet} removeHoliday={removeHoliday} holQuery={holQuery} setHolQuery={setHolQuery} holCalendar={holCalendar} setHolCalendar={setHolCalendar} holCalendarOpen={holCalendarOpen} setHolCalendarOpen={setHolCalendarOpen} holAlertsOnly={holAlertsOnly} setHolAlertsOnly={setHolAlertsOnly} />}
 
@@ -2027,18 +2064,21 @@ export default function WorkingDashboard() {
           );
           // Phone: one list of topics (the Appearance row is highlighted - its card is open right below).
           const topicList = (
-            <View style={{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>
+            <View style={[{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: t.dark ? 1 : 0, borderColor: t.border }, t.lift]}><View style={{ borderRadius: t.radius, overflow: 'hidden' }}>
               {panels.map((x, i) => {
                 const on = x.key === 'appearance';
+                // G: each topic with its own gradient icon.
+                const g = [t.grad.brand, t.grad.orange, t.grad.blue, t.grad.violet, t.grad.teal, t.grad.green, t.grad.pink, t.grad.red, t.grad.slate][i % 9];
                 return (
                   <Pressable key={x.key} onPress={() => pick(x.key)} accessibilityRole="button" accessibilityLabel={x.title}
-                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, minHeight: 52, borderTopWidth: i ? 1 : 0, borderTopColor: t.surfaceAlt, backgroundColor: on ? t.tint : pressed ? t.surfaceAlt : t.surface })}>
-                    <Text style={{ color: on ? t.tintText : t.text, fontWeight: '700', fontSize: t.fs(15) }}>{x.title}</Text>
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10, minHeight: 58, borderTopWidth: i ? 1 : 0, borderTopColor: t.surfaceAlt, backgroundColor: on ? t.tint : pressed ? t.surfaceAlt : t.surface })}>
+                    <GradIcon name={x.icon || 'gear'} colors={g} size={38} radius={12} iconSize={19} glow={false} />
+                    <Text style={{ flex: 1, color: on ? t.tintText : t.text, fontWeight: '700', fontSize: t.fs(15) }}>{x.title}</Text>
                     <Icon name="chevronRight" size={16} color={on ? t.tintText : t.chevron} stroke={2} />
                   </Pressable>
                 );
               })}
-            </View>
+            </View></View>
           );
           const cur = active ? byKey[active] : null;
           const curHint = cur ? (groups.flatMap(([, it]) => it).find(([k]) => k === active) || [])[1] : '';
@@ -2303,6 +2343,7 @@ export default function WorkingDashboard() {
       value={tab}
       badges={{ dashboard: stats.pendingAsOnToday, register: openEntries.length, done: allDone.length, bin: binnedEntries.length }}
       onChange={goTab}
+      onNew={phoneLayout && formOn ? openNewEntry : undefined}
     />
     {introNeeded && (
       <WdAlarmIntro kind={alarmBlock}

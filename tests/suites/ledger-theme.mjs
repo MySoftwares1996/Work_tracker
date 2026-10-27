@@ -8,9 +8,12 @@ export async function run({ ck, section }) {
   section('Pearl: the one look');
   const keys = Object.keys(THEMES);
   ck('Pearl is the only theme: no colour choices, no swatches', keys.join() === 'pearl' && DEFAULT_THEME === 'pearl');
-  ck('Pearl uses the approved tokens (page #F0F1F7, white cards, line #E6E8F1, text #14132B, accent #4B33C8, teal #2EC4B6)', THEMES.pearl.bg === '#F0F1F7' && THEMES.pearl.surface === '#FFFFFF' && THEMES.pearl.surfaceAlt === '#F4F6FA' && THEMES.pearl.border === '#E6E8F1' && THEMES.pearl.text === '#14132B' && THEMES.pearl.primary === '#4B33C8' && THEMES.pearl.mint === '#2EC4B6' && THEMES.pearl.tile.navy === '#2F55D4' && THEMES.pearl.tile.violet === '#7B3FD0');
+  ck('Gradient bento uses the approved tokens (page #F5F3FF, white cards, line #ECE8FA, ink #1E1B4B, accent #6D28D9)', THEMES.pearl.bg === '#F5F3FF' && THEMES.pearl.surface === '#FFFFFF' && THEMES.pearl.border === '#ECE8FA' && THEMES.pearl.text === '#1E1B4B' && THEMES.pearl.primary === '#6D28D9' && THEMES.pearl.grad.brand.join() === '#8B5CF6,#DB2777' && THEMES.pearl.grad.hero.length === 3);
   ck('every theme keeps the names the screens read', keys.every((k) => ['bg', 'surface', 'surfaceAlt', 'border', 'text', 'textDim', 'accent', 'accent2', 'danger', 'warn', 'ok', 'radius', 'shadow', 'bar', 'onAccent', 'fontDisplay', 'font'].every((n) => THEMES[k][n] !== undefined)));
-  ck('cards 22, pill buttons, flat (no shadow on cards)', THEMES.pearl.radius === 22 && THEMES.pearl.btnRadius === 999 && Object.keys(THEMES.pearl.shadow).length === 0 && THEMES.pearl.toggleOn === '#2EC4B6');
+  ck('cards 22, rounded-square buttons 16, a soft lift on cards, violet switches', THEMES.pearl.radius === 22 && THEMES.pearl.btnRadius === 16 && THEMES.pearl.lift.elevation > 0 && THEMES.pearl.toggleOn === '#7C3AED');
+  // White text and icons sit on every gradient: the deep end of each must give large bold text 3:1 or more.
+  const deepBad = Object.entries(THEMES.pearl.grad).concat(THEMES.pearl.catGrads.map((g, i) => [`cat${i}`, g])).filter(([, g]) => ratio('#FFFFFF', g[g.length - 1]) < 3).map(([k]) => k);
+  ck('white reads on the deep end of every gradient (3:1, large bold text)', !deepBad.length, deepBad.join(', '));
 
 
 
@@ -44,10 +47,10 @@ export async function run({ ck, section }) {
   ck('all the colour pairs the screens use pass 4.5:1', bad.length === 0, bad.slice(0, 6).join(' | '));
   const alarmBad = Object.entries(ALARM_COLORS.priority).flatMap(([name, p]) => [['white', '#FFFFFF'], ['dim', p.dim]].filter(([, c]) => ratio(c, p.bottom) < 4.5).map(([w]) => `${name} ${w}`));
   ck('the full-screen alert text passes 4.5:1 on every priority colour', alarmBad.length === 0, alarmBad.join(', '));
-  ck('alert colours: High deep red, Medium amber-brown, Low deep green, none slate', ALARM_COLORS.priority.High.bottom === '#4A1712' && ALARM_COLORS.priority.Medium.bottom === '#4A2E0A' && ALARM_COLORS.priority.Low.bottom === '#123A2F' && ALARM_COLORS.priority.None.bottom === '#1F2F3F');
-  ck('the dark twin (Aurora dark) has the dark ground', darkTheme('pearl').bg === '#0C1228' && darkTheme('pearl').surface === '#161E3B' && darkTheme('pearl').surfaceAlt === '#1D2648' && darkTheme('pearl').text === '#F2F4FF' && darkTheme('pearl').primary === '#A48BFF' && darkTheme('pearl').dark === true);
+  ck('alert colours: a gradient by priority, white text reads on its deep end', ['High', 'Medium', 'Low', 'None'].every((k) => ALARM_COLORS.priority[k].grad.length === 3 && ratio('#FFFFFF', ALARM_COLORS.priority[k].bottom) >= 4.5));
+  ck('the dark twin has the dark ground', darkTheme('pearl').bg === '#110E27' && darkTheme('pearl').surface === '#1B1736' && darkTheme('pearl').text === '#F4F2FF' && darkTheme('pearl').primary === '#B79CFF' && darkTheme('pearl').dark === true);
 
   section('Ledger: fonts');
   ck('Manrope weight by fontWeight (400/500 Medium, 600 SemiBold, 700 Bold, 800 ExtraBold)', fontFor('400') === 'Manrope_500Medium' && fontFor(500) === 'Manrope_500Medium' && fontFor('600') === 'Manrope_600SemiBold' && fontFor('700') === 'Manrope_700Bold' && fontFor('bold') === 'Manrope_700Bold' && fontFor('800') === 'Manrope_800ExtraBold' && fontFor(undefined) === 'Manrope_500Medium' && fontFor('normal') === 'Manrope_500Medium');
-  ck('Fraunces 600 is the display face', FONT_DISPLAY === 'Fraunces_600SemiBold' && THEMES.pearl.fontDisplay === FONT_DISPLAY);
+  ck('bold Manrope is the display face (titles and big numbers)', FONT_DISPLAY === 'Manrope_800ExtraBold' && THEMES.pearl.fontDisplay === FONT_DISPLAY);
 }

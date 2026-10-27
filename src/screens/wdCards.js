@@ -8,6 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useLayout, FadeInUp, AnimatedNumber, Card, Small, Row, prefersReducedMotion } from '../ui';
 import Icon, { ICON_NAMES } from '../icons';
 import { display } from '../fonts';
+import { GradBox, GradIcon, CatIcon } from '../gradient';
 import { useTheme } from '../theme';
 import { checklistText } from '../checklist';
 import { recordNarration } from '../narrationHistory';
@@ -315,55 +316,68 @@ export function CountList({ title, total, rows, activeLabel, onPress }) {
 /** The initial of the signed-in name (or the first letter given). */
 const initialOf = (name) => String(name || '?').trim().charAt(0).toUpperCase() || '?';
 
-/** The 44px white circle used for the app bar's actions (search, meeting-mode bell). */
+/** The 44px white rounded square used for the app bar's actions (search, meeting-mode bell, refresh). */
 export function CircleBtn({ icon, label, onPress, active, primary }) {
   const t = useTheme();
+  if (primary) return <GradIcon name={icon} colors={t.grad.brand} size={44} radius={15} iconSize={21} />;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: primary ? t.primary : active ? t.warnTint : t.surface, borderWidth: 1, borderColor: active ? t.amber : t.border, opacity: pressed ? 0.8 : 1 })}>
-      <Icon name={icon} size={20} color={primary ? t.onAccent : active ? t.warnText : t.text} stroke={primary ? 2.4 : 2} />
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => [{ width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? t.warnTint : t.surface, borderWidth: active ? 1 : t.dark ? 1 : 0, borderColor: active ? t.amber : t.border, opacity: pressed ? 0.8 : 1 }, t.lift]}>
+      <Icon name={icon} size={21} color={active ? t.warnText : t.text} stroke={2} />
     </Pressable>
   );
 }
 
 /**
- * The phone's app bar: a row of actions at the right (search, meeting-mode bell, the name chip), then the serif title with a
- * muted line under it. `onBack` puts a 44px back circle before the title (pages opened from More).
+ * The phone's app bar ("Gradient bento"). Home: the gradient initial, "Good morning" over the signed-in name, then the
+ * refresh / search / meeting-mode squares. Other screens: a back square (pages opened from More), the big bold title with a
+ * muted line under it, and the same squares at the right.
  */
-export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bellOn, onUser, onBack, onRefresh, refreshing, onNew }) {
+export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bellOn, onUser, onBack, onRefresh, refreshing, onNew, greeting }) {
   const t = useTheme();
+  const actions = (
+    <Row gap={8} style={{ alignItems: 'center' }}>
+      {/* A page opened from More keeps only search (and the bell while meeting mode is on), so its title has room. */}
+      {!!onRefresh && !onBack && <CircleBtn icon="refresh" label={refreshing ? 'Refreshing' : 'Refresh'} onPress={refreshing ? undefined : onRefresh} />}
+      <CircleBtn icon="search" label="Search" onPress={onSearch} />
+      {(!onBack || bellOn) && <CircleBtn icon={bellOn ? 'bellOff' : 'bell'} label={bellOn ? 'Meeting mode is on' : 'Meeting mode'} onPress={onBell} active={bellOn} />}
+      {!!onNew && <Pressable onPress={onNew} accessibilityRole="button" accessibilityLabel="New entry"><CircleBtn icon="plus" label="New entry" primary /></Pressable>}
+    </Row>
+  );
+  if (greeting) {
+    return (
+      <Row gap={12} style={{ alignItems: 'center', marginBottom: 16 }}>
+        <GradBox colors={t.grad.pink.concat(t.grad.violet.slice(1))} radius={16} onPress={onUser} accessibilityLabel={`Signed in as ${userLabel}`} style={{ width: 48, height: 48 }} contentStyle={{ alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: t.onTile, fontWeight: '800', fontSize: t.fs(19) }}>{initialOf(userLabel)}</Text>
+        </GradBox>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(13) }}>{greeting}</Text>
+          <Text numberOfLines={1} accessibilityRole="header" style={{ color: t.text, fontWeight: '800', fontSize: t.fs(20), letterSpacing: -0.3 }}>{userLabel}</Text>
+        </View>
+        {actions}
+      </Row>
+    );
+  }
   return (
     <View style={{ marginBottom: 14 }}>
-      <Row gap={8} style={{ justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
-        {!!onRefresh && <CircleBtn icon="refresh" label={refreshing ? 'Refreshing' : 'Refresh'} onPress={refreshing ? undefined : onRefresh} />}
-        <CircleBtn icon="search" label="Search" onPress={onSearch} />
-        <CircleBtn icon={bellOn ? 'bellOff' : 'bell'} label={bellOn ? 'Meeting mode is on' : 'Meeting mode'} onPress={onBell} active={bellOn} />
-        {!!onNew && <CircleBtn icon="plus" label="New entry" onPress={onNew} primary />}
-        <Pressable onPress={onUser} accessibilityRole="button" accessibilityLabel={`Signed in as ${userLabel}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: 150, height: 44, paddingLeft: 7, paddingRight: 14, borderRadius: 22, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.8 : 1 })}>
-          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: t.fs(13) }}>{initialOf(userLabel)}</Text>
-          </View>
-          <Text numberOfLines={1} style={{ flexShrink: 1, color: t.text, fontWeight: '700', fontSize: t.fs(13) }}>{userLabel}</Text>
-        </Pressable>
-      </Row>
-      <Row gap={12} style={{ alignItems: 'center' }}>
+      <Row gap={10} style={{ alignItems: 'center' }}>
         {onBack ? <CircleBtn icon="back" label="Back to More" onPress={onBack} /> : null}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} accessibilityRole="header" style={{ color: t.text, fontFamily: display(), fontWeight: '600', fontSize: t.fs(onBack ? 30 : 32), letterSpacing: -0.6, lineHeight: t.fs(onBack ? 34 : 36) }}>{title}</Text>
-          {!!subtitle && <Text numberOfLines={1} style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(13), marginTop: 5 }}>{subtitle}</Text>}
+          <Text numberOfLines={1} accessibilityRole="header" style={{ color: t.text, fontWeight: '800', fontSize: t.fs(onBack ? 24 : 30), letterSpacing: -0.7 }}>{title}</Text>
+          {!!subtitle && <Text numberOfLines={1} style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(13), marginTop: 2 }}>{subtitle}</Text>}
         </View>
+        {actions}
       </Row>
     </View>
   );
 }
 
-/** The + button: 56px, radius 20, primary with a soft primary shadow. */
+/** The + button: 56px, the violet-pink gradient with a soft coloured lift. */
 export function Fab({ onPress, bottom, right = 20, label = 'New entry' }) {
   const t = useTheme();
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
-      style={({ pressed }) => ({ position: 'absolute', right, bottom, width: 56, height: 56, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.primary, opacity: pressed ? 0.9 : 1, ...t.fabShadow })}>
-      <Icon name="plus" size={26} color={t.onAccent} stroke={2.2} />
-    </Pressable>
+    <GradBox colors={t.grad.brand} radius={20} onPress={onPress} accessibilityLabel={label} style={[{ position: 'absolute', right, bottom, width: 56, height: 56 }, t.fabShadow]} contentStyle={{ alignItems: 'center', justifyContent: 'center' }} glow={false}>
+      <View><Icon name="plus" size={26} color={t.onTile} stroke={2.6} /></View>
+    </GradBox>
   );
 }
 
@@ -371,28 +385,37 @@ export function Fab({ onPress, bottom, right = 20, label = 'New entry' }) {
 export function SectionHead({ title, action, onAction, style }) {
   const t = useTheme();
   return (
-    <Row style={[{ justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4, marginBottom: 10 }, style]}>
-      <Text accessibilityRole="header" style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{title}</Text>
-      {!!action && <Pressable onPress={onAction} hitSlop={8} accessibilityRole="button"><Text style={{ color: t.primary, fontWeight: '700', fontSize: t.fs(13) }}>{action}</Text></Pressable>}
+    <Row style={[{ justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4, marginBottom: 10, paddingHorizontal: 4 }, style]}>
+      <Text accessibilityRole="header" style={{ color: t.text, fontWeight: '800', fontSize: t.fs(18), letterSpacing: -0.2 }}>{title}</Text>
+      {!!action && <Pressable onPress={onAction} hitSlop={8} accessibilityRole="button"><Text style={{ color: t.primary, fontWeight: '700', fontSize: t.fs(14) }}>{action}</Text></Pressable>}
     </Row>
   );
 }
 
 /**
- * A count tile. With a `tone` ('red' | 'amber' | 'slate') it is a tinted tile (Home's Overdue / Due today / Next 7 days);
- * without one it is a plain white card with a line (the "More counts"). The number is Fraunces.
+ * A count tile. With a `tone` ('red' | 'orange' | 'blue' | 'green' | 'violet'; 'amber' and 'slate' are the older names) it is a
+ * gradient tile - white number and label, an icon square at the top right; without one it is a white card ("More counts").
  */
-export function PhoneKpi({ label, value, tone, onPress, wide }) {
+const KPI = { red: ['red', 'alert'], amber: ['orange', 'clock'], orange: ['orange', 'clock'], slate: ['blue', 'calendar'], blue: ['blue', 'calendar'], green: ['green', 'done'], violet: ['violet', 'tasks'] };
+export function PhoneKpi({ label, value, tone, onPress, wide, icon }) {
   const t = useTheme();
-  // Solid tiles with white text (the design's tool tiles); in the dark look they are the same colours.
-  const colours = { red: [t.tile.red, t.onTile], amber: [t.tile.amber, t.onTile], slate: [t.tile.navy, t.onTile] }[tone];
-  const bg = colours ? colours[0] : t.surface;
-  const fg = colours ? colours[1] : t.text;
+  const k = KPI[tone];
+  if (k) {
+    return (
+      <GradBox colors={t.grad[k[0]]} radius={24} onPress={onPress} accessibilityLabel={`${label}: ${value}`} style={{ flex: 1 }} contentStyle={{ paddingVertical: 14, paddingHorizontal: 15, minHeight: 104 }}>
+        <View style={{ position: 'absolute', right: 12, top: 12, width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.24)', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={icon || k[1]} size={19} color={t.onTile} stroke={2.3} />
+        </View>
+        <Text style={{ color: t.onTile, fontWeight: '800', fontSize: t.fs(34), letterSpacing: -1, marginTop: 6 }}>{value}</Text>
+        <Text style={{ color: t.onTile, fontWeight: '700', fontSize: t.fs(14) }} numberOfLines={1}>{label}</Text>
+      </GradBox>
+    );
+  }
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}
-      style={({ pressed }) => ({ width: wide ? '31.5%' : undefined, flex: wide ? undefined : 1, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, gap: 4, backgroundColor: bg, borderWidth: colours ? 0 : 1, borderColor: t.border, opacity: pressed ? 0.85 : 1 })}>
-      <Text style={{ color: colours ? fg : t.textDim, fontWeight: '700', fontSize: t.fs(11) }} numberOfLines={1}>{label}</Text>
-      <Text style={{ color: fg, fontFamily: display(), fontWeight: '600', fontSize: t.fs(28), lineHeight: t.fs(30) }}>{value}</Text>
+      style={({ pressed }) => [{ width: wide ? '31.5%' : undefined, flex: wide ? undefined : 1, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, gap: 2, backgroundColor: t.surface, borderWidth: t.dark ? 1 : 0, borderColor: t.border, opacity: pressed ? 0.85 : 1 }, t.lift]}>
+      <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(24), letterSpacing: -0.5 }}>{value}</Text>
+      <Text style={{ color: t.textDim, fontWeight: '700', fontSize: t.fs(11.5) }} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -406,62 +429,78 @@ export const relativeDue = (due) => {
   return isMidnight(due) ? name : `${name} ${due.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 };
 
-/** A task as a flat white card: title, one line of facts (priority dot first, the due text last) and Done / DAR under it. */
+/** The small priority badge at the right of a task row (High red, Medium amber, Low green). */
+function PrioBadge({ priority }) {
+  const t = useTheme();
+  if (!priority) return null;
+  const [bg, fg] = { High: [t.dangerTint, t.dangerText], Medium: [t.warnTint, t.warnText], Low: [t.okTint, t.okText] }[priority] || [t.tint, t.tintText];
+  return <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: bg }}><Text style={{ color: fg, fontWeight: '800', fontSize: t.fs(11.5) }}>{priority}</Text></View>;
+}
+
+/**
+ * A task ("Gradient bento"): a white card - the category's gradient icon, the title, the due text (red when late) and the
+ * person, the priority badge at the right, and the Done / DAR buttons under it.
+ */
 export function PhoneRow({ entry, onPress, onDone, onDar, onFollowUp }) {
   const t = useTheme();
   const due = entry.dueAt ? new Date(entry.dueAt) : null;
   const overdue = isOverdue(entry);
-  const dot = t.prioDot[entry.priority] || t.textDim;
   const late = overdue && due ? daysLate(due) : 0;
-  const dueText = due ? (late >= 2 ? `Overdue ${late} d` : relativeDue(due)) : 'No date';
-  const facts = [entry.priority, entry.category, entry.pendingWith, entry.recurrence && entry.recurrence !== 'none' ? `↻ ${recurrenceLabel(entry)}` : '', checklistText(entry) ? `☑ ${checklistText(entry)}` : ''].filter(Boolean).join(' · ');
-  const btn = (label, bg, ink, fn) => (
-    <Pressable onPress={fn} accessibilityRole="button" accessibilityLabel={label === 'DAR' ? 'Complete, and add to the daily report' : 'Complete, keep out of the daily report'} style={({ pressed }) => ({ flex: 1, paddingVertical: 11, borderRadius: 999, alignItems: 'center', backgroundColor: bg, opacity: pressed ? 0.85 : 1 })}>
-      <Text style={{ color: ink, fontWeight: '800', fontSize: t.fs(14) }}>{label}</Text>
-    </Pressable>
-  );
+  const dueText = due ? (late >= 1 ? `Overdue ${late} day${late === 1 ? '' : 's'}` : relativeDue(due)) : 'No date';
+  const facts = [entry.pendingWith, entry.category, entry.recurrence && entry.recurrence !== 'none' ? `↻ ${recurrenceLabel(entry)}` : '', checklistText(entry) ? `☑ ${checklistText(entry)}` : ''].filter(Boolean).join(' · ');
   return (
-    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 14, paddingHorizontal: 16, gap: 10 }}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ gap: 7 }}>
-        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
-        <Row style={{ alignItems: 'center', gap: 7 }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot }} />
-          <Text style={{ flex: 1, color: t.textDim, fontWeight: '600', fontSize: t.fs(12.5) }} numberOfLines={2}>{facts ? `${facts} · ` : ''}<Text style={overdue ? { color: t.danger, fontWeight: '800' } : null}>{dueText}</Text></Text>
-          {!!onFollowUp && (
-            <Pressable onPress={onFollowUp} hitSlop={8} accessibilityRole="button" accessibilityLabel="Bank follow-up" style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="phone" size={17} color={t.tintText} stroke={1.9} />
+    <View style={[{ marginBottom: 10, borderRadius: 22, backgroundColor: t.surface, borderWidth: t.dark ? 1 : 0, borderColor: t.border, paddingVertical: 12, paddingHorizontal: 12, gap: 10 }, t.lift]}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <CatIcon category={entry.category} size={44} />
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), lineHeight: t.fs(20) }} numberOfLines={2}>{entry.title}</Text>
+          <Text style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(12.5) }} numberOfLines={1}><Text style={{ color: overdue ? t.danger : t.textDim, fontWeight: '800' }}>{dueText}</Text>{facts ? ` · ${facts}` : ''}</Text>
+        </View>
+        <PrioBadge priority={entry.priority} />
+      </Pressable>
+      {(!!onDone || !!onFollowUp) && (
+        <Row gap={8} style={{ paddingLeft: 56 }}>
+          {!!onDone && (
+            <GradBox colors={t.grad.green} radius={12} onPress={onDone} accessibilityLabel="Complete, keep out of the daily report" glow={false} style={{ flex: 1 }} contentStyle={{ flexDirection: 'row', gap: 5, alignItems: 'center', justifyContent: 'center', paddingVertical: 9 }}>
+              <View><Icon name="check" size={15} color={t.onTile} stroke={3} /></View><Text style={{ color: t.onTile, fontWeight: '800', fontSize: t.fs(13.5) }}>Done</Text>
+            </GradBox>
+          )}
+          {!!onDone && !!onDar && (
+            <Pressable onPress={onDar} accessibilityRole="button" accessibilityLabel="Complete, and add to the daily report" style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 12, alignItems: 'center', backgroundColor: t.tint, opacity: pressed ? 0.85 : 1 })}>
+              <Text style={{ color: t.tintText, fontWeight: '800', fontSize: t.fs(13.5) }}>DAR</Text>
             </Pressable>
           )}
-        </Row>
-      </Pressable>
-      {!!onDone && (
-        <Row gap={8}>
-          {btn('Done', t.primary, t.onAccent, onDone)}
-          {onDar && btn('DAR', t.tint, t.tintText, onDar)}
+          {!!onFollowUp && (
+            <Pressable onPress={onFollowUp} hitSlop={8} accessibilityRole="button" accessibilityLabel="Bank follow-up" style={{ width: 40, borderRadius: 12, backgroundColor: t.slateTint, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="phone" size={17} color={t.slateText} stroke={2} />
+            </Pressable>
+          )}
         </Row>
       )}
     </View>
   );
 }
 
-/** A finished task: a green check in a tinted circle, the title, when it was completed and whether it is in the daily report, and Reopen. */
+/** A finished task: the category's icon, the title, when it was completed, a Done / DAR badge and Reopen. */
 export function PhoneDoneRow({ entry, onPress, onReopen }) {
   const t = useTheme();
   const ms = completedTime(entry);
   const time = ms ? new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-  const facts = [time || 'Done', entry.dar !== false ? 'In report' : 'Done only', entry.category].filter(Boolean).join(' · ');
+  const facts = [time ? `Done ${time}` : 'Done', entry.pendingWith || entry.category].filter(Boolean).join(' · ');
+  const dar = entry.dar !== false;
   return (
-    <View style={{ marginBottom: 12, borderRadius: t.radius, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, paddingVertical: 13, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: t.tint, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="check" size={18} color={t.primary} stroke={2.4} />
-      </View>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ flex: 1, minWidth: 0, gap: 3 }}>
+    <View style={[{ marginBottom: 10, borderRadius: 22, backgroundColor: t.surface, borderWidth: t.dark ? 1 : 0, borderColor: t.border, paddingVertical: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }, t.lift]}>
+      <CatIcon category={entry.category} size={42} />
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={entry.title} style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(14.5), lineHeight: t.fs(19) }} numberOfLines={2}>{entry.title}</Text>
         <Text style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(12.5) }} numberOfLines={1}>{facts}</Text>
       </Pressable>
-      <Pressable onPress={onReopen} accessibilityRole="button" accessibilityLabel="Reopen" style={({ pressed }) => ({ paddingVertical: 9, paddingHorizontal: 12, borderRadius: 999, backgroundColor: t.tint, opacity: pressed ? 0.85 : 1 })}>
-        <Text style={{ color: t.tintText, fontWeight: '800', fontSize: t.fs(13) }}>Reopen</Text>
-      </Pressable>
+      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+        <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9, backgroundColor: dar ? t.tint : t.okTint }}><Text style={{ color: dar ? t.tintText : t.okText, fontWeight: '800', fontSize: t.fs(11.5) }}>{dar ? 'DAR' : 'Done'}</Text></View>
+        <Pressable onPress={onReopen} accessibilityRole="button" accessibilityLabel="Reopen" hitSlop={6}>
+          <Text style={{ color: t.primary, fontWeight: '800', fontSize: t.fs(12.5) }}>Reopen</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }

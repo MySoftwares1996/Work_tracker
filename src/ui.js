@@ -10,6 +10,7 @@ import { useTheme, opaque, withAlpha } from './theme';
 import { warnQuiet } from './quietCatch';
 import Icon, { ICON_NAMES } from './icons';
 import { ff, display } from './fonts';
+import { Gradient, GradBox, GradIcon } from './gradient';
 
 /**
  * @param headerless  true only for screens with the navigation header hidden.
@@ -39,13 +40,13 @@ export function usePressSpring(to = 0.96) {
  * The floating tab bar at the foot of a tool (Working Dashboard's design, shared by every tool with tabs).
  * tabs: [{ key, label, icon }] - icon is a tabIcons.js name. badges: { [key]: number }.
  */
-export function BottomTabs({ tabs, value, onChange, badges = {} }) {
+export function BottomTabs({ tabs, value, onChange, badges = {}, onNew }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { wide } = useLayout();
   if (wide) return <SideTabs tabs={tabs} value={value} onChange={onChange} badges={badges} />;
   // A phone (the APK, or a phone-width screen) with a short list of tabs: the app-style bar - edge to edge, the chosen tab in a soft pill.
-  if (tabs.length <= 5) return <PhoneBar tabs={tabs} value={value} onChange={onChange} badges={badges} />;
+  if (tabs.length <= 5) return <PhoneBar tabs={tabs} value={value} onChange={onChange} badges={badges} onNew={onNew} />;
   // APK with many tabs: the side bar turned sideways - a bar with the selected tab in an accent pill that glides.
   if (Platform.OS !== 'web') return <AppTabs tabs={tabs} value={value} onChange={onChange} badges={badges} />;
   // The website opened on a phone: iOS-style tab bar, edge to edge, the selected tab in the accent colour.
@@ -67,27 +68,39 @@ export function BottomTabs({ tabs, value, onChange, badges = {} }) {
 const PHONE_ICON = { dashboard: 'home', register: 'tasks', report: 'report', done: 'done', more: 'more' };
 
 /**
- * The phone's own tab bar (Ledger): white, a line on top, five tabs at most. The chosen tab's icon sits in a 58x30 pill of the
- * primary tint and takes the primary colour; labels are 11px 700.
+ * The phone's own tab bar ("Gradient bento"): white with rounded top corners, the chosen tab's icon and label in the primary
+ * colour, and - with `onNew` - a raised violet-pink + button in the middle (New entry).
  */
-function PhoneBar({ tabs, value, onChange, badges }) {
+function PhoneBar({ tabs, value, onChange, badges, onNew }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const tab = (x) => {
+    const on = value === x.key;
+    const badge = badges[x.key];
+    const iconName = PHONE_ICON[x.key];
+    return (
+      <Pressable key={x.key} onPress={() => onChange(x.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${x.label}${badge ? `, ${badge}` : ''}`} style={{ flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 4, gap: 3 }}>
+        <View style={{ height: 28, alignItems: 'center', justifyContent: 'center' }}>
+          {iconName ? <Icon name={iconName} size={24} color={on ? t.primary : t.chevron} stroke={on ? 2.3 : 2} /> : <TabIcon name={x.icon || x.key} color={on ? t.primary : t.chevron} active={on} size={23} />}
+        </View>
+        <Text style={{ fontSize: 11.5, fontWeight: '700', color: on ? t.primary : t.chevron }} numberOfLines={1}>{x.label}</Text>
+      </Pressable>
+    );
+  };
+  const half = Math.ceil(tabs.length / 2);
   return (
-    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12) + 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: t.border }]}>
-      {tabs.map((x) => {
-        const on = value === x.key;
-        const badge = badges[x.key];
-        const iconName = PHONE_ICON[x.key];
-        return (
-          <Pressable key={x.key} onPress={() => onChange(x.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${x.label}${badge ? `, ${badge}` : ''}`} style={{ flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 4, gap: 3 }}>
-            <View style={{ width: 58, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.tint : 'transparent' }}>
-              {iconName ? <Icon name={iconName} size={23} color={on ? t.primary : t.textDim} /> : <TabIcon name={x.icon || x.key} color={on ? t.primary : t.textDim} active={on} size={23} />}
-            </View>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: on ? t.primary : t.textDim }} numberOfLines={1}>{x.label}</Text>
-          </Pressable>
-        );
-      })}
+    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'flex-start', backgroundColor: t.surface, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12) + 4, paddingHorizontal: 6, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: t.dark ? 1 : 0, borderTopColor: t.border, shadowColor: t.primaryDark, shadowOpacity: t.dark ? 0 : 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: -2 }, elevation: 12 }]}>
+      {onNew ? (
+        <>
+          {tabs.slice(0, half).map(tab)}
+          <View style={{ width: 76, alignItems: 'center' }}>
+            <GradBox colors={t.grad.brand} radius={22} onPress={onNew} accessibilityLabel="New entry" style={[{ width: 62, height: 62, marginTop: -30, borderWidth: 4, borderColor: t.bg, borderRadius: 24 }, t.fabShadow]} contentStyle={{ alignItems: 'center', justifyContent: 'center' }} glow={false}>
+              <View><Icon name="plus" size={30} color={t.onTile} stroke={2.8} /></View>
+            </GradBox>
+          </View>
+          {tabs.slice(half).map(tab)}
+        </>
+      ) : tabs.map(tab)}
     </View>
   );
 }
@@ -266,10 +279,10 @@ export function Card({ children, style, onPress, tone }) {
   const base = {
     backgroundColor: opaque(tone || t.surface, t.surface),
     borderRadius: t.radius,
-    borderWidth: 1,
+    borderWidth: t.dark ? 1 : 0,
     borderColor: t.border,
     padding: 16,
-    ...t.shadow,
+    ...t.lift,
   };
   if (onPress) {
     return (
@@ -312,6 +325,9 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
   }[kind];
   const press = usePressSpring(0.97);
   const web = Platform.OS === 'web';
+  // G: the main buttons are the violet-pink gradient with a soft coloured lift.
+  const grad = kind === 'primary' || kind === 'ok' ? t.grad.brand : kind === 'danger' ? t.grad.red : null;
+  const radius = StyleSheet.flatten(style)?.borderRadius ?? t.btnRadius;
   return (
     <Pressable
       onPress={onPress}
@@ -320,7 +336,8 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
       disabled={disabled}
       accessibilityRole="button"
       style={({ pressed }) => [{
-        backgroundColor: map.bg,
+        backgroundColor: grad ? 'transparent' : map.bg,
+        overflow: grad ? 'hidden' : undefined,
         borderColor: map.border || 'transparent',
         borderWidth: map.border ? 1.5 : 0,
         paddingVertical: web ? 10 : 13,
@@ -331,12 +348,13 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
         opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
       }, style]}
     >
+      {!!grad && <Gradient colors={grad} radius={radius} />}
       <Animated.View style={{ transform: [{ scale: press.scale }], maxWidth: '100%' }}>
         <Text
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.75}
-          style={{ color: map.fg, fontWeight: '800', fontSize: t.fs(web ? 14 : 15), textAlign: 'center', flexShrink: 1 }}
+          style={{ color: grad ? t.onTile : map.fg, fontWeight: '800', fontSize: t.fs(web ? 14 : 15), textAlign: 'center', flexShrink: 1 }}
         >
           {icon ? icon + '  ' : ''}{title}
         </Text>
@@ -644,7 +662,7 @@ export function Segmented({ options, value, onChange, style, tone = 'dark' }) {
   const t = useTheme();
   const darkOn = tone !== 'light';
   return (
-    <Row style={[{ backgroundColor: t.surfaceAlt, borderRadius: 14, padding: 3 }, style]} gap={2}>
+    <Row style={[{ backgroundColor: t.surface, borderRadius: 16, padding: 4, borderWidth: 1, borderColor: t.border }, style]} gap={2}>
       {options.map((o) => {
         const key = typeof o === 'string' ? o : o.key;
         const label = typeof o === 'string' ? o : o.label;
@@ -654,10 +672,10 @@ export function Segmented({ options, value, onChange, style, tone = 'dark' }) {
             // Optional per-option weight, so a long label can have more room than a short one instead of every segment being equal.
             flex: (typeof o === 'object' && o.flex) || 1,
             paddingVertical: 8, paddingHorizontal: 4, alignItems: 'center', borderRadius: 11,
-            backgroundColor: on ? (darkOn ? t.primaryDark : t.surface) : 'transparent',
+            backgroundColor: on ? (darkOn ? t.tint : t.surface) : 'transparent',
             ...(on && !darkOn ? { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 } : null),
           }}>
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ color: on ? (darkOn ? '#fff' : t.text) : t.textDim, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ color: on ? (darkOn ? t.tintText : t.text) : t.textDim, fontWeight: '800', fontSize: t.fs(13) }}>{label}</Text>
           </Pressable>
         );
       })}
@@ -670,7 +688,8 @@ export function Chip({ label, count, on, onPress, style, accessibilityLabel }) {
   const t = useTheme();
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={accessibilityLabel || label}
-      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.primaryDark : t.surface, borderWidth: 1, borderColor: on ? t.primaryDark : t.border, opacity: pressed ? 0.85 : 1 }, style]}>
+      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? 'transparent' : t.surface, overflow: 'hidden', borderWidth: on ? 0 : 1, borderColor: t.border, opacity: pressed ? 0.85 : 1 }, style]}>
+      {!!on && <Gradient colors={t.grad.brand} radius={999} />}
       <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
       {count != null && <Text style={{ color: on ? '#fff' : t.text, fontWeight: '800', fontSize: t.fs(13), opacity: 0.7, marginLeft: 4 }}>{count}</Text>}
     </Pressable>
@@ -1084,12 +1103,14 @@ export function Group({ title, footer, children }) {
   return (
     <View style={{ marginBottom: 18 }}>
       {!!title && <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, marginLeft: 4, marginBottom: 8, textTransform: 'uppercase' }}>{title}</Text>}
-      <View style={{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>{children}</View>
+      <View style={[{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: t.dark ? 1 : 0, borderColor: t.border }, t.lift]}><View style={{ borderRadius: t.radius, overflow: 'hidden' }}>{children}</View></View>
       {!!footer && <Text style={{ color: t.textDim, fontSize: t.fs(12.5), lineHeight: t.fs(18), marginHorizontal: 6, marginTop: 8, fontWeight: '500' }}>{footer}</Text>}
     </View>
   );
 }
 
+/** The gradient of a row's square icon (More, Config): the tone names the colour. */
+const toneGrad = (t, tone) => ({ green: t.grad.green, slate: t.grad.slate, red: t.grad.red, amber: t.grad.orange, blue: t.grad.blue, violet: t.grad.violet, pink: t.grad.pink }[tone] || t.grad.brand);
 /** The tint pairs for the square icon holders (More): [background, icon colour]. */
 export const toneOf = (t, tone) => ({
   green: [t.tint, t.tintText], slate: [t.slateTint, t.slateText], red: [t.dangerTint, t.dangerText], amber: [t.warnTint, t.warnText],
@@ -1102,18 +1123,19 @@ export const toneOf = (t, tone) => ({
 export function Item({ icon, iconName, tone, label, value, valueColor, onPress, right, last, destructive, chevron = true, first }) {
   const t = useTheme();
   const tappable = !!onPress;
-  const [bg, fg] = toneOf(t, tone);
+  const [bg] = toneOf(t, tone);
   return (
     <Pressable
       onPress={onPress}
       disabled={!tappable}
       accessibilityRole={tappable ? 'button' : undefined}
       accessibilityLabel={label}
-      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13, minHeight: 60, borderTopWidth: first ? 0 : 1, borderTopColor: t.surfaceAlt, backgroundColor: pressed && tappable ? t.surfaceAlt : t.surface })}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11, minHeight: 60, borderTopWidth: first ? 0 : 1, borderTopColor: t.surfaceAlt, backgroundColor: pressed && tappable ? t.surfaceAlt : t.surface })}
     >
-      {!!(iconName || icon) && (
-        <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-          {iconName ? <Icon name={iconName} size={18} color={fg} stroke={1.9} /> : <Text style={{ fontSize: 17 }}>{icon}</Text>}
+      {!!iconName && <GradIcon name={iconName} colors={toneGrad(t, tone)} size={38} iconSize={19} glow={false} />}
+      {!iconName && !!icon && (
+        <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 17 }}>{icon}</Text>
         </View>
       )}
       <Text style={{ flex: 1, color: destructive ? t.danger : t.text, fontWeight: '700', fontSize: t.fs(15) }}>{label}</Text>

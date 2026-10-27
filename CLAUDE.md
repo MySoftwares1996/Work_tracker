@@ -51,6 +51,14 @@ Several sessions have changed the alert code; check this list before changing it
 
 ## Look and feel - the phone follows the website
 
+- **Phone (APK) look now: "Gradient bento" (G, the owner's pick, 27 Oct)** - lavender page #F5F3FF, white cards with a soft lift (no line), ink #1E1B4B,
+  violet #6D28D9, bold Manrope for titles and numbers (Fraunces is no longer used). Gradients are drawn with react-native-svg in `src/gradient.js`
+  (`Gradient`, `GradBox`, `GradIcon`, `CatIcon` - a colour icon per category by name, `Ring`), colours in `themeTokens.js` (`GRADS`, `CAT_GRADS`;
+  white on every gradient's deep end is checked in `tests/suites/ledger-theme.mjs`). Bottom bar: Home, Tasks, a raised violet-pink + (New entry), Report,
+  More; Completed is opened from More (tiles: Completed, Holidays, Links, Bin). Home: the hero gradient card (Pending as on today + progress ring) and
+  four gradient tiles; task rows carry the category icon, a priority badge and Done / DAR. The full-screen alert is a gradient by priority. The website
+  (`newweb/`) keeps its own look. Notes below about Ledger / Pearl describe the earlier look where they differ.
+
 - One look, "Pearl" (the only colour theme: the owner had every other theme removed, there is no theme switch and no stored theme key): cool grey ground, flat white cards with a 1px line, Fraunces titles and big numbers, Manrope for the rest,
   the sliding accent pill kept only for the tablet / side bar. Shared pieces: `src/themeTokens.js` (tokens, the Pearl theme and its dark twin; plain data so
   the tests read it) re-exported by `src/theme.js` (provider), `src/icons.js` (the line icons), `src/fonts.js`, `src/ui.js` (PhoneBar, Card, Btn,
