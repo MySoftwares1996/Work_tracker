@@ -4,7 +4,7 @@ import Icon from './icons';
 import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
 import EmptyState, { SkeletonRows } from './EmptyState';
-import { PageHead, Chip, priTone, priDot } from './ui';
+import { PageHead, Chip, priTone, priDot, CatIcon } from './ui';
 import Onboarding from './Onboarding';
 import BackupReminder from './BackupReminder';
 import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveDueDate } from './bulk';
@@ -135,9 +135,10 @@ function useMinute() {
 }
 
 /** A coloured count tile (Overdue, Due today, Next 7 days, This month): opens the Register on that filter. */
-function Stat({ tone, label, value, loading, onClick }) {
+function Stat({ tone, label, value, loading, onClick, icon }) {
   return (
     <button type="button" className={`st ${tone}`} onClick={onClick}>
+      {!!icon && <i className="st-ico" aria-hidden="true"><Icon name={icon} size={18} /></i>}
       <span>{label}</span>
       <b>{loading ? '–' : value}</b>
     </button>
@@ -200,11 +201,11 @@ function Dashboard({ onEdit, onNew, go }) {
             <span>{loading ? '–' : doneTodayDar} in the daily report</span>
           </div>
         </div>
-        <Stat loading={loading} tone="danger" label="Overdue" value={s.overdue} onClick={() => go('register', { due: 'overdue' })} />
-        <Stat loading={loading} tone="amber" label="Due today" value={s.dueToday} onClick={() => go('register', { due: 'today' })} />
-        <Stat loading={loading} tone="slate" label="Next 7 days" value={s.dueSoon} onClick={() => go('register', { due: 'next7' })} />
-        <Stat loading={loading} tone="green" label="This month" value={s.thisMonth} onClick={() => go('register', { due: 'month' })} />
-        <Stat loading={loading} tone="blue" label="Next month" value={s.nextMonth} onClick={() => go('register', { due: 'nextmonth' })} />
+        <Stat loading={loading} tone="danger" label="Overdue" icon="alarm" value={s.overdue} onClick={() => go('register', { due: 'overdue' })} />
+        <Stat loading={loading} tone="amber" label="Due today" icon="clock" value={s.dueToday} onClick={() => go('register', { due: 'today' })} />
+        <Stat loading={loading} tone="slate" label="Next 7 days" icon="calendar" value={s.dueSoon} onClick={() => go('register', { due: 'next7' })} />
+        <Stat loading={loading} tone="green" label="This month" icon="list" value={s.thisMonth} onClick={() => go('register', { due: 'month' })} />
+        <Stat loading={loading} tone="blue" label="Next month" icon="repeat" value={s.nextMonth} onClick={() => go('register', { due: 'nextmonth' })} />
       </section>
       <section className="more-tiles" aria-label="More counts">
         {[
@@ -385,6 +386,7 @@ function AttentionRow({ t, onEdit }) {
   const parts = [t.priority, t.category, t.pendingWith ? `with ${t.pendingWith}` : ''].filter(Boolean);
   return (
     <div className={`arow${late ? ' late' : ''}`}>
+      <CatIcon category={t.category} size={42} />
       <button className="arow-main" onClick={() => onEdit(t)} aria-label={`Edit ${t.title}`}>
         <span className="arow-title">{t.title || '(no description)'}</span>
         <span className="meta"><i className={`pdot ${priDot(t.priority)}`} />{parts.join(' · ')}{parts.length ? ' · ' : ''}<span className={late ? 'late' : ''}>{dueLabel(t)}</span></span>
@@ -405,7 +407,7 @@ function TaskCard({ t, onEdit, compact, selected, onSelect, selecting }) {
     <article className={`card task pri-${String(t.priority).toLowerCase()}${t.done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${selecting ? ' selecting' : ''}`}>
       {onSelect && <input type="checkbox" className="sel-box" checked={!!selected} onChange={() => onSelect(t.id)} aria-label={`Select ${t.title || 'task'}`} />}
       <button className="card-main" onClick={() => onEdit(t)} aria-label={`Edit ${t.title}`}>
-        <span className="card-title">{t.title || '(no description)'}</span>
+        <span className="card-head"><CatIcon category={t.category} size={40} /><span className="card-title">{t.title || '(no description)'}</span></span>
         <span className="card-meta">
           {t.priority && <Chip tone={priTone(t.priority)}>{t.priority}</Chip>}
           {t.category && <Chip>{t.category}</Chip>}
