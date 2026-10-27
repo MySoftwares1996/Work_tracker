@@ -117,11 +117,21 @@ export async function setAlarmStyle(n = 1) {
 
 /**
  * Until when (ms) the web app counts as in use - 0 when it does not. While that is in the future, a Working
- * Dashboard alarm shows a quiet notification instead of ringing (AlarmReceiver.kt).
+ * Dashboard alarm shows nothing - no alarm, no notification (AlarmReceiver.kt).
  */
 export async function setWebActiveUntil(ms = 0) {
   if (!NativeTools?.setWebActiveUntil || Platform.OS !== 'android') return false;
   try { return await NativeTools.setWebActiveUntil(Math.max(0, Number(ms) || 0)); } catch { return false; }
+}
+
+/** The alerts this phone skipped, newest first: [{ at, title, why }] (the website was in use / already answered there). */
+export async function skippedAlerts() {
+  if (!NativeTools?.skippedAlerts || Platform.OS !== 'android') return [];
+  try { const l = await NativeTools.skippedAlerts(); return Array.isArray(l) ? l : []; } catch { return []; }
+}
+export async function clearSkippedAlerts() {
+  if (!NativeTools?.clearSkippedAlerts || Platform.OS !== 'android') return false;
+  try { return await NativeTools.clearSkippedAlerts(); } catch { return false; }
 }
 
 /**

@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -35,6 +36,24 @@ object AlarmStore {
   private const val WEB_ACTIVE_UNTIL = "web_active_until"
   fun setWebActiveUntil(ctx: Context, ms: Long) { prefs(ctx).edit().putLong(WEB_ACTIVE_UNTIL, ms).apply() }
   fun webInUse(ctx: Context): Boolean = System.currentTimeMillis() < prefs(ctx).getLong(WEB_ACTIVE_UNTIL, 0L)
+
+  /*
+   * Alerts the phone skipped (kept short, newest first): the web app was in use, or the task was already answered there. Config >
+   * Alerts shows them, so a quiet phone can be explained. JSON: [{ at, title, why }].
+   */
+  private const val SKIP_LOG = "skipped_alerts"
+  private const val SKIP_MAX = 30
+  fun logSkip(ctx: Context, title: String, why: String) {
+    try {
+      val old = JSONArray(prefs(ctx).getString(SKIP_LOG, "[]") ?: "[]")
+      val next = JSONArray()
+      next.put(JSONObject().put("at", System.currentTimeMillis()).put("title", title).put("why", why))
+      for (i in 0 until minOf(old.length(), SKIP_MAX - 1)) next.put(old.get(i))
+      prefs(ctx).edit().putString(SKIP_LOG, next.toString()).apply()
+    } catch (_: Throwable) { /* a log must never stop an alert */ }
+  }
+  fun skippedAlerts(ctx: Context): String = prefs(ctx).getString(SKIP_LOG, "[]") ?: "[]"
+  fun clearSkippedAlerts(ctx: Context) { prefs(ctx).edit().remove(SKIP_LOG).apply() }
 
   private fun flags(): Int = PendingIntent.FLAG_UPDATE_CURRENT or
     (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)

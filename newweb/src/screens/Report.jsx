@@ -3,7 +3,7 @@ import { copyText } from '../clipboard';
 import { useStore } from '../store';
 import Icon from '../icons';
 import { PageHead } from '../ui';
-import { buildReport, REPORT_GROUPS, mergeAi, reportPrompt, reportCsvRows, reportHtml } from '../reportEngine';
+import { buildReport, categorySummary, REPORT_GROUPS, mergeAi, reportPrompt, reportCsvRows, reportHtml } from '../reportEngine';
 import { reportMailUrl } from '../../../src/workingDashboardReport.js';
 import { dayKey, isOpen, sortTasks } from '../data';
 
@@ -77,6 +77,12 @@ export default function Report() {
         {box(d.followed, 'Followed up', 'fol', 'See the lines and move them')}
         {box(d.excluded, 'Left out', 'out', 'Completed with Done (not DAR): kept out of the report. Click to see them and move them in')}
       </div>
+      {categorySummary(report.model).length > 0 && (
+        <div className="report-cats" role="group" aria-label="Lines per Category">
+          <span className="muted">By Category</span>
+          {categorySummary(report.model).map((c) => <span key={c.category} className="chip">{c.category} <b>{c.count}</b></span>)}
+        </div>
+      )}
       <div className="report-stats">
         {d.skippedPayments > 0 && <span className="chip" title="Domestic and Urgent payments are not listed in the report">{d.skippedPayments} domestic / urgent payment(s) not listed</span>}
         {(report.model.missing || []).length > 0 && <span className="chip coral" title={report.model.missing.map((m) => `${m.title}: ${m.marks.join(', ')}`).join('\n')}>{report.model.missing.length} line(s) with a missing field [in brackets]</span>}

@@ -2,6 +2,8 @@ import { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, f
 export { normalizeSubCategories, subCategoriesFor, categoryCarriesSubCategory, findSubCategory, subCategoryMissing, addSubCategory, parseSubCategoryLines, addSubCategories, withCarrying, validateSubCategory, applySubCategoryEdit, removeSubCategory, addOption, removeOption } from '../../src/listsCore.js';
 import { noteWork, isUnstartedStatus } from '../../src/workingDashboardPayments.js';
 import { followUpPicks as followUpPicksCore } from '../../src/followUpPicks.js';
+import { normalizeReportPoints } from '../../src/reportPoints.js';
+import { cleanFiles } from '../../src/taskFiles.js';
 /**
  * The task data, in the shape the phone app and the old website already share (users/<uid>/tasks, the "web app's task
  * document"): description, dueDate + dueTime, mailChain, status "Completed", deleted... Nothing here touches Firebase, so
@@ -13,12 +15,16 @@ export const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDa
 export const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, d.getHours(), d.getMinutes());
 
 export const DONE_STATUS = /^(completed|complete|done|closed|resolved|finished)$/i;
+// A new account starts with no Category and nobody under Pending with: the person adds their own (Config > Entry form options). Priorities and
+// Statuses keep their usual choices. Accounts that already exist keep the older starting lists (LEGACY_DEFAULT_LISTS) wherever their own list
+// does not say otherwise, so nothing they see changes.
 export const DEFAULT_LISTS = {
-  categories: ['Payments', 'Bank', 'Audit', 'Meeting', 'Follow-up', 'Other'],
+  categories: [],
   priorities: ['High', 'Medium', 'Low'],
   statuses: ['Not Yet Started', 'Pending', 'In Progress', 'Waiting', 'Completed'],
   pendingWith: [],
 };
+export const LEGACY_DEFAULT_LISTS = { ...DEFAULT_LISTS, categories: ['Payments', 'Bank', 'Audit', 'Meeting', 'Follow-up', 'Other'] };
 export const RECURRENCES = ["Doesn't repeat", 'Hourly', 'Custom', 'Daily', 'Weekdays', 'Weekly', 'Monthly'];
 export const LIST_KEYS = ['categories', 'priorities', 'statuses', 'pendingWith'];
 
@@ -73,6 +79,8 @@ export function fromDoc(id, d = {}) {
     seriesId: d.seriesId ? String(d.seriesId) : '',
     checklist: (Array.isArray(d.checklist) ? d.checklist : []).filter((c) => c && String(c.text || '').trim()).map((c) => ({ id: String(c.id || newId()), text: String(c.text), done: !!c.done })),
     attachments: (Array.isArray(d.attachments) ? d.attachments : []).filter((a) => a && /^https?:\/\//i.test(String(a.url || ''))).map((a) => ({ id: String(a.id || newId()), title: String(a.title || a.url), url: String(a.url) })),
+    files: cleanFiles(d.files),
+    filesNotRequired: d.filesNotRequired === true,
     nextReminder: asDate(d.nextReminderAt),
     snoozeUntil: Number(d.snoozeUntil) || 0,
     snoozeCount: Number(d.snoozeCount) || 0, // read only (the phone counts snoozes; the Weekly review uses it)
@@ -83,7 +91,7 @@ export function fromDoc(id, d = {}) {
     recurrenceEveryMin: Number(d.recurrenceEveryMin) || null,
     alertMode: d.alertMode === 'alarm' || d.alertMode === 'gentle' ? d.alertMode : '',
     // Which of these the document already had, so an empty list is written back only when it was there (or is being used).
-    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d, snoozeUntil: 'snoozeUntil' in d, lastAckDate: 'lastAckDate' in d, skippedDates: 'skippedDates' in d },
+    has: { checklist: 'checklist' in d, attachments: 'attachments' in d, files: 'files' in d, filesNotRequired: 'filesNotRequired' in d, keyPoints: 'keyPoints' in d, subCategory: 'subCategory' in d, nextReminder: 'nextReminderAt' in d, snoozeUntil: 'snoozeUntil' in d, lastAckDate: 'lastAckDate' in d, skippedDates: 'skippedDates' in d },
     createdAt: asDate(d.dateLogged),
     updatedAt: Number(d.updatedAt) || 0,
     // Kept as read, for the report (the phone app and the old website write them): the days worked on, the bank follow-ups, the Tally narration.
@@ -130,6 +138,10 @@ export function toDoc(t, now = new Date()) {
   if (checklist.length || has.checklist) doc.checklist = checklist;
   const attachments = (t.attachments || []).filter((a) => /^https?:\/\//i.test(a.url || '')).map((a) => ({ id: a.id, title: a.title || a.url, url: a.url }));
   if (attachments.length || has.attachments) doc.attachments = attachments;
+  // Attached PDFs / images (kept inside the task) and the "Not required" choice; written once the task has them, so a copy that never saw them cannot clear them.
+  const files = cleanFiles(t.files);
+  if (files.length || has.files) doc.files = files;
+  if (t.filesNotRequired || has.filesNotRequired) doc.filesNotRequired = !!t.filesNotRequired;
   if ((t.nextReminder instanceof Date && !Number.isNaN(t.nextReminder.getTime())) || has.nextReminder) {
     doc.nextReminderAt = t.nextReminder instanceof Date && !Number.isNaN(t.nextReminder.getTime()) ? t.nextReminder.toISOString() : null;
   }
@@ -152,7 +164,7 @@ let seq = 0;
 export const newId = () => `web-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 export function blankTask() {
-  return { snoozeUntil: 0, lastAckDate: '', skippedDates: [], nextReminder: null, subCategory: '', subCategoryFields: {}, checklist: [], attachments: [], recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
+  return { snoozeUntil: 0, lastAckDate: '', skippedDates: [], nextReminder: null, subCategory: '', subCategoryFields: {}, checklist: [], attachments: [], files: [], filesNotRequired: false, recurrenceEveryMin: null, alertMode: '', has: {}, id: newId(), title: '', category: '', priority: 'Medium', status: 'Not Yet Started', pendingWith: '', due: null, hasTime: false, reference: '', notes: '', recurrence: RECURRENCES[0], done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: '', createdAt: new Date() };
 }
 
 export const isOpen = (t) => !t.done && !t.binned && !t.purged;
@@ -252,21 +264,23 @@ export function nextOccurrence(t, existing = [], now = new Date()) {
   const dupe = existing.some((x) => isOpen(x) && x.id !== t.id && x.title === t.title && x.recurrence === rec && x.due && dayKey(x.due) === dayKey(d));
   if (dupe) return null;
   // Per-occurrence state (reminder, snooze, silence, skips, ticked steps) is not carried to the next one.
-  return { ...t, nextReminder: null, snoozeUntil: 0, lastAckDate: '', skippedDates: [], checklist: (t.checklist || []).map((c) => ({ ...c, done: false })), id: newId(), status: 'Not Yet Started', due: d, done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: t.seriesId || t.id, createdAt: now };
+  return { ...t, files: [], filesNotRequired: false, nextReminder: null, snoozeUntil: 0, lastAckDate: '', skippedDates: [], checklist: (t.checklist || []).map((c) => ({ ...c, done: false })), id: newId(), status: 'Not Yet Started', due: d, done: false, completedAt: null, binned: false, binnedAt: null, purged: false, dar: true, keyPoints: [], seriesId: t.seriesId || t.id, createdAt: now };
 }
 
 /** meta/lists holds { lists: {categories, priorities, statuses, pendingWith} } as an object or a JSON string. */
 export function readLists(v) {
   let obj = v;
   if (typeof v === 'string') { try { obj = JSON.parse(v); } catch { obj = null; } }
-  const out = { ...DEFAULT_LISTS };
+  // A lists document means an existing account: it keeps the older starting lists for anything its document leaves out.
+  const out = { ...(obj && typeof obj === 'object' ? LEGACY_DEFAULT_LISTS : DEFAULT_LISTS) };
   if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
     const named = { ...obj, pendingWith: Array.isArray(obj.pendingWith) ? obj.pendingWith : obj.assignees };
     Object.keys(DEFAULT_LISTS).forEach((k) => { if (Array.isArray(named[k])) out[k] = named[k].map(String); });
     if (Array.isArray(named.subCategories)) out.subCategories = normalizeSubCategories(named.subCategories);
     if (Array.isArray(named.subCategoryCategories)) out.subCategoryCategories = named.subCategoryCategories.map(String);
     if (Array.isArray(named.reminderCategories)) out.reminderCategories = named.reminderCategories.map(String);
-    if (Array.isArray(named.narrationTypes)) out.narrationTypes = named.narrationTypes;       // read too, so a restore keeps the ones the account has
+    if (Array.isArray(named.fileCategories)) out.fileCategories = named.fileCategories.map(String);
+    if (Array.isArray(named.darPaymentIntro)) out.darPaymentIntro = normalizeReportPoints(named.darPaymentIntro);
   } else if (Array.isArray(obj)) {
     ['categories', 'priorities', 'statuses', 'pendingWith'].forEach((k, i) => { if (Array.isArray(obj[i]) && obj[i].length) out[k] = obj[i].map(String); });
   }
@@ -303,8 +317,9 @@ export function writeListsValue(raw, lists) {
     if (Array.isArray(lists.subCategories)) out.subCategories = lists.subCategories.map((sc) => ({ id: sc.id, name: sc.name, ...(sc.category ? { category: sc.category } : {}), fields: (sc.fields || []).map((f) => (f.options ? { label: f.label, options: f.options } : { label: f.label })) }));
     if (Array.isArray(lists.subCategoryCategories)) out.subCategoryCategories = lists.subCategoryCategories;
     if (Array.isArray(lists.reminderCategories)) out.reminderCategories = lists.reminderCategories;
+    if (Array.isArray(lists.fileCategories)) out.fileCategories = lists.fileCategories;
     if (Array.isArray(lists.narrationTypes)) out.narrationTypes = lists.narrationTypes;
-    if (Array.isArray(lists.darPaymentIntro)) out.darPaymentIntro = lists.darPaymentIntro;
+    if (Array.isArray(lists.darPaymentIntro)) out.darPaymentIntro = normalizeReportPoints(lists.darPaymentIntro);
     if ('assignees' in out) out.assignees = lists.pendingWith || [];
   }
   return asString ? JSON.stringify(out) : out;

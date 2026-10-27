@@ -379,6 +379,13 @@ class NativeToolsModule : Module() {
       true
     }
 
+    /** The alerts the phone skipped (JSON, newest first) and clearing that list. See AlarmStore.logSkip. */
+    AsyncFunction("skippedAlerts") { AlarmStore.skippedAlerts(context) }
+    AsyncFunction("clearSkippedAlerts") {
+      AlarmStore.clearSkippedAlerts(context)
+      true
+    }
+
     /** Config's "Ring on the phone only when the web app is not in use": the alarm asks Firestore when it fires. See WebPresence. */
     AsyncFunction("setWebPresenceCheck") { on: Boolean ->
       WebPresence.setEnabled(context, on)

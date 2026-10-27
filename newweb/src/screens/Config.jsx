@@ -1,66 +1,108 @@
 import { useMemo, useState } from 'react';
 import { planImport } from '../importBackup';
-import { exportBackupFile } from '../exportBackup';
+import { exportBackupFile, downloadFormatsFile, downloadFormatsBackup } from '../exportBackup';
 import NotifyExplainer from '../NotifyExplainer';
 import { loadAlertSettings, saveAlertSettings } from '../alerts';
-import { THEMES, TEXT_SIZES, applyTheme, applyScheme, applyTextSize, savedTheme, savedScheme, savedTextSize } from '../themes';
+import { TEXT_SIZES, applyScheme, applyTextSize, savedScheme, savedTextSize } from '../themes';
 import { PageHead } from '../ui';
 import { useStore } from '../store';
-import { planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
-import { categoryAsksReminder, toggleReminderCategory } from '../data';
+import { setupText, planSetupLoad } from '../setupFile';
+import { planFormatsRestore, planFormatSetup, placeholdersOf, renderTemplate, findFormat, unmatchedMarks, formatsAfterEdit } from '../reportFormats';
+import { categoryAsksReminder, toggleReminderCategory, SNOOZES } from '../data';
 import { LIST_META, ListManager, SubCategoryManager } from './Lists';
-import { backupLists, restoreFromBackup, subCategoriesFromTasks, optionsFromTasks } from '../../../src/listsRestore.js';
 
 /** Config: a side menu of topics, and the chosen topic's panels beside it. */
 export default function Config() {
   const { lists, user, signOut, demo, saveLists } = useStore();
-  const [group, setGroup] = useState('general');
-  // Config 3 (the owner's pick): the groups as tabs across the top; the chosen group's settings side by side as tiles, four across.
-  const tile = (key, title, body, wide) => <section key={key} className={`card plain cfg-tile${wide ? ` ${wide}` : ''}`}>{title && <h2 className="h2">{title}</h2>}{body}</section>;
-  const groups = [
-    { key: 'general', title: 'General', tiles: () => [
-      <div key="alerts" className="cfg-span2"><AlertSettings /></div>,
-      <div key="look" className="cfg-span2"><Appearance /></div>,
-      <div key="gemini" className="cfg-span2"><GeminiKey /></div>,
-    ] },
-    { key: 'lists', title: 'Lists', tiles: () => [
-      ...LIST_META.map(([key, label]) => tile(key, label, <ListManager listKey={key} label={label} lists={lists} />)),
-      ...lists.categories.map((c) => tile(`sub-${c}`, null, <SubCategoryManager lists={lists} only={c} />)),
-      tile('reminder', 'Next reminder', (
-        <>
-          <p className="muted">The categories that ask for a next reminder date and time in the entry form.</p>
-          <div className="chips">{lists.categories.map((c) => { const on = categoryAsksReminder(lists, c); return <button type="button" key={c} className={`chip toggle${on ? ' on' : ''}`} aria-pressed={on} onClick={() => saveLists(toggleReminderCategory(lists, c))}>{c}</button>; })}</div>
-        </>
-      )),
-    ] },
-    { key: 'report', title: 'Daily report', tiles: () => [
-      <div key="formats" className="cfg-span4"><ReportFormats /></div>,
-    ] },
-    { key: 'data', title: 'Your data', tiles: () => [
-      <div key="export"><ExportBackup /></div>,
-      <div key="import" className="cfg-span2"><ImportBackup /></div>,
-      <div key="restore"><RestoreSubCategories /></div>,
-    ] },
+  const [topic, setTopic] = useState('look');
+  const topics = [
+    { key: 'alerts', title: 'Alerts', body: () => <AlertSettings /> },
+    { key: 'look', title: 'Appearance', body: () => <Appearance /> },
+    { key: 'entry', title: 'Entry form options', body: () => (
+      <>
+        <p className="muted cfg-note"><b>Entry form options.</b> Add or delete the options used in the entry form. They are shared with the phone app and the old website. Tasks already using a deleted option keep it.</p>
+        <div className="cfg-lists">{LIST_META.map(([key, label]) => <section key={key} className="card plain"><h2 className="h2">{label}</h2><ListManager listKey={key} label={label} lists={lists} /></section>)}</div>
+      </>
+    ) },
+    { key: 'subs', title: 'Sub categories', body: () => <section className="card plain"><h2 className="h2">Sub categories</h2><p className="muted">Sub categories and their fields, kept under each category.</p><SubCategoryManager lists={lists} /></section> },
+    { key: 'reminder', title: 'Next reminder', body: () => (
+      <section className="card plain">
+        <h2 className="h2">Next reminder date &amp; time</h2>
+        <p className="muted">Choose the categories that ask for a next reminder date and time in the entry form. The other categories do not show it.</p>
+        <div className="chips">{lists.categories.map((c) => { const on = categoryAsksReminder(lists, c); return <button type="button" key={c} className={`chip toggle${on ? ' on' : ''}`} aria-pressed={on} onClick={() => saveLists(toggleReminderCategory(lists, c))}>{c}</button>; })}</div>
+      </section>
+    ) },
+    { key: 'formats', title: 'Report formats', body: () => <ReportFormats /> },
+    { key: 'points', title: 'Report points', body: () => <ReportPoints lists={lists} /> },
+    { key: 'gemini', title: 'Gemini key', body: () => <GeminiKey /> },
+    { sep: true, key: 'setup', title: 'Setup file', body: () => <SetupFile /> },
+    { key: 'export', title: 'Export a backup', body: () => <ExportBackup /> },
+    { key: 'import', title: 'Import', body: () => <ImportBackup /> },
   ];
-  const open = groups.find((g) => g.key === group) || groups[0];
+  const open = topics.find((x) => x.key === topic) || topics[1];
   return (
     <>
-      <PageHead title="Config" sub="Pick a group; its settings sit side by side.">
-        <section className="card plain cfg-account">
+      <PageHead className="cfg-head" title="Config" sub="Alerts, colours and the lists the entry form uses.">
+        <span className="cfg-me">
           <span className="cfg-avatar" aria-hidden="true">{(user.displayName || user.email || '?').trim().charAt(0).toUpperCase()}</span>
           <span className="cfg-who"><span className="card-title">{user.displayName || 'Signed in'}</span><span className="muted">{user.email}</span></span>
-          <button type="button" className="btn cfg-out" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
-        </section>
+          <button className="btn" onClick={signOut}>{demo ? 'Leave demo' : 'Sign out'}</button>
+        </span>
       </PageHead>
-      <div className="seg cfg-tabs" role="tablist" aria-label="Config groups">
-        {groups.map((g) => <button key={g.key} type="button" role="tab" aria-selected={open.key === g.key} className={open.key === g.key ? 'on' : ''} onClick={() => setGroup(g.key)}>{g.title}</button>)}
+      <div className="cfg">
+        <nav className="menu" aria-label="Config topics">
+          {topics.map((x) => (
+            <span key={x.key} className="menu-item">
+              {x.sep && <hr />}
+              <button type="button" className={open.key === x.key ? 'on' : ''} aria-current={open.key === x.key ? 'page' : undefined} onClick={() => setTopic(x.key)}>{x.title}</button>
+            </span>
+          ))}
+        </nav>
+        <div className="pn cfg-page">{open.body()}</div>
       </div>
-      <div className="cfg-grid" role="tabpanel" aria-label={open.title}>{open.tiles()}</div>
     </>
   );
 }
 
 /** Config > Export a backup: every task (done and binned too) with the lists, links, templates and report formats, as one JSON file the Import below reads back. */
+/** Config > Setup file: take your lists, report formats, report points and templates (no tasks) from this account to another one. */
+function SetupFile() {
+  const { lists, savedFormats, templates, saveLists, saveReportFormats, saveTemplates, notify } = useStore();
+  const download = () => {
+    const a = document.createElement('a');
+    const url = URL.createObjectURL(new Blob([setupText({ lists, savedFormats, templates })], { type: 'application/json;charset=utf-8' }));
+    a.href = url; a.download = `working-dashboard-setup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    notify('Setup file saved');
+  };
+  const load = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const plan = planSetupLoad({ lists, savedFormats, templates }, await file.text());
+    if (plan.error) { alert(plan.error); return; }
+    const c = plan.counts;
+    const total = c.options + c.subCategories + c.points + c.formats + c.templates;
+    if (!total) { alert('Nothing to add: this account already has everything in that file.'); return; }
+    if (!confirm(`Add from ${file.name}?\n\n${c.options} list options, ${c.subCategories} Sub Categories, ${c.points} report points, ${c.formats} report formats, ${c.templates} templates.\n\nNothing you already have is changed or removed.`)) return;
+    saveLists(plan.lists);
+    if (c.formats) saveReportFormats(plan.formats);
+    if (c.templates) saveTemplates(plan.templates);
+    notify(`Added ${total} items from the setup file`);
+  };
+  return (
+    <section className="card plain">
+      <h2 className="h2">Setup file</h2>
+      <p className="muted">Your Categories, Priorities, Statuses, Pending with, Sub Categories, Report points, Report formats and templates, without any tasks. Download it here and load it into another account (a new one starts empty). Loading only adds what is missing; nothing the account already has is replaced or removed.</p>
+      <div className="fmt-actions">
+        <button type="button" className="btn primary" onClick={download}>Download my setup</button>
+        <label className="btn">Load a setup file<input type="file" accept="application/json,.json" hidden onChange={load} /></label>
+      </div>
+    </section>
+  );
+}
+
 function ExportBackup() {
   const { tasks, lists, calendar, links, templates, savedFormats } = useStore();
   const [msg, setMsg] = useState('');
@@ -71,75 +113,6 @@ function ExportBackup() {
       <p className="muted">Downloads every task (open, done and in the Bin) with your categories, sub categories, links, templates and report formats as one file. Keep it somewhere safe; Import (below) reads it back.</p>
       <div><button type="button" className="btn primary" onClick={run}>Export a backup</button></div>
       {msg && <p className="banner ok" role="status">{msg}</p>}
-    </section>
-  );
-}
-
-/**
- * Config > Restore sub categories: puts the Sub Categories and narration types back exactly from a backup file (the website's Export,
- * the phone app's export or a phone auto backup), keeping what was added since and deleting nothing; or rebuilds the Sub Categories the
- * tasks use, with the field names the tasks filled in. Only the lists are touched, never the tasks (src/listsRestore.js, shared with the phone).
- */
-function RestoreSubCategories() {
-  const { tasks, lists, saveLists, savedFormats, saveReportFormats, demo } = useStore();
-  const [found, setFound] = useState(null);
-  const [state, setState] = useState({ msg: '', error: '' });
-  const fromTasks = useMemo(() => subCategoriesFromTasks(tasks, lists.subCategories), [tasks, lists.subCategories]);
-  const usedOptions = useMemo(() => optionsFromTasks(tasks, lists), [tasks, lists]);
-  const usedCount = Object.values(usedOptions).reduce((n, l) => n + l.length, 0);
-  const read = async (f) => {
-    setState({ msg: '', error: '' });
-    try {
-      const b = backupLists(JSON.parse(await f.text()));
-      if (!b.subCategories.length && !b.narrationTypes.length && !b.statuses.length && !b.pendingWith.length) { setFound(null); setState({ msg: '', error: 'That file has no lists to restore.' }); return; }
-      setFound({ name: f.name, b });
-    } catch (e) { setFound(null); setState({ msg: '', error: e instanceof SyntaxError ? 'That file is not a backup (it is not valid JSON).' : (e?.message || String(e)) }); }
-  };
-  const plan = found ? restoreFromBackup({ ...lists, reportFormats: savedFormats }, found.b) : null;
-  const restore = () => {
-    const next = { ...lists, ...plan.lists };
-    if (!found.b.narrationTypes.length) delete next.narrationTypes;       // the file has none: the account's own stay as they are
-    saveLists(next);
-    if (plan.reportFormats) saveReportFormats(plan.reportFormats);
-    setState({ msg: `Restored: ${plan.counts.newOptions} statuses / Pending with / categories / priorities were missing and are back; ${plan.counts.subCategories} Sub Categories and ${plan.counts.narrationTypes} narration types are as they were in the file (${plan.counts.newSubCategories} and ${plan.counts.newNarrationTypes} of them were missing)${plan.counts.formats ? `, and ${plan.counts.formats} report formats were added back` : ''}.`, error: '' });
-    setFound(null);
-  };
-  const rebuild = () => {
-    saveLists({ ...lists, subCategories: [...(lists.subCategories || []), ...fromTasks], subCategoryCategories: [...new Set([...(lists.subCategoryCategories || []), ...fromTasks.map((x) => x.category).filter(Boolean)])] });
-    setState({ msg: `${fromTasks.length} Sub Categor${fromTasks.length === 1 ? 'y' : 'ies'} rebuilt from your tasks.`, error: '' });
-  };
-  return (
-    <section className="card plain">
-      <h2 className="h2">Restore lists, sub categories and narrations</h2>
-      <p className="muted">Exactly as they were: pick a backup file (Config &gt; Export a backup here, or the phone app's export). Its Statuses, Pending with, categories, priorities, Sub Categories (with their fields and choice lists) and narration types come back; ones added since are kept and nothing is deleted. Your tasks are not touched. The phone app can do the same from its own daily backups (Config &gt; Sub categories).{demo ? ' (Demo: nothing is saved.)' : ''}</p>
-      <input type="file" accept=".json,application/json" aria-label="Backup file to restore from" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) read(f); e.target.value = ''; }} />
-      {plan && (
-        <div className="import-summary" role="status">
-          <b>{found.name}{found.b.savedAt ? ` (saved ${new Date(found.b.savedAt).toLocaleDateString()})` : ''}:</b>
-          <ul>
-            <li>{plan.counts.statuses} statuses, {plan.counts.pendingWith} Pending with names ({plan.counts.newOptions} options missing now, with categories and priorities)</li>
-            <li>{plan.counts.subCategories} Sub Categories ({plan.counts.newSubCategories} missing now)</li>
-            <li>{plan.counts.narrationTypes} narration types ({plan.counts.newNarrationTypes} missing now)</li>
-            {plan.counts.formats > 0 && <li>{plan.counts.formats} report formats missing now</li>}
-          </ul>
-          <div><button type="button" className="btn primary" onClick={restore}>Restore</button> <button type="button" className="btn" onClick={() => setFound(null)}>Cancel</button></div>
-        </div>
-      )}
-      <h3 className="h2" style={{ marginTop: 8 }}>No backup file?</h3>
-      {usedCount > 0 ? (
-        <>
-          <p className="muted">Your tasks use {usedCount} option{usedCount === 1 ? '' : 's'} missing from the lists{usedOptions.statuses.length ? `. Statuses: ${usedOptions.statuses.join(', ')}` : ''}{usedOptions.pendingWith.length ? `. Pending with: ${usedOptions.pendingWith.join(', ')}` : ''}{usedOptions.categories.length ? `. Categories: ${usedOptions.categories.join(', ')}` : ''}{usedOptions.priorities.length ? `. Priorities: ${usedOptions.priorities.join(', ')}` : ''}.</p>
-          <div><button type="button" className="btn" onClick={() => { saveLists({ ...lists, categories: [...lists.categories, ...usedOptions.categories], priorities: [...lists.priorities, ...usedOptions.priorities], statuses: [...lists.statuses, ...usedOptions.statuses], pendingWith: [...lists.pendingWith, ...usedOptions.pendingWith] }); setState({ msg: `${usedCount} options your tasks use are back in the lists.`, error: '' }); }}>Add back {usedCount} from my tasks</button></div>
-        </>
-      ) : <p className="muted">Every status, Pending with name, category and priority your tasks use is in the lists.</p>}
-      {fromTasks.length ? (
-        <>
-          <p className="muted">{fromTasks.length} Sub Categor{fromTasks.length === 1 ? 'y is' : 'ies are'} used by your tasks but missing from the list: {fromTasks.map((x) => x.name).join(', ')}. They can be rebuilt, each under the category its tasks have and with the field names the tasks filled in. A field's list of choices (TT / DD...) is not stored on the tasks, so add those again after.</p>
-          <div><button type="button" className="btn" onClick={rebuild}>Rebuild {fromTasks.length} from my tasks</button></div>
-        </>
-      ) : <p className="muted">Every Sub Category your tasks use is in the list.</p>}
-      {state.msg && <p className="banner ok" role="status">{state.msg}</p>}
-      {state.error && <p className="banner err" role="alert">{state.error}</p>}
     </section>
   );
 }
@@ -189,7 +162,18 @@ function ImportBackup() {
 
 /** Config > Report formats: the line the Daily report writes for a task, per Sub Category, with {Field name} marks filled from the task. */
 function ReportFormats() {
-  const { lists, saveLists, tasks, reportFormats, savedFormats, reportFormatsCustom, saveReportFormats } = useStore();
+  const { lists, saveLists, tasks, reportFormats, savedFormats, reportFormatsCustom, saveReportFormats, notify } = useStore();
+  // Restore: formats in the backup file are saved for their Sub Categories (replacing the current ones); every other format stays.
+  const restoreFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const plan = planFormatsRestore(savedFormats, await file.text());
+    if (plan.error) { alert(plan.error); return; }
+    if (!confirm(`Restore ${plan.count} report formats from ${file.name}? Formats in the file replace the current ones for the same Sub Category; the others stay.`)) return;
+    saveReportFormats(plan.saved);
+    notify(`Restored ${plan.count} report formats`);
+  };
   const [open, setOpen] = useState('');
   const [draft, setDraft] = useState('');
   const subs = lists.subCategories || [];
@@ -206,7 +190,14 @@ function ReportFormats() {
   const sample = (row) => { const mine = tasks.filter((t) => t.subCategory && row.sc && t.subCategory === row.sc.name && Object.keys(t.subCategoryFields || {}).length); return mine.length ? mine[0] : { subCategoryFields: {} }; };
   return (
     <section className="card plain">
-      <h2 className="h2">Report formats</h2>
+      <div className="fmt-top">
+        <h2 className="h2">Report formats</h2>
+        <span className="fmt-actions">
+          <button type="button" className="btn" onClick={() => downloadFormatsFile(reportFormats)} disabled={!reportFormats.length}>Download all formats</button>
+          <button type="button" className="btn" onClick={() => notify(`Backup saved: ${downloadFormatsBackup(reportFormats)} formats`)} disabled={!reportFormats.length}>Backup formats</button>
+          <label className="btn">Restore formats<input type="file" accept="application/json,.json" hidden onChange={restoreFile} /></label>
+        </span>
+      </div>
       <p className="muted">The line the Daily report writes for a task in each Sub Category. Write the sentence and put a task's own value where it goes in {'{'}braces{'}'} - for example <code>Being amount paid against Invoice No. {'{'}Invoice No{'}'}, amounting to ₹{'{'}Amount{'}'}.</code> Each {'{'}mark{'}'} is filled from the task's Sub Category field with that name (then its Key Points); a missing value shows as [mark] in the report. The sample formats from your Tally narration sheet are used until you change one.{reportFormatsCustom ? ' (Your own formats are saved.)' : ''}</p>
       <div className={`fmt-setup${missingCount ? ' todo' : ''}`}>
         {missingCount ? (
@@ -251,6 +242,66 @@ function ReportFormats() {
         {!rows.length && <p className="muted">Add Sub categories first (above), then give each a format.</p>}
       </div>
     </section>
+  );
+}
+
+/**
+ * Report points, Category by Category: lines the person writes for a Category. The daily report shows a Category's points once, above the
+ * lines of the section its tasks are in (Other work, Payments or Followed up). Nothing is built in.
+ */
+function ReportPoints({ lists }) {
+  const { saveLists } = useStore();
+  const points = lists.darPaymentIntro || [];
+  const [drafts, setDrafts] = useState({});
+  const save = (next) => saveLists({ ...lists, darPaymentIntro: next });
+  const add = (cat) => {
+    const text = (drafts[cat] || '').replace(/\s+/g, ' ').trim();
+    if (!text) return;
+    if (!points.some((p) => p.category === cat && p.text === text)) save([...points, { category: cat, text }]);
+    setDrafts({ ...drafts, [cat]: '' });
+  };
+  const del = (p) => { if (confirm(`Delete this report point?\n\n${p.text}`)) save(points.filter((x) => x !== p)); };
+  const loose = points.filter((p) => !lists.categories.includes(p.category));
+  return (
+    <>
+      <section className="card plain">
+        <h2 className="h2">Report points</h2>
+        <p className="muted">Write the lines a Category adds to the daily report. When a task of that Category is in the report, its points are shown once above that section's lines. Nothing is added by default.</p>
+      </section>
+      <div className="cfg-points">
+      {lists.categories.map((cat) => {
+        const mine = points.filter((p) => p.category === cat);
+        return (
+          <section key={cat} className="card plain">
+            <h2 className="h2">{cat}</h2>
+            {!mine.length && <p className="muted">No report points for {cat}.</p>}
+            {mine.map((p) => (
+              <div key={p.text} className="rp-row"><span>{p.text}</span><button type="button" className="btn ghost" onClick={() => del(p)} aria-label={`Delete: ${p.text}`}>Delete</button></div>
+            ))}
+            <form className="rp-add" onSubmit={(e) => { e.preventDefault(); add(cat); }}>
+              <textarea className="auto" rows={2} value={drafts[cat] || ''} onChange={(e) => setDrafts({ ...drafts, [cat]: e.target.value })} placeholder={`A report point for ${cat}`} aria-label={`New report point for ${cat}`} />
+              <button className="btn primary" disabled={!(drafts[cat] || '').trim()}>Add</button>
+            </form>
+          </section>
+        );
+      })}
+      {loose.length > 0 && (
+        <section className="card plain">
+          <h2 className="h2">Not used yet</h2>
+          <p className="muted">These older lines have no Category, so the report does not use them. Give each a Category or delete it.</p>
+          {loose.map((p) => (
+            <div key={p.text} className="rp-row">
+              <span>{p.text}</span>
+              <select value="" onChange={(e) => e.target.value && save(points.map((x) => (x === p ? { ...x, category: e.target.value } : x)))} aria-label="Give this point a Category">
+                <option value="">Category...</option>{lists.categories.map((c) => <option key={c}>{c}</option>)}
+              </select>
+              <button type="button" className="btn ghost" onClick={() => del(p)}>Delete</button>
+            </div>
+          ))}
+        </section>
+      )}
+      </div>
+    </>
   );
 }
 
@@ -299,12 +350,18 @@ function AlertSettings() {
   const answered = (r) => { setExplain(false); if (r === 'later') return; setPerm(r); set({ notify: r === 'granted' }); };
   const enableNotify = () => { if (perm === 'granted') set({ notify: true }); else setExplain(true); };
   return (
-    <section className="card plain">
+    <section className="card plain cfg-grid">
       <h2 className="h2">Alerts</h2>
       <p className="muted">How a due task reaches you while this tab is open. When a task is due (or its next reminder time comes), an alert appears with the task's details and the choices to mark it done, snooze, skip or move it. Keep this page open to get alerts; the phone app rings by itself.</p>
       <label className="row tg-row"><span>Pop up a due alert<small>A window with Done, DAR, Snooze, Move and Skip.</small></span><input type="checkbox" role="switch" className="tg" checked={s.popup} onChange={(e) => set({ popup: e.target.checked })} /></label>
       <label className="row tg-row"><span>Play a sound<small>Starts after your first click or key press on the page.</small></span><input type="checkbox" role="switch" className="tg" checked={s.sound} onChange={(e) => set({ sound: e.target.checked })} /></label>
       <label className="row tg-row"><span>Desktop notification when this tab is in the background<small>{perm === 'denied' ? 'Blocked in the browser settings.' : 'Shows even when this tab is in the background.'}</small></span><input type="checkbox" role="switch" className="tg" checked={s.notify && perm === 'granted'} disabled={perm === 'unsupported' || perm === 'denied'} onChange={(e) => (e.target.checked ? enableNotify() : set({ notify: false }))} /></label>
+      <div className="row snooze-row"><span>Snooze starts at<small>The length an alert's Snooze starts with, by the task's priority. You can still pick another on the alert.</small></span>
+        <span className="snooze-pick">{[['snoozeHigh', 'High'], ['snoozeMedium', 'Medium'], ['snoozeLow', 'Low']].map(([k, label]) => (
+          <label key={k}>{label}<select value={s[k]} onChange={(e) => set({ [k]: Number(e.target.value) })} aria-label={`Snooze for ${label} priority`}>{SNOOZES.map(([m, l]) => <option key={m} value={m}>{l}</option>)}</select></label>
+        ))}</span>
+      </div>
+      <label className="row tg-row"><span>Keep the phone quiet while this window is visible<small>The phone already stays silent for 45 minutes after you last used this page. With this on, a window you can see counts as in use even without clicks or keys.</small></span><input type="checkbox" role="switch" className="tg" checked={!!s.quietWhileVisible} onChange={(e) => set({ quietWhileVisible: e.target.checked })} /></label>
       <div><button type="button" className="btn" onClick={() => window.dispatchEvent(new Event('wd-test-alert'))}>Show a test alert</button></div>
       {explain && <NotifyExplainer onDone={answered} />}
     </section>
@@ -313,20 +370,11 @@ function AlertSettings() {
 
 /** Config > Appearance: the colour theme (applies at once, remembered on this device), dark mode and the text size. */
 function Appearance() {
-  const [theme, setTheme] = useState(savedTheme);
   const [scheme, setScheme] = useState(savedScheme);
   const [size, setSize] = useState(savedTextSize);
   return (
     <section className="card plain">
-      <h2 className="h2">Colour theme</h2>
-      <p className="muted">Pick a colour theme. It applies at once and is kept on this device.</p>
-      <div className="sw" role="group" aria-label="Colour theme">
-        {THEMES.map((t) => (
-          <button key={t.id} type="button" className="sw-card" aria-pressed={theme === t.id} onClick={() => setTheme(applyTheme(t.id))}>
-            <i style={{ background: t.light.primary }}><b style={{ background: t.light.dark }} /></i>{t.name}
-          </button>
-        ))}
-      </div>
+      <h2 className="h2">Appearance</h2>
       <label className="row tg-row"><span>Follow the computer's dark mode<small>{scheme === 'auto' ? 'Switches automatically with your computer.' : 'Off: the colours stay as chosen below.'}</small></span><input type="checkbox" role="switch" className="tg" checked={scheme === 'auto'} onChange={(e) => setScheme(applyScheme(e.target.checked ? 'auto' : 'light'))} /></label>
       {scheme !== 'auto' && (
         <div><div className="row"><span>Colours</span></div>

@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
 import { Card, Small, Btn, Field, Row } from '../ui';
 import { useTheme } from '../theme';
 import Icon from '../icons';
-import { listAutoBackups, readAutoBackup } from '../autoBackupFiles';
-import { backupLists, restoreFromBackup, subCategoriesFromTasks, optionsFromTasks } from '../listsRestore';
+import { normalizeReportPoints } from '../reportPoints';
 import { addOption, removeOption, addSubCategory, addSubCategories, parseSubCategoryLines, applySubCategoryEdit, validateSubCategory, removeSubCategory, withCarrying } from '../listsCore';
 
 const DONE_STATUS = /^(completed?|done|closed)$/i;
@@ -69,6 +68,54 @@ export function ReminderCategories({ wd, save }) {
   );
 }
 
+/** Config > Report points: lines written per Category; the daily report shows a Category's points above the section its tasks are in. Shared with the website. */
+export function ReportPoints({ wd, save }) {
+  const t = useTheme();
+  const [text, setText] = useState({});
+  const points = normalizeReportPoints(wd.paymentIntro);
+  const cats = wd.categories || [];
+  const write = (next) => save({ paymentIntro: next, paymentIntroDirty: true });
+  const add = (cat) => {
+    const v = String(text[cat] || '').replace(/\s+/g, ' ').trim();
+    if (!v) return;
+    if (!points.some((p) => p.category === cat && p.text === v)) write([...points, { category: cat, text: v }]);
+    setText({ ...text, [cat]: '' });
+  };
+  const del = (p) => Alert.alert('Delete this report point?', p.text, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => write(points.filter((x) => x !== p)) }]);
+  const loose = points.filter((p) => !cats.includes(p.category));
+  return (
+    <View>
+      <Small style={{ marginBottom: 10 }}>Write the lines a Category adds to the daily report. When a task of that Category is in the report, its points show once above that section's lines. Nothing is added by default.</Small>
+      {!cats.length && <Small style={{ color: t.textDim }}>Add categories first (Entry form options).</Small>}
+      {cats.map((cat) => (
+        <View key={cat} style={{ marginBottom: 14 }}>
+          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), marginBottom: 6 }}>{cat}</Text>
+          {points.filter((p) => p.category === cat).map((p) => (
+            <View key={p.text} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 }}>
+              <Text style={{ flex: 1, color: t.text, fontSize: t.fs(13.5), lineHeight: t.fs(19), fontWeight: '600' }}>{p.text}</Text>
+              <Pressable onPress={() => del(p)} hitSlop={8} accessibilityLabel={`Delete: ${p.text}`}><Icon name="close" size={15} color={t.danger} stroke={2.4} /></Pressable>
+            </View>
+          ))}
+          <Field multiline compact value={text[cat] || ''} onChangeText={(v) => setText({ ...text, [cat]: v })} placeholder={`A report point for ${cat}`} />
+          <Btn kind="soft" title="Add" disabled={!String(text[cat] || '').trim()} onPress={() => add(cat)} />
+        </View>
+      ))}
+      {loose.length > 0 && (
+        <View>
+          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), marginBottom: 6 }}>Not used yet</Text>
+          <Small style={{ marginBottom: 6 }}>These older lines have no Category, so the report does not use them. Give each a Category on the website, or delete it.</Small>
+          {loose.map((p) => (
+            <View key={p.text} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 }}>
+              <Text style={{ flex: 1, color: t.textDim, fontSize: t.fs(13.5), lineHeight: t.fs(19) }}>{p.text}</Text>
+              <Pressable onPress={() => del(p)} hitSlop={8} accessibilityLabel={`Delete: ${p.text}`}><Icon name="close" size={15} color={t.danger} stroke={2.4} /></Pressable>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function SubEditor({ sc, subs, onSave, onCancel }) {
   const t = useTheme();
   const [name, setName] = useState(sc.name);
@@ -95,86 +142,6 @@ function SubEditor({ sc, subs, onSave, onCancel }) {
         <Btn kind="soft" title="Cancel" onPress={onCancel} />
       </Row>
     </View>
-  );
-}
-
-/**
- * Config > Sub categories > Restore: puts the Sub Categories, narration types (and missing report formats) back from one of the phone's
- * old daily backups, exactly as they were then; or, with no backup, rebuilds the Sub Categories the tasks use. Saved as a phone edit, so it
- * reaches the website too.
- */
-export function RestoreLists({ wd, entries, save, setTools }) {
-  const t = useTheme();
-  const [backups, setBackups] = useState(null);
-  const [msg, setMsg] = useState('');
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      const out = [];
-      for (const name of await listAutoBackups()) {
-        const json = await readAutoBackup(name);
-        if (json) out.push({ name, label: name.replace(/^auto-|\.json$/g, ''), lists: backupLists(json) });
-      }
-      if (live) setBackups(out);
-    })();
-    return () => { live = false; };
-  }, []);
-  const fromTasks = subCategoriesFromTasks(entries, wd.subCategories);
-  // The phone keeps Pending with as `assignees`; the restore works in the website's names.
-  const nowLists = { ...wd, pendingWith: wd.assignees };
-  const usedOptions = optionsFromTasks(entries, nowLists);
-  const usedCount = Object.values(usedOptions).reduce((n, l) => n + l.length, 0);
-  const toPhone = ({ pendingWith, ...rest }) => ({ ...rest, ...(pendingWith ? { assignees: pendingWith } : null) });
-  const restore = (b) => {
-    const plan = restoreFromBackup(nowLists, b.lists);
-    Alert.alert(`Restore from ${b.label}?`, `Your categories, priorities, ${plan.counts.statuses} statuses, ${plan.counts.pendingWith} Pending with names, ${plan.counts.subCategories} Sub Categories and ${plan.counts.narrationTypes} narration types are put back as they were on ${b.label}${plan.counts.formats ? `, and ${plan.counts.formats} missing report formats` : ''}. Nothing you have now is deleted.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Restore', onPress: () => {
-        save(toPhone(plan.lists));
-        if (plan.reportFormats) setTools((w) => ({ ...w, reportFormats: plan.reportFormats }));
-        setMsg(`Restored from ${b.label}: ${plan.counts.newOptions} statuses / names / categories, ${plan.counts.newSubCategories} Sub Categories and ${plan.counts.newNarrationTypes} narration types were missing and are back. They are sent to the website too.`);
-      } },
-    ]);
-  };
-  if (backups === null) return null;
-  const useful = backups.filter((b) => b.lists.subCategories.length || b.lists.narrationTypes.length || b.lists.statuses.length || b.lists.pendingWith.length);
-  return (
-    <Card style={{ marginBottom: 14, gap: 8 }}>
-      <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15) }}>Restore lists, Sub Categories and narrations</Text>
-      {useful.length ? (
-        <>
-          <Small>This phone kept a daily backup until 17 Oct. Pick a day to put its Statuses, Pending with, categories, priorities, Sub Categories and narration types back exactly as they were.</Small>
-          {useful.map((b) => (
-            <Row key={b.name} style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ color: t.text, fontWeight: '700' }}>{b.label}</Text>
-                <Small>{b.lists.statuses.length} statuses · {b.lists.pendingWith.length} Pending with · {b.lists.subCategories.length} Sub Categories · {b.lists.narrationTypes.length} narration types</Small>
-              </View>
-              <Btn kind="soft" title="Restore" onPress={() => restore(b)} style={{ paddingHorizontal: 18 }} />
-            </Row>
-          ))}
-        </>
-      ) : <Small>No backup with these lists was found on this phone.</Small>}
-      {usedCount > 0 && (
-        <>
-          <Small style={{ marginTop: 4 }}>Your tasks use {usedCount} option{usedCount === 1 ? '' : 's'} missing from the lists{usedOptions.statuses.length ? ` - statuses: ${usedOptions.statuses.join(', ')}` : ''}{usedOptions.pendingWith.length ? ` - Pending with: ${usedOptions.pendingWith.join(', ')}` : ''}{usedOptions.categories.length ? ` - categories: ${usedOptions.categories.join(', ')}` : ''}.</Small>
-          <Btn kind="neutral" title={`Add back ${usedCount} from my tasks`} style={{ alignSelf: 'flex-start' }} onPress={() => {
-            save({ categories: [...(wd.categories || []), ...usedOptions.categories], priorities: [...(wd.priorities || []), ...usedOptions.priorities], statuses: [...(wd.statuses || []), ...usedOptions.statuses], assignees: [...(wd.assignees || []), ...usedOptions.pendingWith] });
-            setMsg(`${usedCount} options your tasks use are back in the lists.`);
-          }} />
-        </>
-      )}
-      {fromTasks.length > 0 && (
-        <>
-          <Small style={{ marginTop: 4 }}>{fromTasks.length} Sub Categor{fromTasks.length === 1 ? 'y is' : 'ies are'} used by your tasks but missing from the list. They can be rebuilt with the field names the tasks filled in (choice lists are not known).</Small>
-          <Btn kind="neutral" title={`Rebuild ${fromTasks.length} from my tasks`} style={{ alignSelf: 'flex-start' }} onPress={() => {
-            save({ subCategories: [...(Array.isArray(wd.subCategories) ? wd.subCategories : []), ...fromTasks], subCategoryCategories: [...new Set([...(wd.subCategoryCategories || []), ...fromTasks.map((x) => x.category).filter(Boolean)])] });
-            setMsg(`${fromTasks.length} Sub Categories rebuilt from your tasks.`);
-          }} />
-        </>
-      )}
-      {!!msg && <Small style={{ color: t.accent }}>{msg}</Small>}
-    </Card>
   );
 }
 

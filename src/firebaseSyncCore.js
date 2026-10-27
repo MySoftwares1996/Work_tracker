@@ -118,6 +118,53 @@ export function diffWebDoc(fullDoc = {}, prevHashes = null) {
   return out;
 }
 
+/**
+ * Field-wise merge of a web document that arrives over an entry this phone has an unsent edit on.
+ * All three inputs are in the web app's field names: `localDoc` is the phone's entry as `toWebTask` writes it,
+ * `incomingDoc` the document that arrived, `snapshotHashes` what the server held when the phone last saw it
+ * (`docHashes`, MPT_RT_SNAP_<uid>). Per field: only the server changed -> the server's value; only the phone
+ * changed -> the phone's; both changed to different values -> the one with the newer stamp (`localEditAt` against
+ * `docStamp`; the phone wins a tie only if strictly newer, as in mergeRemoteEntries). `id` and `updatedAt` come from
+ * the incoming document (the caller decides the stamp). A deleted-forever (`purged`) or binned (`deleted`) document
+ * always wins whole. With no snapshot the old whole-entry rule applies: the phone's copy if its edit is newer than
+ * the document, else the document laid over it.
+ * Returns { doc, localFields } - the merged document and the fields where the phone's value was kept.
+ * Pure. The listener (firebaseSync.js) reads the snapshot before it remembers the incoming document and hands the old
+ * hashes on (`prevHashes`), so RealtimeSync can run this merge with what the phone last saw.
+ */
+export function mergeEntryFieldwise(localDoc = {}, incomingDoc = {}, snapshotHashes = null, localEditAt = 0, docStamp = 0) {
+  const local = localDoc || {};
+  const incoming = incomingDoc || {};
+  if (incoming.purged === true || incoming.purged === 'true') return { doc: { ...incoming }, localFields: [] };
+  const phoneNewer = Number(localEditAt) > Number(docStamp);
+  if (!snapshotHashes || typeof snapshotHashes !== 'object') {
+    return phoneNewer ? { doc: { ...local }, localFields: Object.keys(local) } : { doc: { ...local, ...incoming }, localFields: [] };
+  }
+  const serverWasDeleted = (v) => v === true || v === 'true';
+  if (serverWasDeleted(incoming.deleted) && snapshotHashes.deleted !== fieldHash(normField('deleted', incoming.deleted))) {
+    return { doc: { ...local, ...incoming }, localFields: [] };      // binned on the web app since the phone last saw it
+  }
+  const doc = {};
+  const localFields = [];
+  const keys = new Set([...Object.keys(local), ...Object.keys(incoming)]);
+  keys.forEach((k) => {
+    if (k === 'id' || k === 'updatedAt') { if (k in incoming) doc[k] = incoming[k]; else if (k in local) doc[k] = local[k]; return; }
+    const was = k in snapshotHashes ? snapshotHashes[k] : fieldHash(normField(k, undefined));
+    const hl = fieldHash(normField(k, local[k]));
+    const hi = fieldHash(normField(k, incoming[k]));
+    const serverChanged = hi !== was;
+    const phoneChanged = k in local && hl !== was;       // a field the phone does not write at all (not in its document) is not a phone change
+    let useLocal;
+    if (!serverChanged) useLocal = true;               // the server still has what it had: the phone's value (changed or not)
+    else if (!phoneChanged) useLocal = false;
+    else useLocal = hl !== hi && phoneNewer;           // both changed: the same value either way, else the newer stamp
+    const src = useLocal ? local : incoming;
+    if (useLocal && hl !== hi) localFields.push(k);
+    if (k in src) doc[k] = src[k];
+  });
+  return { doc, localFields };
+}
+
 /** Runs read-modify-write jobs for one key one after another, each on the freshly loaded value (no lost updates). */
 export function createMutator(load, save) {
   const chains = new Map();
@@ -200,28 +247,8 @@ function encodeMeta(parts, format, names) {
 
 // The web app's lists document names the fourth list pendingWith; the phone calls it assignees.
 const WEB_LIST_NAMES = ['categories', 'priorities', 'statuses', 'pendingWith'];
-// The web app's payment lists, carried in the same document. The phone sends back only the ones it edits (PHONE_PAYMENT_KEYS).
-export const PAYMENT_LIST_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories', 'darPaymentIntro'];
-export const PHONE_PAYMENT_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories'];
-
-/*
- * The payment lists (Sub Categories and the rest) have their own stamp on the phone, `paymentListsAt`, set only when they are
- * edited on the phone (Config > Sub categories / Next reminder, Report formats > Add to my lists, the one-time format setup);
- * `paymentListsSentAt` is the stamp last written to the account. Editing a category or a status on the phone used to send the
- * phone's whole copy of the Sub Categories with it - a stale or empty copy then wiped the website's.
- */
-/** True when the phone has an edit of the payment lists the account has not got yet. */
-export const phonePaymentEditUnsent = (w = {}) => Number(w.paymentListsAt) > (Number(w.paymentListsSentAt) || 0);
-/** The payment lists to send with a lists push: only after a phone edit of them that is not yet sent, else undefined. */
-export function paymentListsToSend(w = {}) {
-  if (!phonePaymentEditUnsent(w)) return undefined;
-  const out = Object.fromEntries(PHONE_PAYMENT_KEYS.filter((k) => Array.isArray(w[k])).map((k) => [k, w[k]]));
-  return Object.keys(out).length ? out : undefined;
-}
-/** When the account's payment lists arrive: the phone keeps its own copy only while it holds a newer edit not yet sent. */
-export const keepPhonePaymentLists = (w = {}, remoteTs = 0) => phonePaymentEditUnsent(w) && Number(w.paymentListsAt) > (Number(remoteTs) || 0);
-/** A lists edit made on the phone: the patch, stamped, with the payment-list stamp when it touches those lists. */
-export const stampListsEdit = (patch = {}, now = Date.now()) => ({ ...patch, listsUpdatedAt: now, ...(PHONE_PAYMENT_KEYS.some((k) => k in patch) ? { paymentListsAt: now } : null) });
+// The web app's payment lists, carried in the same document: read by the phone, never written back.
+export const PAYMENT_LIST_KEYS = ['subCategories', 'subCategoryCategories', 'narrationTypes', 'reminderCategories', 'fileCategories', 'darPaymentIntro'];
 
 /**
  * meta/lists `lists` field -> { lists: [categories, priorities, statuses, assignees] | null, format, extra }.
@@ -280,20 +307,7 @@ export function mergeListsForPush(remote, local) {
 export function listsOnReceive(remote, local, remoteTs, localTs) {
   const r = Number(remoteTs) || 0;
   if (!r) return mergeListsForPush(remote, local);
-  return (Number(localTs) || 0) > r ? keepFilledLists(mergeListsForPush(local, []), remote) : mergeListsForPush(remote, []);
-}
-
-/**
- * Never lets an empty list stand in for a filled one: where `lists` has nothing for a list the account (`remote`) still has
- * options in, the account's are kept. An empty Statuses or Pending with list on the phone is a reset or a stale copy, not a
- * choice - emptying a list completely is done on the website. Pure.
- */
-export function keepFilledLists(lists, remote) {
-  return LIST_NAMES.map((_, i) => {
-    const mine = Array.isArray(lists?.[i]) ? lists[i] : [];
-    const theirs = Array.isArray(remote?.[i]) ? remote[i].filter((v) => String(v ?? '').trim()) : [];
-    return mine.length || !theirs.length ? mine : theirs.map((v) => String(v).trim());
-  });
+  return (Number(localTs) || 0) > r ? mergeListsForPush(local, []) : mergeListsForPush(remote, []);
 }
 
 /** meta/calendar `calendar` field -> { calendar: [holidays, leaveDays] | null, format }. */
@@ -307,10 +321,10 @@ export function decodeCalendar(v) {
  * The web app's "in use" note (users/<you>/meta/presence): { webActiveAt, lastInputAt } in ms, written about once
  * a minute while the web app is open, and webActiveAt 0 when it closes. It counts as in use while the note is
  * fresh (the web app is open and awake) AND someone used it recently - a web app left open on an empty desk does
- * not keep the phone quiet.
+ * not keep the phone quiet. "Recently" is 45 minutes. While it counts as in use the phone shows no alarm and no notification.
  */
 export const WEB_HEARTBEAT_MS = 3 * 60000;
-export const WEB_IDLE_MS = 15 * 60000;
+export const WEB_IDLE_MS = 45 * 60000;
 
 /** Until when (ms) the web app counts as in use, from its note; 0 when it does not (closed, asleep, idle, unknown). */
 export function webActiveUntil(presence, now = Date.now(), { heartbeatMs = WEB_HEARTBEAT_MS, idleMs = WEB_IDLE_MS } = {}) {

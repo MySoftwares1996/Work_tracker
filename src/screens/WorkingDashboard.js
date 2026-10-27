@@ -4,17 +4,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AnimatedLogo from '../AnimatedLogo';
 import * as Clipboard from 'expo-clipboard';
-import { EmptyState, BottomTabs, SearchField, Toggle, Group, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Label, Btn, Row, Field, Sheet, Segmented, Chip, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
+import { softLayout, EmptyState, BottomTabs, SearchField, Toggle, Group, useLayout, useAboveBottomBar, FadeInUp, Screen, Card, P, Small, Label, Btn, Row, Field, Sheet, Segmented, Chip, DateTimeField, OptionPicker, PickerButton, Choices, RingtonePicker, SwipeTabs } from '../ui';
 import Icon from '../icons';
 import { display } from '../fonts';
 import { SOURCES } from '../optionSources';
-import { useTheme, blend, THEME_SWATCHES, themeKeyOf } from '../theme';
+import { useTheme, blend } from '../theme';
 import { useStore, uid } from '../store';
+import { applyDraft, clearEntryDraft, loadEntryDraft, saveEntryDraft } from '../entryDraft';
 import { shareCsv } from '../csv';
 
 import { scheduleEntryAlert, cancelEntryAlert } from '../workingDashboardNotify';
 import { newId } from '../ids';
 import { refreshWdAlerts } from '../workingDashboardActions';
+import { checkForPhoneUpdateResult, restartApp } from '../updateStatus';
 import WdAlarmIntro from './WdAlarmIntro';
 import { warnQuiet } from '../quietCatch';
 import { seenWebFields } from '../cloudSync';
@@ -38,10 +40,10 @@ import { stampChanges, toolsValue } from '../links';
 import { paymentsByVendor, fmtRupees, reportCsvRows, buildReportModel, reportModelToText, verifyAiRewrite, mergeAiReport, buildPeriodSummary, reportMailUrl } from '../workingDashboardReport';
 import { paymentLists, makeNarration, findSubCategory, subCategoryText, validatePaymentDetails, subCategoryComplete, paymentSections, normalizeKeyPoints, noteWork, normStatus, isUnstartedStatus, narrationFor, withWebNarrationTypes } from '../workingDashboardPayments';
 import { PaymentFields, NarrationForm } from './WdPaymentFields';
-import { PrioritySegment, DetailChip, FormBand } from './WdFormBits';
+import { PrioritySegment, DetailChip } from './WdFormBits';
 import WdAlertSettings from './WdAlertSettings';
 import WdReportFormats from './WdReportFormats';
-import { ListsEditor, SubCategories, ReminderCategories, RestoreLists } from './WdLists';
+import { ListsEditor, SubCategories, ReminderCategories, ReportPoints } from './WdLists';
 import WdGeminiKey from './WdGeminiKey';
 import WdCalendar from './WdCalendar';
 import WdBinTab from './WdBinTab';
@@ -49,6 +51,8 @@ import WdLinksTab from './WdLinksTab';
 import WdMoreTab from './WdMoreTab';
 import WdHolidaysTab from './WdHolidaysTab';
 import WdHolidaySheet from './WdHolidaySheet';
+import { FilesPanel, FileCategories } from './WdFiles';
+import { cleanFiles, categoryNeedsFile, fileRuleMessage } from '../taskFiles';
 import { BankFollowUpForm } from './WdBankFollowUp';
 import { isBankFollowUpCategory, addBankFollowUp, defaultNextFollowUp, followUpAgeText, followUpsDueToday, fmtFollowDate, followUpWho, followUpsByBank } from '../bankFollowUp';
 import { buildStylePrompt, buildSummaryPrompt, summaryNumbersLost, checkFacts } from '../reportStyle';
@@ -60,8 +64,6 @@ import { isNonWorkingDay, blankEntry, toggleEntryDar, RECURRENCES, RECURRENCE_LA
 import { useTabHistory } from '../useStepBack';
 import WdWeeklyReview from './WdWeeklyReview';
 import { fmtDate, fmtDateTime, StatTile, PRIORITY_COLOR, fmtDue, GRID, SEARCH_PLACEHOLDER, WEB_DAR, gridCount, CardGrid, EntryRow, UndoBar, ShowMore, CountList, PhoneKpi, PhoneRow, PhoneDoneRow, PhoneHeader, Fab, SectionHead } from './wdCards';
-import { stampListsEdit } from '../firebaseSyncCore';
-import { GlossFill, glossTile } from '../glass';
 
 // Shared empties: a fresh [] / {} on each render made the memos below recompute every time.
 const NO_LIST = [];
@@ -184,8 +186,7 @@ export default function WorkingDashboard() {
   const [linkFind, setLinkFind] = useState('');
   const [linkFolder, setLinkFolder] = useState('');      // '' = all folders
   const [reportAlt, setReportAlt] = useState(null);      // { standard, ai, showing } after Rewrite with AI
-  const [configFocus, setConfigFocus] = useState('all');      // the tablet Config page: the chosen section
-  const [configGroup, setConfigGroup] = useState('General');  // the phone Config page: the chosen group tab
+  const [configFocus, setConfigFocus] = useState('all');      // the phone Config page: every section, or one
   // The phone Holidays tab's search and filters.
   const [holQuery, setHolQuery] = useState('');
   const [holCalendar, setHolCalendar] = useState('All');
@@ -293,8 +294,7 @@ export default function WorkingDashboard() {
   const setTools = (fn) => updateWd((w) => { const next = fn(w); const now = Date.now(); return { ...next, toolsStamps: stampChanges(toolsValue(w), toolsValue(next), w.toolsStamps, now), toolsUpdatedAt: now }; });
 
   // The Category / Priority / Status / Pending with lists and the Sub Category / reminder lists: stamped, so they are sent to the account.
-  // Stamped as a phone edit; a Sub Category / narration / reminder list change also gets its own stamp, so only then are those lists sent.
-  const saveLists = (patch) => updateWd((w) => ({ ...w, ...stampListsEdit(patch) }));
+  const saveLists = (patch) => updateWd((w) => ({ ...w, ...patch, listsUpdatedAt: Date.now() }));
 
   const pushLog = (w, title, details = '', auto = true) => ({
     ...w,
@@ -306,6 +306,19 @@ export default function WorkingDashboard() {
   const openRegister = (patch = {}) => { setFilters({ ...EMPTY_WD_FILTER, ...patch }); setQuickView(''); setVisibleCount(5); setTab('register'); };
   // Pull down on any tab: read the website's edits now and rebook the alerts (the same job the background refresh does).
   const pullRefresh = () => refreshWdAlerts({ pull: true, wd });
+  // The Refresh button in the app bar: the same read as pulling down, plus a look for a new version of the app.
+  const [headerBusy, setHeaderBusy] = useState(false);
+  const headerRefresh = async () => {
+    setHeaderBusy(true);
+    let msg = 'Latest data loaded.';
+    let newVersion = false;
+    try { await pullRefresh(); } catch (e) { msg = `Could not reach the server: ${e && e.message ? e.message : 'no connection?'}`; }
+    if (Platform.OS !== 'web') { try { const r = await checkForPhoneUpdateResult(); msg += ` ${r.text}`; newVersion = r.downloaded; } catch { /* the update check is optional */ } }
+    setHeaderBusy(false);
+    // A new version waiting: the restart is offered right here.
+    if (newVersion) Alert.alert('Refresh', `${msg} Restart to use it.`, [{ text: 'Later', style: 'cancel' }, { text: 'Restart now', onPress: restartApp }]);
+    else Alert.alert('Refresh', msg);
+  };
   const goTab = (k) => { setTab(k); setVisibleCount(5); if (k === 'report' && (!reportModel || reportKind === 'day')) buildReport(); };
   // The narration form starts from the entry's saved narration ("Include mail chain" off for a new one; an older
   // narration, saved before the tick existed, keeps the mail chain - as on the web app).
@@ -318,7 +331,18 @@ export default function WorkingDashboard() {
       narrationDraft: n ? { typeName: n.typeName || '', percent: n.percent || '', docNo: n.docNo || '', poNo: n.poNo || '', purpose: n.purpose || '', fieldsValues: { ...(n.fieldsValues || {}) }, includeMail: n.includeMail !== false } : { typeName: '', includeMail: false },
     };
   };
-  const openNewEntry = () => { if (!formOn) return; setAccOpen({}); setEntrySheet(withDrafts(blankEntry())); };
+  // A New entry opens with what was typed last time (closed form, killed app); Reset or Save clears it.
+  const draftId = useRef(null);
+  const draftBlank = useRef(null);
+  const openNewEntry = async () => {
+    if (!formOn) return;
+    setAccOpen({});
+    const blank = blankEntry();
+    draftBlank.current = blank; draftId.current = blank.id;
+    setEntrySheet(withDrafts(applyDraft(blank, await loadEntryDraft())));
+  };
+  const resetNewEntry = () => { const blank = blankEntry(); draftBlank.current = blank; draftId.current = blank.id; clearEntryDraft(); setEntrySheet(withDrafts(blank)); };
+  useEffect(() => { if (entrySheet && draftId.current === entrySheet.id && draftBlank.current) saveEntryDraft(entrySheet, draftBlank.current); }, [entrySheet]);
   // Narrations copied anywhere are kept (the last 30, stars stay) - shown under the narration form.
   useEffect(() => { setNarrationSink((text, typeName) => updateWd((w) => ({ ...w, narrationHistory: addHistory(w.narrationHistory || [], text, typeName) }))); return () => setNarrationSink(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Quick add: a typed sentence opens the New Entry form pre-filled (title, due date and time, priority, category, person).
@@ -404,6 +428,8 @@ export default function WorkingDashboard() {
     if (!d.title.trim()) return Alert.alert('A task description is needed');
     const paymentError = validatePaymentDetails(finalizeDraft(d), plists);
     if (paymentError) return Alert.alert('Almost there', paymentError);
+    const fileRule = fileRuleMessage({ category: d.category, files: d.files, filesNotRequired: d.filesNotRequired }, { fileCategories: wd.fileCategories });
+    if (fileRule) return Alert.alert('Attachment needed', fileRule);
     if (d.recurrence === 'custom' && !(Number(d.recurrenceEveryMin) >= 1)) return Alert.alert('Enter how many minutes between repeats');
     if (d.recurrence !== 'none' && !d.dueAt) return Alert.alert('A repeating entry needs a due date and time');
     // "Both" (phone-width screens): a new task with the title and category of one already open is asked about first.
@@ -441,6 +467,7 @@ export default function WorkingDashboard() {
   };
 
   const commitEntry = (d) => {
+    if (draftId.current === d.id) { draftId.current = null; clearEntryDraft(); }
     let row = { ...finalizeDraft(d), ...editedNow() };
     const isNew = !entries.some((x) => x.id === row.id);
     const prev = entries.find((x) => x.id === row.id);
@@ -497,6 +524,7 @@ export default function WorkingDashboard() {
   };
 
   const act = (shown, kind, opts = {}) => {
+    softLayout();      // the row leaves softly, the ones below slide up
     // A short tap-buzz on the phone when a task is completed (the built-in vibrator: no extra library).
     if (Platform.OS !== 'web' && kind === 'complete') { try { Vibration.vibrate(12); } catch { /* no vibrator */ } }
     // web.app: ✓ or DAR on a task with a checklist opens the checklist first, to tick the steps before it is completed.
@@ -697,7 +725,7 @@ export default function WorkingDashboard() {
 
   /* ---------- AI Daily Report ---------- */
   const buildReport = (date = reportDate) => {
-    const model = buildReportModel({ entries, fixedActivities: wd.fixedActivities, activityLog: wd.activityLog, date, paymentIntro: wd.paymentIntro, leaveDays: leaveList, holidays: holidayList, lists: plists,
+    const model = buildReportModel({ entries, fixedActivities: wd.fixedActivities, activityLog: wd.activityLog, date, reportPoints: wd.paymentIntro, leaveDays: leaveList, holidays: holidayList, lists: plists,
       // Every line is written from the entry's notes and Tally narration too - the same report as the website (the owner's choice).
       details: true });
     const formats = effectiveFormats(wd.reportFormats);
@@ -832,6 +860,7 @@ export default function WorkingDashboard() {
     </Row>
   ) : (
     <Row gap={10}>
+      {draftId.current === entrySheet?.id && <Btn style={{ flex: 1 }} kind="soft" title="Reset" onPress={resetNewEntry} />}
       <Btn style={{ flex: 1 }} kind="neutral" title="Cancel" onPress={closeEntrySheet} />
       <Btn style={{ flex: 2 }} title="Save entry" onPress={() => saveEntry()} />
     </Row>
@@ -1092,43 +1121,36 @@ export default function WorkingDashboard() {
       // person side by side, priority as three buttons, the due row, notes, then the MORE DETAILS pills that open popups.
       const steps = checklistOf(entrySheet);
       const stepsDone = steps.filter((c) => c.done).length;
+      const needFile = categoryNeedsFile({ fileCategories: wd.fileCategories }, entrySheet.category);
+      const fileCount = cleanFiles(entrySheet.files).length;
       const showReminder = Array.isArray(wd.reminderCategories) && wd.reminderCategories.includes(entrySheet.category);
+      const alertMode = ALERT_MODES.find((m) => m.key === alertModeOf(entrySheet, wd.alerts)) || ALERT_MODES[0];
       const dateShort = (iso) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
-      const detailTitle = { alert: 'Alert', deadline: 'Deadline', reminder: 'Next reminder', mail: 'Mail chain', history: 'History' }[detailSheet] || '';
+      const detailTitle = { alert: 'Alert', deadline: 'Deadline', reminder: 'Next reminder', mail: 'Mail chain', files: 'Attach PDF / image', history: 'History' }[detailSheet] || '';
       return (
         <View>
           {f.templates}
+          {f.title}
           {f.saveTemplate}
-          {/* Layout E, as on the website: one band per section - the task, priority & alert, schedule, people & notes, report. */}
-          <FormBand icon="edit" title="The task">
-            {f.title}
-            {f.category}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>{f.status}</View>
-          </FormBand>
-          <FormBand icon="bell" title="Priority & alert">
-            {f.priority}
-            {f.alert}
-          </FormBand>
-          <FormBand icon="calendar" title="Schedule">
-            {f.due}
-            {f.slot}
-            {f.custom}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-              <DetailChip icon="calendar" label={entrySheet.deadlineAt ? `Deadline · ${dateShort(entrySheet.deadlineAt)}` : 'Deadline'} filled={!!entrySheet.deadlineAt} onPress={() => setDetailSheet('deadline')} />
-              {showReminder && <DetailChip icon="clock" label={entrySheet.nextReminderAt ? `Next reminder · ${dateShort(entrySheet.nextReminderAt)}` : 'Next reminder'} filled={!!entrySheet.nextReminderAt} onPress={() => setDetailSheet('reminder')} />}
-              <DetailChip icon="checklist" label={steps.length ? `Checklist · ${stepsDone} of ${steps.length}` : 'Checklist'} filled={!!steps.length} onPress={() => setStepsOpen(true)} />
-            </View>
-          </FormBand>
-          <FormBand icon="user" title="People & notes">
-            {f.pendingWith}
-            {f.notes}
-            <View style={{ marginBottom: 12 }}>{f.mail}</View>
-          </FormBand>
-          <FormBand icon="report" title="Report">
-            {f.payment}
-            {f.dar}
-            {!!f.history && <View style={{ flexDirection: 'row', marginBottom: 12 }}><DetailChip icon="list" label={`History · ${(entrySheet.audit || []).length}`} onPress={() => setDetailSheet('history')} /></View>}
-          </FormBand>
+          <Row gap={10} style={{ alignItems: 'flex-start' }}>{f.category}{f.pendingWith}</Row>
+          {f.priority}
+          {f.due}
+          {f.slot}
+          {f.custom}
+          {f.notes}
+          <Label>MORE DETAILS</Label>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            {f.status}
+            <DetailChip icon="bell" label={`Alert · ${alertMode.key === 'alarm' ? 'Alarm' : 'Reminder'}`} filled={alertModeOf(entrySheet, wd.alerts) === 'alarm'} onPress={() => setDetailSheet('alert')} />
+            <DetailChip icon="calendar" label={entrySheet.deadlineAt ? `Deadline · ${dateShort(entrySheet.deadlineAt)}` : 'Deadline'} filled={!!entrySheet.deadlineAt} onPress={() => setDetailSheet('deadline')} />
+            {showReminder && <DetailChip icon="clock" label={entrySheet.nextReminderAt ? `Next reminder · ${dateShort(entrySheet.nextReminderAt)}` : 'Next reminder'} filled={!!entrySheet.nextReminderAt} onPress={() => setDetailSheet('reminder')} />}
+            <DetailChip icon="checklist" label={steps.length ? `Checklist · ${stepsDone} of ${steps.length}` : 'Checklist'} filled={!!steps.length} onPress={() => setStepsOpen(true)} />
+            <DetailChip icon="paperclip" label={fileCount ? `Files · ${fileCount}` : entrySheet.filesNotRequired ? 'Files · Not required' : `Attach PDF / image${needFile ? ' *' : ''}`} filled={!!fileCount || !!entrySheet.filesNotRequired} onPress={() => setDetailSheet('files')} />
+            <DetailChip icon="mail" label="Mail chain" filled={!!String(entrySheet.reference || '').trim()} onPress={() => setDetailSheet('mail')} />
+            {!!f.history && <DetailChip icon="list" label={`History · ${(entrySheet.audit || []).length}`} onPress={() => setDetailSheet('history')} />}
+          </View>
+          {f.payment}
+          {f.dar}
           {!pinSave && entryButtons}
           {!!binBtn && <View style={{ marginTop: 8 }}>{binBtn}</View>}
           <Sheet visible={stepsOpen} onClose={() => setStepsOpen(false)} title="Checklist">
@@ -1140,6 +1162,7 @@ export default function WorkingDashboard() {
             {detailSheet === 'deadline' && f.deadline}
             {detailSheet === 'reminder' && f.reminder}
             {detailSheet === 'mail' && f.mail}
+            {detailSheet === 'files' && <FilesPanel entry={entrySheet} setEntry={setEntrySheet} needed={needFile} />}
             {detailSheet === 'history' && f.history}
             <Btn style={{ marginTop: 14 }} title="Done" onPress={() => setDetailSheet(null)} />
           </Sheet>
@@ -1211,6 +1234,9 @@ export default function WorkingDashboard() {
           title={tab === 'dashboard' ? (new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening') : PHONE_TITLES[tab] || TAB_TITLES[tab]}
           subtitle={phoneSubtitle}
           userLabel={userLabel}
+          onRefresh={headerRefresh}
+          onNew={formOn && (tab === 'dashboard' || tab === 'register') ? openNewEntry : undefined}
+          refreshing={headerBusy}
           onSearch={() => setPaletteOpen(true)}
           onBell={() => setMeetingOpen(true)}
           bellOn={meetingOn}
@@ -1342,7 +1368,7 @@ export default function WorkingDashboard() {
                 )}
               </>
             )}
-            {/* Quick add: type a sentence - "Pay ICICI invoice tomorrow 5pm high" - and the form opens filled in. */}
+            {/* Quick add: type a sentence - "Pay Bank B invoice tomorrow 5pm high" - and the form opens filled in. */}
             {formOn && !phoneLayout && <Card style={{ marginBottom: 12, paddingVertical: 10 }}>
               <Row gap={8} style={{ alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
@@ -1362,13 +1388,12 @@ export default function WorkingDashboard() {
                   const total = doneTodayCount + need;
                   const pct = total ? Math.round((doneTodayCount / total) * 100) : 0;
                   return (
-                    <Pressable onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} accessibilityRole="button" accessibilityLabel={`Pending as on today: ${need} ${need === 1 ? 'task' : 'tasks'}, overdue and due today. Open them in Tasks`}
-                      style={({ pressed }) => ({ backgroundColor: t.primaryDark, borderRadius: t.heroRadius, paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 14, opacity: pressed ? 0.94 : 1, ...glossTile(t) })}>
-                      <GlossFill tone="hero" radius={t.heroRadius} />
-                      <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.4 }}>PENDING AS ON TODAY</Text>
+                    <Pressable onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} accessibilityRole="button" accessibilityLabel={`Today: ${need} ${need === 1 ? 'task needs' : 'tasks need'} you. Open them in Tasks`}
+                      style={({ pressed }) => ({ backgroundColor: t.primaryDark, borderRadius: t.heroRadius, paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18, gap: 14, opacity: pressed ? 0.94 : 1 })}>
+                      <Text style={{ color: t.mint, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.4 }}>TODAY</Text>
                       <Row gap={10} style={{ alignItems: 'baseline' }}>
                         <Text style={{ color: '#fff', fontFamily: display(), fontWeight: '600', fontSize: t.fs(64), lineHeight: t.fs(62), letterSpacing: -2 }}>{need}</Text>
-                        <Text style={{ color: t.heroDim, fontWeight: '600', fontSize: t.fs(15) }}>{need === 1 ? 'task' : 'tasks'} · overdue + due today</Text>
+                        <Text style={{ color: t.heroDim, fontWeight: '600', fontSize: t.fs(15) }}>{need === 1 ? 'task needs you' : 'tasks need you'}</Text>
                       </Row>
                       <View style={{ height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' }}>
                         <View style={{ height: 8, borderRadius: 4, backgroundColor: t.mint, width: `${pct}%` }} />
@@ -1381,6 +1406,9 @@ export default function WorkingDashboard() {
                   );
                 })()}
                 <Row gap={10}>
+                  <PhoneKpi tone="red" label="Pending as on Today" value={stats.pendingAsOnToday} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
+                </Row>
+                <Row gap={10}>
                   <PhoneKpi tone="red" label="Overdue" value={stats.overdue} onPress={() => { openRegister({ dueWithin: 'Overdue' }); }} />
                   <PhoneKpi tone="amber" label="Due today" value={stats.dueToday} onPress={() => { openRegister({ dueWithin: 'Today' }); }} />
                   <PhoneKpi tone="slate" label="Next 7 days" value={stats.next7Days} onPress={() => { openRegister({ dueWithin: 'Next 7 Days' }); }} />
@@ -1392,7 +1420,6 @@ export default function WorkingDashboard() {
                   </Pressable>
                   {moreCounts && (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                      <PhoneKpi wide label="Pending as on Today" value={stats.pendingAsOnToday} onPress={() => { openRegister({ dueWithin: DUE_TILL_TODAY }); }} />
                       <PhoneKpi wide label="This Month" value={stats.thisMonth} onPress={() => { openRegister({ dueWithin: 'This Month' }); }} />
                       <PhoneKpi wide label="Next Month" value={stats.nextMonth} onPress={() => { openRegister({ dueWithin: 'Next Month' }); }} />
                       <PhoneKpi wide label="No Due Date" value={stats.noDueDate} onPress={() => { openRegister({ dueWithin: 'No Due Date' }); }} />
@@ -1935,24 +1962,8 @@ export default function WorkingDashboard() {
 
         {tab === 'config' && (() => {
           // Appearance (Ledger): the colour theme swatches, the dark-mode switch and the text size.
-          const themeNow = themeKeyOf(data.settings?.theme);
           const appearanceBody = (
             <View style={{ gap: 16 }}>
-              <View>
-                <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(15), marginBottom: 12 }}>Colour theme</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                  {THEME_SWATCHES.filter((sw) => sw.key !== 'glass' || Platform.OS !== 'web').map((sw) => {
-                    const on = themeNow === sw.key;
-                    return (
-                      <Pressable key={sw.key} onPress={() => update({ settings: { theme: sw.key } })} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${sw.label} theme`}
-                        style={{ width: '31%', flexGrow: 1, gap: 7, borderRadius: 16, padding: 8, borderWidth: 2, borderColor: on ? t.primary : t.border }}>
-                        <View style={{ height: 34, borderRadius: 10, backgroundColor: sw.color }} />
-                        <Text style={{ color: t.text, fontWeight: '700', fontSize: t.fs(12) }}>{sw.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
               <Row style={{ justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                 <Text style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: t.fs(14) }}>Follow the phone's dark mode</Text>
                 <Toggle label="Follow the phone's dark mode" value={data.settings?.followDark !== false} onChange={(v) => update({ settings: { followDark: v } })} />
@@ -1975,17 +1986,16 @@ export default function WorkingDashboard() {
             { key: 'appearance', icon: 'moon', title: 'Appearance', body: appearanceBody },
             { key: 'lists', icon: 'list', title: 'Entry form options', body: <ListsEditor wd={wd} save={saveLists} /> },
             { key: 'subs', icon: 'folder', title: 'Sub categories', body: <SubCategories wd={wd} lists={plists} save={saveLists} /> },
-            { key: 'restore', icon: 'undo', title: 'Restore lists', body: <RestoreLists wd={wd} entries={entries} save={saveLists} setTools={setTools} /> },
             { key: 'reminder', icon: 'clock', title: 'Next reminder', body: <ReminderCategories wd={wd} save={saveLists} /> },
+            { key: 'files', icon: 'paperclip', title: 'Attachments', body: <FileCategories wd={wd} save={saveLists} /> },
+            { key: 'points', icon: 'checklist', title: 'Report points', body: <ReportPoints wd={wd} save={saveLists} /> },
             { key: 'formats', icon: 'report', title: 'Report formats', body: <WdReportFormats wd={wd} entries={entries} setTools={setTools} setLists={saveLists} /> },
             { key: 'gemini', icon: 'sparkle', title: 'Gemini (AI) key', body: <WdGeminiKey /> },
           ];
-          // The website's Config groups (General, Lists, Daily report, Your data).
           const groups = [
-            ['General', [['alerts', 'When and how a due task alerts you'], ['appearance', 'Theme and colours'], ['gemini', 'Your own key, used only when the free route is busy']]],
-            ['Lists', [['lists', 'Categories, priorities, statuses, pending with'], ['subs', 'Sub categories and their fields'], ['reminder', 'Which categories ask for a next reminder']]],
-            ['Daily report', [['formats', 'The sentence each sub category writes']]],
-            ['Your data', [['restore', 'Bring the lists back from a backup or from the tasks']]],
+            ['General', [['alerts', 'When and how a due task alerts you'], ['appearance', 'Theme and colours']]],
+            ['Entry form', [['lists', 'Categories, priorities, statuses, pending with'], ['subs', 'Sub categories and their fields'], ['reminder', 'Which categories ask for a next reminder'], ['files', 'Which categories must have a PDF or image attached']]],
+            ['Reports', [['formats', 'The sentence each sub category writes'], ['gemini', 'Your own key, used only when the free route is busy']]],
           ];
           const byKey = Object.fromEntries(panels.map((x) => [x.key, x]));
           const split = !phoneLayout;
@@ -2013,6 +2023,21 @@ export default function WorkingDashboard() {
                   </Card>
                 </View>
               ))}
+            </View>
+          );
+          // Phone: one list of topics (the Appearance row is highlighted - its card is open right below).
+          const topicList = (
+            <View style={{ backgroundColor: t.surface, borderRadius: t.radius, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>
+              {panels.map((x, i) => {
+                const on = x.key === 'appearance';
+                return (
+                  <Pressable key={x.key} onPress={() => pick(x.key)} accessibilityRole="button" accessibilityLabel={x.title}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, minHeight: 52, borderTopWidth: i ? 1 : 0, borderTopColor: t.surfaceAlt, backgroundColor: on ? t.tint : pressed ? t.surfaceAlt : t.surface })}>
+                    <Text style={{ color: on ? t.tintText : t.text, fontWeight: '700', fontSize: t.fs(15) }}>{x.title}</Text>
+                    <Icon name="chevronRight" size={16} color={on ? t.tintText : t.chevron} stroke={2} />
+                  </Pressable>
+                );
+              })}
             </View>
           );
           const cur = active ? byKey[active] : null;
@@ -2056,32 +2081,13 @@ export default function WorkingDashboard() {
           );
           if (phoneLayout) {
             // Phone: a panel on its own page, or the topic list with the Appearance card open under it and the account at the foot.
-            // Phone: the website's group tabs across the top; the chosen group's settings open one under another.
-            const [, items] = groups.find(([g]) => g === configGroup) || groups[0];
-            return (
+            return panel ? <View>{panel}</View> : (
               <View style={{ gap: 14 }}>
+                {topicList}
+                <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginLeft: 4, marginBottom: -6 }}>APPEARANCE</Text>
+                <Card style={{ padding: 16 }}>{appearanceBody}</Card>
+                <Text style={{ color: t.textDim, fontWeight: '800', fontSize: t.fs(11), letterSpacing: 1.1, textTransform: 'uppercase', marginLeft: 4, marginBottom: -6 }}>ACCOUNT</Text>
                 {accountCard}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {groups.map(([g]) => <Chip key={g} label={g} on={g === configGroup} onPress={() => setConfigGroup(g)} />)}
-                </View>
-                {items.map(([k, hint]) => {
-                  const x = byKey[k];
-                  return (
-                    <Card key={k} style={{ padding: 16 }}>
-                      <Row gap={12} style={{ alignItems: 'center' }}>
-                        <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.tint }}>
-                          <Icon name={x.icon} size={19} color={t.tintText} stroke={1.9} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(16) }}>{x.title}</Text>
-                          <Small>{hint}</Small>
-                        </View>
-                      </Row>
-                      <View style={{ height: 1, backgroundColor: t.border, marginVertical: 12 }} />
-                      {x.body}
-                    </Card>
-                  );
-                })}
               </View>
             );
           }
@@ -2290,7 +2296,7 @@ export default function WorkingDashboard() {
       <Btn kind="soft" title="Excel" onPress={() => { setShareOpen(false); csvReport(); }} />
     </Sheet>
 
-    {formOn && (tab === 'dashboard' || tab === 'register') && <Fab onPress={openNewEntry} right={wide ? 32 : 20} bottom={fabBottom} />}
+    {formOn && !phoneLayout && (tab === 'dashboard' || tab === 'register') && <Fab onPress={openNewEntry} right={wide ? 32 : 20} bottom={fabBottom} />}
     <UndoBar undo={undo} onUndo={runUndo} onHide={() => setUndo(null)} bottom={wide ? 24 : aboveBar + 8} left={sideBar + 20} />
     <BottomTabs
       tabs={BAR_TABS}

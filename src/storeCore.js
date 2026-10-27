@@ -42,7 +42,6 @@ export const DEFAULT_DB = {
     emergencyName: '', emergencyPhone: '', allergies: '', conditions: '',
   },
   settings: {
-    theme: 'forest',      // Ledger colour theme: forest, harbour, plum, ember, ink or rose, or glass (APK only) (earlier keys are mapped by themeKeyOf in theme.js)
     followDark: true,      // follow the phone's dark mode (Config > Appearance)
     fontLevel: 2,
     office: { lat: null, lng: null, radius: DEFAULTS.geofenceRadiusM, label: 'Office' },
@@ -166,7 +165,7 @@ export const DEFAULT_DB = {
     categories: [],
     priorities: ['High', 'Medium', 'Low'],
     statuses: ['Not Yet Started', 'In-Progress', 'Pending'],
-    assignees: ['Self'],
+    assignees: [],      // a new account starts with nobody under Pending with; existing accounts keep their own list
     holidays: [],
     // web.app's Links tab: { id, title, url, folder? } - follows the account (meta/tools).
     links: [],
@@ -177,8 +176,6 @@ export const DEFAULT_DB = {
     templates: [],          // task templates (src/templates.js) - follow the account with the links (meta/tools)
     reportOpts: {},         // the Report's switches: headings, Sub Category fields, pending list (defaults: on, on, off), this device only
     reportMoves: {},        // the Report's moved tasks per day ({ 'YYYY-MM-DD': { taskId: group } }), this device only
-    paymentListsAt: 0,      // when the Sub Category / narration / reminder lists were last edited on this phone (firebaseSyncCore.stampListsEdit)
-    paymentListsSentAt: 0,  // ...and the edit last sent to the account: the phone sends those lists only while the first is newer
     formatSetupAt: 0,       // when the categories and sub categories the report formats need were first added automatically (once per account)
     reportFormats: [],      // report formats (src/reportFormats.js) - follow the account (meta/tools); [] = the sample formats
     reportAiNotesSummary: '',      // instructions for Rewrite with AI on the weekly / monthly summary
@@ -198,11 +195,13 @@ export const DEFAULT_DB = {
       walk: { enabled: false, start: '11:00', end: '19:30', everyMin: 90 },
       water: { enabled: false, start: '10:00', end: '19:30', everyMin: 60 },
     },
-    paymentIntro: null, // null = use workingDashboardReport.js's DEFAULT_PAYMENT_INTRO
+    paymentIntro: null, // the Report points ({ category, text }), from the website's lists; null until received
+    paymentIntroDirty: false, // edited on this phone and not yet sent
     // The web app's payment lists, received with Realtime Sync (null until then - see
     // workingDashboardPayments.paymentLists for the defaults): Sub Categories with their rule fields, the
     // categories that need one when completed, and the Tally narration types.
     subCategories: null,
+    fileCategories: null,       // the categories that ask for an attached PDF / image (or "Not required"); follows the account's lists
     reminderCategories: null,   // the categories that ask for a next reminder date and time (null = none yet); follows the account's lists
     subCategoryCategories: null,
     narrationTypes: null,

@@ -186,7 +186,7 @@ export function narrationSubText(entry, lists) {
   return n.subCategoryText !== undefined ? s(n.subCategoryText) : '';
 }
 
-/** The vendor in a mail subject: "PURE EV: Purchase Order - G Power Auto Parts - INPO/PP/26-27/0155" -> "G Power Auto Parts". */
+/** The vendor in a mail subject: "SAMPLE: Purchase Order - Sample Vendor - INPO/PP/26-27/0155" -> "Sample Vendor". */
 export function payeeFromMail(mail) {
   const str = s(mail).replace(/\s+/g, ' ').trim();
   if (!str) return '';

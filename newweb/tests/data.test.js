@@ -129,7 +129,10 @@ test('lists, calendar and links are read from their documents', () => {
   assert.deepEqual(readLists({ categories: ['A'], priorities: ['P'], statuses: ['S'], pendingWith: ['X'] }), { categories: ['A'], priorities: ['P'], statuses: ['S'], pendingWith: ['X'] });
   assert.deepEqual(readLists(JSON.stringify({ categories: ['A'], assignees: ['Z'] })).pendingWith, ['Z']);
   assert.deepEqual(readLists([['A'], ['P'], ['S'], ['X']]).categories, ['A']);
-  assert.ok(readLists(null).categories.length > 0);
+  assert.deepEqual(readLists(null).categories, [], 'a new account starts with no Category');
+  assert.deepEqual(readLists(null).pendingWith, [], 'and nobody under Pending with');
+  assert.ok(readLists(null).priorities.length > 0 && readLists(null).statuses.length > 0, 'Priority and Status keep their usual choices');
+  assert.ok(readLists({ priorities: ['P'] }).categories.length > 0, 'an existing account whose lists document has no categories keeps the older starting ones');
   assert.deepEqual(readCalendar({ holidays: ['2026-01-26', { date: '2026-08-15', name: 'Independence Day' }], leaveDays: [] }).holidays, [{ date: '2026-01-26', name: '' }, { date: '2026-08-15', name: 'Independence Day' }]);
   assert.equal(readLinks({ links: [{ id: '1', title: 'G', url: 'https://g.co' }, { id: '2', url: 'javascript:alert(1)' }] }).length, 1);
 });
@@ -202,69 +205,38 @@ test('a point on the dial becomes an hour or a minute', () => {
 });
 
 import { readFileSync } from 'node:fs';
-import { THEMES, themeVars, normalizeTheme, DEFAULT_THEME } from '../src/themes.js';
+import { formatsText } from '../src/exportBackup.js';
+import { snoozeFor } from '../src/alerts.js';
+import { setupText, planSetupLoad } from '../src/setupFile.js';
+import { formatsBackupText, planFormatsRestore } from '../src/reportFormats.js';
+import { THEMES, themeVars, DEFAULT_THEME } from '../src/themes.js';
 const lumOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
 const contrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-test('the six Ledger themes and Glass: Forest is the default and an old saved theme key becomes Forest', () => {
-  assert.deepEqual(THEMES.map((t) => t.id), ['forest', 'harbour', 'plum', 'ember', 'ink', 'rose', 'glass']);
-  assert.equal(DEFAULT_THEME, 'forest');
-  ['violet', 'aqua', 'ocean', 'sunset', 'lilac', 'night', '', null, undefined].forEach((old) => assert.equal(normalizeTheme(old), 'forest'));
-  THEMES.forEach((t) => assert.equal(normalizeTheme(t.id), t.id));
-  const f = themeVars('forest', 'light');
-  assert.equal(f['--primary'], '#0B6B52');
-  assert.equal(f['--primary-dark'], '#123A2F');
-  assert.equal(f['--primary-tint'], '#E3F1EC');
-  assert.equal(themeVars('rose', 'light')['--primary'], '#B42318');
-  assert.equal(themeVars('violet', 'light')['--primary'], '#0B6B52');
+test('the Pearl look is the one theme: no colour choices', () => {
+  assert.deepEqual(THEMES.map((t) => t.id), ['pearl']);
+  assert.equal(DEFAULT_THEME, 'pearl');
+  const f = themeVars('anything-saved-earlier', 'light');
+  assert.equal(f['--ground'], '#F0F1F7');
+  assert.equal(f['--card'], '#FFFFFF');
+  assert.equal(f['--line'], '#E6E8F1');
+  assert.equal(f['--ink'], '#14132B');
+  assert.equal(f['--primary'], '#4B33C8');
+  assert.equal(f['--mint'], '#2EC4B6');
+  assert.equal(f['--tile-navy'], '#2F55D4');
+  assert.equal(f['--toggle-on'], '#2EC4B6');
 });
 
-test('every theme has a dark twin with the same tokens, and the CSS starts from the Forest / light values', () => {
+test('every theme has a dark twin with the same tokens (Aurora dark), and the CSS starts from the Pearl / light values', () => {
   const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
   const root = /:root \{([^}]*)\}/.exec(css)[1];
-  const light = themeVars('forest', 'light');
+  const light = themeVars('pearl', 'light');
   Object.entries(light).forEach(([k, v]) => assert.ok(new RegExp(`${k}:\\s*${v.replace(/[()]/g, '\\$&')}`, 'i').test(root), `styles.css :root has ${k}: ${v}`));
   THEMES.forEach((t) => {
     assert.deepEqual(Object.keys(themeVars(t.id, 'dark')).sort(), Object.keys(light).sort(), t.id);
-    if (t.glass) return;                                           // Glass has its own ground
-    assert.equal(themeVars(t.id, 'dark')['--ground'], '#0F1714');
-    assert.equal(themeVars(t.id, 'dark')['--card'], '#17211D');
+    assert.equal(themeVars(t.id, 'dark')['--ground'], '#0C1228');
+    assert.equal(themeVars(t.id, 'dark')['--card'], '#161E3B');
   });
-});
-
-test('Glass: white text reads on every glossy tile, and the theme text on every frosted panel over every glow', () => {
-  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
-  const block = (sel) => { const i = css.indexOf(`${sel} {`); assert.ok(i >= 0, sel); return css.slice(i, css.indexOf('}', i)); };
-  const light = block(':root[data-theme="glass"]');
-  const dark = block(':root[data-theme="glass"][data-mode="dark"]');
-  const hex = (r, g, b) => '#' + [r, g, b].map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
-  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-  const mix = (a, b, k) => { const x = rgb(a); const y = rgb(b); return hex(...x.map((v, i) => v * (1 - k) + y[i] * k)); };
-  const alpha = (src, name) => Number(new RegExp(`${name}:\\s*rgba\\([^)]*,\\s*([\\d.]+)\\)`).exec(src)[1]);
-  const glows = (src) => [...src.slice(src.indexOf('--g-glow')).matchAll(/rgba\((\d+), (\d+), (\d+), ([\d.]+)\)/g)].map((m) => [hex(+m[1], +m[2], +m[3]), +m[4]]);
-  const tiles = [...light.matchAll(/--g-(\w+): linear-gradient\(180deg, (#\w{6}), (#\w{6})\)/g)].map((m) => [m[1], m[2], m[3]]);
-  assert.equal(tiles.length, 6);
-  assert.ok([light, dark].every((src) => [alpha(src, '--g-fill'), alpha(src, '--g-sheen'), alpha(src, '--g-tile-sheen')].every(Number.isFinite) && glows(src).length >= 3));
-  const bad = [];
-  for (const [mode, src] of [['light', light], ['dark', dark]]) {
-    const v = themeVars('glass', mode);
-    const tileSheen = alpha(src, '--g-tile-sheen');
-    for (const [name, top, bottom] of tiles) {
-      const mid = mix(mix(top, bottom, 0.5), '#ffffff', tileSheen / 2);
-      const lit = mix(top, '#ffffff', tileSheen);
-      if (contrast('#ffffff', mid) < 4.5) bad.push(`${mode} ${name} button text`);
-      if (contrast('#ffffff', bottom) < 4.5) bad.push(`${mode} ${name} label`);
-      if (contrast('#ffffff', lit) < 3) bad.push(`${mode} ${name} big number`);
-      if (name === 'hero' && contrast(v['--mint'], lit) < 4.5) bad.push(`${mode} hero mint`);
-    }
-    const fill = alpha(src, '--g-fill'); const sheen = alpha(src, '--g-sheen');
-    for (const under of [v['--ground'], ...glows(src).map(([c, a]) => mix(v['--ground'], c, a))]) {
-      for (const ground of [mix(under, '#ffffff', fill), mix(mix(under, '#ffffff', fill), '#ffffff', sheen)]) {
-        for (const k of ['--ink', '--muted', '--primary', '--danger']) if (contrast(v[k], ground) < 4.5) bad.push(`${mode} ${k} on ${ground} ${contrast(v[k], ground).toFixed(2)}`);
-      }
-    }
-  }
-  assert.deepEqual(bad, []);
 });
 
 test('all text passes 4.5:1 in every theme, light and dark', () => {
@@ -523,7 +495,7 @@ test('the due response follows the task\'s own alert choice', () => {
 });
 
 test('a template keeps the usual fields, never the dates, and starts a new task', () => {
-  const src = task({ title: 'Month-end reconciliation', category: 'Payments', priority: 'High', notes: 'Check ledgers', due: new Date(2026, 9, 31), keyPoints: [{ key: 'Ledger', value: 'HDFC' }], checklist: [{ id: 'a', text: 'Export', done: true }] });
+  const src = task({ title: 'Month-end reconciliation', category: 'Payments', priority: 'High', notes: 'Check ledgers', due: new Date(2026, 9, 31), keyPoints: [{ key: 'Ledger', value: 'Bank A' }], checklist: [{ id: 'a', text: 'Export', done: true }] });
   const tpl = templateFrom(src);
   assert.equal(tpl.name, 'Month-end reconciliation');
   assert.ok(!('due' in tpl.fields) && !('dueDate' in tpl.fields));
@@ -545,10 +517,10 @@ test('the Gemini API reply text is read from its parts', () => {
 });
 
 test('a report format fills its marks from the Sub Category fields, then Key Points, and shows what is missing', () => {
-  const e = { title: 'Pay ACME', subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor or suppler:': 'ACME Traders', 'Invoice No': 'INV-4471', 'Amount paid': '' }, keyPoints: [{ key: 'Amount', value: '4,35,000' }] };
+  const e = { title: 'Pay ACME', subCategory: 'Invoice Payment', subCategoryFields: { 'Name of vendor or suppler:': 'Vendor D', 'Invoice No': 'INV-4471', 'Amount paid': '' }, keyPoints: [{ key: 'Amount', value: '4,35,000' }] };
   assert.deepEqual(placeholdersOf('{Name}: Being paid against {Invoice No} for {Amount} {Amount}'), ['Name', 'Invoice No', 'Amount']);
   const r = renderTemplate('{Name}: - Being amount paid against Invoice No. {Invoice No} towards {Towards}, amounting to ₹{Amount}.', e);
-  assert.equal(r.text, 'ACME Traders: - Being amount paid against Invoice No. INV-4471 towards [Towards], amounting to ₹4,35,000.');
+  assert.equal(r.text, 'Vendor D: - Being amount paid against Invoice No. INV-4471 towards [Towards], amounting to ₹4,35,000.');
   assert.deepEqual(r.missing, ['Towards']);
 });
 
@@ -567,9 +539,9 @@ test('marks with no field in the Sub Category are listed, so they can be added',
 test('the sample formats from the owner\'s sheet all have text and marks', () => {
   assert.ok(SAMPLE_FORMATS.length >= 25);
   assert.ok(SAMPLE_FORMATS.every((f) => f.subCategory && f.template.length > 20));
-  const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Orion Steel', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'ICICI', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
+  const imp = renderTemplate(findFormat(SAMPLE_FORMATS, 'Imports Payment').template, { subCategoryFields: { 'Name of vendor or suppler:': 'Vendor C', 'Payment type:': 'Advance', '% of payment:': '30', 'Type:': 'against dispatch', 'USD amount:': '12,000', 'Bank:': 'Bank B', 'Reference no:': 'RF-9', 'Current status:': 'Pending with bank for processing' } });
   assert.equal(imp.missing.length, 0);
-  assert.match(imp.text, /in favour of Orion Steel towards the 30% Advance payment against dispatch for USD 12,000 through ICICI, Reference No\. RF-9\. Current Status: Pending with bank for processing\./);
+  assert.match(imp.text, /in favour of Vendor C towards the 30% Advance payment against dispatch for USD 12,000 through Bank B, Reference No\. RF-9\. Current Status: Pending with bank for processing\./);
 });
 
 test('the setup from the formats creates only the missing categories and sub categories, with a field for each mark', () => {
@@ -745,7 +717,7 @@ test('bulk selection: toggling and keeping only the rows still shown', () => {
 test('bulk Done skips tasks whose Sub Category still needs fields', () => {
   const lists = { ...DEFAULT_LISTS, subCategories: [{ id: 's', name: 'Domestic Payment', category: 'Payments', fields: [{ label: 'Vendor Name' }] }] };
   const needs = task({ id: 'n', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: {} });
-  const filled = task({ id: 'f', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: { 'Vendor Name': 'Acme' } });
+  const filled = task({ id: 'f', category: 'Payments', subCategory: 'Domestic Payment', subCategoryFields: { 'Vendor Name': 'Vendor D' } });
   const plain = task({ id: 'p' });
   const { doable, skipped } = planBulkComplete([needs, filled, plain], lists);
   assert.deepEqual(doable.map((t) => t.id), ['f', 'p']);
@@ -770,4 +742,69 @@ test('bulk Move date keeps the time of day, clears a snooze and ignores bad date
   assert.equal(moveDueDate(task({ due: null }), '2026-10-20').hasTime, false);
   assert.equal(moveDueDate(timed, 'nonsense'), timed);
   assert.equal(moveDueDate(timed, '2026-02-31'), timed);
+});
+
+test('Download all formats: every format as readable text', () => {
+  const txt = formatsText([{ subCategory: 'Invoice Payment', category: 'Payments', template: 'Being amount paid against Invoice No. {Invoice No}.' }, { subCategory: 'Empty', template: '  ' }], new Date('2026-10-24T10:00:00Z'));
+  assert.match(txt, /^Report formats - 1 \(2026-10-24\)/);
+  assert.match(txt, /1\. Invoice Payment\n   Category: Payments\n   Format: Being amount paid against Invoice No\. \{Invoice No\}\./);
+  assert.ok(!/Empty/.test(txt));
+});
+
+test('Backup formats: a backup restores onto the saved list, replacing the same Sub Category and keeping the rest', () => {
+  const now = [{ id: 'a', subCategory: 'Invoice Payment', category: 'Payments', template: 'Old {Invoice No}.' }, { id: 'b', subCategory: 'Other One', category: 'Payments', template: 'Keep me.' }];
+  const file = formatsBackupText([{ id: 'a', subCategory: 'Invoice Payment', category: 'Payments', template: 'New {Invoice No}.' }, { id: 'c', subCategory: 'Fresh', category: 'Audit', template: 'Fresh line.' }], new Date('2026-10-24T10:00:00Z'));
+  const plan = planFormatsRestore(now, file, 1000);
+  assert.equal(plan.count, 2);
+  const by = (n) => plan.saved.filter((f) => f.subCategory === n && f.template).map((f) => f.template);
+  assert.deepEqual(by('Invoice Payment'), ['New {Invoice No}.']);
+  assert.deepEqual(by('Other One'), ['Keep me.']);
+  assert.deepEqual(by('Fresh'), ['Fresh line.']);
+  assert.ok(planFormatsRestore(now, 'not json').error);
+  assert.ok(planFormatsRestore(now, JSON.stringify({ kind: 'something else', formats: [] })).error);
+});
+
+test('Snooze starts at the length set for the task\'s priority', () => {
+  const cfg = { snoozeHigh: 15, snoozeMedium: 30, snoozeLow: 120 };
+  assert.equal(snoozeFor('High', cfg), 15);
+  assert.equal(snoozeFor('Medium', cfg), 30);
+  assert.equal(snoozeFor('low', cfg), 120);
+  assert.equal(snoozeFor('', cfg), 30);
+  assert.equal(snoozeFor('High', { snoozeHigh: 0 }), 30);
+});
+
+test('Setup file: loads into a new account what is missing and never replaces what exists', () => {
+  const from = { lists: { categories: ['Payments', 'Audit'], priorities: ['High'], statuses: ['Pending'], pendingWith: ['Accounts'], subCategories: [{ id: 's1', name: 'Invoice Payment', category: 'Payments', fields: [{ label: 'Invoice No' }] }], darPaymentIntro: [{ category: 'Payments', text: 'Checked the statement.' }, { category: '', text: 'old' }] },
+    savedFormats: [{ id: 'f1', category: 'Payments', subCategory: 'Invoice Payment', template: 'Paid {Invoice No}.' }], templates: [{ id: 't1', name: 'Month end', fields: { title: 'Close books' } }] };
+  const file = setupText(from, new Date('2026-10-25T10:00:00Z'));
+  const fresh = planSetupLoad({ lists: { categories: [], priorities: ['High', 'Medium', 'Low'], statuses: ['Pending'], pendingWith: [] }, savedFormats: [], templates: [] }, file, 1000);
+  assert.deepEqual(fresh.lists.categories, ['Payments', 'Audit']);
+  assert.deepEqual(fresh.lists.pendingWith, ['Accounts']);
+  assert.equal(fresh.lists.subCategories.length, 1);
+  assert.deepEqual(fresh.lists.darPaymentIntro, [{ category: 'Payments', text: 'Checked the statement.' }]);
+  assert.equal(fresh.formats.filter((f) => f.template).length, 1);
+  assert.equal(fresh.templates.length, 1);
+  const again = planSetupLoad({ lists: fresh.lists, savedFormats: fresh.formats, templates: fresh.templates }, file, 2000);
+  assert.deepEqual(again.counts, { options: 0, subCategories: 0, points: 0, formats: 0, templates: 0 });
+  const mine = planSetupLoad({ lists: { ...fresh.lists }, savedFormats: [{ id: 'm', category: 'Payments', subCategory: 'Invoice Payment', template: 'My own wording.' }], templates: [] }, file, 3000);
+  assert.equal(mine.formats.find((f) => f.subCategory === 'Invoice Payment').template, 'My own wording.', 'an existing format is not replaced');
+  assert.ok(planSetupLoad({}, 'nope').error);
+});
+
+test('attached PDFs / images and "Not required" round-trip; a task without them writes neither', () => {
+  const pdf = 'data:application/pdf;base64,JVBERi0xLjQK';
+  const t = fromDoc('f1', { description: 'x', status: 'Pending', files: [{ id: 'a', name: 'inv.pdf', type: 'application/pdf', size: 10, data: pdf }, { id: 'bad', name: 'x.exe', data: 'data:application/x-msdownload;base64,AAAA' }], filesNotRequired: false });
+  assert.equal(t.files.length, 1);
+  const out = toDoc(t, NOW);
+  assert.equal(out.files.length, 1);
+  assert.equal(out.files[0].data, pdf);
+  const nr = toDoc(fromDoc('f2', { description: 'x', status: 'Pending', filesNotRequired: true }), NOW);
+  assert.equal(nr.filesNotRequired, true);
+  const plain = toDoc(task({}), NOW);
+  ['files', 'filesNotRequired'].forEach((k) => assert.ok(!(k in plain), k));
+});
+test('the categories that need an attachment are read and written with the lists', () => {
+  const lists = readLists({ categories: ['Payments', 'Audit'], fileCategories: ['Payments'] });
+  assert.deepEqual(lists.fileCategories, ['Payments']);
+  assert.deepEqual(writeListsValue({ narrationTypes: ['n'] }, { ...lists, fileCategories: ['Audit'] }).fileCategories, ['Audit']);
 });

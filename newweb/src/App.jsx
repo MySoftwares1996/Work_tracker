@@ -5,9 +5,13 @@ import LoadingScreen from './LoadingScreen';
 import AlertCenter from './AlertCenter';
 import EmptyState, { SkeletonRows } from './EmptyState';
 import { PageHead, Chip, priTone, priDot } from './ui';
+import Onboarding from './Onboarding';
+import BackupReminder from './BackupReminder';
 import { toggleSelected, selectedRows, planBulkComplete, bulkCompleteNote, moveDueDate } from './bulk';
 
 import { copyText } from './clipboard';
+import { useCardsPerRow, gridProps, PerRow } from './cardsPerRow';
+import { refreshAll } from './refresh';
 import { weeklyReview, slipReason } from '../../src/weeklyReview.js';
 
 import { useStore } from './store';
@@ -39,6 +43,14 @@ export default function App() {
   useEffect(() => { const f = () => { const k = tabFromHash(); setTab(k); if (k !== tabRef.current) setPreset(null); tabRef.current = k; }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
   const go = (k, filter = null) => { tabRef.current = k; location.hash = k; setPreset(filter ? { ...filter, n: Date.now() } : null); setTab(k); window.scrollTo({ top: 0 }); };
 
+  // Hooks first: the early returns below (loading, sign-in) must never change how many hooks run.
+  const [refreshing, setRefreshing] = useState(false);
+  const doRefresh = async () => {
+    setRefreshing(true);
+    const r = store.demo ? 'demo' : await refreshAll().catch(() => 'offline');
+    store.notify(r === 'demo' ? 'Demo data - nothing to refresh' : r === 'reload' ? 'A new version is available - reloading' : r === 'synced' ? `Up to date - refreshed ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Could not reach the server - showing the last data received');
+    setTimeout(() => setRefreshing(false), 600);
+  };
   if (store.user === undefined) return <LoadingScreen stage="auth" full />;
   if (store.demo && location.search.includes('loading')) return <LoadingScreen stage="data" full />;      // ?demo&loading previews the loading screen
   if (!store.user) return <SignIn />;
@@ -73,14 +85,18 @@ export default function App() {
         </nav>
         <div className="who">
           {store.demo && <span className="pill demo">Demo data</span>}
+          {!store.demo && store.saving > 0 && <span className="pill demo" role="status">Saving...</span>}
+          {!store.demo && store.saving === 0 && store.justSaved && <span className="pill ok-pill" role="status">Saved</span>}
           {!store.demo && store.hasLoaded && !store.synced && <span className="pill demo" role="status" title="Offline: showing the last data received. Changes are sent when the connection returns.">Offline</span>}
           {!store.demo && <span className={`dot ${store.synced ? 'ok' : ''}`} title={store.synced ? `In sync${store.lastSyncAt ? ` - last update from the server ${new Date(store.lastSyncAt).toLocaleTimeString()}` : ''}` : store.hasLoaded ? 'Offline - showing the last data received' : 'Syncing...'} />}
+          <button type="button" className={`refresh-btn${refreshing ? ' spin' : ''}`} onClick={doRefresh} disabled={refreshing} aria-label="Refresh" title="Refresh: read the latest from the server and check for a new version"><Icon name="refresh" size={20} /></button>
           <span className="me" title={store.user.email || name}><i className="me-av" aria-hidden="true">{(name.trim().charAt(0) || '?').toUpperCase()}</i><span className="me-name">{name}</span></span>
         </div>
       </header>
       <main className="page">
         {store.error && <div className="banner err" role="alert">{store.error}</div>}
-        {!store.demo && store.slow && !store.hasLoaded && !store.error && <div className="banner err" role="status">Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.</div>}
+        <BackupReminder />
+        {!store.demo && store.slow && !store.hasLoaded && !store.error && <div className="banner err" role="status">{store.tasks.length ? 'Showing your saved tasks - the server has not answered yet. Check your internet connection; new changes are kept and sent when it does.' : 'Cannot reach the server yet - check your internet connection. Your tasks appear as soon as it answers; the numbers below may be incomplete until then.'}</div>}
         {booting && !['dashboard', 'register'].includes(tab) ? <LoadingScreen stage="data" /> : <Suspense fallback={<LoadingScreen stage="data" />}>{screens[tab]}</Suspense>}
       </main>
       {form && <Suspense fallback={null}><TaskForm initial={form} onClose={() => setForm(null)} /></Suspense>}
@@ -129,9 +145,17 @@ function Stat({ tone, label, value, loading, onClick }) {
 }
 
 function Dashboard({ onEdit, onNew, go }) {
-  const { tasks, actions, user } = useStore();
+  const store = useStore();
+  const { tasks, actions, user, lists } = store;
   const loading = useLoading();
   const [quick, setQuick] = useState('');
+  // The first-run guide: shown to an account that is new (no Category, no tasks) once everything has loaded, until it is closed or a task exists.
+  const [guide, setGuide] = useState(false);
+  useEffect(() => {
+    let seen = false;
+    try { seen = !!localStorage.getItem('wd-onboarded'); } catch { /* not remembered */ }
+    if (store.hasLoaded && store.metaReady && !lists.categories.length && !tasks.length && !seen && (!store.demo || location.search.includes('newaccount'))) setGuide(true);
+  }, [store.hasLoaded, store.metaReady]); // eslint-disable-line react-hooks/exhaustive-deps
   const now = useMinute();
   const s = useMemo(() => stats(tasks, now), [tasks, now]);
   const open = tasks.filter(isOpen);
@@ -148,6 +172,7 @@ function Dashboard({ onEdit, onNew, go }) {
   };
   const hour = now.getHours();
   const first = String((user && user.displayName) || '').trim().split(/\s+/)[0];
+  const monthName = (add) => new Date(now.getFullYear(), now.getMonth() + add, 1).toLocaleString([], { month: 'long' });
   const todayKey = dayKey(now);
   const doneTodayDar = tasks.filter((t) => t.done && !t.binned && !t.purged && t.completedAt && dayKey(t.completedAt) === todayKey && t.dar).length;
   const need = s.pendingAsOnToday;
@@ -155,11 +180,14 @@ function Dashboard({ onEdit, onNew, go }) {
   const pct = dayTotal ? Math.round((s.doneToday / dayTotal) * 100) : 0;
   return (
     <div className="dash">
-      <PageHead title={`Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}${first ? `, ${first}` : ''}`} sub={now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} onNew={onNew} />
-      <form className="quick" onSubmit={addQuick}>
-        <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Quick add a task and press Enter..." aria-label="Quick add" />
-        <button className="btn primary" disabled={!quick.trim()}>Add</button>
-      </form>
+      {guide && !tasks.length && <Onboarding go={go} onDone={() => { try { localStorage.setItem('wd-onboarded', '1'); } catch { /* not remembered */ } setGuide(false); }} />}
+      {/* Two lines in all: the top bar, then greeting + date, Quick add and New entry on one row. */}
+      <PageHead className="dash-head" title={`Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}${first ? `, ${first}` : ''}`} sub={now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} onNew={onNew}>
+        <form className="quick" onSubmit={addQuick}>
+          <input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder="Quick add a task and press Enter..." aria-label="Quick add" />
+          <button className="btn primary" disabled={!quick.trim()}>Add</button>
+        </form>
+      </PageHead>
       <section className="tiles" aria-label="Today at a glance">
         <div className="hero">
           <span className="hero-k">PENDING AS ON TODAY</span>
@@ -422,6 +450,7 @@ function Register({ onEdit, onNew, preset }) {
   useEffect(() => { if (preset) setF({ q: '', priority: '', category: '', subCategory: '', pendingWith: '', status: '', due: '', ...preset }); }, [preset]);
   const [by, setBy] = useState('due');
   const [view, setView] = useState('cards');
+  const [perRow, setPerRow] = useCardsPerRow('register');
   const open = tasks.filter(isOpen);
   const sorted = sortTasks(filterTasks(open, f), by);
   const { shown, more, showMore } = usePaged(sorted, JSON.stringify(f) + by);
@@ -457,13 +486,14 @@ function Register({ onEdit, onNew, preset }) {
         <>
           <select value={by} onChange={(e) => setBy(e.target.value)} aria-label="Sort">{Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>Sort: {v}</option>)}</select>
           <div className="seg" role="group" aria-label="View"><button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')} aria-pressed={view === 'cards'}>Cards</button><button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')} aria-pressed={view === 'table'}>Table</button></div>
+          {view === 'cards' && <PerRow value={perRow} onChange={setPerRow} />}
         </>
       )} />
       {loading && <SkeletonRows />}
       {!loading && !sorted.length && (filtered && open.length
         ? <Empty icon="search" title="Nothing matches" text="No open task fits these filters." action={{ label: 'Clear filters', onClick: clearFilters, primary: false }} />
         : <Empty icon="check" title="All clear" text="No open tasks. Enjoy the quiet - or add the next one." action={{ label: 'New entry', onClick: () => onEdit() }} />)}
-      {view === 'cards' ? <div className="grid">{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} selected={selected.has(t.id)} onSelect={select} selecting={selected.size > 0} />)}</div> : <Table rows={shown} onEdit={onEdit} selected={selected} onSelect={select} />}
+      {view === 'cards' ? <div {...gridProps(perRow)}>{shown.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} selected={selected.has(t.id)} onSelect={select} selecting={selected.size > 0} />)}</div> : <Table rows={shown} onEdit={onEdit} selected={selected} onSelect={select} />}
       <MoreButton more={more} onClick={showMore} />
       {picked.length > 0 && (
         <div className="bulk-bar" role="toolbar" aria-label="Actions for the selected tasks">
@@ -527,13 +557,14 @@ function Completed({ onEdit, onNew }) {
   const [f, setF] = useState({ q: '', priority: '', category: '', pendingWith: '' });
   const rows = filterTasks(tasks.filter((t) => t.done && !t.binned), f).sort((a, b) => (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0));
   const { shown, more, showMore } = usePaged(rows, JSON.stringify(f));
+  const [perRow, setPerRow] = useCardsPerRow('completed');
   return (
     <>
       <PageHead title="Completed" sub={`${rows.length} completed`} onNew={onNew} />
-      <Filters f={f} setF={setF} lists={lists} />
+      <Filters f={f} setF={setF} lists={lists} extra={<PerRow value={perRow} onChange={setPerRow} />} />
       {loading && <SkeletonRows />}
       {!loading && !rows.length && <Empty icon="check" title="Nothing completed yet" text="Tasks you mark done will be listed here." />}
-      <div className="grid">
+      <div {...gridProps(perRow)}>
         {shown.map((t) => (
           <article key={t.id} className="card task is-done">
             <button className="card-main" onClick={() => onEdit(t)}>
@@ -569,11 +600,13 @@ function Holidays({ onNew }) {
 function Bin({ onNew }) {
   const { tasks, actions } = useStore();
   const rows = tasks.filter((t) => t.binned).sort((a, b) => (b.binnedAt?.getTime() || 0) - (a.binnedAt?.getTime() || 0));
+  const [perRow, setPerRow] = useCardsPerRow('bin');
   return (
     <>
       <PageHead title="Bin" sub="Restore a task, or delete it forever (it then disappears on every device)." onNew={onNew} />
       {!rows.length && <Empty icon="bin" title="The bin is empty" text="Deleted tasks wait here until you restore them." />}
-      <div className="grid">
+      {rows.length > 1 && <div className="flt"><PerRow value={perRow} onChange={setPerRow} /></div>}
+      <div {...gridProps(perRow)}>
         {rows.map((t) => (
           <article key={t.id} className="card task">
             <div className="card-main"><span className="card-title">{t.title}</span><span className="card-meta">{t.category && <Chip>{t.category}</Chip>}{t.binnedAt && <Chip>Binned {t.binnedAt.toLocaleDateString([], { day: 'numeric', month: 'short' })}</Chip>}</span></div>
@@ -588,14 +621,16 @@ function Bin({ onNew }) {
 function Links({ onNew }) {
   const { links } = useStore();
   const folders = [...new Set(links.map((l) => l.folder))].sort();
+  const [perRow, setPerRow] = useCardsPerRow('links');
   return (
     <>
       <PageHead title="Links" sub={`${links.length} saved link${links.length === 1 ? '' : 's'}`} onNew={onNew} />
       {!links.length && <Empty icon="link" title="No links yet" text="Links saved on the old website appear here." />}
+      {links.length > 1 && <div className="flt"><PerRow value={perRow} onChange={setPerRow} /></div>}
       {folders.map((fo) => (
         <section key={fo || '-'}>
           {fo && <h2 className="h2">{fo}</h2>}
-          <div className="grid">{links.filter((l) => l.folder === fo).map((l) => <a key={l.id} className="card plain linkcard" href={l.url} target="_blank" rel="noopener noreferrer"><span className="card-title">{l.title}</span><span className="muted">{l.url.replace(/^https?:\/\//, '')}</span></a>)}</div>
+          <div {...gridProps(perRow)}>{links.filter((l) => l.folder === fo).map((l) => <a key={l.id} className="card plain linkcard" href={l.url} target="_blank" rel="noopener noreferrer"><span className="card-title">{l.title}</span><span className="muted">{l.url.replace(/^https?:\/\//, '')}</span></a>)}</div>
         </section>
       ))}
     </>

@@ -17,9 +17,9 @@ export async function run({ ck, section }) {
 
   section('Native bridge: realistic payloads');
   const queue = parseNative(JSON.stringify([
-    { id: '55', sender: 'VM-HDFCBK', body: 'Rs.850 debited', receivedAt: 1758300000000 },
-    { id: '56', sender: 'AD-ICICIB', body: 'INR 75000 credited', receivedAt: 1758300600000 },
+    { id: '55', sender: 'VM-BANKAB', body: 'Rs.850 debited', receivedAt: 1758300000000 },
+    { id: '56', sender: 'AD-BANKBB', body: 'INR 75000 credited', receivedAt: 1758300600000 },
   ]), []);
-  ck('queue round trips', queue.length === 2 && queue[1].sender === 'AD-ICICIB');
+  ck('queue round trips', queue.length === 2 && queue[1].sender === 'AD-BANKBB');
   ck('timestamps survive as numbers', typeof queue[0].receivedAt === 'number');
 }

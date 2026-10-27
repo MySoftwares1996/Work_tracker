@@ -1,4 +1,4 @@
-import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, docHashes, paymentListsToSend, keepPhonePaymentLists, stampListsEdit, encodeLists } from '../../src/firebaseSyncCore.js';
+import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, listsOnReceive, mergeEntryFieldwise, docHashes } from '../../src/firebaseSyncCore.js';
 
 export async function run({ ck, section }) {
   const e = (id, updatedAt) => ({ id, title: `t${id}`, updatedAt });
@@ -174,8 +174,8 @@ export async function runExtra2({ ck, section }) {
     const min = 60000;
     ck('web app open, note a minute old, used 2 minutes ago: in use for about 2 more minutes', webActiveUntil({ webActiveAt: now - min, lastInputAt: now - 2 * min }, now) === now - min + WEB_HEARTBEAT_MS);
     ck('note older than 3 minutes (closed, asleep, offline): not in use - the phone rings', webActiveUntil({ webActiveAt: now - 4 * min, lastInputAt: now - 4 * min }, now) === 0);
-    ck('open but nobody used it for 15 minutes (left open on an empty desk): not in use', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 16 * min }, now) === 0);
-    ck('used 14 minutes ago: in use until the 15 minutes run out', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 14 * min }, now) === now - 14 * min + WEB_IDLE_MS);
+    ck('open but nobody used it for 45 minutes (left open on an empty desk): not in use', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 46 * min }, now) === 0);
+    ck('used 44 minutes ago: in use until the 45 minutes run out', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 44 * min }, now) === now - 44 * min + WEB_IDLE_MS);
     ck('the idle time can be set: 12 minutes since the last input is idle with a 10 minute limit', webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 12 * 60000 }, now, { idleMs: 10 * 60000 }) === 0 && webActiveUntil({ webActiveAt: now - 30000, lastInputAt: now - 12 * 60000 }, now, { idleMs: 30 * 60000 }) > now);
     ck('closed (webActiveAt 0), or no note at all: not in use', webActiveUntil({ webActiveAt: 0, lastInputAt: now }, now) === 0 && webActiveUntil(null, now) === 0);
     ck('a computer clock far ahead cannot keep the phone quiet for long', webActiveUntil({ webActiveAt: now + 60 * min, lastInputAt: now + 60 * min }, now) === now + WEB_HEARTBEAT_MS);
@@ -318,16 +318,48 @@ export async function runExtra3({ ck, section }) {
   const prunedSame = cp([['MPT_X', 'bad']], pruned.seen, 100, 3, [...old2.slice(2, 4), 'MPT_CORRUPT_MPT_X_99']);
   ck('a later launch with the same damage leaves it at 3', !prunedSame.writes.length && !prunedSame.drop.length);
 
-  section('Firebase Sync Core: the Sub Category lists are sent only after a phone edit of them');
-  const subs = [{ id: 's1', name: 'EPFO', fields: [] }];
-  const stale = { categories: ['Payments'], subCategories: [], listsUpdatedAt: 500 };
-  ck('a category edit on the phone does not send its (stale, empty) Sub Categories', paymentListsToSend({ ...stale, ...stampListsEdit({ categories: ['Payments', 'Bank'] }, 900) }) === undefined);
-  ck('...so the lists written carry no subCategories and the website keeps its own', !('subCategories' in encodeLists([['Payments', 'Bank'], [], [], []], 'named', paymentListsToSend({ ...stale, listsUpdatedAt: 900 }))));
-  const edited = { ...stale, ...stampListsEdit({ subCategories: subs }, 900) };
-  ck('a Sub Category edit on the phone is stamped and sent', edited.paymentListsAt === 900 && edited.listsUpdatedAt === 900 && paymentListsToSend(edited).subCategories === subs);
-  ck('...once sent, it is not sent again with later category edits', paymentListsToSend({ ...edited, paymentListsSentAt: 900, ...stampListsEdit({ categories: ['X'] }, 950) }) === undefined);
-  ck('the website\'s Sub Categories are taken even when a phone category edit is newer', !keepPhonePaymentLists({ listsUpdatedAt: 2000, paymentListsAt: 0 }, 1000));
-  ck('...and when the phone\'s own Sub Category edit was already sent', !keepPhonePaymentLists({ paymentListsAt: 2000, paymentListsSentAt: 2000 }, 1000));
-  ck('an unsent phone Sub Category edit newer than the arriving copy is kept (it is sent next)', keepPhonePaymentLists({ paymentListsAt: 2000, paymentListsSentAt: 0 }, 1000));
-  ck('...but an arriving copy written after it wins', !keepPhonePaymentLists({ paymentListsAt: 2000, paymentListsSentAt: 0 }, 3000));
+  section('Firebase Sync Core: field-wise merge of a web document over an unsent local edit');
+  const base = { id: 'x', description: 'Pay vendor', dueDate: '2026-10-20', status: 'Pending', assignee: 'Ravi', updatedAt: 100 };
+  const snap = docHashes(base);
+  const m = (loc, inc, ls = 200, ds = 150, sn = snap) => mergeEntryFieldwise(loc, inc, sn, ls, ds);
+  let r = m({ ...base, status: 'Done' }, { ...base, updatedAt: 150 });
+  ck('only the phone changed: the phone value is kept', r.doc.status === 'Done' && r.localFields.join() === 'status');
+  r = m({ ...base }, { ...base, dueDate: '2026-10-25', updatedAt: 150 });
+  ck('only the server changed: the server value is taken', r.doc.dueDate === '2026-10-25' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, dueDate: '2026-10-25', updatedAt: 150 }, 100, 150);
+  ck('different fields: both edits survive, even though the web stamp is newer', r.doc.status === 'Done' && r.doc.dueDate === '2026-10-25');
+  ck('the stamp comes from the incoming document', r.doc.updatedAt === 150 && r.doc.id === 'x');
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 200, 150);
+  ck('same field changed on both, phone newer: the phone wins', r.doc.status === 'Done' && r.localFields.includes('status'));
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 100, 150);
+  ck('same field changed on both, web newer: the web wins', r.doc.status === 'Blocked' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Done', updatedAt: 150 }, 100, 150);
+  ck('both changed to the same value: nothing is flagged', r.doc.status === 'Done' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, 150, 150);
+  ck('an equal stamp goes to the web copy, as before', r.doc.status === 'Blocked');
+  r = m({ ...base, status: 'Done' }, { ...base, purged: true, updatedAt: 150 });
+  ck('purged on the server always wins', r.doc.purged === true && r.doc.status === 'Pending' && !r.localFields.length);
+  r = m({ ...base, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 });
+  ck('binned on the server wins over a phone edit', r.doc.deleted === true && r.doc.status === 'Pending');
+  r = m({ ...base, deleted: true, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 });
+  ck('a bin the server already had (snapshot) does not override the phone', true);
+  const bs = docHashes({ ...base, deleted: true });
+  r = mergeEntryFieldwise({ ...base, deleted: false, status: 'Done' }, { ...base, deleted: true, updatedAt: 150 }, bs, 200, 150);
+  ck('a bin already in the snapshot is an ordinary field (phone restored it, newer)', r.doc.deleted === false && r.doc.status === 'Done');
+  r = m({ ...base, status: 'Done' }, { ...base, updatedAt: 150, note: 'new' });
+  ck('a field only the server added is taken', r.doc.note === 'new' && r.doc.status === 'Done');
+  r = m({ ...base, note: 'mine' }, { ...base, updatedAt: 150 });
+  ck('a field only the phone added is kept', r.doc.note === 'mine');
+  r = mergeEntryFieldwise({ ...base, status: 'Done' }, { ...base, status: 'Blocked', updatedAt: 150 }, null, 200, 150);
+  ck('no snapshot, phone newer: the phone copy as it was', r.doc.status === 'Done' && r.doc === r.doc && r.doc.dueDate === base.dueDate);
+  r = mergeEntryFieldwise({ ...base, status: 'Done', extra: 1 }, { ...base, status: 'Blocked', updatedAt: 150 }, null, 100, 150);
+  ck('no snapshot, web newer: the document laid over the phone copy', r.doc.status === 'Blocked' && r.doc.extra === 1);
+  const withLog = docHashes({ ...base, workLog: [{ a: 1 }] });
+  r = mergeEntryFieldwise({ ...base, status: 'Done' }, { ...base, workLog: [{ a: 1 }, { a: 2 }], updatedAt: 150 }, withLog, 200, 150);
+  ck('a field the phone does not write (the website\'s work log) is taken from the server, not lost to the phone\'s newer edit', r.doc.status === 'Done' && r.doc.workLog.length === 2);
+  const fsSrc = (await import('fs')).readFileSync('src/firebaseSync.js', 'utf8');
+  const rtSrc = (await import('fs')).readFileSync('src/RealtimeSync.js', 'utf8');
+  ck('the listener reads what the phone last saw before the snapshot is overwritten, and hands it on', fsSrc.indexOf('prevHashes[id] = s[id]') > 0 && fsSrc.indexOf('prevHashes[id] = s[id]') < fsSrc.indexOf('next[id] = docHashes(d)') && fsSrc.includes('onRemoteChange({ remote: { incoming, removedIds, prevHashes } })'));
+  ck('an arriving web copy over an unsent phone edit is merged field by field, with the whole-entry rule as the fallback', rtSrc.includes('mergeEntryFieldwise(toWebTask(local), d, prev[String(d.id)], local.localEditAt, docStamp)') && rtSrc.includes('the whole-entry rule below'));
+  ck('missing / {} snapshot never throws', mergeEntryFieldwise({ id: 'x' }, { id: 'x' }, undefined, 0, 0).doc.id === 'x');
 }

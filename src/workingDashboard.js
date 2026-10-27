@@ -751,7 +751,7 @@ export function alertModeOf(entry, alerts = DEFAULT_ALERTS) {
 
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /**
- * A bank follow-up's last follow-up for its alarm: "Last (5 Oct, Mr. Rao, SBI): Awaiting SWIFT copy"; '' for any other
+ * A bank follow-up's last follow-up for its alarm: "Last (5 Oct, Banker A, Bank C): Awaiting SWIFT copy"; '' for any other
  * task or none yet. (bankFollowUp.js holds the rest of the follow-up rules; it imports this file, so not used here.)
  */
 export function lastFollowUpLine(entry) {

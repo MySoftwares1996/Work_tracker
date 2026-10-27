@@ -6,7 +6,7 @@ import { display } from '../fonts';
 import { clearPin } from '../appLock';
 import { buildBackupExport, backupExportName, backupExportText } from '../backupExport';
 import { downloadText } from '../links';
-import { updateStatus, checkForPhoneUpdate } from '../updateStatus';
+import { updateStatus, checkForPhoneUpdateResult, restartApp } from '../updateStatus';
 
 // The More tab (phone layout): the dark profile card, Manage / Settings groups and the App updates card.
 export default function WdMoreTab({ googleUser, waiting, realtimeError, binnedEntries, setTab, wd, data, update }) {
@@ -60,7 +60,12 @@ export default function WdMoreTab({ googleUser, waiting, realtimeError, binnedEn
       {(() => {
         // The phone's own updates: whether this build can receive them, which version is running, and a button to look now (always here).
         const u = updateStatus();
-        const check = async () => Alert.alert('App updates', await checkForPhoneUpdate());
+        const check = async () => {
+          const r = await checkForPhoneUpdateResult();
+          // A new version waiting: the restart is offered right here.
+          if (r.downloaded) Alert.alert('App updates', `${r.text} Restart to use it.`, [{ text: 'Later', style: 'cancel' }, { text: 'Restart now', onPress: restartApp }]);
+          else Alert.alert('App updates', r.text);
+        };
         return (
           <View>
             <View style={{ backgroundColor: t.surface, borderWidth: 1, borderColor: t.border, borderRadius: t.radius, paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

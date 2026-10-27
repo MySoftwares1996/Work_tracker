@@ -6,7 +6,7 @@
  */
 export const EXPORT_APP = 'Working_Dashboard_Export';
 export const EXPORT_VERSION = 1;
-const LIST_KEYS = ['categories', 'priorities', 'statuses', 'pendingWith', 'subCategories', 'subCategoryCategories', 'narrationTypes', 'darPaymentIntro', 'reminderCategories'];
+const LIST_KEYS = ['categories', 'priorities', 'statuses', 'pendingWith', 'subCategories', 'subCategoryCategories', 'narrationTypes', 'darPaymentIntro', 'reminderCategories', 'fileCategories'];
 
 export function buildBackupExport({ entries = [], lists = {}, links = [], templates = [], reportFormats = [], holidays = [], leaveDays = [], source = '' } = {}, now = new Date()) {
   const wd = { entries: (Array.isArray(entries) ? entries : []).filter((e) => e && e.id && e.purged !== true) };

@@ -3,7 +3,7 @@
  * site's tasks. Sections, in order: Other work completed, Payments (Tally narration lines), Followed up / in progress, Routine daily
  * activities, Other activities. Domestic and Urgent payments are left out, as there.
  */
-import { applyFormats, applyMoves, addSubFields, REPORT_GROUPS } from '../../src/reportExtras.js';
+import { applyFormats, applyMoves, addSubFields, categorySummary, REPORT_GROUPS } from '../../src/reportExtras.js';
 import { buildReportModel, reportModelToText, mergeAiReport, verifyAiRewrite, reportCsvRows, reportHtml } from '../../src/workingDashboardReport.js';
 import { buildStylePrompt } from '../../src/reportStyle.js';
 import { paymentLists, withWebNarrationTypes } from '../../src/workingDashboardPayments.js';
@@ -36,7 +36,7 @@ const dateKeys = (list) => (Array.isArray(list) ? list.map((x) => (typeof x === 
 export function buildReport(tasks, lists, calendar, date, { headings = true, subFields = true, formats = [], moves = {} } = {}) {
   const entries = (tasks || []).map(toEntry);
   const model = buildReportModel({
-    entries, date, lists: reportLists(lists), details: true, paymentIntro: lists && lists.darPaymentIntro,
+    entries, date, lists: reportLists(lists), details: true, reportPoints: lists && lists.darPaymentIntro,
     holidays: (calendar && calendar.holidays) || [], leaveDays: dateKeys(calendar && calendar.leaveDays),
   });
   applyFormats(model, formats, lists);
@@ -60,4 +60,4 @@ export function mergeAi(model, aiText, { headings = true } = {}) {
   return { text: String(aiText).trim(), note: 'Gemini wrote the report.' };
 }
 
-export { REPORT_GROUPS, reportCsvRows, reportHtml };
+export { REPORT_GROUPS, categorySummary, reportCsvRows, reportHtml };

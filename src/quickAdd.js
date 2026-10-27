@@ -1,5 +1,5 @@
 /**
- * Quick add: "Pay ICICI invoice tomorrow 5pm high with Rahul" -> title, due date and time, priority, category, person.
+ * Quick add: "Pay Bank B invoice tomorrow 5pm high with Person A" -> title, due date and time, priority, category, person.
  * Pure (no React): the dashboard's quick-add bar and the finder both use it, then open the New Entry form pre-filled so
  * nothing is saved without a look. Whatever it cannot read stays in the title.
  */
@@ -29,7 +29,7 @@ export function parseQuickAdd(input, { now = new Date(), categories = [], assign
   else if (take(/\s(?:medium|normal)(?:\s+priority)?(?=\s)/i, () => { out.priority = 'Medium'; })) { /* done */ }
   else take(/\slow(?:\s+priority)?(?=\s)/i, () => { out.priority = 'Low'; });
 
-  // Person: "with Rahul", "pending with Rahul", "@Rahul" - only a name already in the list.
+  // Person: "with Person A", "pending with Person A", "@Person A" - only a name already in the list.
   for (const name of assignees) {
     if (!name) continue;
     if (take(new RegExp(`\\s(?:pending\\s+with|with|@)\\s*${esc(name)}(?=\\s)`, 'i'), () => { out.pendingWith = name; })) break;
@@ -106,7 +106,7 @@ export function parseQuickAdd(input, { now = new Date(), categories = [], assign
   return out;
 }
 
-/** A short readable summary of what was understood: "High · Tomorrow 5:00 PM · Payments · with Rahul". */
+/** A short readable summary of what was understood: "High · Tomorrow 5:00 PM · Payments · with Person A". */
 export function describeQuickAdd(p, now = new Date()) {
   const bits = [];
   if (p.priority) bits.push(p.priority);

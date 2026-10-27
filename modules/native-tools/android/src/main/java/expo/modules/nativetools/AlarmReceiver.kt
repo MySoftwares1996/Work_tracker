@@ -30,20 +30,20 @@ class AlarmReceiver : BroadcastReceiver() {
     val body = intent.getStringExtra(AlarmRingingActivity.EXTRA_BODY) ?: ""
     AlarmStore.forget(context, taskId)        // rung: nothing to restore after a reboot
 
-    // A Working Dashboard alert (a task's, or a walk / water reminder) while the web app is in use: the web app
-    // alerts at the desk, so the phone only shows a quiet notification - no ring, no full screen (and nothing at all
-    // for a task already answered on the web app). Outside that window (or when it cannot tell) it rings full screen.
+    // A Working Dashboard alert (a task's, or a walk / water reminder) while the web app is in use (used in the last 45
+    // minutes): the web app alerts at the desk, so the phone shows nothing - no alarm, no notification (and nothing at
+    // all for a task already answered on the web app). Outside that window (or when it cannot tell) it rings full screen.
     val isAlert = taskId.startsWith("wd:") || taskId.startsWith("nudge:")
-    if (isAlert && AlarmStore.webInUse(context)) { postQuiet(context, taskId, title, body); return }
+    if (isAlert && AlarmStore.webInUse(context)) { AlarmStore.logSkip(context, title, "The website was in use"); return }
     if (isAlert && WebPresence.enabled(context)) {
       // The app may not have run for hours, so what it last passed on is stale: ask Firestore now. Off the main
       // thread, a few seconds at most (goAsync keeps the receiver alive); unknown = ring.
       val pending = goAsync()
       Thread {
         try {
-          // Quiet while the web app is in use, and for a task already answered on the web app (booked here before).
-          if (WebPresence.taskHandled(context, taskId)) { /* answered on the web app: nothing to show */ }
-          else if (WebPresence.inUseNow(context)) postQuiet(context, taskId, title, body)
+          // Silent while the web app is in use, and for a task already answered on the web app (booked here before).
+          if (WebPresence.taskHandled(context, taskId)) AlarmStore.logSkip(context, title, "Already answered on the website")      // nothing to show
+          else if (WebPresence.inUseNow(context)) AlarmStore.logSkip(context, title, "The website was in use")      // it alerts at the desk, the phone shows nothing
           else ring(context, taskId, title, body)
         } catch (_: Throwable) {
           ring(context, taskId, title, body)
@@ -65,7 +65,6 @@ class AlarmReceiver : BroadcastReceiver() {
 
   companion object {
     private const val CHANNEL_ID = "mpt_full_screen_alarms"
-    private const val QUIET_CHANNEL_ID = "mpt_wd_quiet_v2"
 
     /** The plain full-screen-intent notification: rings via AlarmRingingActivity when locked, a banner otherwise. */
     fun postFallback(context: Context, taskId: String, title: String, body: String) {
@@ -108,35 +107,6 @@ class AlarmReceiver : BroadcastReceiver() {
       .addAction(0, "Done", donePendingIntent)
       .setAutoCancel(true)
 
-    nm.notify(taskId.hashCode(), builder.build())
-  }
-
-  /** A plain notification (no ringing, no full screen); tapping it opens the app. */
-  private fun postQuiet(context: Context, taskId: String, title: String, body: String) {
-    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(QUIET_CHANNEL_ID) == null) {
-      nm.createNotificationChannel(
-        NotificationChannel(QUIET_CHANNEL_ID, "Task alerts while the web app is in use", NotificationManager.IMPORTANCE_LOW).apply {
-          setSound(null, null)
-          enableVibration(false)
-          description = "Working Dashboard alerts shown quietly because the web app is open and in use."
-        }
-      )
-    }
-    val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or
-      (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
-    val open = (context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent()).apply {
-      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-    }
-    val openPi = PendingIntent.getActivity(context, taskId.hashCode() xor 2, open, piFlags)
-    @Suppress("DEPRECATION")
-    val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(context, QUIET_CHANNEL_ID) else Notification.Builder(context)
-    builder
-      .setContentTitle(title)
-      .setContentText(if (body.isEmpty()) "Due now - the web app is in use, so the phone did not ring." else body)
-      .setSmallIcon(context.applicationInfo.icon)
-      .setContentIntent(openPi)
-      .setAutoCancel(true)
     nm.notify(taskId.hashCode(), builder.build())
   }
 

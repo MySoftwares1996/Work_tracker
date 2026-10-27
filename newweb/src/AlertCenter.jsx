@@ -6,7 +6,7 @@ import ClockPicker from './ClockPicker';
 import { SNOOZES, followUpPicks, isBankFollowUp, addFollowUp, subCategoryMissing, findSubCategory, subCategoriesFor, alertHeading, categoryAsksReminder, dayKey, moveTask, pad, pendingAlerts, upcomingWarnings, dueResponse, reminderFrom, timeLabel, RECURRENCES, dueLabel, DONE_STATUS } from './data';
 import { finalNarration } from './reportFormats';
 import NotifyExplainer from './NotifyExplainer';
-import { loadAlertSettings, saveAlertSettings, loadHandled, playAlertSound, saveHandled, shouldOfferExplainer, showNotification } from './alerts';
+import { loadAlertSettings, saveAlertSettings, snoozeFor, loadHandled, playAlertSound, saveHandled, shouldOfferExplainer, showNotification } from './alerts';
 
 const soon = () => { const d = new Date(Date.now() + 15 * 60000); d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0); return d; };
 const withRemark = (t, text) => {
@@ -104,7 +104,7 @@ function AlertCard({ a, count, lists, actions, finish, onOpen, notify }) {
   const t = a.task;
   const today = dayKey(new Date());
   const [remarks, setRemarks] = useState('');
-  const [snooze, setSnooze] = useState(15);
+  const [snooze, setSnooze] = useState(() => snoozeFor(t.priority));      // per priority: Config > Alerts
   const start = useMemo(soon, []);
   const [date, setDate] = useState(dayKey(start));
   const [time, setTime] = useState(`${pad(start.getHours())}:${pad(start.getMinutes())}`);

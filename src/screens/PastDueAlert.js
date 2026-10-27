@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, TextInput, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Btn, Row, Sheet, Choices, DateTimeField, PickerButton } from '../ui';
+import { Btn, Row, Sheet, Choices, DateTimeField, PickerButton, softLayout } from '../ui';
 import Icon from '../icons';
 import { display } from '../fonts';
 import { useTheme, ALARM_COLORS } from '../theme';
@@ -78,7 +78,7 @@ export default function PastDueAlert() {
     () => (focusAlarm ? new Set(ringingEntries(wd.entries || [], focusAlarm, new Date(), alerts).map((e) => String(e.id))) : null),
     [focusAlarm],   // eslint-disable-line react-hooks/exhaustive-deps -- fixed when the alarm opened the screen
   );
-  const sample = useMemo(() => ({ ...blankEntry(), id: 'preview', title: 'Pay vendor invoice - ICICI Bank follow-up', category: 'Payments', priority: samplePrio === 'None' ? null : samplePrio, status: 'Pending', pendingWith: 'Self', reference: 'RE: Invoice INV/2026/118 - payment advice', dueAt: new Date(Date.now() - 20 * 60000).toISOString() }), [samplePrio]);
+  const sample = useMemo(() => ({ ...blankEntry(), id: 'preview', title: 'Pay vendor invoice - Bank B Bank follow-up', category: 'Payments', priority: samplePrio === 'None' ? null : samplePrio, status: 'Pending', pendingWith: 'Self', reference: 'RE: Invoice INV/2026/118 - payment advice', dueAt: new Date(Date.now() - 20 * 60000).toISOString() }), [samplePrio]);
   // A warning before the due time ("Due in 1 hour", deadline tomorrow) opens this screen too: its task is shown with the same
   // options, not sent to the dashboard. Only the task that rang is added; a done, binned, snoozed or silenced one is not.
   const warned = useMemo(() => {
@@ -132,7 +132,7 @@ export default function PastDueAlert() {
 
   const closed = useMemo(() => list.map((e) => ({ e, c: closedOn(e, wd.holidays, wd.leaveDays) })), [list, wd.holidays, wd.leaveDays]);
   const closedList = closed.filter((x) => x.c);
-  const hide = (id) => { if (!preview) setGone((s) => new Set([...s, id])); };      // the preview's sample stays
+  const hide = (id) => { if (!preview) { softLayout(); setGone((s) => new Set([...s, id])); } };      // the preview's sample stays
   const edit = (id, fn) => update((db) => ({ ...db, workingDashboard: { ...db.workingDashboard, entries: db.workingDashboard.entries.map((x) => (x.id === id ? fn(x) : x)) } }));
   const live = (e) => (wd.entries || []).find((x) => x.id === e.id) || e;
 
@@ -184,6 +184,22 @@ export default function PastDueAlert() {
     fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
     fx.stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('PastDueAlert'));
     if (new Date(iso) > new Date()) hide(e.id);
+  };
+  // "Set reminder" (categories that ask for a next reminder): saved on the task with a fresh edit stamp (so it reaches the web app and is not
+  // overwritten by its older copy), booked as an alert, the ringing stopped, and the alert closed - as when a task is moved to a later time.
+  const setReminder = (shown) => {
+    const e = live(shown);
+    const picked = nextRem[e.id] !== undefined ? nextRem[e.id] : e.nextReminderAt;
+    if (!picked) { Alert.alert('Pick the reminder date and time first'); return; }
+    const when = new Date(picked);
+    if (Number.isNaN(when.getTime()) || when <= new Date()) { Alert.alert('Pick a time that is still ahead', 'The next reminder has to be later than now.'); return; }
+    const next = { ...withRemark(e, remarks[e.id]), nextReminderAt: when.toISOString(), audit: addAudit(e.audit, 'Next reminder set (alert)', 'phone'), ...editedNow() };
+    edit(e.id, () => next);
+    fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert'));
+    fx.stopAlarmRinging(`wd:${e.id}:`).catch(warnQuiet('PastDueAlert'));
+    setNextRem((m) => { const rest = { ...m }; delete rest[e.id]; return rest; });
+    hide(e.id);
+    Alert.alert('Reminder set', `You will be reminded on ${when.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.`);
   };
   // 🔔 Alarm / 🔕 Reminder for this task, as on its card: a Reminder stops ringing and is not nagged again.
   const switchMode = (shown) => {
@@ -315,7 +331,7 @@ export default function PastDueAlert() {
                     <Text style={lab}>NEXT REMINDER</Text>
                     <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 10 }}>
                       <DateTimeField clearable value={nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt} onChange={(v) => setNextRem((m) => ({ ...m, [e.id]: v || '' }))} />
-                      <Btn title="Set reminder" onPress={() => { const iso = nextRem[e.id] !== undefined ? nextRem[e.id] : entry.nextReminderAt; const next = { ...live(entry), nextReminderAt: iso || null }; edit(e.id, () => next); fx.scheduleEntryAlert(next, ring, wd.alerts).catch(warnQuiet('scheduleEntryAlert')); }} />
+                      <Btn title="Set reminder" onPress={() => setReminder(entry)} />
                     </View>
                   </View>
                 )}

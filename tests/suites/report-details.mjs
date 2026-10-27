@@ -43,7 +43,7 @@ export async function run({ ck, section }) {
   ck('an office-closed holiday drops them', fixed({ date: '2026-10-07', holidays: [{ date: '2026-10-07', tag: 'Indian' }] }) === 0);
   ck('a Sunday drops them', fixed({ date: '2026-10-04' }) === 0);
   // 2. a follow-up is judged as of the report date
-  const fu = { ...blankEntry(), id: 'fu', title: 'LC with SBI', category: "Bank Follow Up's", status: 'In-Progress', dueAt: new Date(2026, 9, 12, 10).toISOString(),
+  const fu = { ...blankEntry(), id: 'fu', title: 'LC with Bank C', category: "Bank Follow Up's", status: 'In-Progress', dueAt: new Date(2026, 9, 12, 10).toISOString(),
     bankFollowUps: [{ d: '2026-10-05', at: new Date(2026, 9, 5, 11).toISOString(), remarks: 'Under review', next: new Date(2026, 9, 9, 10).toISOString() }],
     workLog: [{ d: '2026-10-05', s: 'Followed up' }] };
   const fuDone = { ...fu, done: true, status: 'Completed', completedAt: new Date(2026, 9, 9, 12).toISOString() };

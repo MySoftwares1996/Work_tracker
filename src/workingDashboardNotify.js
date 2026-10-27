@@ -82,9 +82,8 @@ const notifyFor = (entry, item, ringtone, alerts) => ({
 function stillWanted(ctx) { if (ctx && ctx.cancelled) throw new Error('alert job was abandoned after a timeout'); }
 
 /**
- * Books a list of { e, item } soonest first. An Alarm task's due moment, deadline, overdue and follow-up alerts open the
- * full-screen alarm; a Reminder task ("Reminder only", item.alarm false) is a notification only and never rings, and the
- * warnings before the due time ("Due in 1 hr") are always a notification only.
+ * Books a list of { e, item } soonest first. The due moment, deadline, overdue and follow-up alerts open the full-screen
+ * alarm (Alarm and Reminder tasks alike); the warnings before them ("Due in 1 hr") are always a notification only.
  * A notification also stands in without the native module, or if Android refuses the alarm. The batch is already capped (MAX_ENTRY_ALERTS); later alerts are booked as these pass.
  */
 async function book(jobs, ringtone, alerts, ctx = null) {
@@ -97,9 +96,9 @@ async function book(jobs, ringtone, alerts, ctx = null) {
     stillWanted(ctx);
     // The full-screen alarm rings by itself and carries its own Done / Snooze; a notification at the
     // same moment would only ring twice. Without the native module (or past the cap) it is the notification.
-    // A warning before the due time ("Due in 1 hr") is a notification only, for every task, and so is every alert of a
-    // Reminder task; an Alarm task's due moment, deadline and follow-ups are the alarm.
-    const noteOnly = isWarningKey(item.key) || !item.alarm;
+    // A warning before the due time ("Due in 1 hr") is a notification only, for every task; the due moment, deadline
+    // and follow-ups are the alarm.
+    const noteOnly = isWarningKey(item.key);
     if (native && !noteOnly) {
       const ok = await scheduleFullScreenAlarm(wdAlarmId(e.id, item.key), item.at, item.title, item.body).catch(() => false);
       if (ok) continue;

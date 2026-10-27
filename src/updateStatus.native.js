@@ -18,14 +18,21 @@ export function updateStatus() {
   }
 }
 
-/** Looks for an update now and downloads it. Resolves a sentence for the person; reloads nothing by itself. */
-export async function checkForPhoneUpdate() {
-  if (!Updates.isEnabled) return 'This build cannot receive updates. It was made without the update settings, so a new APK build is needed (docs/PHONE_UPDATES.md).';
+/** Looks for an update now and downloads it: { text, downloaded } - a sentence for the person, and whether a new version is waiting to be started. */
+export async function checkForPhoneUpdateResult() {
+  if (!Updates.isEnabled) return { text: 'This build cannot receive updates. It was made without the update settings, so a new APK build is needed (docs/PHONE_UPDATES.md).', downloaded: false };
   try {
     const res = await Updates.checkForUpdateAsync();
-    if (res && res.isAvailable) { await Updates.fetchUpdateAsync(); return 'A new version was downloaded. Tap Restart in the bar at the bottom, or close and open the app.'; }
-    return 'The app is up to date.';
+    if (res && res.isAvailable) { await Updates.fetchUpdateAsync(); return { text: 'A new version was downloaded.', downloaded: true }; }
+    // Downloaded earlier (by the automatic check) and not started yet: it is still waiting for a restart.
+    if (Updates.isUpdatePending) return { text: 'A new version is ready.', downloaded: true };
+    return { text: 'The app is up to date.', downloaded: false };
   } catch (e) {
-    return `Could not check for an update: ${e && e.message ? e.message : 'no connection?'}`;
+    return { text: `Could not check for an update: ${e && e.message ? e.message : 'no connection?'}`, downloaded: false };
   }
+}
+
+/** Starts the downloaded version now (the app restarts). */
+export async function restartApp() {
+  try { await Updates.reloadAsync(); } catch { /* the bar at the bottom or reopening the app still works */ }
 }

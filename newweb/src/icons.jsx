@@ -1,6 +1,7 @@
 /** Line icons (24px grid, 2px stroke) used by the screens instead of emoji. `Icon name="check" size={16}`. */
 const PATHS = {
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  refresh: <path d="M20 11a8 8 0 0 0-14-4.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4.5L20 15M20 20v-5h-5" />,
   x: <path d="m6 6 12 12M18 6 6 18" />,
   plus: <path d="M12 5v14M5 12h14" />,
   chevL: <path d="m15 6-6 6 6 6" />,
@@ -24,6 +25,7 @@ const PATHS = {
   inbox: <><path d="M21 12h-5l-1.5 2.5h-5L8 12H3" /><path d="M5.5 5.5 3 12v5.5A1.5 1.5 0 0 0 4.5 19h15a1.5 1.5 0 0 0 1.5-1.5V12l-2.5-6.5A1.5 1.5 0 0 0 17.1 4.5H6.9a1.5 1.5 0 0 0-1.4 1z" /></>,
   link: <><path d="M10 13.5a4 4 0 0 0 5.7.3l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.1 1.1" /><path d="M14 10.5a4 4 0 0 0-5.7-.3l-2.8 2.8a4 4 0 0 0 5.7 5.7l1.1-1.1" /></>,
   circleCheck: <><circle cx="12" cy="12" r="9" /><path d="m8 12.5 3 3 5-6" /></>,
+  paperclip: <path d="m20 11.5-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8" />,
   pencil: <path d="m5 19 1-4 9.5-9.5 3 3L9 18zM13.5 7.5l3 3" />,
 };
 

@@ -22,11 +22,11 @@ The owner names the target of each change with one of these. Apply it there and 
 
 Several sessions have changed the alert code; check this list before changing it, and update it when it changes.
 
-- The due moment, deadline, overdue and follow-up alerts of an Alarm task are booked on the phone as full-screen alarms,
-  `wd:<entry id>:<key>`; a Reminder task ("Reminder only" on the alert, 🔕 on the card, `alertMode: 'gentle'`) gets notifications only and never rings (`book()` in `src/workingDashboardNotify.js`, the owner's request); the warnings before them (`isWarningKey`: "Due in 1 hr", "Due tomorrow", "Deadline in 2 hr") are always a notification only - on the website too, where they open no alarm window (`src/WebAlarm.js`); the owner asked for this for every task, so there is no setting to make them ring (`src/workingDashboardNotify.js`, native `AlarmReceiver`). Walk / water nudges are `nudge:`.
-- Web in use = phone silent: web.app writes an "in use" note while the tab is open and used (`src/RealtimeSync.js`);
-  the phone shows only a quiet notification for task alerts while it is fresh (3 min; was nothing before the next APK build) and the tab had input in the last 15 min
-  (`webActiveUntil` in `src/firebaseSyncCore.js`, native `WebPresence.kt`). Unknown = it rings.
+- The due moment, deadline, overdue and follow-up alerts are booked on the phone as full-screen alarms,
+  `wd:<entry id>:<key>`; the warnings before them (`isWarningKey`: "Due in 1 hr", "Due tomorrow", "Deadline in 2 hr") are always a notification only - on the website too, where they open no alarm window (`src/WebAlarm.js`); the owner asked for this for every task, so there is no setting to make them ring (`src/workingDashboardNotify.js`, native `AlarmReceiver`). Walk / water nudges are `nudge:`.
+- Web in use = phone silent: web.app writes an "in use" note while the tab is open and used (`src/RealtimeSync.js`, `newweb/src/store.jsx`);
+  while the note is fresh (3 min) and the tab had input in the last 45 min, the phone shows nothing for task alerts - no alarm and no notification
+  (`webActiveUntil` / `WEB_IDLE_MS` in `src/firebaseSyncCore.js`, native `WebPresence.kt` + `AlarmReceiver.kt`; the Kotlin side needs the next APK build). The desktop alerts at the desk (`src/WebAlarm.js`). Unknown, closed, asleep or idle for 45 min = the phone rings.
 - A task alert's full-screen alarm opens the app's own Past Due Alert (full screen, every option: remarks, Mark done,
   Done + DAR, Silence, Skip, Snooze, Move, status, repeat); other alarms use the simple native screen
   (`AlarmRingingActivity`).
@@ -51,20 +51,14 @@ Several sessions have changed the alert code; check this list before changing it
 
 ## Look and feel - the phone follows the website
 
-- One look, "Ledger" (the owner approved the redesign; the older Pearl / Glass / Warm looks and the "Classic" switch are gone, stored theme
-  keys are mapped by `themeKeyOf`): warm paper ground, flat white cards with a 1px line, Fraunces titles and big numbers, Manrope for the rest,
-  the sliding accent pill kept only for the tablet / side bar. Shared pieces: `src/themeTokens.js` (tokens, six themes, dark twins; plain data so
+- One look, "Pearl" (the only colour theme: the owner had every other theme removed, there is no theme switch and no stored theme key): cool grey ground, flat white cards with a 1px line, Fraunces titles and big numbers, Manrope for the rest,
+  the sliding accent pill kept only for the tablet / side bar. Shared pieces: `src/themeTokens.js` (tokens, the Pearl theme and its dark twin; plain data so
   the tests read it) re-exported by `src/theme.js` (provider), `src/icons.js` (the line icons), `src/fonts.js`, `src/ui.js` (PhoneBar, Card, Btn,
   Field, Chip, Segmented, Sheet, Group / Item, EmptyState, SearchField, Toggle), `src/screens/wdCards.js` (PhoneHeader, PhoneKpi, PhoneRow, PhoneDoneRow, Fab).
 - Website only: macOS frosted side bar, sticky top bar, hover lift, Links / Narration tabs, wide-screen dashboard columns.
 - APK and phone width: the same tiles, cards, finder (search button in the header, `src/CommandPalette.js`) and Register / Completed
   table switch (`src/EntryTable.js`); the APK tab bar is `AppTabs` in `src/ui.js`.
 
-- Glass theme (APK: Config > Appearance > Glass, hidden on the Expo website; the new website has its own Glass in `newweb/src/themes.js` +
-  the `[data-theme="glass"]` block at the end of `newweb/src/styles.css`, with real backdrop blur): frosted panels over a soft colour backdrop and glossy
-  app-icon tiles (Home hero and counts, Done / DAR, the + button, the tab pill). Drawn with react-native-svg in `src/glass.js`, no new
-  native library; tokens in `themeTokens.js` (`GLASS`, `GLOSS_TILES`), contrast checked in `tests/suites/ledger-theme.mjs`. Real blur
-  (expo-blur) is not used: it would need a native build and Android's BlurTargetView around every screen.
 - Phone width: the New / Edit Entry form, Quick add and the + button are available again (the owner wants every card to open); no Narration tab.
 
 ## Features added in the 20-feature round (where they live)
@@ -104,19 +98,17 @@ The due date quick picks also offer "Month end -1 ... -5" (a drop-down): the las
 
 The owner chose the "UI Studio" designs: Dashboard = Option 1 (Classic Enhanced: 11 pastel tiles, this / next month breakdown cards, Needs attention / Due today rows with Done and DAR buttons) and Register = plain card grid ("A": three across on the website; the phone has All / Overdue / Today chips). The phone has no Quick add bar (the owner asked).
 
-Phone look - "Ledger", Forest by default (replaces the Warm theme): ground #F7F5EF, card #FFFFFF, soft fill #EFEBDF, line #E4E0D4, ink #16231F, muted #5E6B66,
-primary #0B6B52, primaryDark #123A2F (hero panel, selected chips, profile card, Welcome), primaryTint #E3F1EC / #0B5A45, mint #9BD3BF, danger #B42318, amber #C27A0E
-(dots; `t.warn` is the text-safe #8F5806); cards radius 20, hero 24, buttons and fields 14, no shadows (only the + button has a soft one). Config > Appearance has six colour
-swatches (Forest, Harbour, Plum, Ember, Ink, Rose - each swaps primary / primaryDark / tint), "Follow the phone's dark mode" (`settings.followDark`, every theme has a dark twin) and
+Look - "Pearl" (Ledger layouts and fonts, Pearl colours; Pearl is the only colour): page #F0F1F7, card #FFFFFF, soft fill #F4F6FA, line #E6E8F1, ink #14132B, muted #62667C (the design's #6B6F85 a hair darker to keep 4.5:1),
+primary #4B33C8, primaryDark #14132B (hero panel, selected chips), tint #ECE9FB / #3A27A0, mint (teal) #2EC4B6; dark twin "Aurora dark": #0C1228 / #161E3B / #1D2648 / line #2A3459, text #F2F4FF, accent #A48BFF; solid tiles `t.tile` (red #E8503C, brown #B04E0A, navy #2F55D4, violet #7B3FD0, teal #0E8F83) with white text; switches teal #2EC4B6; cards radius 22, hero 26, pill buttons (`btnRadius` 999), fields 16, no shadows (only the + button has a soft one). Config > Appearance has no colour choices (all colour themes were removed: Pearl is the only look); it keeps "Follow the phone's dark mode" (`settings.followDark`, every theme has a dark twin) and
 Text size (`settings.fontLevel`). Tokens and the 4.5:1 contrast check live in `src/themeTokens.js` / `tests/suites/ledger-theme.mjs`; screens read `t.*` only (`t.primary`, `t.primaryDark`,
 `t.tint`, `t.tintText`, `t.mint`, `t.heroDim`, `t.dangerTint`, `t.prioDot`, `t.fontDisplay`). Fonts: `@expo-google-fonts/fraunces` (titles, big numbers: `display()`) and `manrope`
 (`src/fonts.js` loads them with `useAppFonts` in `App.js` - never blocking, the system font is the fallback - and `patchText()` gives every `<Text>` without a family the Manrope
 weight of its fontWeight; a TextInput sets `fontFamily: ff(600)` itself). Chrome icons are `src/icons.js` line icons (no emoji in the chrome). The signed-in name chip sits top right of the
-app bar on every phone screen with the search and meeting-mode circles (`PhoneHeader`, `userLabel` in `WorkingDashboard.js`). Layouts follow the artboards: Home (hero panel, three tinted tiles, Needs attention), Tasks (search, All / Overdue /
+app bar on every phone screen with the search and meeting-mode circles (`PhoneHeader`, `userLabel` in `WorkingDashboard.js`; on the phone the New entry + is a green circle in this bar next to Refresh / Search / Meeting mode - there is no floating button over the cards). Layouts follow the artboards: Home (hero panel, three tinted tiles, Needs attention), Tasks (search, All / Overdue /
 Today / Week chips, cards with Done / DAR), the entry form (2-up category / pending, priority buttons, due row, notes, MORE DETAILS pills opening popups, sticky Cancel / Save), Report (day strip,
 four count boxes, white report card, Copy report / Rewrite with AI bar), Done, More (dark profile card), Config, the full-screen alert (colour by priority) and Welcome (`WdFormBits.js` has the form's pills).
 
-Sync: a phone push sends only the fields that changed since the phone last saw the server's copy (`diffWebDoc` in `firebaseSyncCore.js`, snapshot `MPT_RT_SNAP_<uid>`), so an offline phone no longer undoes web edits; unsent work for an account that is signed out is kept under `MPT_UNSYNCED_<uid>` (`account.js`). The Sub Category / narration / reminder lists in `meta/lists` are sent by the phone only after it edited them itself (`paymentListsAt` / `paymentListsSentAt`, `stampListsEdit`, `paymentListsToSend`, `keepPhonePaymentLists` in `firebaseSyncCore.js`): a category edit on the phone used to send its whole, possibly stale or empty, copy and wipe the website's Sub Categories. Resetting the phone's data for an account (`forAccount`) is not stamped as a phone edit, and an empty phone list never replaces a filled one in the account (`keepFilledLists`): the phone's default Statuses / Pending with used to replace the account's. Lost lists come back with Restore (phone: Config > Sub categories, from its old daily backups; website: Config > Restore lists, from a backup file; both can rebuild from the tasks, `src/listsRestore.js`).
+Sync: a phone push sends only the fields that changed since the phone last saw the server's copy (`diffWebDoc` in `firebaseSyncCore.js`, snapshot `MPT_RT_SNAP_<uid>`), so an offline phone no longer undoes web edits; a web copy that arrives over an edit the phone has not sent yet is merged field by field (`mergeEntryFieldwise`, with the snapshot read before it is overwritten: `prevHashes` from `firebaseSync.js` to `RealtimeSync.js`; whole-entry rule as the fallback); unsent work for an account that is signed out is kept under `MPT_UNSYNCED_<uid>` (`account.js`).
 
 ## Phone updates (over the air) - `docs/PHONE_UPDATES.md`
 
@@ -133,8 +125,8 @@ Expo build; its own tests are `cd newweb && npm test`, and it is what the "Deplo
 
 ## Checks before a deploy or build
 
-`npm run verify` (static checks + tests) · `npx expo export -p web` then `npm run smoke:web` (a real browser walks every tab and
-Config section at desktop and phone width; also the "Website smoke test" workflow) · `npm run compile:native` (the Kotlin compiled
+`npm run verify` (static checks + tests) · `cd newweb && npx vite build` then `npm run smoke:web` (a real browser walks every tab and
+Config topic of the website at desktop and phone width; also the "Website smoke test" workflow) · `npm run compile:native` (the Kotlin compiled
 with a real compiler against the Android API) · the APK itself is only proven by the CI build. The dashboard's cards and rows live in
 `src/screens/wdCards.js`; the screen in `WorkingDashboard.js`.
 
@@ -155,3 +147,38 @@ with a real compiler against the Android API) · the APK itself is only proven b
 - **A change** says its target (APK / web.app / Both); anything in shared logic is called out, and the other platform is
   checked (`npm run verify` runs the checks and tests; `npx expo export -p web` builds the website; the APK is only
   proven by the CI build).
+
+## Removals - the owner wants every one listed
+
+Never take a feature, theme, tile, option or screen out without being asked. If a redesign or clean-up drops something, say so in the
+reply and add a line to `docs/REMOVED.md` in the same commit. That file is the complete list.
+
+## New entry draft (website)
+
+The website's New entry form keeps what was typed in `localStorage` (`newweb/src/entryDraft.js`, key `wd-entry-draft`) and puts it back on the next open; only Reset or Save clears it. Firestore uses a persistent local cache (`store.jsx`) so a task saved on a bad connection still goes up after a refresh. A failed save keeps its error on screen. The phone form does the same in `src/entryDraft.js` (AsyncStorage `MPT_WD_ENTRY_DRAFT`, Reset beside Cancel / Save).
+
+## Report points (no fixed lines in the report)
+
+The daily report has no built-in lines. "Report points" are written per Category on the website (Config > Report points; stored as `lists.darPaymentIntro` in `meta/lists`, items `{ category, text }`; an older plain text has no Category and is not used; the phone keeps it as `wd.paymentIntro` and uses it read-only). A section (Other work, Payments, Followed up) shows the points of the Categories of its tasks once, above its lines (`reportPointsOf` / `applyReportPoints` in `src/workingDashboardReport.js`, recomputed in `applyFormats` / `applyMoves` when rows move). Nothing is chosen per task.
+
+Notes written day by day (`[24-10-2026] ...` stamps) count for the report by their last day only (`latestDayNotes` in `src/notesLatest.js`, used by `notesForReport` and the `{Notes}` mark of a Report format).
+
+One report line wherever a task is placed: a task whose Sub Category has a Report format is written from it in Other work, Payments and Followed up alike (`applyMoves` in `src/reportExtras.js`; moving a row keeps its line).
+
+## Attached files (PDF / images) and "Not required"
+
+A task can carry PDFs / images inside itself: `files` `[{ id, name, type, size, data }]` (data URLs, all of a task's files share about 520 KB because a Firestore document may not pass 1 MiB; website photos are shrunk, the phone refuses a big one) and `filesNotRequired`. Which Categories must have one (or "Not required") before Save is `lists.fileCategories` in `meta/lists` (website: tick in the Attach popup; phone: Config > Attachments). Rules and helpers: `src/taskFiles.js` (shared); website `newweb/src/fileAttach.js` + TaskForm; phone `src/screens/WdFiles.js`. The draft does not keep files. Tests: `tests/suites/task-files.mjs`, `newweb/tests/e2e/files.mjs`.
+
+## Starting lists for a new account
+
+A new account (no tasks and no `meta/lists` document) starts with no Category, no Sub Category and nobody under Pending with; Priority and Status keep their usual choices (`DEFAULT_LISTS` in `newweb/src/data.js`; the phone's `assignees` starts empty). An existing account keeps what it has: a lists document missing a key falls back to `LEGACY_DEFAULT_LISTS`, an account with tasks but no lists document gets the older Categories, and the one-time Categories / Sub Categories created from the report formats (`store.jsx`) run only for an existing account. Demo data (`?demo`) uses the older lists.
+
+## Website extras (first-run guide, backup reminder, saving badge)
+
+`newweb/src/Onboarding.jsx` (a new account's first-run guide, shown until Done or a first task; `?demo&empty&newaccount` previews it), `BackupReminder.jsx` (weekly, `wd-last-backup` in localStorage, set by `exportBackupFile`), a "Saving... / Saved" pill in the top bar (`saving` / `justSaved` in `store.jsx`) and Config > Alerts "Keep the phone quiet while this window is visible" (`quietWhileVisible` in `alerts.js`; the presence heartbeat then counts a visible window as in use).
+
+`newweb/src/setupFile.js`: Config > Setup file (download / load an account's lists, Sub Categories, Report points, report formats and templates; loading only adds what is missing). The phone skips an alert the website is in use for and logs it (`AlarmStore.logSkip`, Config > Alerts > "Skipped on this phone"; Kotlin, next APK build).
+
+## Soft feel
+
+Website: the last block of `newweb/src/styles.css` (one easing curve `--ease`, soft transitions, `wdSoftIn` page enter, light press, `content-visibility` on task cards); `?demo&many=800` builds a big demo account for timing pages. Phone: `softLayout()` in `src/ui.js` (LayoutAnimation, off on the website and with reduced motion) is called before a row leaves (`act` in `WorkingDashboard.js`, `hide` in `PastDueAlert.js`). The phone paginates its lists (5 rows, +20 per Show more), so it does not render hundreds of rows at once.

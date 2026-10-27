@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, Pressable, TextInput, ScrollView, Modal, StyleSheet, Platform,
-  Alert, Keyboard, useWindowDimensions, Animated, PanResponder, Easing, AccessibilityInfo, RefreshControl,
+  Alert, Keyboard, useWindowDimensions, Animated, PanResponder, Easing, AccessibilityInfo, RefreshControl, LayoutAnimation, UIManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import TabIcon from './tabIcons';
@@ -10,7 +10,6 @@ import { useTheme, opaque, withAlpha } from './theme';
 import { warnQuiet } from './quietCatch';
 import Icon, { ICON_NAMES } from './icons';
 import { ff, display } from './fonts';
-import { GlassBackdrop, Sheen, GlossFill, glassPanel, glossTile } from './glass';
 
 /**
  * @param headerless  true only for screens with the navigation header hidden.
@@ -74,24 +73,16 @@ const PHONE_ICON = { dashboard: 'home', register: 'tasks', report: 'report', don
 function PhoneBar({ tabs, value, onChange, badges }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  // Glass: the same tabs in a floating frosted capsule; the chosen tab's pill is a glossy tile.
-  const glass = !!t.glass;
-  const barStyle = glass
-    ? { position: 'absolute', left: 12, right: 12, bottom: Math.max(insets.bottom, 12) - 6, flexDirection: 'row', paddingTop: 8, paddingBottom: 10, paddingHorizontal: 6, borderRadius: 30, ...glassPanel(t, true), backgroundColor: t.glass.barFill }
-    : { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12) + 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: t.border };
   return (
-    <View accessibilityRole="tablist" style={[barStyle]}>
-      {glass && <Sheen radius={30} />}
+    <View accessibilityRole="tablist" style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: t.surface, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 12) + 4, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: t.border }]}>
       {tabs.map((x) => {
         const on = value === x.key;
         const badge = badges[x.key];
         const iconName = PHONE_ICON[x.key];
         return (
           <Pressable key={x.key} onPress={() => onChange(x.key)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${x.label}${badge ? `, ${badge}` : ''}`} style={{ flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 4, gap: 3 }}>
-            <View style={[{ width: 58, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.tint : 'transparent' }, glass && on && glossTile(t)]}>
-              {glass && on && <GlossFill tone="blue" radius={15} />}
-              {/* In a View, so the icon stays above the gloss in the browser too. */}
-              <View>{iconName ? <Icon name={iconName} size={23} color={on ? (glass ? t.glass.tileInk : t.primary) : t.textDim} /> : <TabIcon name={x.icon || x.key} color={on ? (glass ? t.glass.tileInk : t.primary) : t.textDim} active={on} size={23} />}</View>
+            <View style={{ width: 58, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.tint : 'transparent' }}>
+              {iconName ? <Icon name={iconName} size={23} color={on ? t.primary : t.textDim} /> : <TabIcon name={x.icon || x.key} color={on ? t.primary : t.textDim} active={on} size={23} />}
             </View>
             <Text style={{ fontSize: 11, fontWeight: '700', color: on ? t.primary : t.textDim }} numberOfLines={1}>{x.label}</Text>
           </Pressable>
@@ -236,7 +227,6 @@ export function Screen({ children, scroll = true, padded = true, headerless = fa
   const sides = padded ? (wide ? 28 : 20) : 0;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg }} edges={edges}>
-      <GlassBackdrop />
       <Body
         style={{ flex: 1 }}
         contentContainerStyle={scroll ? [
@@ -280,24 +270,15 @@ export function Card({ children, style, onPress, tone }) {
     borderColor: t.border,
     padding: 16,
     ...t.shadow,
-    // Glass: a frosted panel, unless the card was given a colour of its own.
-    ...(!tone && !flat.backgroundColor ? glassPanel(t) : null),
   };
-  const sheen = t.glass && !tone && !flat.backgroundColor ? <Sheen radius={flat.borderRadius ?? t.radius} /> : null;
   if (onPress) {
     return (
       <Pressable onPress={onPress} style={({ pressed, hovered }) => [base, style, hovered && Platform.OS === 'web' && { transform: [{ translateY: -1 }] }, pressed && { transform: [{ scale: 0.985 }], opacity: 0.94 }]}>
-        {sheen}
         {children}
       </Pressable>
     );
   }
-  return <View style={[base, style]}>{sheen}{children}</View>;
-}
-
-export function H2({ children, style, numberOfLines }) {
-  const t = useTheme();
-  return <Text numberOfLines={numberOfLines} style={[{ fontSize: t.fs(16), fontWeight: '800', color: t.text, marginBottom: 8 }, style]}>{children}</Text>;
+  return <View style={[base, style]}>{children}</View>;
 }
 
 export function P({ children, dim, style, numberOfLines }) {
@@ -331,8 +312,6 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
   }[kind];
   const press = usePressSpring(0.97);
   const web = Platform.OS === 'web';
-  // Glass: the main buttons are glossy tiles.
-  const gloss = !!t.glass && (kind === 'primary' || kind === 'ok' || kind === 'danger');
   return (
     <Pressable
       onPress={onPress}
@@ -350,15 +329,14 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
         alignItems: 'center',
         justifyContent: 'center',
         opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
-      }, gloss && glossTile(t), style]}
+      }, style]}
     >
-      {gloss && <GlossFill tone={kind === 'danger' ? 'red' : 'blue'} radius={StyleSheet.flatten(style)?.borderRadius ?? t.btnRadius} />}
       <Animated.View style={{ transform: [{ scale: press.scale }], maxWidth: '100%' }}>
         <Text
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.75}
-          style={{ color: gloss ? t.glass.tileInk : map.fg, fontWeight: '800', fontSize: t.fs(web ? 14 : 15), textAlign: 'center', flexShrink: 1 }}
+          style={{ color: map.fg, fontWeight: '800', fontSize: t.fs(web ? 14 : 15), textAlign: 'center', flexShrink: 1 }}
         >
           {icon ? icon + '  ' : ''}{title}
         </Text>
@@ -425,8 +403,8 @@ export function Toggle({ value, onChange, label }) {
   const t = useTheme();
   return (
     <Pressable onPress={() => onChange(!value)} accessibilityRole="switch" accessibilityState={{ checked: !!value }} accessibilityLabel={label} hitSlop={8}
-      style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: value ? t.primary : t.fieldBorder, justifyContent: 'center' }}>
-      <View style={{ position: 'absolute', top: 3, left: value ? 21 : 3, width: 22, height: 22, borderRadius: 11, backgroundColor: value ? t.onAccent : '#fff' }} />
+      style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: value ? t.toggleOn : t.toggleOff, justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', top: 3, left: value ? 21 : 3, width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' }} />
     </Pressable>
   );
 }
@@ -1053,6 +1031,14 @@ AccessibilityInfo.isReduceMotionEnabled?.().then((v) => { reduceMotionCache = !!
 /** Fades its children in while rising into place; `delay` staggers a list. Skipped when the phone asks for reduced motion. */
 /** The phone's "reduce motion" setting, as last read: animations are skipped when it is on. */
 export const prefersReducedMotion = () => reduceMotionCache;
+
+// Android needs this switched on once for LayoutAnimation (newer React Native builds ignore it).
+try { if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true); } catch { /* the rows just move without animation */ }
+/** Call right before a change that adds or removes rows (Done, Move, Snooze...): the list closes the gap softly instead of jumping. */
+export function softLayout() {
+  if (Platform.OS === 'web' || reduceMotionCache) return;
+  try { LayoutAnimation.configureNext(LayoutAnimation.create(240, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)); } catch { /* optional */ }
+}
 
 export function FadeInUp({ children, delay = 0, distance = 18, duration = 420, style }) {
   const v = React.useRef(new Animated.Value(reduceMotionCache ? 1 : 0)).current;

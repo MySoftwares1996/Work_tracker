@@ -2,7 +2,7 @@
  * Report formats and the person's moves applied to a report model (shared by the phone app and the website). Pure.
  */
 import { findFormat, renderTemplate, isPaymentCategory } from './reportFormats.js';
-import { reportLineFor, withEntryNotes, DEFAULT_PAYMENT_INTRO } from './workingDashboardReport.js';
+import { reportLineFor, withEntryNotes, applyReportPoints } from './workingDashboardReport.js';
 
 /**
  * A task whose Sub Category has a format (Config > Report formats) is written from it, and goes under "Payments" with the other payment
@@ -28,11 +28,10 @@ export function applyFormats(model, formats, lists = {}) {
     });
   });
   moved.forEach(({ sec, row }) => { sec.rows.splice(sec.rows.indexOf(row), 1); pay.rows.push(row); });
-  if (pay.rows.length && !(pay.intro && pay.intro.length)) pay.intro = (lists.darPaymentIntro && lists.darPaymentIntro.length ? lists.darPaymentIntro : DEFAULT_PAYMENT_INTRO).map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
   model.data.payments = pay.rows.length;
   model.data.others = model.sections.find((s) => s.key === 'oth').rows.length;
   model.data.followed = model.sections.find((s) => s.key === 'fol').rows.length;
-  model.data.bullets = model.sections.reduce((n, s) => n + s.rows.length + (s.intro ? s.intro.length : 0), 0);
+  applyReportPoints(model, lists.darPaymentIntro);
   return model;
 }
 
@@ -56,16 +55,18 @@ export function applyMoves(model, moves = {}, { lists = {}, payLists = {}, forma
   const dupLeft = [];
   const placed = { oth: [], pay: [], fol: [] };
   const put = (target, entry, line, row) => {
-    const f = target === 'pay' && formats && formats.length && entry.subCategory ? findFormat(formats, entry.subCategory) : null;
+    // The same line in every group: a task whose Sub Category has a Report format is written from it wherever it is placed.
+    const f = formats && formats.length && entry.subCategory ? findFormat(formats, entry.subCategory) : null;
     const text = f ? withEntryNotes(renderTemplate(f.template, entry).text, entry) : line || reportLineFor(entry, payLists, date, { details });
-    placed[target].push(row ? Object.assign(row, { line: text }) : { line: text, entry, moved: true });
+    const flags = f ? { formatted: true, fixed: false } : {};
+    placed[target].push(row ? Object.assign(row, { line: text }, flags) : { line: text, entry, moved: true, ...flags });
   };
   ['oth', 'pay', 'fol'].forEach((k) => {
     const s = sec(k);
     s.rows = s.rows.filter((r) => {
       const to = r.entry && moves[r.entry.id];
       if (!to || to === k) return true;
-      if (to === 'out') out.push(r.entry); else put(to, r.entry, null);
+      if (to === 'out') out.push(r.entry); else put(to, r.entry, r.line, r);
       return false;
     });
   });
@@ -77,16 +78,14 @@ export function applyMoves(model, moves = {}, { lists = {}, payLists = {}, forma
   const left = out.filter((e) => { const to = moves[e.id]; if (!to || to === 'out') return true; put(to, e, null); return false; });
   ['oth', 'pay', 'fol'].forEach((k) => { sec(k).rows.push(...placed[k]); });
   const pay = sec('pay');
-  if (pay.rows.length && !(pay.intro && pay.intro.length)) pay.intro = (lists.darPaymentIntro && lists.darPaymentIntro.length ? lists.darPaymentIntro : DEFAULT_PAYMENT_INTRO).map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean);
-  if (!pay.rows.length) pay.intro = [];
   const titles = new Set(model.sections.flatMap((x) => x.rows.map((r) => r.entry && r.entry.title)));
   model.missing = (model.missing || []).filter((m) => titles.has(m.title));
   model.dupes = dupLeft.length;
   model.dupeList = dupLeft;
   Object.assign(model.data, {
     others: sec('oth').rows.length, payments: pay.rows.length, followed: sec('fol').rows.length, excluded: left.length, excludedList: left,
-    bullets: model.sections.reduce((n, x) => n + x.rows.length + (x.intro ? x.intro.length : 0), 0),
   });
+  applyReportPoints(model, lists.darPaymentIntro);
   const items = (rows) => rows.filter((r) => r.entry).map((r) => ({ id: r.entry.id, title: r.entry.title, line: r.line, entry: r.entry, moved: !!moves[r.entry.id] }));
   model.groups = {
     oth: items(sec('oth').rows), pay: items(pay.rows), fol: items(sec('fol').rows),
@@ -102,11 +101,23 @@ export function addSubFields(model) {
   model.sections.forEach((sec) => {
     if (sec.key === 'pay') return;
     sec.rows.forEach((r) => {
-      if (r.fixed || !r.entry) return;
+      if (r.fixed || r.formatted || !r.entry) return;
       const fields = Object.entries(r.entry.subCategoryFields || {}).filter(([, v]) => String(v || '').trim())
         .map(([k, v]) => `${String(k).replace(/[\s:]+$/, '')}: ${String(v).trim().replace(/\s+/g, ' ')}`);
       if (fields.length && !fields.every((f) => r.line.includes(f))) r.line = `${r.line.replace(/[.\s]+$/, '')}. ${fields.join('; ')}.`;
     });
   });
   return model;
+}
+
+/** The report's lines counted per Category: [{ category, count }], most lines first (lines without a Category are "No Category"). */
+export function categorySummary(model) {
+  const counts = new Map();
+  (model.sections || []).filter((sec) => sec.key === 'oth' || sec.key === 'pay' || sec.key === 'fol').forEach((sec) => {
+    sec.rows.forEach((r) => {
+      const c = String((r.entry && r.entry.category) || '').trim() || 'No Category';
+      counts.set(c, (counts.get(c) || 0) + 1);
+    });
+  });
+  return [...counts].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
 }

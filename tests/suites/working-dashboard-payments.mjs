@@ -53,17 +53,17 @@ export async function run({ ck, section }) {
   ck('the form shows import details while In Progress, Sub Category and narration once Completed', sec.importDetails && !sec.narration && paymentSections('Domestic Payment', 'Completed', lists).subCategory && paymentSections('MIS', 'Completed', lists).narration);
 
   section('Working Dashboard payments: the Tally narration');
-  const mail = 'PURE EV: Purchase Order - G Power Auto Parts - INPO/PP/26-27/0155 - PURE Energy';
-  ck('the vendor is found in a mail subject', payeeFromMail(mail) === 'G Power Auto Parts');
-  ck('...and taken out of it for Tally', stripPayeeFromMail(mail, 'G Power Auto Parts') === 'PURE EV: Purchase Order - INPO/PP/26-27/0155 - PURE Energy');
+  const mail = 'SAMPLE: Purchase Order - Sample Vendor - INPO/PP/26-27/0155 - SAMPLE Co';
+  ck('the vendor is found in a mail subject', payeeFromMail(mail) === 'Sample Vendor');
+  ck('...and taken out of it for Tally', stripPayeeFromMail(mail, 'Sample Vendor') === 'SAMPLE: Purchase Order - INPO/PP/26-27/0155 - SAMPLE Co');
   ck('only labels that ARE the vendor count as payee fields', PAYEE_RX.test('Vendor Name') && PAYEE_RX.test('Name of Payee') && !PAYEE_RX.test('Vendor Invoice No'));
   const adv = DEFAULT_NARRATION_TYPES[0];
   ck('"Being" + % + phrase + document no + mail chain without the vendor',
-    buildNarrationText(adv, { percent: '30', docNo: 'PO-1', mailChain: mail }) === 'Being 30% Advance amount paid against Po No: PO-1 PURE EV: Purchase Order - INPO/PP/26-27/0155 - PURE Energy');
-  const entry = e({ category: 'Domestic Payment', reference: mail, subCategory: 'PO Advance', subCategoryFields: { 'PO No': 'PO-1', 'Vendor Name': 'G Power' } });
+    buildNarrationText(adv, { percent: '30', docNo: 'PO-1', mailChain: mail }) === 'Being 30% Advance amount paid against Po No: PO-1 SAMPLE: Purchase Order - INPO/PP/26-27/0155 - SAMPLE Co');
+  const entry = e({ category: 'Domestic Payment', reference: mail, subCategory: 'PO Advance', subCategoryFields: { 'PO No': 'PO-1', 'Vendor Name': 'Sample Vendor' } });
   const n = makeNarration({ typeName: adv.name, percent: '30', docNo: 'PO-1', includeMail: false }, entry, lists);
   ck('the stored narration has the web app\'s shape', n.typeId === adv.id && n.typeName === adv.name && n.includeMail === false && n.subCategoryText === 'PO No: PO-1' && n.text.startsWith('Being 30% '));
-  ck('the vendor typed in a Sub Category field leads the report', taskPayee({ ...entry, narration: n }, lists) === 'G Power');
+  ck('the vendor typed in a Sub Category field leads the report', taskPayee({ ...entry, narration: n }, lists) === 'Sample Vendor');
   ck('rebuilt with the current rules for the report', narrationFor({ ...entry, narration: n }, lists, 'report').startsWith('Being 30% Advance amount paid against Po No: PO-1'));
   ck('no type picked: no narration', makeNarration({ typeName: '' }, entry, lists) === null);
   ck('a narration needs its document number', /PO No/.test(validatePaymentDetails({ ...entry, status: 'Pending', narration: { ...n, docNo: '' } }, lists)));

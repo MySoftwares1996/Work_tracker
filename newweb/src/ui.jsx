@@ -1,9 +1,9 @@
 import Icon from './icons';
 
 /** The header of every page: a serif title with a muted line under it, and the primary "New entry" button when the page can add one. */
-export function PageHead({ title, sub, onNew, children }) {
+export function PageHead({ title, sub, onNew, children, className = '' }) {
   return (
-    <div className="head">
+    <div className={`head${className ? ` ${className}` : ''}`}>
       <div className="head-text">
         <h1 className="h1">{title}</h1>
         {sub ? <p className="sub">{sub}</p> : null}

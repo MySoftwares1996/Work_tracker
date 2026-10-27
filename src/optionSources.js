@@ -77,7 +77,7 @@ export const SOURCES = {
     usage: (db, v) => (db?.workingDashboard?.entries || []).filter((x) => same(x.status, v)).length,
   }),
   wdAssignee: listSource({
-    id: 'wdAssignee', title: 'Pending with', path: ['workingDashboard', 'assignees'], defaults: ['Self'],
+    id: 'wdAssignee', title: 'Pending with', path: ['workingDashboard', 'assignees'], defaults: [],
     usage: (db, v) => (db?.workingDashboard?.entries || []).filter((x) => same(x.pendingWith, v)).length,
   }),
 };

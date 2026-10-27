@@ -2,7 +2,7 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 import { ensureChannel, ensureSelectedChannels } from './ringtones';
-import { scheduleFullScreenAlarm, cancelFullScreenAlarm } from './tracker';
+import { cancelFullScreenAlarm } from './tracker';
 import { WD_CATEGORY, WD_GENTLE_CATEGORY, WD_DONE, WD_DAR, WD_SNOOZE, WD_SNOOZE_MIN, WD_REMIND, WD_RING } from './workingDashboardNotify';
 import { handleWdAction } from './workingDashboardActions';
 import { warnQuiet } from './quietCatch';
@@ -81,31 +81,6 @@ export async function scheduleAt(date, { title, body, data, group = 'attendance'
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when, channelId },
   });
-}
-
-/**
- * Schedules the WHOLE "keep ringing until acknowledged" chain up front, as a
- * batch of independently OS-scheduled notifications (one at `dueAt`, then
- * `count` more every `gapMinutes`). This is what lets it survive the app
- * being force-closed: every notification in the chain was already handed to
- * Android/iOS before that happened, so none of it depends on this app's JS
- * still running. Each one carries a Done / Ack / Snooze action row.
- */
-export async function scheduleAlarmSeries({ taskId, title, body, dueAt, ringtone = 'chime', group = 'tasks', count = 10, gapMinutes = 2 }) {
-  const when = new Date(dueAt);
-  if (!when.getTime()) return;
-  const times = [when, ...Array.from({ length: count }, (_, i) => new Date(when.getTime() + (i + 1) * gapMinutes * 60000))];
-  for (const t of times) {
-    await scheduleAt(t, {
-      title, body, ringtone, group,
-      category: TASK_CATEGORY,
-      data: { taskId, kind: 'task' },
-    });
-  }
-  // The genuine full-screen alarm (modules/native-tools) only needs firing
-  // once - it rings continuously by itself until dismissed, unlike a plain
-  // notification's sound, which is why the chain above repeats instead.
-  await scheduleFullScreenAlarm(taskId, when, title, body);
 }
 
 /** Cancel every scheduled notification (in the chain or otherwise) for one task. */

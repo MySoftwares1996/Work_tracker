@@ -15,7 +15,7 @@ import { getAuth, onAuthStateChanged, signInWithCredential, signOut as fbSignOut
 import { getFirestore, collection, doc, onSnapshot, getDocs, writeBatch } from '@react-native-firebase/firestore';
 import * as firestoreApi from '@react-native-firebase/firestore';      // arrayUnion: not every build (the web shim) has it, so it is read off the namespace
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
-import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, decodeLists, encodeLists, decodeCalendar, mergeListsForPush, keepFilledLists, ackKey, snapKey, docHashes, diffWebDoc, createMutator, raceTimeout } from './firebaseSyncCore';
+import { dirtyEntries, ackAfterPush, ackAfterSnapshot, mergeRemoteEntries, applyRemovedIds, isMetaDirty, decodeLists, encodeLists, decodeCalendar, mergeListsForPush, ackKey, snapKey, docHashes, diffWebDoc, createMutator, raceTimeout } from './firebaseSyncCore';
 import { toWebTask } from './cloudSync';
 
 // This project's own Firebase Android app (work-tracker-3b728), the
@@ -146,10 +146,19 @@ export function listen(uid, { getEntries, getTombstones = () => [], onRemoteChan
     const afterRemoval = applyRemovedIds(current, removedIds);
     const merged = mergeRemoteEntries(afterRemoval.entries, incoming, getTombstones());
     mutateAck(uid, (a) => ackAfterSnapshot(a, incoming, merged.entries)).catch(() => {});
-    rememberDocs(uid, incoming, removedIds);
-    // Hand over what arrived, not a finished list: the caller merges it into the entries as they are
-    // when it is applied, so an edit made in the meantime is not overwritten by a stale copy.
-    onRemoteChange({ remote: { incoming, removedIds } });
+    // What the phone last saw of each arriving document is read BEFORE the snapshot is overwritten with the new copy, and handed on
+    // (`prevHashes`): with it the caller can merge field by field over an edit the phone has not sent yet.
+    const prevHashes = {};
+    mutateSnap(uid, (s) => {
+      const next = { ...s };
+      incoming.forEach((d) => { if (d && d.id !== undefined && d.id !== null) { const id = String(d.id); if (s[id]) prevHashes[id] = s[id]; next[id] = docHashes(d); } });
+      removedIds.forEach((id) => { delete next[String(id)]; });
+      return next;
+    })
+      .catch(() => {})
+      // Hand over what arrived, not a finished list: the caller merges it into the entries as they are
+      // when it is applied, so an edit made in the meantime is not overwritten by a stale copy.
+      .then(() => onRemoteChange({ remote: { incoming, removedIds, prevHashes } }));
   }, (e) => { if (onError) onError(e); });
 
   const unsubMeta = onSnapshot(metaCol, (snap) => {
@@ -288,7 +297,7 @@ export async function push(uid, { entries = [], lists, extraLists, listsUpdatedA
   // written back: its holiday records have their own shape, and a phone copy written over them could
   // lose or duplicate holidays there.
   const listsValue = lists !== undefined && remoteMeta.lists && (remoteMeta.listsMissing || isMetaDirty(listsUpdatedAt, ack.__lists))
-    ? encodeLists(keepFilledLists(mergeListsForPush(lists, []), remoteMeta.lists), metaFormats.lists, extraLists) : undefined;
+    ? encodeLists(mergeListsForPush(lists, []), metaFormats.lists, extraLists) : undefined;
   const listsDirty = listsValue !== undefined;
   if (!dirty.length && !deletedIds.length && !listsDirty) return { deleted: [], wrote: false };
 
@@ -334,5 +343,5 @@ export async function push(uid, { entries = [], lists, extraLists, listsUpdatedA
     remoteMeta.listsMissing = false;
     await mutateAck(uid, (a) => ({ ...a, __lists: listsUpdatedAt }));
   }
-  return { deleted: deletedIds, wrote, listsWritten: listsDirty };       // the caller can now forget these tombstones
+  return { deleted: deletedIds, wrote };       // the caller can now forget these tombstones
 }
