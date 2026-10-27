@@ -80,7 +80,7 @@ export default function WdMoreTab({ googleUser, waiting, realtimeError, binnedEn
                 <Text style={{ color: t.text, fontWeight: '800', fontSize: t.fs(14) }}>{!u ? 'App updates' : u.enabled ? 'App updates are on' : 'App updates are off'}</Text>
                 <Text style={{ color: t.textDim, fontWeight: '600', fontSize: t.fs(13), lineHeight: t.fs(18) }}>{!u ? 'Updates are for the installed phone app.' : `Running ${u.running}${u.when ? ` · ${u.when}` : ''}${u.enabled && u.channel ? ` · ${u.channel}` : ''}`}</Text>
               </View>
-              <GradBox colors={t.grad.brand} radius={12} onPress={check} accessibilityLabel="Check for an update now" glow={false} contentStyle={{ paddingVertical: 11, paddingHorizontal: 14 }}>
+              <GradBox colors={t.grad.brand} radius={12} onPress={check} accessibilityLabel="Check for an update now" glow={false} style={{ flexShrink: 0 }} contentStyle={{ paddingVertical: 11, paddingHorizontal: 14 }}>
                 <Text style={{ color: t.onTile, fontWeight: '800', fontSize: t.fs(13) }}>Check now</Text>
               </GradBox>
             </View>

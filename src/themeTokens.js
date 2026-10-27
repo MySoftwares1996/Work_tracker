@@ -104,7 +104,7 @@ export const build = (key, dark) => {
     shadow: {},
     fabShadow: { shadowColor: '#A21CAF', shadowOpacity: dark ? 0.4 : 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
     // The soft coloured lift under a gradient tile or a white card (G).
-    glow: (color) => ({ shadowColor: color, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 }),
+    glow: (color) => ({ shadowColor: color, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 }),
     lift: { shadowColor: '#3B2A8C', shadowOpacity: dark ? 0 : 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: dark ? 0 : 2 },
     // The priority dots: High red, Medium amber, Low green.
     prioDot: { High: s.danger, Medium: s.amber, Low: s.ok },

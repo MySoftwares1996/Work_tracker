@@ -11,19 +11,32 @@ import Icon from './icons';
  */
 
 let seq = 0;
-/** A gradient filling its parent (top-left to bottom-right). `colors`: two or three stops. */
+/**
+ * A gradient filling its parent (top-left to bottom-right). `colors`: two or three stops.
+ * The box is measured (onLayout) and the SVG drawn at that exact size: on Android a "100%" SVG inside an absolute-fill view
+ * was drawn smaller than its box, leaving the tiles half filled and shifted (owner's screenshots, 27 Oct).
+ */
 export function Gradient({ colors, radius = 0, vertical = false }) {
   const id = React.useRef(`wdg${(seq += 1)}`).current;
+  const [size, setSize] = React.useState(null);
   const stops = colors && colors.length ? colors : GRADS.brand;
+  const onLayout = (e) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (!size || Math.abs(size.w - width) > 0.5 || Math.abs(size.h - height) > 0.5) setSize({ w: width, h: height });
+  };
   return (
-    <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width="100%" height="100%">
-      <Defs>
-        <LinearGradient id={id} x1="0" y1="0" x2={vertical ? '0' : '1'} y2="1">
-          {stops.map((c, i) => <Stop key={i} offset={stops.length === 1 ? 0 : i / (stops.length - 1)} stopColor={c} />)}
-        </LinearGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" rx={radius} ry={radius} fill={`url(#${id})`} />
-    </Svg>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={onLayout}>
+      {!!size && size.w > 0 && size.h > 0 && (
+        <Svg width={size.w} height={size.h}>
+          <Defs>
+            <LinearGradient id={id} x1="0" y1="0" x2={vertical ? '0' : '1'} y2="1">
+              {stops.map((c, i) => <Stop key={i} offset={stops.length === 1 ? 0 : i / (stops.length - 1)} stopColor={c} />)}
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width={size.w} height={size.h} rx={Math.min(radius, size.w / 2, size.h / 2)} ry={Math.min(radius, size.w / 2, size.h / 2)} fill={`url(#${id})`} />
+        </Svg>
+      )}
+    </View>
   );
 }
 
@@ -33,9 +46,11 @@ export function Gradient({ colors, radius = 0, vertical = false }) {
  */
 export function GradBox({ colors, radius = 22, style, contentStyle, children, onPress, glow = true, accessibilityLabel, accessibilityRole, accessibilityState }) {
   const t = useTheme();
-  const shadow = glow && colors ? t.glow(colors[colors.length - 1]) : null;
+  // The coloured lift needs a solid background on the view that casts it (Android draws a smeared box otherwise).
+  const shadow = glow && colors ? { ...t.glow(colors[colors.length - 1]), backgroundColor: colors[colors.length - 1] } : null;
+  const base = colors && colors.length ? colors[colors.length - 1] : GRADS.brand[1];
   const inner = (
-    <View style={[{ flexGrow: 1, borderRadius: radius, overflow: 'hidden' }, contentStyle]}>
+    <View style={[{ flexGrow: 1, borderRadius: radius, overflow: 'hidden', backgroundColor: base }, contentStyle]}>
       <Gradient colors={colors} radius={radius} />
       {children}
     </View>

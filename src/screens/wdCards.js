@@ -375,7 +375,7 @@ export function PhoneHeader({ title, subtitle, userLabel, onSearch, onBell, bell
 export function Fab({ onPress, bottom, right = 20, label = 'New entry' }) {
   const t = useTheme();
   return (
-    <GradBox colors={t.grad.brand} radius={20} onPress={onPress} accessibilityLabel={label} style={[{ position: 'absolute', right, bottom, width: 56, height: 56 }, t.fabShadow]} contentStyle={{ alignItems: 'center', justifyContent: 'center' }} glow={false}>
+    <GradBox colors={t.grad.brand} radius={20} onPress={onPress} accessibilityLabel={label} style={[{ position: 'absolute', right, bottom, width: 56, height: 56, backgroundColor: t.grad.brand[1] }, t.fabShadow]} contentStyle={{ alignItems: 'center', justifyContent: 'center' }} glow={false}>
       <View><Icon name="plus" size={26} color={t.onTile} stroke={2.6} /></View>
     </GradBox>
   );

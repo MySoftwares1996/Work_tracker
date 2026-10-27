@@ -94,7 +94,7 @@ function PhoneBar({ tabs, value, onChange, badges, onNew }) {
         <>
           {tabs.slice(0, half).map(tab)}
           <View style={{ width: 76, alignItems: 'center' }}>
-            <GradBox colors={t.grad.brand} radius={22} onPress={onNew} accessibilityLabel="New entry" style={[{ width: 62, height: 62, marginTop: -30, borderWidth: 4, borderColor: t.bg, borderRadius: 24 }, t.fabShadow]} contentStyle={{ alignItems: 'center', justifyContent: 'center' }} glow={false}>
+            <GradBox colors={t.grad.brand} radius={22} onPress={onNew} accessibilityLabel="New entry" style={[{ width: 62, height: 62, marginTop: -30, borderWidth: 4, borderColor: t.bg, borderRadius: 24, backgroundColor: t.grad.brand[1] }, t.fabShadow]} contentStyle={{ alignItems: 'center', justifyContent: 'center' }} glow={false}>
               <View><Icon name="plus" size={30} color={t.onTile} stroke={2.8} /></View>
             </GradBox>
           </View>
@@ -336,7 +336,7 @@ export function Btn({ title, onPress, kind = 'primary', style, disabled, icon })
       disabled={disabled}
       accessibilityRole="button"
       style={({ pressed }) => [{
-        backgroundColor: grad ? 'transparent' : map.bg,
+        backgroundColor: grad ? grad[grad.length - 1] : map.bg,
         overflow: grad ? 'hidden' : undefined,
         borderColor: map.border || 'transparent',
         borderWidth: map.border ? 1.5 : 0,
@@ -688,7 +688,7 @@ export function Chip({ label, count, on, onPress, style, accessibilityLabel }) {
   const t = useTheme();
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!on }} accessibilityLabel={accessibilityLabel || label}
-      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? 'transparent' : t.surface, overflow: 'hidden', borderWidth: on ? 0 : 1, borderColor: t.border, opacity: pressed ? 0.85 : 1 }, style]}>
+      style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: on ? t.grad.brand[1] : t.surface, overflow: 'hidden', borderWidth: on ? 0 : 1, borderColor: t.border, opacity: pressed ? 0.85 : 1 }, style]}>
       {!!on && <Gradient colors={t.grad.brand} radius={999} />}
       <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700', fontSize: t.fs(13) }}>{label}</Text>
       {count != null && <Text style={{ color: on ? '#fff' : t.text, fontWeight: '800', fontSize: t.fs(13), opacity: 0.7, marginLeft: 4 }}>{count}</Text>}
